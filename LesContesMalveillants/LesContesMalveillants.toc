@@ -1,0 +1,43 @@
+﻿## Interface: 100207
+## Title: Les Contes Malveillants
+## Notes: Systeme de jeu des Contes Malveillants
+## Author: Syn'estra
+## Version: 0.1.0
+## SavedVariables: LCM_DB
+## SavedVariablesPerCharacter: LCM_CharDB
+
+Core\Init.lua
+Core\Log.lua
+Core\Events.lua
+Core\Commands.lua
+Core\Schema.lua
+Core\Entities.lua
+Core\Personnages.lua
+Core\Portraits.lua
+Core\Body.lua
+Core\Traits.lua
+Core\Roll.lua
+Core\Creation.lua
+Core\Documents.lua
+Data\Equilibrage.lua
+Data\Morphologies.lua
+Data\Fiche.lua
+Data\Expertises.lua
+Data\Types.lua
+Data\Mecaniques.lua
+Data\Documents.lua
+# Contenu genere par loutil dexport (voir Data\Genere)
+Data\Genere\Races.lua
+Data\Genere\Portraits.lua
+Data\Genere\Traits.lua
+Data\Genere\Objets.lua
+
+# Interface
+UI\Kit.lua
+UI\Skin.lua
+UI\Silhouette.lua
+UI\Fiche.lua
+UI\Personnages.lua
+UI\Creation.lua
+UI\Document.lua
+UI\Radial.lua

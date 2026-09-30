@@ -1,0 +1,10 @@
+﻿## Interface: 100207
+## Title: Les Contes Malveillants |cffe8b451(MJ)|r
+## Notes: Contenu et outils du maitre du jeu. Ne pas distribuer aux joueurs.
+## Author: Syn'estra
+## Version: 0.1.0
+## Dependencies: LesContesMalveillants
+## SavedVariables: LCM_MJ_DB
+
+MJ.lua
+Brouillons.lua
