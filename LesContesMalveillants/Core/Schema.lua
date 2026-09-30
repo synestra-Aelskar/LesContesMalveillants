@@ -83,6 +83,9 @@ function Schema.AddTab(definition)
                 maxFormula = fieldDef.maxFormula,      -- fonction(entite), maximum d'une jauge
                 valueFormula = fieldDef.valueFormula,  -- fonction(entite), valeur d'un jet
                 note = fieldDef.note,
+                -- Un champ calcule qui accepte les bonus portes (sa formule les
+                -- lit) : l'atelier le propose comme cible d'un bonus.
+                recoitBonus = fieldDef.recoitBonus == true,
             }
             sheet.byId[fieldId] = field
             sheet.order[#sheet.order + 1] = fieldId

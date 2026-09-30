@@ -13,29 +13,45 @@ local E = {}
 LCM.Equilibrage = E
 
 -- ===== Formules de fiche ===================================================
+-- Releve du TEMPLATE Necronicon (« Template Fiche LVL 5 - Contes Malveillants
+-- V2 », fenetre Equilibrage et formules de la fenetre Creation). C'est lui qui
+-- fait foi : l'utilisateur l'a designe comme la source des regles.
 
+-- PV max = base + parNiveau x niveau + parVitalite x (points secondaires)
+--        + constitution totale x (2 + constitution investie x 0,25)
 E.pv = {
     base = 2,
     parNiveau = 1.5,
-    parConstitution = 0.25,
     parVitalite = 3,          -- points secondaires investis en vitalite
+    constitution = { base = 2, parConstitution = 0.25 },
 }
 
+-- Fatigue max = base + 2 x constitution + esprit + 2 x niveau
+--             + Endurance (expertise) / diviseurEndurance + 3 x (pts secondaires)
 E.fatigue = {
-    base = 4,
+    base = 15,
     parNiveau = 2,
     parEsprit = 1,
     parConstitution = 2,
-    parEndurance = 1,         -- l'expertise Endurance
+    diviseurEndurance = 1,    -- l'expertise Endurance, totale
     parSecondaire = 3,        -- points secondaires investis en fatigue
 }
 
+-- Initiative = points secondaires + niveau / 2 + esprit / 2 + perception / 2.
+-- Le template DIVISE (« Initiative / lvl = 2 ») : deux niveaux font un point.
+-- Il declare aussi une « Base initiative = 1 » que sa formule n'utilise pas ;
+-- on suit la formule.
 E.initiative = {
-    parNiveau = 2,
-    parEsprit = 2,
-    parPerception = 2,
+    diviseurNiveau = 2,
+    diviseurEsprit = 2,
+    diviseurPerception = 2,
 }
 
+-- Points d'action max = base + points secondaires investis.
+E.pa = { base = 4 }
+
+-- Deplacement = base + points investis dans l'expertise (Course / Nage)
+--             + parSecondaire x points secondaires « Deplacement ».
 E.deplacement = {
     terrestre = 8,
     nage = 5,
@@ -192,6 +208,59 @@ E.primaires = {
 
 -- Les trois qui ouvrent les penetrations.
 E.statsDeDegats = { "force", "mystique", "perception" }
+
+-- ===== Apports aux expertises ==============================================
+-- Une expertise vaut : points investis + somme(source x coefficient) + bonus.
+-- Une source est une primaire (valeur totale, bonus compris), une autre
+-- expertise (sa valeur totale) ou un champ de penetration / resistance.
+-- Releve des formules de la fenetre Expertises du template.
+--
+-- Ecarts voulus avec le template, qui contenait des coquilles :
+--   * Investigation, Elementaire, Cosmique : le template lisait un
+--     « modificateur de jet » de l'Esprit (toujours 0), et Investigation le
+--     DIVISAIT ; on applique le coefficient a l'Esprit, comme son libelle.
+--   * Pistage : le template multipliait la Mystique sous le libelle
+--     « Pistage-Perception » et oubliait les points investis ; on prend la
+--     Perception, et les points investis comptent comme partout.
+
+-- Elementaire et Cosmique recoivent 0,25 x 60 % des penetrations de leur
+-- groupe : chaque type compte donc pour 0,15.
+local PEN_GROUPE = 0.25 * 0.6
+
+E.apportsExpertises = {
+    -- Observations
+    vue           = { perception = 0.33 },
+    odorat_gout   = { perception = 0.33 },
+    ouie          = { perception = 0.33 },
+    toucher       = { perception = 0.33 },
+    investigation = { perception = 0.33, esprit = 0.25 },
+    elementaire   = { esprit = 0.25, mystique = 0.25, perception = 0.16,
+                      pen_feu = PEN_GROUPE, pen_eau = PEN_GROUPE, pen_vent = PEN_GROUPE,
+                      pen_terre = PEN_GROUPE, pen_esprit = PEN_GROUPE, pen_pourriture = PEN_GROUPE },
+    cosmique      = { esprit = 0.25, mystique = 0.25, perception = 0.16,
+                      pen_lumiere = PEN_GROUPE, pen_ombre = PEN_GROUPE, pen_ordre = PEN_GROUPE,
+                      pen_desordre = PEN_GROUPE, pen_vie = PEN_GROUPE, pen_mort = PEN_GROUPE },
+    pistage       = { perception = 0.5, resi_vie = 0.1 },
+    -- Athletisme
+    puissance     = { force = 0.5, adresse = 0.25 },
+    projection    = { force = 1, adresse = 0.25, perception = 0.25, constitution = 0.25 },
+    prise         = { force = 1, adresse = 0.25, esprit = 0.15, perception = 0.15, constitution = 0.25 },
+    equilibre     = { adresse = 0.25, perception = 0.4 },
+    acrobaties    = { adresse = 0.25, force = 0.25, perception = 0.25 },
+    escalade      = { force = 0.25, adresse = 0.25, perception = 0.25 },
+    resistance    = { constitution = 0.35, esprit = 0.35 },
+    endurance     = { constitution = 0.35 },
+    course        = { force = 0.25, adresse = 0.25 },
+    nage          = { force = 0.5, adresse = 0.25 },
+    -- Filouterie
+    discretion    = { adresse = 0.25, esprit = 0.25, perception = 0.25 },
+    deguisement   = { adresse = 0.25, esprit = 0.35, perception = 0.35 },
+    vol_a_la_tire = { adresse = 0.5, perception = 0.5 },
+    crochetage    = { adresse = 0.35, perception = 0.25, toucher = 0.25, ouie = 0.25 },
+    escamotage    = { adresse = 0.25, perception = 0.25, toucher = 0.35, ouie = 0.35, vue = 0.35 },
+    evasion       = { adresse = 0.25, esprit = 0.25, perception = 0.35, force = 0.35 },
+    sabotage      = { adresse = 0.35, perception = 0.35, esprit = 0.35 },
+}
 
 -- ===== Lecture d'un bareme =================================================
 -- `{ base = 1, parNiveau = 2 }` lu au niveau 5 vaut 11, arrondi a l'inferieur.

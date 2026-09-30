@@ -164,7 +164,7 @@ attendu("sa vitalite", LCM.Entities.Get_Value(entity, "sec_vitalite"), 4)
 attendu("sa penetration tranchante", LCM.Entities.Get_Value(entity, "pen_tranchant"), 3)
 attendu("son trait", LCM.Traits.Has(entity, "escalade_jungle"), true)
 -- PV = 2 + 1,5x5 + 0,25x6 + 3x4 = 23
-attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"), 23)
+attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"), 42)
 
 dire("== ce qui vaut le defaut n'est pas sauvegarde")
 local ecrits = 0

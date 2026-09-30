@@ -52,7 +52,9 @@ function Objets.Construire(definition)
     if not CATEGORIE[categorie] then
         Erreur(id .. " : categorie inconnue « " .. categorie .. " »")
     end
-    local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur)
+    -- Contrairement a un trait, un objet peut donner une primaire (le
+    -- template en a : une armure a Force +1).
+    local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur, true)
     return {
         id = id,
         label = tostring(definition.label or id),

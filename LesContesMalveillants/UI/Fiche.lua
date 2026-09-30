@@ -102,7 +102,9 @@ function Lignes.roll(parent, field, entity)
 
     function l:Actualiser(e)
         self.entity = e
-        local valeur = tonumber(LCM.Entities.Get_Value(e, field.id)) or 0
+        -- Ce que le personnage vaut de lui-meme (investi + apport de ses
+        -- primaires), puis ce qu'il porte : « 6 +3 ».
+        local valeur = (tonumber(LCM.Entities.Get_Value(e, field.id)) or 0) + LCM.Formules.Apport(e, field.id)
         local bonus = LCM.Effets.Bonus(e, field.id)
         if bonus ~= 0 then
             self.valeur:SetText(string.format("%d %+d", valeur, bonus))

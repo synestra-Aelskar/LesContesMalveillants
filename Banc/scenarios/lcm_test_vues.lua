@@ -24,7 +24,7 @@ attendu("champ inconnu", refus({ id = "c", blocs = { { champs = { "force", "rien
 attendu("vue vide", refus({ id = "d", blocs = {} }):find("vue vide") ~= nil, true)
 attendu("bloc sans cible", refus({ id = "e", blocs = { { label = "x" } } }):find("designe") ~= nil, true)
 attendu("doublon", refus({ id = "sante", blocs = { { onglet = "general" } } }):find("en double") ~= nil, true)
-attendu("rien d'enregistre par les refus", #V.list, 2)
+attendu("rien d'enregistre par les refus", #V.list, 3)
 
 dire("== les vues declarees")
 local sante, expertise = V.Get("sante"), V.Get("expertise")
@@ -56,18 +56,18 @@ attendu("une ligne par champ", #fs.page.lignes, #sante.sections[1].fields)
 local corps
 for _, l in ipairs(fs.page.lignes) do if l.silhouette then corps = l end end
 attendu("la silhouette y est", corps ~= nil, true)
-attendu("les PV sont lus", corps.total:GetText(), "23 / 23 PV")
+attendu("les PV sont lus", corps.total:GetText(), "42 / 42 PV")
 attendu("la page est visible", fs.page:IsShown(), true)
 
 dire("== la blessure se voit dans la fiche")
 local bras
 for _, p in ipairs(corps.silhouette.parties) do if p.partieId == "bras_1" then bras = p end end
 bras:GetScript("OnMouseWheel")(bras, -1)
-attendu("un PV de moins", corps.total:GetText(), "22 / 23 PV")
+attendu("un PV de moins", corps.total:GetText(), "41 / 42 PV")
 SlashCmdList.LCM("fiche")
 local ligneFiche
 for _, l in ipairs(LCM.UI.Fiche.frame.pages.general.lignes) do if l.silhouette then ligneFiche = l end end
-attendu("la fiche le montre", ligneFiche.total:GetText(), "22 / 23 PV")
+attendu("la fiche le montre", ligneFiche.total:GetText(), "41 / 42 PV")
 SlashCmdList.LCM("fiche")
 bras:GetScript("OnMouseWheel")(bras, 1)
 

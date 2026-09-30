@@ -105,7 +105,7 @@ for i = 1, f.nombreCategories do
 end
 attendu("la categorie est la", deplacement ~= nil, true)
 deplacement:Click("LeftButton")
-attendu("rien a deployer, on previent", dernierMessage():find("pas encore disponible") ~= nil, true)
+attendu("la fenetre de deplacement s'ouvre", LCM.UI.Vues.frames.deplacement and LCM.UI.Vues.frames.deplacement:IsShown(), true)
 attendu("aucun eventail", f.nombreEntrees, 0)
 
 dire("== clic droit : la selection du personnage")

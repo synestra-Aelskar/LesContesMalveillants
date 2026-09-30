@@ -1,7 +1,7 @@
 -- Jets.
 --
--- Un jet = des + valeur du champ + bonus portes (traits, objets) + modificateur
--- ponctuel. Avec avantage, on lance DEUX FOIS et l'on garde le meilleur : c'est
+-- Un jet = des + valeur investie + apport des primaires (Core/Formules.lua)
+-- + bonus portes (traits, objets) + modificateur ponctuel. Avec avantage, on lance DEUX FOIS et l'on garde le meilleur : c'est
 -- le joueur qui coche la case, car lui seul sait si la situation correspond a
 -- son trait ou a son objet.
 --
@@ -31,9 +31,10 @@ function Roll.Field(entity, fieldId, options)
     if maximum < minimum then minimum, maximum = maximum, minimum end
 
     local valeur = tonumber(LCM.Entities.Get_Value(entity, fieldId)) or 0
+    local apport = LCM.Formules.Apport(entity, fieldId)
     local bonus = LCM.Effets.Bonus(entity, fieldId)
     local modificateur = tonumber(options.modificateur) or 0
-    local fixe = valeur + bonus + modificateur
+    local fixe = valeur + apport + bonus + modificateur
 
     -- L'avantage doit etre accorde par un trait ou un objet : cocher la case
     -- ne suffit pas. `trait` garde son nom, mais peut designer un objet.
@@ -52,6 +53,7 @@ function Roll.Field(entity, fieldId, options)
         jets = second and { premier, second } or { premier },
         garde = garde,
         valeur = valeur,
+        apport = apport,
         bonus = bonus,
         modificateur = modificateur,
         total = garde + fixe,
@@ -75,6 +77,7 @@ function Roll.Describe(resultat)
         morceaux[#morceaux + 1] = string.format("de %d", resultat.garde)
     end
     if resultat.valeur ~= 0 then morceaux[#morceaux + 1] = string.format("valeur %+d", resultat.valeur) end
+    if (resultat.apport or 0) ~= 0 then morceaux[#morceaux + 1] = string.format("stats %+d", resultat.apport) end
     if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("bonus %+d", resultat.bonus) end
     if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("modificateur %+d", resultat.modificateur) end
     local ligne = string.format("%s : %d  (%s)", resultat.label, resultat.total, table.concat(morceaux, ", "))

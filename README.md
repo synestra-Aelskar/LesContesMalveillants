@@ -88,11 +88,11 @@ artworks, publication. Voir plus bas.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **Les fenêtres du menu.** « Fiche », « Équipement », « Santé » et
-      « Expertise » sont branchées (les deux dernières sont des *vues* : trois lignes dans
+- [ ] **Les fenêtres du menu.** « Fiche », « Équipement », « Santé »,
+      « Expertise » et « Déplacement » sont branchées (les deux dernières sont des *vues* : trois lignes dans
       `Data/Vues.lua` qui désignent des morceaux du schéma). Le reste attend
       ses règles : Apprentissage, Métier, Emplacements 1 à 4,
-      Compétences, Grimoires, Déplacement, et les outils MJ (Panneau MJ,
+      Compétences, Grimoires, et les outils MJ (Panneau MJ,
       Action d'emplacement, Incarner) apparaissent **éteints** et le disent au
       clic. « Compendium » ouvre l'atelier MJ.
 - [ ] **Le réseau.** Rien n'existe encore : pas de partage MJ ↔ joueurs, pas de
@@ -122,8 +122,9 @@ Par ordre de ce qui bloque le plus :
 - Les **parts en pourcentage** des morphologies sont des valeurs que Claude a
   posées, pas des règles de Syn'estra. À valider avant de s'en servir pour
   équilibrer.
-- Tout ce qui touche à l'équilibrage vient de la feuille Necronicon et a été
-  confirmé, **sauf** mention contraire dans les commentaires de
+- L'équilibrage et les formules (PV, fatigue, initiative, PA, déplacement,
+  apports des primaires aux expertises) suivent le **template Necronicon**
+  (voir `CLAUDE.md`). Les écarts voulus sont commentés dans
   `Data/Equilibrage.lua`.
 
 ---

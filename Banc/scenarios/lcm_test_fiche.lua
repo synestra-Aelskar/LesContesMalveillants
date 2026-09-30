@@ -55,7 +55,7 @@ for _, p in ipairs(ligneCorps.silhouette.parties) do
     if p:IsShown() then visibles = visibles + 1 end
 end
 attendu("7 parties dessinees", visibles, 7)
-attendu("le total est affiche", ligneCorps.total:GetText(), "23 / 23 PV")
+attendu("le total est affiche", ligneCorps.total:GetText(), "42 / 42 PV")
 
 dire("   placement :")
 for _, p in ipairs(ligneCorps.silhouette.parties) do
@@ -73,10 +73,10 @@ for _, p in ipairs(ligneCorps.silhouette.parties) do
 end
 attendu("le bras est la", bras ~= nil, true)
 bras:GetScript("OnMouseWheel")(bras, -1)
-attendu("un point en moins", LCM.Body.Totals(moi), 22)
-attendu("l affichage suit", ligneCorps.total:GetText(), "22 / 23 PV")
+attendu("un point en moins", LCM.Body.Totals(moi), 41)
+attendu("l affichage suit", ligneCorps.total:GetText(), "41 / 42 PV")
 bras:GetScript("OnMouseWheel")(bras, 1)
-attendu("soigne", LCM.Body.Totals(moi), 23)
+attendu("soigne", LCM.Body.Totals(moi), 42)
 
 dire("== la case d'avantage n'apparait que si un trait la justifie")
 f:Afficher("expertises")

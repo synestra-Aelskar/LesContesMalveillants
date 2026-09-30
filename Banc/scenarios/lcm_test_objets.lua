@@ -33,7 +33,7 @@ local ok, err = pcall(O.Construire, { id = "x", categorie = "bouclier" })
 attendu("categorie inconnue refusee", ok, false)
 dire("     " .. tostring(err))
 ok, err = pcall(O.Construire, { id = "x", categorie = "arme", bonus = { force = 2 } })
-attendu("primaire refusee (meme regle que les traits)", ok, false)
+attendu("primaire permise pour un objet (template)", ok, true)
 dire("     " .. tostring(err))
 
 dire("== equiper")

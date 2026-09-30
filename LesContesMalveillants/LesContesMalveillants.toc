@@ -18,6 +18,7 @@ Core\Body.lua
 Core\Effets.lua
 Core\Traits.lua
 Core\Objets.lua
+Core\Formules.lua
 Core\Roll.lua
 Core\Creation.lua
 Core\Documents.lua

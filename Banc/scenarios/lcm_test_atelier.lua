@@ -71,7 +71,7 @@ ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", 
 attendu("objet accepte", ok, true)
 attendu("objet jouable", LCM.Objets.Get("epee") and LCM.Objets.Get("epee").brouillon, true)
 ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", bonus = { force = 1 } }, true)
-attendu("objet : primaire refusee aussi", ok, false)
+attendu("objet : une primaire est permise (template)", ok, true)
 
 dire("== Modifier sur place")
 local tenu = LCM.Traits.Get("pied_sur")

@@ -1,7 +1,8 @@
 -- Effets : ce qu'une chose portee apporte a une fiche.
 --
 -- Un trait, un objet equipe : deux choses differentes, un seul langage.
---   * `bonus`    : { [champ] = montant } — jamais sur les six primaires ;
+--   * `bonus`    : { [champ] = montant } — sur les six primaires, seulement
+--                  pour un objet (voir Lire) ;
 --   * `avantage` : des jets relances, dont on garde le meilleur.
 --
 -- Ce module tient la REGLE (ce qu'un effet a le droit de viser) et la SOMME
@@ -23,11 +24,13 @@ Effets.PRIMAIRES = {
 
 -- Lit et verifie les effets d'une definition. `Erreur` est celle du registre
 -- appelant : le message garde son prefixe (« LCM/Traits : ... »).
-function Effets.Lire(id, definition, Erreur)
+-- `primairesPermises` : un objet peut donner de la Force (le template en a),
+-- un trait jamais.
+function Effets.Lire(id, definition, Erreur, primairesPermises)
     local bonus, avantage = {}, {}
     for fieldId, value in pairs(definition.bonus or {}) do
         local cible = tostring(fieldId)
-        if Effets.PRIMAIRES[cible] then
+        if Effets.PRIMAIRES[cible] and not primairesPermises then
             Erreur(id .. " : ne peut pas modifier une statistique primaire (" .. cible .. ")")
         end
         local montant = tonumber(value)

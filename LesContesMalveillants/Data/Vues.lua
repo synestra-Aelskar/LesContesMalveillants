@@ -22,3 +22,12 @@ Vues.Add({
         { onglet = "expertises" },
     },
 })
+
+-- Categorie directe du menu (pas d'eventail) : le clic ouvre cette vue.
+Vues.Add({
+    id = "deplacement", titre = "Déplacement",
+    largeur = 360, hauteur = 200,
+    blocs = {
+        { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
+    },
+})

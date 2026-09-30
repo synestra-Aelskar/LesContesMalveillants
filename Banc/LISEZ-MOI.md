@@ -50,6 +50,7 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_pv.lua` | points de vie, répartition, dégâts |
 | `lcm_test_traits.lua` | traits, bonus, avantage, jets |
 | `lcm_test_objets.lua` | objets : registre, emplacements, effets cumulés avec les traits, fenêtre d'équipement |
+| `lcm_test_regles.lua` | les formules du template, vérifiées à la main : apports aux expertises, déplacement, PA, fatigue, initiative, PV |
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
 | `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
 | `lcm_test_fiche.lua` | la fenêtre de fiche, construite depuis le schéma |

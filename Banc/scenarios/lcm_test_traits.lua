@@ -64,13 +64,13 @@ LCM.Entities.Set_Value(moi, "constitution", 6)
 LCM.Entities.Set_Value(moi, "perception", 10)
 LCM.Entities.Set_Value(moi, "endurance", 3)
 LCM.Entities.Set_Value(moi, "sec_fatigue", 2)
--- 4 + 2*5 + 1*8 + 2*6 + 1*3 + 3*2 = 43
+-- Template : 15 + 2x5 + 8 + 2x6 + Endurance totale (3 + 0,35x6 -> 5) + 3x2 = 56
 local f = LCM.Entities.Gauge(moi, "fatigue")
-attendu("fatigue max", f.max, 43)
--- 2*5 + 2*8 + 2*10 = 46
-attendu("initiative", LCM.Entities.Get_Value(moi, "initiative"), 46)
+attendu("fatigue max", f.max, 56)
+-- Template : 0 + 5/2 + 8/2 + 10/2 = 11,5 -> 11
+attendu("initiative", LCM.Entities.Get_Value(moi, "initiative"), 11)
 local ri = LCM.Roll.Field(moi, "initiative")
-attendu("le jet d'initiative part de la formule", ri.valeur, 46)
+attendu("le jet d'initiative part de la formule", ri.valeur, 11)
 
 dire("== un jet ne peut viser qu'un champ lancable")
 local _, err = LCM.Roll.Field(moi, "force")

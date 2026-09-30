@@ -20,16 +20,16 @@ attendu("niveau 1, rien d autre", LCM.Entities.Get_Value(moi, "pv_max"), 3)
 LCM.Entities.Set_Value(moi, "niveau", 5)
 LCM.Entities.Set_Value(moi, "constitution", 6)
 LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
--- 2 + 7.5 + 1.5 + 12 = 23
-attendu("niveau 5, const 6, vitalite 4", LCM.Entities.Get_Value(moi, "pv_max"), 23)
+-- Template : 2 + 1,5 x 5 + 3 x 4 + 6 x (2 + 6 x 0,25) = 42,5 -> 42
+attendu("niveau 5, const 6, vitalite 4", LCM.Entities.Get_Value(moi, "pv_max"), 42)
 
 dire("== les PV courants sont la somme des parties, jamais stockes")
 local courant, maximum = LCM.Body.Totals(moi)
-attendu("intact", courant .. "/" .. maximum, "23/23")
+attendu("intact", courant .. "/" .. maximum, "42/42")
 LCM.Body.Damage(moi, "bras_1", 2)
 LCM.Body.Damage(moi, "tete", 1)
 courant, maximum = LCM.Body.Totals(moi)
-attendu("apres 3 degats", courant .. "/" .. maximum, "20/23")
+attendu("apres 3 degats", courant .. "/" .. maximum, "39/42")
 
 dire("== saisie directe des PV d une partie")
 LCM.Body.SetCurrent(moi, "buste", 1)
@@ -40,11 +40,11 @@ end
 
 dire("== monter de niveau ne dereglee pas les blessures")
 LCM.Entities.Set_Value(moi, "niveau", 10)
--- 2 + 1.5*10 + 0.25*6 + 3*4 = 30.5 -> 30
-attendu("nouveau maximum", LCM.Entities.Get_Value(moi, "pv_max"), 30)
+-- 2 + 1,5 x 10 + 3 x 4 + 6 x (2 + 6 x 0,25) = 50
+attendu("nouveau maximum", LCM.Entities.Get_Value(moi, "pv_max"), 50)
 local c2, m2 = LCM.Body.Totals(moi)
 attendu("les blessures sont conservees", m2 - c2 >= 3, true)
-attendu("et le total suit", m2, 30)
+attendu("et le total suit", m2, 50)
 
 dire("== un PNJ aux PV imposes")
 local boss = LCM.Entities.Create("boss", "Chose", "npc")

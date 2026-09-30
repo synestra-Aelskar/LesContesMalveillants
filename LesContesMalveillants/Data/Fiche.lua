@@ -20,28 +20,33 @@ Schema.AddTab({
                 -- parties du corps vient de la morphologie de la race.
                 -- Les PV COURANTS ne sont pas un champ : ils sont la somme des
                 -- parties (LCM.Body.Totals).
+                -- Template : 2 + 1,5 x niveau + 3 x vitalite
+                --   + constitution totale x (2 + constitution investie x 0,25).
+                -- La constitution compte deux fois : elle multiplie, et sa part
+                -- investie fait grandir le multiplicateur.
                 { id = "pv_max", kind = "calc", label = "Points de vie (max)",
                   formula = function(entity)
                       local e = LCM.Equilibrage.pv
-                      local niveau = tonumber(LCM.Entities.Get_Value(entity, "niveau")) or 0
-                      local constitution = tonumber(LCM.Entities.Get_Value(entity, "constitution")) or 0
-                      local vitalite = tonumber(LCM.Entities.Get_Value(entity, "sec_vitalite")) or 0
-                      return math.floor(e.base + e.parNiveau * niveau
-                          + e.parConstitution * constitution + e.parVitalite * vitalite)
+                      local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
+                      local investie = v("constitution")
+                      local totale = LCM.Formules.Primaire(entity, "constitution")
+                      return math.floor(e.base + e.parNiveau * v("niveau") + e.parVitalite * v("sec_vitalite")
+                          + totale * (e.constitution.base + investie * e.constitution.parConstitution))
                   end },
                 -- Surcharge : un PNJ dont on fixe les PV a la main.
                 { id = "pv_max_override", kind = "stat", label = "PV max impose" },
                 { id = "corps",    kind = "body", label = "Silhouette",
                   note = "Repartition des points de vie sur les parties du corps." },
-                -- Fatigue : 4 + 2xniveau + 1xesprit + 2xconstitution
-                --            + 1x(total expertise Endurance) + 3x(pts secondaires)
+                -- Fatigue (template) : 15 + 2 x niveau + esprit + 2 x constitution
+                --   + Endurance totale / 1 + 3 x (pts secondaires) + bonus portes.
                 { id = "fatigue",  kind = "gauge", label = "Fatigue",
                   maxFormula = function(entity)
                       local e = LCM.Equilibrage.fatigue
                       local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
                       return math.floor(e.base + e.parNiveau * v("niveau") + e.parEsprit * v("esprit")
-                          + e.parConstitution * v("constitution") + e.parEndurance * v("endurance")
-                          + e.parSecondaire * v("sec_fatigue"))
+                          + e.parConstitution * v("constitution")
+                          + LCM.Formules.Expertise(entity, "endurance") / e.diviseurEndurance
+                          + e.parSecondaire * v("sec_fatigue") + LCM.Effets.Bonus(entity, "fatigue"))
                   end },
                 { id = "armure",   kind = "gauge", label = "Armure ponctuelle", max = 1000, default = 0 },
             },
@@ -75,6 +80,15 @@ for _, pool in ipairs(LCM.Equilibrage.secondaires) do
     }
 end
 
+-- Un mode de deplacement : base + points investis dans son expertise (et non
+-- sa valeur totale : le template lit la repartition) + points secondaires.
+function LCM.Deplacement(entity, mode, expertise)
+    local e = LCM.Equilibrage.deplacement
+    local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
+    return math.floor((e[mode] or 0) + v(expertise) + e.parSecondaire * v("sec_deplacement")
+        + LCM.Effets.Bonus(entity, "depl_" .. mode))
+end
+
 Schema.AddTab({
     id = "statistiques",
     label = "Statistiques",
@@ -97,17 +111,30 @@ Schema.AddTab({
         {
             label = "Caracteristiques",
             fields = {
-                -- Initiative : 2xniveau + 2xesprit + 2xperception
+                -- Initiative (template) : pts secondaires + niveau / 2
+                --   + esprit / 2 + perception / 2. Les bonus portes s'ajoutent
+                --   au jet (Core/Roll.lua), pas ici.
                 { id = "initiative", kind = "roll", label = "Initiative", dice = { min = 0, max = 10 },
                   valueFormula = function(entity)
                       local e = LCM.Equilibrage.initiative
                       local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
-                      return math.floor(e.parNiveau * v("niveau") + e.parEsprit * v("esprit")
-                          + e.parPerception * v("perception"))
+                      return math.floor(v("sec_initiative") + v("niveau") / e.diviseurNiveau
+                          + LCM.Formules.Primaire(entity, "esprit") / e.diviseurEsprit
+                          + LCM.Formules.Primaire(entity, "perception") / e.diviseurPerception)
                   end },
-                { id = "pa",         kind = "gauge", label = "Points d'action", max = 5 },
-                { id = "depl_terrestre", kind = "stat", label = "Terrestre", default = 0 },
-                { id = "depl_nage",      kind = "stat", label = "Nage",      default = 0 },
+                -- Points d'action : 4 + pts secondaires + bonus portes.
+                { id = "pa",         kind = "gauge", label = "Points d'action",
+                  maxFormula = function(entity)
+                      local v = tonumber(LCM.Entities.Get_Value(entity, "sec_pa")) or 0
+                      return math.floor(LCM.Equilibrage.pa.base + v + LCM.Effets.Bonus(entity, "pa"))
+                  end },
+                -- Deplacement (template) : base + points investis dans l'expertise
+                --   + pts secondaires x 1 + bonus portes (compris dans la formule :
+                --   un objet peut viser ces champs, d'ou `recoitBonus`).
+                { id = "depl_terrestre", kind = "calc", label = "Terrestre", recoitBonus = true,
+                  formula = function(entity) return LCM.Deplacement(entity, "terrestre", "course") end },
+                { id = "depl_nage",      kind = "calc", label = "Nage",      recoitBonus = true,
+                  formula = function(entity) return LCM.Deplacement(entity, "nage", "nage") end },
             },
         },
     },

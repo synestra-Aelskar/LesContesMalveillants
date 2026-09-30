@@ -20,6 +20,18 @@ Concrètement, quand on te demande « ajoute une statistique » : tu l'ajoutes d
 construis pas un écran pour la créer à la volée. Si une demande t'amène à écrire
 de la structure en sauvegarde, dis-le et propose l'autre chemin.
 
+## D'où viennent les règles
+
+La référence est le **template Necronicon** « Template Fiche LVL 5 - Contes
+Malveillants V2 », livré dans le plugin
+`Necronicon_System_Les_contes_Malveillants_MJ` (entrée TEMPLATE de son
+compendium). Ses fenêtres Équilibrage, Création et Expertises donnent les
+nombres et les formules ; `Data/Equilibrage.lua` les recopie en clair, en
+signalant chaque écart voulu (les coquilles du template sont corrigées, et dites).
+
+Quand une règle manque, on la cherche là avant de la demander — et on ne
+l'invente jamais.
+
 ## Organisation
 
 L'ordre du `.toc` **compte**, et il est le suivant :

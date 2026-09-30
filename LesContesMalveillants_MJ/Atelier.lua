@@ -37,14 +37,19 @@ local FAMILLES = {
 
 -- ===== Ce qu'on propose dans les listes de choix ===========================
 
--- Un bonus de trait vise un nombre : stat ou jet. Jamais une primaire — le
--- registre le refuserait, autant ne pas la proposer.
-local function OptionsBonus()
+-- Un bonus vise un nombre : stat, jet, jauge (Fatigue, PA), ou un champ calcule
+-- qui l'accepte (Deplacement). Les primaires ne sont proposees qu'a un objet :
+-- le registre des traits les refuserait.
+local function OptionsBonus(famille)
     local out = {}
     for _, tab in ipairs(LCM.Schema.Tabs()) do
         for _, section in ipairs(tab.sections) do
             for _, field in ipairs(section.fields) do
-                if (field.kind == "stat" or field.kind == "roll") and not LCM.Traits.PRIMAIRES[field.id] then
+                local cible = field.kind == "stat" or field.kind == "roll"
+                    or (field.kind == "gauge" and field.id ~= "armure")
+                    or (field.kind == "calc" and field.recoitBonus)
+                local primaire = LCM.Effets.PRIMAIRES[field.id]
+                if cible and (not primaire or famille == "objets") then
                     out[#out + 1] = {
                         id = field.id, label = field.label,
                         groupe = section.label ~= "" and (tab.label .. " · " .. section.label) or tab.label,
@@ -203,7 +208,7 @@ local function LigneBonus(f, p, c)
     ligne:SetHeight(22)
     ligne.champ = UI.Bouton(ligne, "", 220, 20, function()
         f.choix.titre:SetText("Bonus sur…")
-        f.choix:Proposer(ligne.champ, OptionsBonus(), function(id)
+        f.choix:Proposer(ligne.champ, OptionsBonus(f.edition.famille), function(id)
             f.edition.bonus[ligne.index].champ = id
             p:Remplir()
         end)
@@ -318,7 +323,7 @@ local function PanneauEffets(f, genre)
 
     p.ajoutBonus = UI.Bouton(c, "+  Bonus", 110, 20, function()
         f.choix.titre:SetText("Bonus sur…")
-        f.choix:Proposer(p.ajoutBonus, OptionsBonus(), function(id)
+        f.choix:Proposer(p.ajoutBonus, OptionsBonus(f.edition.famille), function(id)
             table.insert(f.edition.bonus, { champ = id, montant = "1" })
             p:Remplir()
         end)
