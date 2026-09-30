@@ -62,15 +62,47 @@ E.deplacement = {
     parSecondaire = 1,
 }
 
--- ===== Emplacements d'objets ===============================================
--- Combien d'objets de chaque categorie on peut porter a la fois. Pas de place
--- precise (tete, mains...) : un emplacement accueille n'importe quel objet de
--- sa categorie. Valide par l'utilisateur.
+-- Facultes (template, fenetre Equilibrage › Quotidien et Deplacement) :
+-- poids soulevable = base + parForce x Force ; sauts = Force / a + Adresse / b.
+E.quotidien = { poidsBase = 5, poidsParForce = 5 }
+E.sauts = {
+    horizontal = { diviseurForce = 2, diviseurAdresse = 3 },
+    vertical   = { diviseurForce = 2, diviseurAdresse = 4 },
+}
 
-E.emplacements = {
-    arme = 1,
-    equipement = 5,
-    accessoire = 5,
+-- ===== Metiers ============================================================
+-- Table « XP METIER » du template : l'XP pour PASSER au palier suivant
+-- (incrementale). La couleur suit le nom du palier.
+E.metiers = {
+    paliers = {
+        { nom = "Rose",   xp = 5,    couleur = { 1.00, 0.55, 0.75 } },
+        { nom = "Vert",   xp = 20,   couleur = { 0.40, 0.85, 0.40 } },
+        { nom = "Bleu",   xp = 50,   couleur = { 0.40, 0.65, 1.00 } },
+        { nom = "Orange", xp = 100,  couleur = { 1.00, 0.60, 0.20 } },
+        { nom = "Rouge",  xp = 200,  couleur = { 0.95, 0.30, 0.30 } },
+        { nom = "Violet", xp = 500,  couleur = { 0.70, 0.45, 0.95 } },
+        { nom = "Noir",   xp = 2500, couleur = { 0.55, 0.55, 0.55 } },
+    },
+}
+
+-- ===== Conteneurs ========================================================
+-- Combien d'elements chaque conteneur de fiche accueille (template) : pas de
+-- place precise, un emplacement accueille n'importe quel element de sa
+-- categorie. Objets valides par l'utilisateur ; le reste releve des
+-- conteneurs du template (Sante, Apprentissage).
+
+E.conteneurs = {
+    arme = 1,             -- Equipements › Armes principales
+    equipement = 5,       -- Equipements › Armures et vetements
+    accessoire = 5,       -- Equipements › Accessoires
+    etat = 30,            -- Sante › Etats divers
+    maladie = 10,         -- Sante › Etats de maladies
+    intangible = 10,      -- Sante › Etats intangibles
+    apprentissage = 60,   -- Apprentissage
+    traits = 10,          -- Creation › Traits (conteneur « Traits », 10 places)
+    -- Sacs portes : le template n'en fixe pas ; 4, comme les « Emplacements
+    -- 1 a 4 » du menu d'origine de Syn'estra. A confirmer.
+    sacs = 4,
 }
 
 -- ===== Budgets de creation =================================================
@@ -123,7 +155,10 @@ E.resistance = {
     -- confirmer (Base Resi 5, Resi/lvl 1.5, Resi/consti 3, Resi/esprit 2,
     -- stat secondaire Resistance 3).
     points = { base = 5, parNiveau = 1.5, parConstitution = 3, parEsprit = 2, parSecondaire = 3 },
-    plafond = { base = 3, parConstitution = 0.25 },
+    -- Plafond d'un type (grille de la Creation du template) : 3 + Constitution
+    -- / 0,25, soit 3 + 4 x Constitution. Le texte d'aide du template annonce
+    -- « Constitution x 2 + 3 » ; c'est la formule qui fait foi.
+    plafond = { base = 3, parConstitution = 4 },
 }
 
 -- ===== Statistiques secondaires ============================================
@@ -134,14 +169,15 @@ E.resistance = {
 E.secondaires = {
     { id = "sec_vitalite",    label = "Vitalité",                cout = 1, plafond = { parNiveau = 2 } },
     { id = "sec_fatigue",     label = "Fatigue",                 cout = 1, plafond = { parNiveau = 2 } },
-    { id = "sec_initiative",  label = "Initiative",              cout = 1, plafond = { parNiveau = 4 } },
+    { id = "sec_initiative",  label = "Initiative",              cout = 1, plafond = { parNiveau = 3 } },
     -- Le point d'action est la ressource rare : huit points secondaires, et un
     -- plafond qui ne monte que d'un niveau sur trois.
     { id = "sec_pa",          label = "Points d'action",         cout = 8, plafond = { base = 1, parNiveau = 1 / 3 } },
     { id = "sec_deplacement", label = "Déplacement",             cout = 2, plafond = { parNiveau = 2 } },
     { id = "sec_penetration", label = "Pénétration",             cout = 1, plafond = { parNiveau = 2 } },
     { id = "sec_resistance",  label = "Résistance",              cout = 1, plafond = { parNiveau = 2 } },
-    { id = "sec_expertises",  label = "Expertises",              cout = 1, plafond = { parNiveau = 2 } },
+    -- Le template fait payer DEUX points secondaires par point d'expertises.
+    { id = "sec_expertises",  label = "Expertises",              cout = 2, plafond = { parNiveau = 2 } },
     { id = "sec_mecanique",   label = "Mécanique de compétence", cout = 1, plafond = { parNiveau = 2 } },
 }
 

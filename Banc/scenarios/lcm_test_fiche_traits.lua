@@ -83,20 +83,18 @@ attendu("la 2e carte est sous la 1re",
     select(5, ligne.cartes[2]:GetPoint(1)) < select(5, ligne.cartes[1]:GetPoint(1)), true)
 attendu("la carte grandit avec sa description", ligne.cartes[1]:GetHeight() > 24, true)
 
-dire("== le bonus se voit dans les autres onglets")
-for _, b in ipairs(f.barre.boutons) do
-    if b.ongletId == "expertises" then b:Click() end
-end
+dire("== le bonus se voit dans la fenetre Expertises")
+local fe = LCM.UI.Vues.Fenetre("expertise")
+fe:Montrer(moi)
+fe:Afficher("observations")
 local ligneVue
-for _, l in ipairs(f.pages.expertises.lignes) do
+for _, l in ipairs(fe.pages.observations.lignes) do
     if l.label and l.label:GetText() == "Vue" then ligneVue = l end
 end
 attendu("vue : valeur", ligneVue.valeur:GetText(), "0")
 attendu("vue : bonus dans sa colonne", ligneVue.bonus:GetText(), "+2")
 attendu("vue : case d'avantage", ligneVue.avantage:IsShown(), true)
-for _, b in ipairs(f.barre.boutons) do
-    if b.ongletId == "traits" then b:Click() end
-end
+fe:Hide()
 
 dire("== retirer")
 local premier = ligne.cartes[1].elementId
@@ -144,7 +142,7 @@ f:Actualiser()
 ligne.ajouter:Click()
 attendu("ouverte", ligne.choix:IsShown(), true)
 for _, b in ipairs(f.barre.boutons) do
-    if b.ongletId == "general" then b:Click() end
+    if b.ongletId == "statistiques" then b:Click() end
 end
 attendu("fermee en changeant d'onglet", ligne.choix:IsShown(), false)
 for _, b in ipairs(f.barre.boutons) do

@@ -259,3 +259,42 @@ function UI.AelColonnes(largeur)
         boutons = { 561 * s, 607 * s, 653 * s }, boutonL = 37 * s, boutonH = 38 * s,
     }
 end
+
+-- ===== Habillages partages =================================================
+-- Les memes gestes pour tous les ecrans : une fenetre qui dessinerait ses
+-- propres onglets ou ses propres lignes finirait avec un style a elle.
+
+-- Surface d'une ligne de fiche (UI.SkinAelRow) : pierre sombre, cadre discret.
+function UI.SurfaceLigne(l)
+    l.surface = UI.AelRef(l, 735, 800, 55, 30, "BACKGROUND")
+    l.surface:SetAllPoints(l)
+    l.surface:SetAlpha(0.65)
+    l.cadre = UI.AelCadre(l, "controle")
+    l.cadre:SetAlpha(0.25)
+end
+
+-- Un bouton devient un onglet du modele (UI.ApplyAelTab) : cadre d'onglet,
+-- fond sombre (brun chaud pour l'actif), libelle dore ou ivoire.
+function UI.HabillerOnglet(b)
+    if b.aelCadre then b.aelCadre:Hide() end
+    b.fondOnglet = b:CreateTexture(nil, "BACKGROUND", nil, 1)
+    b.fondOnglet:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+    b.fondOnglet:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+    b.cadreOnglet = UI.AelCadre(b, "onglet")
+    UI.Police(b.label, math.max(11, 24 * (b:GetHeight() / 55)))
+    function b:Selectionner(actif)
+        self.__selectionne = actif and true or false
+        self.fondOnglet:SetColorTexture(actif and 0.13 or 0.025, actif and 0.095 or 0.023, actif and 0.045 or 0.02, 0.95)
+        if actif then self.label:SetTextColor(0.98, 0.87, 0.60) else self.label:SetTextColor(0.90, 0.86, 0.78) end
+        for _, t in ipairs(self.cadreOnglet.morceaux) do
+            t:SetVertexColor(actif and 1 or 0.74, actif and 0.94 or 0.68, actif and 0.78 or 0.56, 1)
+        end
+    end
+    b:Selectionner(false)
+end
+
+-- Bordure d'un champ de saisie : celle du champ de recherche du modele.
+function UI.HabillerSaisie(e)
+    e.cadreSaisie = UI.AelDecoupe(e, 120, 257, 363, 46, 8, 4)
+    e.cadreSaisie:SetAlpha(0.6)
+end

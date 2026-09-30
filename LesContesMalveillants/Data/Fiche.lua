@@ -55,6 +55,16 @@ Schema.AddTab({
             },
         },
         {
+            -- Sante › Intangible dans le template : deux jauges sur 100.
+            id = "existence", label = "Existence",
+            fields = {
+                { id = "existence_esprit", kind = "gauge", label = "Esprit", max = 100,
+                  note = "Définit l'état actuel de votre esprit. Plus cet état est bas, plus votre santé mentale est atteinte." },
+                { id = "existence_ame", kind = "gauge", label = "Âme", max = 100,
+                  note = "L'état actuel de votre âme, le poids de votre existence dans l'univers. Une âme fragile peine à se maintenir ; à zéro, le personnage disparaît." },
+            },
+        },
+        {
             label = "Identité",
             fields = {
                 { id = "race",         kind = "text", label = "Race" },
@@ -81,6 +91,13 @@ for _, pool in ipairs(LCM.Equilibrage.secondaires) do
         note = string.format("Points secondaires investis (%d point%s l'unite).",
             pool.cout, pool.cout > 1 and "s" or ""),
     }
+end
+
+-- Une distance de saut : Force / a + Adresse / b (template).
+function LCM.Saut(entity, sens)
+    local e = LCM.Equilibrage.sauts[sens]
+    return LCM.Formules.Primaire(entity, "force") / e.diviseurForce
+        + LCM.Formules.Primaire(entity, "adresse") / e.diviseurAdresse
 end
 
 -- Un mode de deplacement : base + points investis dans son expertise (et non
@@ -110,6 +127,21 @@ Schema.AddTab({
         {
             label = "Points secondaires",
             fields = champsSecondaires,
+        },
+        {
+            -- Fiche › Facultes dans le template.
+            id = "facultes", label = "Facultés",
+            fields = {
+                { id = "poids_soulevable", kind = "calc", label = "Poids soulevable (en kg)",
+                  formula = function(entity)
+                      local e = LCM.Equilibrage.quotidien
+                      return e.poidsBase + e.poidsParForce * LCM.Formules.Primaire(entity, "force")
+                  end },
+                { id = "saut_horizontal", kind = "calc", label = "Distance de saut horizontal",
+                  formula = function(entity) return LCM.Saut(entity, "horizontal") end },
+                { id = "saut_vertical", kind = "calc", label = "Distance de saut vertical",
+                  formula = function(entity) return LCM.Saut(entity, "vertical") end },
+            },
         },
         {
             label = "Caractéristiques",

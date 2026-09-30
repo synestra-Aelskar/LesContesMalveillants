@@ -23,13 +23,14 @@ local Creation = {}
 LCM.Creation = Creation
 
 -- Les cinq etapes, dans l'ordre. L'ecran s'y conforme ; il ne les invente pas.
+-- Les onglets de la fenetre Creation du template, dans son ordre.
 Creation.ETAPES = {
-    { id = "identite",     label = "Identité" },
-    { id = "primaires",    label = "Statistiques" },
-    { id = "secondaires",  label = "Secondaires" },
+    { id = "bienvenue",    label = "Bienvenue" },
+    { id = "generale",     label = "Générale" },
+    { id = "statistiques", label = "Statistiques" },
     { id = "expertises",   label = "Expertises" },
-    { id = "types",        label = "Pénétrations et résistances" },
-    { id = "mecaniques",   label = "Mécaniques" },
+    { id = "penetrations", label = "Pénétrations" },
+    { id = "resistances",  label = "Résistances" },
     { id = "traits",       label = "Traits" },
 }
 

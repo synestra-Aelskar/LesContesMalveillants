@@ -38,16 +38,22 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm creer      créer un personnage
 /lcm fiche      la fiche du personnage joué
 /lcm personnages  choisir son personnage
-/lcm menu       ouvrir la couronne du menu radial
-/lcm sceau      montrer / cacher le sceau du menu
+/lcm fenetres   le menu des fenêtres (comme le bouton)
+/lcm actions    la couronne du lanceur d'actions
+/lcm sceau      montrer / cacher le sceau des actions
 /lcm doc        la documentation en jeu
 /lcm brouillons (MJ) le contenu créé en séance
 /lcm atelier    (MJ) créer traits, races et objets en séance
 /lcm debug      les traces
 ```
 
-Le **sceau** est affiché en permanence. Clic gauche : la couronne. Clic droit :
-la sélection du personnage. Maj + glisser : le déplacer.
+Organisation reprise de Necronicon et de son template :
+- le **bouton** (36 px, déplaçable) : clic gauche, la colonne des fenêtres
+  (dossiers Création personnage, Fiches personnages, Objets, Outils… du
+  template) ; clic droit, la sélection du personnage ;
+- le **sceau** : le lanceur radial des **actions** (Offensives, Supports,
+  Compétences, Contrôles ; Animation pour le MJ), éteintes tant que la
+  résolution des actions n'existe pas. Maj + glisser : le déplacer.
 
 ---
 
@@ -78,7 +84,8 @@ niveau courant, plafonds par ligne, boutons `R` / `-` / `+` / `M`, récapitulati
 repliable à gauche. Le moteur (`Core/Creation.lua`) ne connaît aucune fenêtre :
 les règles sont testables sans rien dessiner.
 
-**Le menu radial**, la **sélection de personnage** (carrousel d'artworks), la
+**Le menu des fenêtres** et le **lanceur d'actions** (organisation du
+template), la **sélection de personnage** (carrousel d'artworks), la
 **documentation en jeu**, le **skin Ael'Raz'kah** : cadre, en-tête, onglets,
 blocs et lignes repris du thème Necronicon avec ses mesures et son atlas
 (`ressources/aelrazkah/widgets-reference.tga`).
@@ -90,13 +97,17 @@ artworks, publication. Voir plus bas.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **Les fenêtres du menu.** « Fiche », « Équipement », « Santé »,
-      « Expertise » et « Déplacement » sont branchées (les deux dernières sont des *vues* : trois lignes dans
-      `Data/Vues.lua` qui désignent des morceaux du schéma). Le reste attend
-      ses règles : Apprentissage, Métier, Emplacements 1 à 4,
-      Compétences, Grimoires, et les outils MJ (Panneau MJ,
-      Action d'emplacement, Incarner) apparaissent **éteints** et le disent au
-      clic. « Compendium » ouvre l'atelier MJ.
+- [ ] **Les fenêtres du menu** (organisation du template). Branchées : Règles,
+      Création, Fiche, Santé (Physique, États, Maladies, Intangible),
+      Expertises, Pénétration & Résistances, Statistiques (récapitulatif),
+      Apprentissage, Équipements, Inventaires (sacs), Métiers, Déplacement, Compendium / Système d'Aelskar
+      (l'atelier MJ). Restent : Grimoires, Paramètres,
+      Vendeur, Ressources, Panel MJ, Incarner ; la Création suit encore ses
+      propres étapes, pas les onglets du template.
+- [x] **Le modèle du compendium.** Traits, races, objets, états, maladies,
+      apprentissages : icône, description, bonus et avantage (catalogues,
+      `Core/Catalogues.lua`), créés dans l'atelier. Les 41 statistiques de
+      combat du template (`Data/Combat.lua`) sont des cibles de bonus.
 - [ ] **Le réseau.** Rien n'existe encore : pas de partage MJ ↔ joueurs, pas de
       bandeau d'initiative, pas de combat. (Dans Necronicon, se souvenir que les
       messages d'addon sont **limités à 255 octets** — c'est ce qui cassait les

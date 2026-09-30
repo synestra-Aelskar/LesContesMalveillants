@@ -1,4 +1,5 @@
--- Le lanceur radial : structure figee, deploiement, animation.
+-- Le lanceur radial des actions (barres du template) et le menu des fenetres
+-- (menuTree du template, bouton + colonne + volets, comme Necronicon).
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -16,116 +17,137 @@ end
 
 __declencher("PLAYER_LOGIN")
 
+-- ======================================================================
+dire("== le lanceur d'actions : les barres du template")
 local R = LCM.UI.Radial
 local f = R.frame
-
-dire("== le sceau est affiche en permanence")
-attendu("le sceau existe", f ~= nil, true)
-attendu("il est visible", f:IsShown(), true)
-attendu("la couronne est repliee", f.orbite:IsShown(), false)
-
-dire("== la structure est figee")
-attendu("cinq categories declarees", #R.STRUCTURE, 5)
-local attendus = {
-    personnage = 5, inventaire = 5, grimoire = 2, deplacement = 0, outil = 4,
-}
+attendu("le sceau est visible", f:IsShown(), true)
+local attendus = { offensives = 4, supports = 4, competences = 0, controles = 6, animation = 3 }
+attendu("cinq categories", #R.STRUCTURE, 5)
 for _, categorie in ipairs(R.STRUCTURE) do
-    local voulu = attendus[categorie.id]
-    attendu("  " .. categorie.id, #(categorie.entrees or {}), voulu)
+    attendu("  " .. categorie.id, #(categorie.entrees or {}), attendus[categorie.id])
 end
-attendu("Deplacement ouvre directement", R.Trouver("deplacement").direct, true)
-attendu("Outil est reserve au MJ", R.Trouver("outil").mjSeulement, true)
-
-dire("== une entree inconnue est refusee")
-attendu("liaison refusee", R.Lier("inventaire_secret", function() end), false)
-attendu("le refus est dit", dernierMessage():find("inconnue") ~= nil, true)
+attendu("Animation reservee au MJ", R.Trouver("animation").mjSeulement, true)
+attendu("aucune fenetre dans le radial", R.Trouver("fiche"), nil)
 
 dire("== le MJ voit une categorie de plus")
 attendu("avec le compagnon MJ", #R.Categories(), 5)
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 attendu("sans le compagnon", #R.Categories(), 4)
-attendu("Outil masque", #R.Entrees("outil"), 0)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
-dire("== clic gauche : la couronne se deploie")
+dire("== deploiement")
 f.sceau:Click("LeftButton")
-attendu("couronne ouverte", f.orbite:IsShown(), true)
-attendu("categories dessinees", f.nombreCategories, 5)
--- Au depart de l'animation, tout est encore au centre.
-attendu("depart au centre", rayon(f.boutonsCategorie[1]), 0)
 __avancer(1)
-local memeRayon, libelles = true, {}
+local memeRayon = true
 for i = 1, f.nombreCategories do
-    local b = f.boutonsCategorie[i]
-    if rayon(b) ~= R.RAYON_CATEGORIE then memeRayon = false end
-    libelles[#libelles + 1] = b.legende:GetText()
+    if rayon(f.boutonsCategorie[i]) ~= R.RAYON_CATEGORIE then memeRayon = false end
 end
-attendu("toutes sur le cercle (" .. R.RAYON_CATEGORIE .. ")", memeRayon, true)
-dire("   couronne : " .. table.concat(libelles, " | "))
-
-dire("== clic sur une categorie : l'eventail s'ouvre")
-f.boutonsCategorie[1]:Click("LeftButton")
+attendu("categories sur le cercle", memeRayon, true)
+local controles
+for i = 1, f.nombreCategories do
+    if f.boutonsCategorie[i].cible.id == "controles" then controles = f.boutonsCategorie[i] end
+end
+controles:Click("LeftButton")
 __avancer(1)
-attendu("categorie retenue", f.choisi, "personnage")
-attendu("cinq entrees", f.nombreEntrees, 5)
-local memeRayonAction, entrees = true, {}
-for i = 1, f.nombreEntrees do
-    local b = f.boutonsEntree[i]
-    if rayon(b) ~= R.RAYON_ACTION then memeRayonAction = false end
-    entrees[#entrees + 1] = b.legende:GetText()
-end
-attendu("toutes sur l'arc (" .. R.RAYON_ACTION .. ")", memeRayonAction, true)
-dire("   eventail : " .. table.concat(entrees, " | "))
-attendu("dessin d'eventail a 5 branches",
-    tostring(f.secteur.surface.__texture):find("fan%-5%.tga") ~= nil, true)
-
-dire("== une entree sans fenetre le dit, sans rien casser")
-local avant = #__sorties
-f.boutonsEntree[5]:Click("LeftButton") -- Apprentissage
-attendu("prevenu", dernierMessage():find("pas encore disponible") ~= nil, true)
-attendu("la couronne reste ouverte", f.orbite:IsShown(), true)
-attendu("aucune fenetre ouverte", #__sorties, avant + 1)
-
-dire("== l'entree Fiche ouvre la fiche et referme le menu")
+attendu("six actions", f.nombreEntrees, 6)
+attendu("eventail a 6 branches (textures du modele)",
+    tostring(f.secteur.surface.__texture):find("fan%-6%.tga") ~= nil, true)
+local premier, dernier = f.boutonsEntree[1], f.boutonsEntree[f.nombreEntrees]
+-- Sens horaire de la premiere a la derniere, quelle que soit la categorie.
+attendu("dans le sens horaire", premier.rx * dernier.ry - premier.ry * dernier.rx < 0, true)
 f.boutonsEntree[1]:Click("LeftButton")
-attendu("fiche ouverte", LCM.UI.Fiche.frame:IsShown(), true)
-attendu("fermeture engagee", f.ouvert, false)
-__avancer(1)
-attendu("couronne repliee", f.orbite:IsShown(), false)
-LCM.UI.Fiche.frame:Hide()
-
-dire("== Deplacement s'ouvre sans passer par un eventail")
-f.sceau:Click("LeftButton")
-__avancer(1)
-local deplacement
-for i = 1, f.nombreCategories do
-    if f.boutonsCategorie[i].cible.id == "deplacement" then deplacement = f.boutonsCategorie[i] end
-end
-attendu("la categorie est la", deplacement ~= nil, true)
-deplacement:Click("LeftButton")
-attendu("la fenetre de deplacement s'ouvre", LCM.UI.Vues.frames.deplacement and LCM.UI.Vues.frames.deplacement:IsShown(), true)
-attendu("aucun eventail", f.nombreEntrees, 0)
+attendu("action pas encore branchee : on previent", dernierMessage():find("pas encore disponible") ~= nil, true)
 
 dire("== clic droit : la selection du personnage")
 f.sceau:Click("RightButton")
 attendu("fenetre ouverte", LCM.UI.Personnages.frame:IsShown(), true)
-__avancer(1)
-attendu("le menu s'est referme", f.orbite:IsShown(), false)
 LCM.UI.Personnages.frame:Hide()
+__avancer(1)
 
-dire("== le sceau se cache et revient")
-SlashCmdList.LCM("sceau")
-attendu("cache", f:IsShown(), false)
-SlashCmdList.LCM("sceau")
-attendu("revenu", f:IsShown(), true)
+-- ======================================================================
+dire("== le menu des fenetres : structure du template")
+local M = LCM.UI.Menu
+local noms = {}
+for _, n in ipairs(M.STRUCTURE) do noms[#noms + 1] = n.label end
+dire("   " .. table.concat(noms, " | "))
+-- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont pas repris.
+attendu("sept entrees de premier niveau", #M.STRUCTURE, 7)
+attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
+attendu("Objets : trois fenetres", #M.Trouver("objets").enfants, 3)
+attendu("Outils : six fenetres", #M.Trouver("outils").enfants, 6)
+attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
+attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
+
+dire("== ce qui est branche")
+for _, id in ipairs({ "regles", "creation", "fiche", "sante", "expertise", "penetrations_resistances",
+                      "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers" }) do
+    attendu("  " .. id, M.EstLiee(id), true)
+end
+for _, id in ipairs({ "grimoires",
+                      "parametres", "panneau_mj", "vendeur", "ressources", "incarner" }) do
+    attendu("  " .. id .. " (pas encore)", M.EstLiee(id), false)
+end
+
+dire("== le bouton et la colonne")
+local bouton = M.bouton
+attendu("le bouton est la", bouton ~= nil and bouton:IsShown(), true)
+attendu("36 px", bouton:GetWidth(), 36)
+bouton:Click("LeftButton")
+__avancer(1)
+local col = M.colonne
+attendu("la colonne est ouverte", col:IsShown() and col.ouvert, true)
+attendu("une icone par entree visible", col.nombre, #M.Visibles())
+attendu("colonne sous le bouton", select(3, col:GetPoint(1)), "BOTTOM")
+
+dire("== un dossier ouvre son volet a gauche")
+local fiches
+for i = 1, col.nombre do if col.boutons[i].noeud.id == "fiches_personnages" then fiches = col.boutons[i] end end
+fiches:Click("LeftButton")
+local v = M.volet
+attendu("volet ouvert", v:IsShown(), true)
+attendu("a gauche de l'icone", select(1, v:GetPoint(1)) .. ">" .. select(3, v:GetPoint(1)), "RIGHT>LEFT")
+local libelles = {}
+for _, b in ipairs(v.boutons) do if b:IsShown() then libelles[#libelles + 1] = b.noeud.label end end
+attendu("ses fenetres dans l'ordre du template", table.concat(libelles, ", "),
+    "Fiche, Santé, Expertises, Pénétration & Résistances, Statistiques, Apprentissage")
+v.boutons[1]:Click("LeftButton")
+attendu("la Fiche s'ouvre", LCM.UI.Vues.frames.fiche and LCM.UI.Vues.frames.fiche:IsShown(), true)
+attendu("le volet se referme", v:IsShown(), false)
+LCM.UI.Vues.frames.fiche:Hide()
+
+fiches:Click("LeftButton")
+v.boutons[6]:Click("LeftButton")
+attendu("Apprentissage s'ouvre", LCM.UI.Vues.frames.apprentissage:IsShown(), true)
+LCM.UI.Vues.frames.apprentissage:Hide()
+fiches:Click("LeftButton")
+fiches:Click("LeftButton")
+attendu("re-clic sur le dossier : referme", v:IsShown(), false)
+
+dire("== le joueur ne voit pas les outils du MJ")
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+local outils = M.Visibles(M.Trouver("outils").enfants)
+local ids = {}
+for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
+attendu("outils du joueur", table.concat(ids, ","), "parametres,vendeur,ressources")
+local racine = {}
+for _, n in ipairs(M.Visibles()) do racine[#racine + 1] = n.id end
+attendu("pas de Systeme d'Aelskar", table.concat(racine, ","):find("systeme_aelskar") == nil, true)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+
+dire("== replier")
+bouton:Click("LeftButton")
+__avancer(1)
+attendu("colonne fermee", col:IsShown(), false)
 
 dire("== la documentation")
 SlashCmdList.LCM("doc")
 local d = LCM.UI.Document.frame
-attendu("la fenetre existe", d ~= nil, true)
 attendu("elle est ouverte", d:IsShown(), true)
-attendu("deux documents", #d.documents, 2)
+attendu("les deux aides (les regles sont une fenetre a part)", #d.documents, 2)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

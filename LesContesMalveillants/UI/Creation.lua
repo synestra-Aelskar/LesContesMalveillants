@@ -1,12 +1,14 @@
 -- Creation de personnage : l'ecran.
 --
--- Il ne connait aucune regle. Il demande a `LCM.Creation` ce qu'on peut poser
--- et affiche ce qu'on lui repond — y compris les refus. Ajouter une statistique
--- ou un type de degat ne demande pas une ligne ici : les pages se construisent
--- a partir de l'equilibrage et du schema.
+-- Organise comme la fenetre « Creation » du template Necronicon : sept
+-- onglets (Bienvenue, Generale, Statistiques, Expertises, Penetrations,
+-- Resistances, Traits), avec ses textes, et une grille de repartition par
+-- budget. Chaque grille est un bloc du modele (titre en capitales, compte
+-- « reste / total », remise a zero).
 --
--- A gauche, un recapitulatif replie par categorie, qui suit ce qu'on investit.
--- A droite, une grille d'onglets et la page en cours.
+-- L'ecran ne connait aucune regle : il demande a `LCM.Creation` ce qu'on peut
+-- poser et affiche ce qu'on lui repond — y compris les refus. Ajouter une
+-- statistique ou un type de degat ne demande pas une ligne ici.
 
 local _, LCM = ...
 local UI = LCM.UI
@@ -15,32 +17,149 @@ local C = LCM.Creation
 local Ecran = {}
 UI.Creation = Ecran
 
-local LIGNE = 20
-local LARGEUR_LABEL = 122
-local LARGEUR_RECAP = 226
-local COLONNE = 268
+local LARGEUR, HAUTEUR = 760, 720
+local LARGEUR_PAGE = LARGEUR - 24
+local LIGNE = 24
+local LARGEUR_LABEL = 150
+local ECART_BLOCS = 14
 
--- ===== Fabriques de pages ==================================================
+-- ===== Textes du template ==================================================
 
--- Pose des compteurs sur `colonnes` colonnes. Chaque compteur sait quelle
--- categorie et quel champ il porte ; la page ne garde qu'une liste a rafraichir.
-local function Compteurs(page, categorie, lignes, colonnes, f)
+local TEXTES = {
+    introduction = "Bienvenue dans le système des Contes Malveillants !\n\n"
+        .. "Au fil des prochains onglets, tu seras invité à donner vie à ton personnage en choisissant sa race, "
+        .. "ses caractéristiques, ses expertises et toutes les particularités qui le rendront unique.\n\n"
+        .. "Chaque onglet t'accompagnera dans sa création et t'expliquera les différentes mécaniques de notre "
+        .. "système de jeu.\n\n"
+        .. "Et si tu as la moindre question, n'hésite surtout pas à te tourner vers Syn ou Talyah. Nous serons "
+        .. "là pour te guider !",
+    reglesImportantes = "Lors de la création de ton personnage, veille à respecter le niveau qui t'a été attribué.\n\n"
+        .. "Tu pourras également proposer tes propres traits en effectuant une demande de création directement "
+        .. "sur notre site internet.\n\n"
+        .. "Enfin, prends le temps de répartir tes points en fonction du personnage que tu souhaites incarner. "
+        .. "L'idée est avant tout que ses caractéristiques et ses compétences reflètent au mieux sa personnalité, "
+        .. "son histoire et ses aptitudes !",
+    race = "Choisis la race de ton personnage pour bénéficier de bonus de statistiques reflétant ses forces et "
+        .. "ses faiblesses.\n\nTa race devra être créée et validée par un maître du jeu avant de pouvoir être utilisée.",
+    niveau = "Par défaut, ton personnage commence au niveau cinq ! Les niveaux inférieurs représentent des "
+        .. "créatures plus faibles qu'un aventurier lambda.\n\nSauf indication contraire de la part d'un maître "
+        .. "du jeu, veille bien à commencer niveau 5.",
+    informations = "Tu retrouveras ci-dessous le nombre de points dont tu disposes pour personnaliser ton "
+        .. "personnage au fil des prochains onglets.",
+    statistiques = "Il est temps de répartir tes points de statistiques primaires et secondaires !\n\n"
+        .. "Les statistiques primaires représentent les aptitudes fondamentales de ton personnage. Elles "
+        .. "interviennent dans tes jets de dés et servent de base au calcul de tes expertises et de tes bonus "
+        .. "de dégâts.\n\n"
+        .. "Les statistiques secondaires, quant à elles, te permettent de développer des aptitudes "
+        .. "principalement liées au combat.\n\n"
+        .. "Répartis tes points en fonction des forces et des faiblesses que tu souhaites donner à ton personnage !",
+    statistiquesGenerales = "Répartissez ci-dessous vos points de statistiques. Les points de statistiques "
+        .. "primaires influent sur l'ensemble de vos compétences. Elles constituent le socle de votre personnage.",
+    expertises = "Les expertises représentent les compétences diverses et variées qu'un personnage sait faire "
+        .. "ou non.\n\nIl est possible que certaines expertises ne soient pas présentées dans cette liste ; le "
+        .. "cas échéant, celles-ci sont traitées soit au feeling, soit par aval d'un maître du jeu.",
+    penetrations = "Les pénétrations représentent les compétences du personnage dans un domaine lorsqu'il "
+        .. "s'agit de manipuler ce dernier à des fins actives.\n\n"
+        .. "Comprenez par là qu'une pénétration permet autant de définir les dégâts produits par un type que la "
+        .. "puissance d'un soin. Elle s'ajoute en outre en tant que bonus lors d'une action liée à ce type.\n\n"
+        .. "Celles-ci sont divisées en 3 catégories : physiques, élémentaires et cosmologiques.\n\n"
+        .. "Il n'y a aucune restriction au nombre de types que votre personnage sait ou non manier, mais un type "
+        .. "ne peut être augmenté qu'à un seuil lié à vos trois statistiques de dégâts (Force, Mystique, Perception).",
+    resistances = "Les résistances représentent les compétences du personnage dans un domaine lorsqu'il s'agit "
+        .. "de se prémunir de ce dernier.\n\n"
+        .. "Une résistance représente autant les actions naturelles que les mécanismes qu'un personnage met en "
+        .. "place pour s'en défendre.\n\n"
+        .. "Celles-ci sont divisées en 3 catégories : physiques, élémentaires et cosmologiques.\n\n"
+        .. "Il n'y a aucune restriction au nombre de types que votre personnage sait ou non manier, mais un type "
+        .. "ne peut être augmenté qu'à un seuil maximal lié à votre constitution.",
+    traits = "Tout personnage commence avec 2 traits de personnage. Il peut ensuite sélectionner un trait "
+        .. "supplémentaire tous les 5 niveaux.\n\n"
+        .. "Les traits doivent être confectionnés par un maître du jeu.\n\n"
+        .. "Ils apportent ou retirent des statistiques directement à la fiche. Ils représentent les affinités, "
+        .. "particularités, etc., du personnage. À la différence de l'équipement, ils ne peuvent pas être amputés "
+        .. "du personnage. De plus, chaque trait s'accompagne d'un « avantage ou désavantage » offrant des bonus "
+        .. "ou malus dans des situations précises.",
+}
+
+-- ===== Une page : des blocs empiles ========================================
+
+local function NouvellePage(f)
+    local page = CreateFrame("Frame", nil, f.zone.contenu)
+    page:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 0, 0)
+    page:SetPoint("TOPRIGHT", f.zone.contenu, "TOPRIGHT", 0, 0)
+    page.blocs, page.compteurs, page.budgets = {}, {}, {}
+
+    -- Chaque bloc connait sa hauteur interieure (`bloc.hauteurContenu`) ; la
+    -- page les pose l'un sous l'autre.
+    function page:Disposer()
+        local y = 0
+        for _, bloc in ipairs(self.blocs) do
+            local h = bloc.hautTitre + 8
+            if bloc.paragraphe then h = h + (bloc.paragraphe:GetStringHeight() or 14) + 12 end
+            h = h + (bloc.hauteurContenu or 0) + UI.Fiche.MARGE_BLOC
+            bloc:ClearAllPoints()
+            bloc:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
+            bloc:SetSize(LARGEUR_PAGE, h)
+            y = y + h + ECART_BLOCS
+        end
+        self.hauteur = math.max(1, y - ECART_BLOCS)
+        self:SetHeight(self.hauteur)
+    end
+    page:Hide()
+    return page
+end
+
+-- Un bloc du modele, avec un texte eventuel. Le contenu se pose sous le
+-- texte : `Haut(bloc)` donne ou commencer.
+local function Bloc(page, titre, texte)
+    local bloc = UI.Fiche.Bloc(page, { label = titre or "", texte = texte }, LARGEUR_PAGE)
+    page.blocs[#page.blocs + 1] = bloc
+    return bloc
+end
+
+local function Haut(bloc)
+    local y = bloc.hautTitre + 8
+    if bloc.paragraphe then y = y + (bloc.paragraphe:GetStringHeight() or 14) + 12 end
+    return y
+end
+
+-- Le compte « reste / total » et la remise a zero d'une categorie, dans le
+-- titre du bloc.
+local function Budget(page, f, bloc, categorie)
+    bloc.budget = UI.Texte(bloc, "", UI.C.titre)
+    UI.Police(bloc.budget, 14)
+    bloc.remise = UI.Bouton(bloc, "R", 22, 20, function()
+        C.RemettreCategorie(f.brouillon, categorie)
+        f:Actualiser()
+    end)
+    bloc.remise:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -14, -(bloc.hautTitre - 20) / 2)
+    bloc.budget:SetPoint("RIGHT", bloc.remise, "LEFT", -8, 0)
+    bloc.categorie = categorie
+    page.budgets[#page.budgets + 1] = bloc
+end
+
+-- Une grille de repartition : un compteur par ligne de la categorie, sur une
+-- ou deux colonnes, avec un intertitre quand le groupe change.
+local function Grille(page, f, titre, texte, categorie, colonnes)
+    local bloc = Bloc(page, titre, texte)
+    Budget(page, f, bloc, categorie)
     colonnes = colonnes or 1
+    local lignes = C.Lignes(categorie)
+    local marge = UI.Fiche.MARGE_BLOC + 6
+    local largeurColonne = (LARGEUR_PAGE - 2 * marge) / colonnes
     local parColonne = math.ceil(#lignes / colonnes)
-    local groupeCourant
-    local y, colonne, index = 0, 0, 0
+    local haut = Haut(bloc)
+    local y, colonne, index, groupeCourant, hauteurMax = haut, 0, 0, nil, 0
 
     for _, ligne in ipairs(lignes) do
-        -- Un intertitre quand le groupe change (domaine d'expertise, groupe de
-        -- types). Il compte comme une ligne pour le decoupage en colonnes.
         if ligne.groupe and ligne.groupe ~= groupeCourant then
             groupeCourant = ligne.groupe
-            local titre = UI.Texte(page, ligne.groupe, UI.C.accent, "GameFontNormalSmall")
-            titre:SetPoint("TOPLEFT", page, "TOPLEFT", colonne * COLONNE, -y)
-            y = y + LIGNE
+            local t = UI.Texte(bloc, UI.Majuscules(ligne.groupe), UI.C.accent)
+            UI.Police(t, 12)
+            t:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
+            y = y + 20
         end
-
-        local compteur = UI.Compteur(page, ligne.label, LARGEUR_LABEL, {
+        local compteur = UI.Compteur(bloc, ligne.label, LARGEUR_LABEL, {
             change = function(valeur)
                 local ok, raison = C.Definir(f.brouillon, categorie, ligne.id, valeur)
                 if not ok then
@@ -51,123 +170,160 @@ local function Compteurs(page, categorie, lignes, colonnes, f)
             end,
             max = function() return C.Maximum(f.brouillon, categorie, ligne.id) end,
         })
-        compteur:SetPoint("TOPLEFT", page, "TOPLEFT", colonne * COLONNE, -y)
-        compteur:SetWidth(COLONNE - 14)
-        compteur.champ = ligne.id
-        compteur.categorie = categorie
+        compteur:SetHeight(LIGNE - 2)
+        compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
+        compteur:SetWidth(largeurColonne - 12)
+        compteur.champ, compteur.categorie = ligne.id, categorie
+        -- Le cout n'est pas le meme pour tout le monde : il est ecrit a cote.
+        local cout = C.Cout(categorie, ligne.id)
+        if cout > 1 then
+            local note = UI.Texte(compteur, string.format("%d pts", cout), UI.C.discret, "GameFontNormalSmall")
+            note:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
+        end
         page.compteurs[#page.compteurs + 1] = compteur
-
-        y = y + LIGNE + 2
+        y = y + LIGNE
         index = index + 1
-        if colonnes > 1 and index % parColonne == 0 then
+        hauteurMax = math.max(hauteurMax, y)
+        if colonnes > 1 and index % parColonne == 0 and index < #lignes then
             colonne = colonne + 1
-            y = 0
-            groupeCourant = nil
+            y, groupeCourant = haut, nil
         end
     end
+    bloc.hauteurContenu = hauteurMax - haut
+    return bloc
 end
 
--- Un en-tete de groupe pose en haut d'une page, avec la remise a zero de la
--- categorie entiere.
-local function EnTete(page, f, libelle, categorie)
-    local h = UI.EnTeteGroupe(page, libelle, function()
-        C.RemettreCategorie(f.brouillon, categorie)
-        f:Actualiser()
-    end)
-    h:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-    h:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, 0)
-    page.entete, page.enteteCategorie = h, categorie
-    return h
+-- Une ligne de lecture : libelle a gauche, valeur a droite.
+local function Lecture(bloc, libelle, y)
+    local l = CreateFrame("Frame", nil, bloc)
+    l:SetHeight(LIGNE)
+    l:SetPoint("TOPLEFT", bloc, "TOPLEFT", UI.Fiche.MARGE_BLOC, -y)
+    l:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -UI.Fiche.MARGE_BLOC, -y)
+    if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+    l.nom = UI.Texte(l, libelle, UI.C.texte)
+    UI.Police(l.nom, 13)
+    l.nom:SetPoint("LEFT", l, "LEFT", 10, 0)
+    l.valeur = UI.Texte(l, "", UI.C.titre)
+    UI.Police(l.valeur, 13)
+    l.valeur:SetPoint("RIGHT", l, "RIGHT", -12, 0)
+    l.valeur:SetJustifyH("RIGHT")
+    return l
 end
+
+-- Une entite de passage, faite du brouillon : les formules de la fiche (PV,
+-- fatigue) s'y appliquent telles quelles, race et traits compris.
+local function Apercu(brouillon)
+    local values = {}
+    for cle, valeur in pairs(brouillon.valeurs) do values[cle] = valeur end
+    values.race, values.niveau = brouillon.race, brouillon.niveau
+    return { id = "__apercu", name = brouillon.nom, kind = "player", values = values, traits = brouillon.traits }
+end
+
+-- ===== Les onglets =========================================================
 
 local Pages = {}
 
-function Pages.identite(page, f)
-    local y = 4
+function Pages.bienvenue(page)
+    Bloc(page, "Introduction", TEXTES.introduction)
+    Bloc(page, "Règles importantes", TEXTES.reglesImportantes)
+end
+
+function Pages.generale(page, f)
+    -- Identite : ce que le template prend au personnage WoW ; ici, saisi.
+    local identite = Bloc(page, "Identité")
+    local y = Haut(identite)
+    local x = UI.Fiche.MARGE_BLOC + 6
     local function Etiquette(texte, dy)
-        local fs = UI.Texte(page, texte, UI.C.texte, "GameFontNormalSmall")
-        fs:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -dy)
+        local fs = UI.Texte(identite, texte, UI.C.texte)
+        UI.Police(fs, 13)
+        fs:SetPoint("TOPLEFT", identite, "TOPLEFT", x, -dy - 3)
         return fs
     end
-
     Etiquette("Nom", y)
-    page.nom = UI.Champ(page, 240, 22, function(texte)
+    page.nom = UI.Champ(identite, 260, 22, function(texte)
         f.brouillon.nom = texte
         f:Actualiser()
     end)
-    page.nom:SetPoint("TOPLEFT", page, "TOPLEFT", LARGEUR_LABEL, -y + 2)
+    page.nom:SetPoint("TOPLEFT", identite, "TOPLEFT", x + LARGEUR_LABEL, -y)
     y = y + 30
-
     -- Age, sexe et poids ne coutent rien : ce sont des champs d'identite, pas
-    -- des investissements. Ils vivent donc a part des compteurs.
-    Etiquette("Age", y)
-    page.age = UI.Champ(page, 70, 22, function(texte)
+    -- des investissements.
+    Etiquette("Âge", y)
+    page.age = UI.Champ(identite, 70, 22, function(texte)
         f.brouillon.valeurs.age = tonumber(texte)
         f:Actualiser()
     end)
-    page.age:SetPoint("TOPLEFT", page, "TOPLEFT", LARGEUR_LABEL, -y + 2)
+    page.age:SetPoint("TOPLEFT", identite, "TOPLEFT", x + LARGEUR_LABEL, -y)
     page.age:SetNumeric(true)
-
     Etiquette("Poids (kg)", y + 30)
-    page.poids = UI.Champ(page, 70, 22, function(texte)
+    page.poids = UI.Champ(identite, 70, 22, function(texte)
         f.brouillon.valeurs.poids = tonumber(texte)
         f:Actualiser()
     end)
-    page.poids:SetPoint("TOPLEFT", page, "TOPLEFT", LARGEUR_LABEL, -(y + 30) + 2)
+    page.poids:SetPoint("TOPLEFT", identite, "TOPLEFT", x + LARGEUR_LABEL, -(y + 30))
     page.poids:SetNumeric(true)
     y = y + 60
-
     Etiquette("Sexe", y)
     page.sexes = {}
     local precedent
     for _, sexe in ipairs({ "Féminin", "Masculin", "Autre" }) do
-        local b = UI.Bouton(page, sexe, 78, 22, function()
+        local b = UI.Bouton(identite, sexe, 90, 22, function()
             f.brouillon.valeurs.sexe = sexe
             f:Actualiser()
         end)
         b.sexe = sexe
-        if precedent then
-            b:SetPoint("LEFT", precedent, "RIGHT", 4, 0)
-        else
-            b:SetPoint("TOPLEFT", page, "TOPLEFT", LARGEUR_LABEL, -y + 2)
-        end
+        if precedent then b:SetPoint("LEFT", precedent, "RIGHT", 4, 0)
+        else b:SetPoint("TOPLEFT", identite, "TOPLEFT", x + LARGEUR_LABEL, -y) end
         precedent = b
         page.sexes[#page.sexes + 1] = b
     end
-    y = y + 32
+    identite.hauteurContenu = y + 26 - Haut(identite)
 
-    page.niveau = UI.Compteur(page, "Niveau", LARGEUR_LABEL, function(valeur)
+    -- Race (un seul emplacement dans le template).
+    local race = Bloc(page, "Race", TEXTES.race)
+    page.races = {}
+    y = Haut(race)
+    for _, r in ipairs(LCM.Races.list) do
+        local b = UI.Bouton(race, r.label, 220, 24, function()
+            f.brouillon.race = r.id
+            f:Actualiser()
+        end)
+        b.raceId = r.id
+        b:SetPoint("TOPLEFT", race, "TOPLEFT", x, -y)
+        page.races[#page.races + 1] = b
+        y = y + 28
+    end
+    if #page.races == 0 then
+        Etiquette("Aucune race déclarée.", y)
+        y = y + 24
+    end
+    race.hauteurContenu = y - Haut(race)
+
+    -- Niveau d'aventure.
+    local niveau = Bloc(page, "Niveau d'aventure", TEXTES.niveau)
+    page.niveau = UI.Compteur(niveau, "Niveau du personnage", LARGEUR_LABEL + 40, function(valeur)
         if valeur < 1 then return false end
         f.brouillon.niveau = valeur
         f:Actualiser()
     end)
-    page.niveau:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
+    page.niveau:SetHeight(LIGNE - 2)
+    page.niveau:SetWidth(400)
+    page.niveau:SetPoint("TOPLEFT", niveau, "TOPLEFT", x, -Haut(niveau))
     page.niveau.maximum:Hide()
-    y = y + 26
+    niveau.hauteurContenu = LIGNE
 
-    local aide = UI.Texte(page, "Les budgets se recalculent au niveau choisi.", UI.C.discret, "GameFontNormalSmall")
-    aide:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
-    y = y + 26
-
-    local titre = UI.Texte(page, "Race", UI.C.accent, "GameFontNormalSmall")
-    titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
-    y = y + LIGNE
-
-    page.races = {}
-    for _, race in ipairs(LCM.Races.list) do
-        local b = UI.Bouton(page, race.label, 160, 22, function()
-            f.brouillon.race = race.id
-            f:Actualiser()
-        end)
-        b.raceId = race.id
-        b:SetPoint("TOPLEFT", page, "TOPLEFT", 8, -y)
-        page.races[#page.races + 1] = b
-        y = y + 24
+    -- Informations generales : ce qu'on a a repartir, au niveau choisi.
+    local infos = Bloc(page, "Informations générales", TEXTES.informations)
+    y = Haut(infos)
+    page.infos = {}
+    for _, def in ipairs({ { "primaires", "Points de statistiques" }, { "secondaires", "Points de statistiques secondaires" },
+                           { "expertises", "Points d'expertises" } }) do
+        local l = Lecture(infos, def[2], y)
+        l.categorie = def[1]
+        page.infos[#page.infos + 1] = l
+        y = y + LIGNE + 4
     end
-    if #page.races == 0 then
-        UI.Texte(page, "Aucune race declaree.", UI.C.discret, "GameFontNormalSmall")
-            :SetPoint("TOPLEFT", page, "TOPLEFT", 8, -y)
-    end
+    infos.hauteurContenu = y - Haut(infos)
 
     function page:Actualiser()
         local b = f.brouillon
@@ -179,216 +335,114 @@ function Pages.identite(page, f)
         self.niveau:Regler(b.niveau, 20)
         for _, bouton in ipairs(self.sexes) do bouton:Selectionner(bouton.sexe == b.valeurs.sexe) end
         for _, bouton in ipairs(self.races) do bouton:Selectionner(bouton.raceId == b.race) end
+        for _, l in ipairs(self.infos) do l.valeur:SetText(tostring(C.Total(b, l.categorie))) end
     end
 end
 
-function Pages.primaires(page, f)
-    EnTete(page, f, "STATISTIQUES PRIMAIRES", "primaires")
-    local corps = CreateFrame("Frame", nil, page)
-    corps:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -26)
-    corps:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    corps.compteurs = page.compteurs
-    Compteurs(corps, "primaires", C.Lignes("primaires"), 1, f)
+function Pages.statistiques(page, f)
+    Bloc(page, "Statistiques", TEXTES.statistiques)
+    -- Ce que la repartition donne deja : les formules de la fiche, sur le
+    -- brouillon.
+    local general = Bloc(page, "Général")
+    local y = Haut(general)
+    page.pv = Lecture(general, "Points de vie", y)
+    page.fatigue = Lecture(general, "Fatigue", y + LIGNE + 4)
+    general.hauteurContenu = 2 * (LIGNE + 4)
+    Grille(page, f, "Statistiques générales", TEXTES.statistiquesGenerales, "primaires", 2)
+    Grille(page, f, "Statistiques secondaires", nil, "secondaires", 2)
 
-    -- Le cout n'est pas le meme pour tout le monde : il est ecrit a cote.
-    for _, compteur in ipairs(page.compteurs) do
-        local cout = C.Cout("primaires", compteur.champ)
-        if cout > 1 then
-            local note = UI.Texte(compteur, string.format("%d pts", cout), UI.C.discret, "GameFontNormalSmall")
-            note:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
-        end
+    function page:Actualiser()
+        local e = Apercu(f.brouillon)
+        self.pv.valeur:SetText(tostring(LCM.Entities.Get_Value(e, "pv_max") or 0))
+        local fatigue = LCM.Entities.Gauge(e, "fatigue")
+        self.fatigue.valeur:SetText(tostring(fatigue and fatigue.max or 0))
     end
 end
 
-local function PageSimple(libelle, categorie, colonnes)
-    return function(page, f)
-        EnTete(page, f, libelle, categorie)
-        local corps = CreateFrame("Frame", nil, page)
-        corps:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -26)
-        corps:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-        corps.compteurs = page.compteurs
-        Compteurs(corps, categorie, C.Lignes(categorie), colonnes, f)
-        return corps
-    end
+function Pages.expertises(page, f)
+    Grille(page, f, "Expertises et compétences", TEXTES.expertises, "expertises", 2)
+    Grille(page, f, "Mécanique de compétence", nil, "mecaniques", 2)
 end
 
-Pages.expertises = PageSimple("EXPERTISES", "expertises", 2)
-Pages.mecaniques = PageSimple("MÉCANIQUES DE COMPÉTENCE", "mecaniques", 2)
-
-function Pages.secondaires(page, f)
-    PageSimple("STATISTIQUES SECONDAIRES", "secondaires", 1)(page, f)
-    for _, compteur in ipairs(page.compteurs) do
-        local cout = C.Cout("secondaires", compteur.champ)
-        if cout > 1 then
-            local note = UI.Texte(compteur, string.format("%d pts", cout), UI.C.discret, "GameFontNormalSmall")
-            note:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
-        end
-    end
+function Pages.penetrations(page, f)
+    Grille(page, f, "Pénétrations", TEXTES.penetrations, "penetration", 2)
 end
 
-function Pages.types(page, f)
-    page.enteteGauche = UI.EnTeteGroupe(page, "PÉNÉTRATIONS", function()
-        C.RemettreCategorie(f.brouillon, "penetration")
-        f:Actualiser()
-    end)
-    page.enteteGauche:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-    page.enteteGauche:SetWidth(COLONNE - 14)
-
-    page.enteteDroite = UI.EnTeteGroupe(page, "RÉSISTANCES", function()
-        C.RemettreCategorie(f.brouillon, "resistance")
-        f:Actualiser()
-    end)
-    page.enteteDroite:SetPoint("TOPLEFT", page, "TOPLEFT", COLONNE, 0)
-    page.enteteDroite:SetWidth(COLONNE - 14)
-
-    local gauche = CreateFrame("Frame", nil, page)
-    gauche:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -26)
-    gauche:SetSize(COLONNE, 460)
-    gauche.compteurs = page.compteurs
-
-    local droite = CreateFrame("Frame", nil, page)
-    droite:SetPoint("TOPLEFT", page, "TOPLEFT", COLONNE, -26)
-    droite:SetSize(COLONNE, 460)
-    droite.compteurs = page.compteurs
-
-    Compteurs(gauche, "penetration", C.Lignes("penetration"), 1, f)
-    Compteurs(droite, "resistance", C.Lignes("resistance"), 1, f)
+function Pages.resistances(page, f)
+    Grille(page, f, "Résistances", TEXTES.resistances, "resistance", 2)
 end
+
+-- Traits : le conteneur « Traits » du template (10 places), sous le total.
+-- Pas de liste « prendre ou laisser » : le choix des traits se fera
+-- autrement. Pour l'instant, les emplacements seulement — les pris, puis une
+-- case libre tant qu'il en reste (trente cases vides ne disent rien de plus).
+local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 function Pages.traits(page, f)
-    EnTete(page, f, "TRAITS", "traits")
-    page.traits = {}
-    local y = 26
-    for _, trait in ipairs(LCM.Traits.list) do
-        local l = CreateFrame("Frame", nil, page)
-        l:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
-        l:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -y)
-        l:SetHeight(34)
-        l.traitId = trait.id
-        l.nom = UI.Texte(l, string.format("%s  (%d pt%s)", trait.label, trait.cout,
-            trait.cout > 1 and "s" or ""), UI.C.texte, "GameFontNormalSmall")
-        l.nom:SetPoint("TOPLEFT", l, "TOPLEFT", 0, 0)
-        l.description = UI.Texte(l, trait.description, UI.C.discret, "GameFontNormalSmall")
-        l.description:SetPoint("TOPLEFT", l, "TOPLEFT", 8, -14)
-        l.description:SetWidth(380)
-        l.bouton = UI.Bouton(l, "Prendre", 80, 20, function()
-            if not C.RetirerTrait(f.brouillon, trait.id) then
-                local ok, raison = C.AjouterTrait(f.brouillon, trait.id)
-                if not ok then LCM.Alerte(tostring(raison)) end
-            end
-            f:Actualiser()
-        end)
-        l.bouton:SetPoint("TOPRIGHT", l, "TOPRIGHT", 0, 0)
-        page.traits[#page.traits + 1] = l
-        y = y + 38
-    end
-    if #page.traits == 0 then
-        UI.Texte(page, "Aucun trait declare pour l'instant.", UI.C.discret, "GameFontNormalSmall")
-            :SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
+    Bloc(page, "Traits de votre personnage", TEXTES.traits)
+    local bloc = Bloc(page, "Traits totaux")
+    Budget(page, f, bloc, "traits")
+    local largeurLigne = LARGEUR_PAGE - 2 * UI.Fiche.MARGE_BLOC
+    local c = UI.AelColonnes(largeurLigne)
+    page.emplacements = {}
+
+    local function Emplacement(index)
+        local l = UI.Fiche.Ligne(bloc, c)
+        l:SetHeight(math.max(48, c.ligne))
+        UI.Fiche.Icone(l, c, VIDE)
+        UI.Fiche.Nom(l, c, "Emplacement", true)
+        page.emplacements[index] = l
+        return l
     end
 
     function page:Actualiser()
-        for _, l in ipairs(self.traits) do
-            local pris = false
-            for _, id in ipairs(f.brouillon.traits) do
-                if id == l.traitId then pris = true end
+        local pris = f.brouillon.traits
+        local places = tonumber(LCM.Equilibrage.conteneurs.traits) or 0
+        local n = math.max(#pris, math.min(places, #pris + 1))
+        local y = Haut(bloc)
+        for index = 1, n do
+            local l = self.emplacements[index] or Emplacement(index)
+            local id = pris[index]
+            local trait = id and LCM.Traits.Get(id)
+            l.traitId = id
+            if id then
+                l.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                l.nom:SetText(trait and trait.label or ("? " .. tostring(id)))
+                l.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+            else
+                l.icone:SetTexture(VIDE)
+                l.nom:SetText("Emplacement")
+                l.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
             end
-            l.bouton.label:SetText(pris and "Retirer" or "Prendre")
-            l.bouton:Selectionner(pris)
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", bloc, "TOPLEFT", UI.Fiche.MARGE_BLOC, -y)
+            l:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -UI.Fiche.MARGE_BLOC, -y)
+            l:Show()
+            y = y + l:GetHeight() + UI.Fiche.ECART_LIGNES
         end
+        for index = n + 1, #self.emplacements do self.emplacements[index]:Hide() end
+        bloc.hauteurContenu = y - Haut(bloc)
     end
-end
-
--- ===== Le recapitulatif ====================================================
--- Une categorie repliee ne coute qu'une ligne ; depliee, elle montre ce qui a
--- ete investi. On ne liste pas les zeros : a 104 champs, ce serait illisible.
-
-local RECAP = {
-    { id = "identite",    label = "Identité" },
-    { id = "primaires",   label = "Statistiques" },
-    { id = "secondaires", label = "Secondaires" },
-    { id = "expertises",  label = "Expertises" },
-    { id = "mecaniques",  label = "Mécaniques" },
-    { id = "penetration", label = "Pénétrations" },
-    { id = "resistance",  label = "Résistances" },
-    { id = "traits",      label = "Traits" },
-}
-
-local function LignesRecap(f, categorie)
-    local b = f.brouillon
-    local out = {}
-    if categorie == "identite" then
-        local race = LCM.Races.Get(b.race)
-        out[#out + 1] = { "Nom", b.nom ~= "" and b.nom or "—" }
-        out[#out + 1] = { "Race", race and race.label or "—" }
-        out[#out + 1] = { "Niveau", tostring(b.niveau) }
-        if b.valeurs.sexe then out[#out + 1] = { "Sexe", tostring(b.valeurs.sexe) } end
-        if b.valeurs.age then out[#out + 1] = { "Age", tostring(b.valeurs.age) } end
-        if b.valeurs.poids then out[#out + 1] = { "Poids", tostring(b.valeurs.poids) .. " kg" } end
-        return out
-    end
-    if categorie == "traits" then
-        for _, id in ipairs(b.traits) do
-            local trait = LCM.Traits.Get(id)
-            out[#out + 1] = { trait and trait.label or id, tostring(trait and trait.cout or 1) }
-        end
-        return out
-    end
-    for _, ligne in ipairs(C.Lignes(categorie)) do
-        local valeur = C.Valeur(b, ligne.id)
-        if valeur > 0 then out[#out + 1] = { ligne.label, tostring(valeur) } end
-    end
-    return out
+    page:Actualiser()
 end
 
 -- ===== La fenetre ==========================================================
 
 local function Construire()
-    local f = UI.Fenetre("creation", "Création de personnage", 820, 640)
+    local f = UI.Fenetre("creation", "Création", LARGEUR, HAUTEUR)
     Ecran.frame = f
     f.brouillon = C.Nouveau()
-    f.deplie = { identite = true, primaires = true }
+    local m = f.mesures
 
-    -- ----- recapitulatif --------------------------------------------------
-    f.recap = CreateFrame("Frame", nil, f.contenu)
-    f.recap:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.recap:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
-    f.recap:SetWidth(LARGEUR_RECAP)
-    f.recap.fond = UI.Aplat(f.recap, UI.C.fondClair)
-    f.recap.fond:SetAllPoints(f.recap)
-    UI.Bordure(f.recap)
-
-    f.recap.titre = UI.Texte(f.recap, "Récapitulatif", UI.C.titre, "GameFontNormalSmall")
-    f.recap.titre:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -10)
-
-    f.defilement = UI.Defilement(f.recap)
-    f.defilement:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -30)
-    f.defilement:SetPoint("BOTTOMRIGHT", f.recap, "BOTTOMRIGHT", -8, 10)
-    f.recap.entetes, f.recap.lignes = {}, {}
-
-    -- ----- onglets --------------------------------------------------------
     local onglets = {}
-    for _, etape in ipairs(C.ETAPES) do
-        onglets[#onglets + 1] = { id = etape.id, label = etape.label }
-    end
+    for _, etape in ipairs(C.ETAPES) do onglets[#onglets + 1] = { id = etape.id, label = etape.label } end
+    f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
+    f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    f.barre:SetWidth(LARGEUR_PAGE)
+    local hauteurBandeau = f.barre:Disposer(LARGEUR_PAGE, m.onglet)
 
-    f.barre = UI.Onglets(f.contenu, onglets, function(id) f:Afficher(id) end,
-        { parRangee = 3, largeur = 164, hauteur = 24 })
-    f.barre:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, 0)
-    f.barre:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 0)
-
-    -- Pas de ligne de budget ici : chaque page porte son en-tete de groupe, qui
-    -- dit deja « reste / total ». La repeter au-dessus ne faisait qu'occuper une
-    -- ligne et semer le doute sur laquelle des deux fait foi.
-    f.zone = CreateFrame("Frame", nil, f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.barre, "BOTTOMLEFT", 0, -10)
-    f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 56)
-
-    f.probleme = UI.Texte(f.contenu, "", UI.C.discret, "GameFontNormalSmall")
-    f.probleme:SetPoint("BOTTOMLEFT", f.zone, "BOTTOMLEFT", 0, -22)
-    f.probleme:SetPoint("BOTTOMRIGHT", f.zone, "BOTTOMRIGHT", 0, -22)
-
-    f.valider = UI.Bouton(f.contenu, "Créer le personnage", 170, 24, function()
+    -- En bas : ce qui bloque, et les trois gestes.
+    f.valider = UI.Bouton(f.contenu, "Créer le personnage", 190, 26, function()
         local entity, erreur = C.Appliquer(f.brouillon)
         if not entity then
             LCM.Alerte(tostring(erreur))
@@ -401,18 +455,14 @@ local function Construire()
         end
         UI.Fiche.Fenetre():Montrer(entity)
     end)
-    f.valider:SetPoint("BOTTOMLEFT", f.zone, "BOTTOMLEFT", 0, -50)
-
-    -- Abandonner : la fenetre se ferme et le brouillon part. Une fermeture par
-    -- la croix fait la meme chose — un brouillon a moitie rempli qui ressurgit
-    -- plus tard est plus genant qu'utile.
-    f.abandonner = UI.Bouton(f.contenu, "Abandonner", 110, 24, function() f:Hide() end)
+    f.valider:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    -- Abandonner : la fenetre se ferme et le brouillon part.
+    f.abandonner = UI.Bouton(f.contenu, "Abandonner", 120, 26, function() f:Hide() end)
     f.abandonner:SetPoint("LEFT", f.valider, "RIGHT", 8, 0)
-
-    -- Tout remettre a zero se confirme : c'est le seul bouton de cet ecran
-    -- qu'on ne peut pas defaire d'un clic.
+    -- Tout remettre a zero se confirme : c'est le seul geste qu'on ne peut pas
+    -- defaire d'un clic.
     f.confirmation = UI.Confirmer(f, "", "Tout remettre a zero")
-    f.remiseTotale = UI.Bouton(f.contenu, "Tout remettre à zéro", 150, 24, function()
+    f.remiseTotale = UI.Bouton(f.contenu, "Tout remettre à zéro", 170, 26, function()
         f.confirmation:Demander(
             "Remettre a zero tous les points depenses ?\nLe nom, la race et l'identite sont conserves.",
             function()
@@ -420,121 +470,57 @@ local function Construire()
                 f:Actualiser()
             end)
     end)
-    f.remiseTotale:SetPoint("BOTTOMRIGHT", f.zone, "BOTTOMRIGHT", 0, -50)
+    f.remiseTotale:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.probleme = UI.Texte(f.contenu, "", UI.C.discret)
+    UI.Police(f.probleme, 12)
+    f.probleme:SetPoint("BOTTOMLEFT", f.valider, "TOPLEFT", 0, 8)
+    f.probleme:SetPoint("BOTTOMRIGHT", f.remiseTotale, "TOPRIGHT", 0, 8)
 
-    -- ----- pages ----------------------------------------------------------
+    f.zone = UI.Defilement(f.contenu)
+    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -(hauteurBandeau + 10))
+    f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 60)
+
     f.pages = {}
     for _, etape in ipairs(C.ETAPES) do
-        local page = CreateFrame("Frame", nil, f.zone)
-        page:SetAllPoints(f.zone)
-        page.compteurs = {}
+        local page = NouvellePage(f)
         Pages[etape.id](page, f)
-        page:Hide()
+        page:Disposer()
         f.pages[etape.id] = page
     end
 
     function f:Afficher(etapeId)
         self.etape = etapeId
+        self.barre:Selectionner(etapeId)
         for id, page in pairs(self.pages) do page:SetShown(id == etapeId) end
+        self.zone.decalage = 0
         self:Actualiser()
-    end
-
-    function f:ActualiserRecap()
-        local y = 0
-        local index, indexLigne = 0, 0
-        for _, categorie in ipairs(RECAP) do
-            index = index + 1
-            local h = self.recap.entetes[index]
-            if not h then
-                -- `index` est declare AVANT la boucle : les huit fermetures le
-                -- partageraient et repliieraient toutes la derniere categorie.
-                -- On capture donc l'identifiant de l'iteration, pas le rang.
-                local categorieId = categorie.id
-                h = UI.Bouton(self.defilement.contenu, "", LARGEUR_RECAP - 22, 18, function()
-                    self.deplie[categorieId] = not self.deplie[categorieId]
-                    self:ActualiserRecap()
-                end)
-                h.label:ClearAllPoints()
-                h.label:SetPoint("LEFT", h, "LEFT", 4, 0)
-                h.label:SetJustifyH("LEFT")
-                h.compte = UI.Texte(h, "", UI.C.discret, "GameFontNormalSmall")
-                h.compte:SetPoint("RIGHT", h, "RIGHT", -4, 0)
-                self.recap.entetes[index] = h
-            end
-            h.categorieId = categorie.id
-            local ouvert = self.deplie[categorie.id] and true or false
-            h.label:SetText((ouvert and "- " or "+ ") .. categorie.label)
-            h:Selectionner(ouvert)
-            if categorie.id == "identite" then
-                h.compte:SetText("")
-            else
-                local budget = C.Budget(self.brouillon, categorie.id)
-                h.compte:SetText(string.format("%d / %d", budget.reste, budget.total))
-            end
-            h:ClearAllPoints()
-            h:SetPoint("TOPLEFT", self.defilement.contenu, "TOPLEFT", 0, -y)
-            h:Show()
-            y = y + 20
-
-            if ouvert then
-                for _, paire in ipairs(LignesRecap(self, categorie.id)) do
-                    indexLigne = indexLigne + 1
-                    local l = self.recap.lignes[indexLigne]
-                    if not l then
-                        l = CreateFrame("Frame", nil, self.defilement.contenu)
-                        l:SetSize(LARGEUR_RECAP - 30, 14)
-                        l.nom = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
-                        l.nom:SetPoint("LEFT", l, "LEFT", 10, 0)
-                        l.valeur = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
-                        l.valeur:SetPoint("RIGHT", l, "RIGHT", -4, 0)
-                        l.valeur:SetJustifyH("RIGHT")
-                        self.recap.lignes[indexLigne] = l
-                    end
-                    l.nom:SetText(paire[1])
-                    l.valeur:SetText(paire[2])
-                    l:ClearAllPoints()
-                    l:SetPoint("TOPLEFT", self.defilement.contenu, "TOPLEFT", 0, -y)
-                    l:Show()
-                    y = y + 15
-                end
-                y = y + 4
-            end
-        end
-        for i = index + 1, #self.recap.entetes do self.recap.entetes[i]:Hide() end
-        for i = indexLigne + 1, #self.recap.lignes do self.recap.lignes[i]:Hide() end
-        self.defilement:Regler(y)
     end
 
     function f:Actualiser()
         local page = self.pages[self.etape]
         if not page then return end
-
         -- Les compteurs relisent tout : un plafond peut avoir bouge a cause
-        -- d'une modification faite dans une autre etape.
+        -- d'une modification faite dans un autre onglet.
         for _, compteur in ipairs(page.compteurs) do
             compteur:Regler(C.Valeur(self.brouillon, compteur.champ),
                 C.Plafond(self.brouillon, compteur.categorie, compteur.champ))
         end
+        for _, bloc in ipairs(page.budgets) do
+            local budget = C.Budget(self.brouillon, bloc.categorie)
+            bloc.budget:SetText(string.format("%d / %d", budget.reste, budget.total))
+            local couleur = UI.C.titre
+            if budget.reste < 0 then couleur = UI.C.plein elseif budget.reste == 0 then couleur = UI.C.discret end
+            bloc.budget:SetTextColor(couleur[1], couleur[2], couleur[3])
+        end
         if page.Actualiser then page:Actualiser() end
-
-        if page.entete then
-            local budget = C.Budget(self.brouillon, page.enteteCategorie)
-            page.entete:Regler(budget.reste, budget.total)
-        end
-        if page.enteteGauche then
-            local pen = C.Budget(self.brouillon, "penetration")
-            local resi = C.Budget(self.brouillon, "resistance")
-            page.enteteGauche:Regler(pen.reste, pen.total)
-            page.enteteDroite:Regler(resi.reste, resi.total)
-        end
+        page:Disposer()
+        self.zone:Regler(page.hauteur)
 
         local problemes = C.Problemes(self.brouillon)
         self.probleme:SetText(problemes[1] or "")
         self.valider:SetEnabled(#problemes == 0)
         local teinte = (#problemes == 0) and UI.C.titre or UI.C.discret
         self.valider.label:SetTextColor(teinte[1], teinte[2], teinte[3])
-
-        self:ActualiserRecap()
     end
 
     f:SetScript("OnHide", function(self)
@@ -547,7 +533,6 @@ local function Construire()
 
     function f:Montrer(brouillon)
         self.brouillon = brouillon or self.brouillon or C.Nouveau()
-        self.barre:Selectionner(C.ETAPES[1].id)
         self:Afficher(C.ETAPES[1].id)
         self:Show()
     end

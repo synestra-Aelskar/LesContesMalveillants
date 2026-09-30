@@ -22,7 +22,7 @@ MJ.Brouillons = Brouillons
 LCM.Brouillons = Brouillons
 
 -- Les familles exportables. En ajouter une ici ET dans l'outil d'export.
-Brouillons.FAMILLES = { "traits", "races", "objets" }
+Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs" }
 
 local function Store(famille)
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
@@ -97,14 +97,13 @@ end
 
 function Brouillons.Published()
     local out = {}
-    for _, entree in ipairs(Brouillons.List("traits")) do
-        if DejaEnDur(LCM.Traits, entree.id) then out[#out + 1] = "traits/" .. tostring(entree.id) end
-    end
-    for _, entree in ipairs(Brouillons.List("races")) do
-        if DejaEnDur(LCM.Races, entree.id) then out[#out + 1] = "races/" .. tostring(entree.id) end
-    end
-    for _, entree in ipairs(Brouillons.List("objets")) do
-        if DejaEnDur(LCM.Objets, entree.id) then out[#out + 1] = "objets/" .. tostring(entree.id) end
+    for _, famille in ipairs(Brouillons.FAMILLES) do
+        local registre = Brouillons.Registre(famille)
+        for _, entree in ipairs(Brouillons.List(famille)) do
+            if registre and DejaEnDur(registre, entree.id) then
+                out[#out + 1] = famille .. "/" .. tostring(entree.id)
+            end
+        end
     end
     return out
 end
@@ -142,6 +141,9 @@ local function Registre(famille)
     if famille == "traits" then return LCM.Traits end
     if famille == "races" then return LCM.Races end
     if famille == "objets" then return LCM.Objets end
+    if famille == "etats" then return LCM.Etats end
+    if famille == "apprentissages" then return LCM.Apprentissages end
+    if famille == "sacs" then return LCM.Sacs end
     return nil
 end
 Brouillons.Registre = Registre
@@ -214,7 +216,7 @@ end
 LCM.WhenReady(function()
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
-    for _, famille in ipairs({ "races", "traits", "objets" }) do
+    for _, famille in ipairs(Brouillons.FAMILLES) do
         local registre = Registre(famille)
         for _, entree in ipairs(Brouillons.List(famille)) do
             if not registre.Get(entree.id) then

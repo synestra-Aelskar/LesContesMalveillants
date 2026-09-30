@@ -1,4 +1,5 @@
--- La fenetre de fiche : construction, onglets, lignes, corps.
+-- La Fiche, organisee comme celle du template : onglets Statistiques,
+-- Facultes, Traits ; blocs, lignes, en-tete, defilement.
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -14,8 +15,8 @@ LCM.Entities.Set_Value(moi, "race", "humain")
 LCM.Entities.Set_Value(moi, "niveau", 5)
 LCM.Entities.Set_Value(moi, "constitution", 6)
 LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
-LCM.Entities.Set_Value(moi, "escalade", 4)
-LCM.Traits.Grant(moi, "escalade_jungle")
+LCM.Entities.Set_Value(moi, "force", 4)
+LCM.Entities.Set_Value(moi, "adresse", 3)
 
 dire("== ouverture")
 SlashCmdList.LCM("fiche")
@@ -23,37 +24,21 @@ local f = LCM.UI.Fiche.frame
 attendu("la fenetre existe", f ~= nil, true)
 attendu("elle est affichee", f:IsShown(), true)
 attendu("elle porte le nom de l entite", f.nom:GetText(), "Reika")
+attendu("titre en capitales", f.titre:GetText(), "FICHE")
+-- Le nom vit dans l'en-tete : entre le titre et le filet d'or, pas dessus.
+local _, _, _, _, yTitre = f.titre:GetPoint(1)
+local _, _, _, _, yNom = f.sousTitre:GetPoint(1)
+local _, _, _, _, yRegle = f.regle:GetPoint(1)
+attendu("le nom est sous le titre", yNom < yTitre, true)
+attendu("et au-dessus du filet", yNom - 7 > yRegle, true)
 
-dire("== onglets")
-attendu("un bouton par onglet", #f.barre.boutons, #LCM.Schema.Tabs())
+dire("== les onglets du template")
 local noms = {}
 for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
-dire("   " .. table.concat(noms, " | "))
-attendu("le premier est actif", f.barre.actif, "general")
-attendu("sa page est visible", f.pages.general:IsShown(), true)
-attendu("les autres non", f.pages.expertises:IsShown(), false)
-
-dire("== une ligne par champ affichable")
--- Un champ masque (pv_max, montre par la jauge des PV) ne se dessine pas ; un
--- champ reserve au MJ se dessine ici, le compagnon MJ etant charge.
-local total, attenduTotal = 0, 0
-for _, tab in ipairs(LCM.Schema.Tabs()) do
-    local page = f.pages[tab.id]
-    local champs = 0
-    for _, section in ipairs(tab.sections) do
-        for _, field in ipairs(section.fields) do
-            if not field.masque then champs = champs + 1 end
-        end
-    end
-    attendu("onglet " .. tab.id, #page.lignes, champs)
-    total = total + #page.lignes
-    attenduTotal = attenduTotal + champs
-end
-attendu("total des lignes", total, attenduTotal)
-attendu("un seul champ masque", LCM.Schema.Count() - total, 1)
-
-dire("== la mise en page du modele Necronicon")
-attendu("bande d'onglets", f.barre.boutons ~= nil, true)
+attendu("trois onglets", table.concat(noms, ", "), "Statistiques, Facultés, Traits")
+attendu("le premier est actif", f.barre.actif, "statistiques")
+attendu("sa page est visible", f.pages.statistiques:IsShown(), true)
+attendu("les autres non", f.pages.facultes:IsShown(), false)
 local largeurBandeau = f.barre:GetWidth()
 local finRangee = 0
 for _, b in ipairs(f.barre.boutons) do
@@ -62,52 +47,53 @@ for _, b in ipairs(f.barre.boutons) do
 end
 attendu("aucun onglet ne deborde", finRangee <= largeurBandeau + 0.5, true)
 attendu("onglet actif dore", select(1, f.barre.boutons[1].label:GetTextColor()) > 0.95, true)
-attendu("titre en capitales", f.titre:GetText(), "FICHE")
-local bloc = f.pages.general.blocs[1]
-attendu("section en bloc titre", bloc.titre:GetText(), "VITALITÉ")
 
-dire("== le corps : jauge des PV et une jauge par zone")
-local ligneCorps
-for _, l in ipairs(f.pages.general.lignes) do
-    if l.zones then ligneCorps = l end
-end
-attendu("la ligne corps existe", ligneCorps ~= nil, true)
-local visibles = 0
-for _, z in ipairs(ligneCorps.zones) do if z:IsShown() then visibles = visibles + 1 end end
-attendu("5 zones (template)", visibles, 5)
-attendu("le total est affiche", ligneCorps.total.barre.label:GetText(), "42 / 42")
-local tete = ligneCorps.zones[1]
-attendu("la tete a son icone", tete.icone:GetTexture() ~= nil, true)
-attendu("30 % par zone", tete.barre.label:GetText(), "12 / 12")
+dire("== Statistiques : les blocs du template, dans l'ordre")
+local page = f.pages.statistiques
+local titres = {}
+for _, bloc in ipairs(page.blocs) do titres[#titres + 1] = bloc.titre and bloc.titre:GetText() or "?" end
+attendu("blocs", table.concat(titres, ", "), "GÉNÉRALE, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
+local generale = {}
+for _, l in ipairs(page.blocs[1].lignes) do generale[#generale + 1] = l.field.id end
+attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa,pv_max_override")
+local corps = page.blocs[1].lignes[1]
+attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
+attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")
+attendu("six statistiques", #page.blocs[2].lignes, 6)
+attendu("initiative", page.blocs[3].lignes[1].field.id, "initiative")
+attendu("deplacement", #page.blocs[4].lignes, 2)
 
-dire("== blesser avec les boutons")
-local bras
-for _, z in ipairs(ligneCorps.zones) do if z.partieId == "bras" then bras = z end end
-attendu("le bras est la", bras ~= nil, true)
-bras.boutons[1]:Click()
-attendu("un point en moins", LCM.Body.Totals(moi), 41)
-attendu("l affichage suit", ligneCorps.total.barre.label:GetText(), "41 / 42")
-attendu("la zone aussi", bras.barre.label:GetText(), "11 / 12")
-bras.boutons[3]:Click()
-attendu("R soigne la zone", LCM.Body.Totals(moi), 42)
+dire("== Facultes (formules du template)")
+f.barre.boutons[2]:Click()
+local fac = f.pages.facultes
+attendu("bloc Physiques", fac.blocs[1].titre:GetText(), "PHYSIQUES")
+local valeurs = {}
+for _, l in ipairs(fac.lignes) do valeurs[l.field.id] = l.valeur:GetText() end
+-- 5 + 5 x 4 = 25 ; 4/2 + 3/3 = 3 ; 4/2 + 3/4 = 2,75
+attendu("poids soulevable", valeurs.poids_soulevable, "25")
+attendu("saut horizontal", valeurs.saut_horizontal, "3")
+attendu("saut vertical", valeurs.saut_vertical, "2.75")
 
-dire("== la case d'avantage n'apparait que si un trait la justifie")
-f:Afficher("expertises")
-local ligneEscalade, ligneCourse
-for _, l in ipairs(f.pages.expertises.lignes) do
-    if l.label and l.label:GetText() == "Escalade" then ligneEscalade = l end
-    if l.label and l.label:GetText() == "Course" then ligneCourse = l end
-end
-attendu("escalade : case visible", ligneEscalade.avantage:IsShown(), true)
-attendu("course : case masquee", ligneCourse.avantage:IsShown(), false)
-attendu("valeur", ligneEscalade.valeur:GetText(), "4")
-attendu("le bonus de trait dans sa colonne", ligneEscalade.bonus:GetText(), "+3")
+dire("== Traits")
+f.barre.boutons[3]:Click()
+attendu("la liste des traits", f.pages.traits.lignes[1].field.id, "traits_portes")
 
-dire("== le bouton de jet")
-local avant = #__sorties
-ligneEscalade.lancer:Click()
-attendu("un jet est annonce", #__sorties > avant, true)
-dire("   " .. __sansCouleur(__sorties[#__sorties]))
+dire("== ce qui depasse reste dans la fenetre")
+f.barre.boutons[1]:Click()
+local zone = f.zone
+attendu("la zone rogne ce qui depasse", zone:DoesClipChildren(), true)
+zone:SetHeight(300)
+zone:Regler(page.hauteur)
+attendu("la page est plus haute que la zone", page.hauteur > 300, true)
+attendu("la barre apparait", zone.barre:IsShown(), true)
+zone:GetScript("OnMouseWheel")(zone, -1)
+attendu("la molette descend", zone.decalage > 0, true)
+for _ = 1, 100 do zone:GetScript("OnMouseWheel")(zone, -1) end
+attendu("sans depasser le bas", zone.decalage, zone.debord)
+zone:Aller(-50)
+attendu("ni le haut", zone.decalage, 0)
+zone:Regler(100)
+attendu("contenu court : pas de barre", zone.barre:IsShown(), false)
 
 dire("== fermeture")
 SlashCmdList.LCM("fiche")

@@ -13,11 +13,17 @@ Core\Commands.lua
 Core\Schema.lua
 Core\Entities.lua
 Core\Personnages.lua
+Core\Identite.lua
 Core\Portraits.lua
-Core\Body.lua
 Core\Effets.lua
+Core\Body.lua
 Core\Traits.lua
+Core\Catalogues.lua
 Core\Objets.lua
+Core\Etats.lua
+Core\Apprentissages.lua
+Core\Sacs.lua
+Core\Metiers.lua
 Core\Formules.lua
 Core\Roll.lua
 Core\Creation.lua
@@ -29,6 +35,8 @@ Data\Fiche.lua
 Data\Expertises.lua
 Data\Types.lua
 Data\Mecaniques.lua
+Data\Combat.lua
+Data\Metiers.lua
 Data\Documents.lua
 Data\Vues.lua
 # Contenu genere par loutil dexport (voir Data\Genere)
@@ -45,5 +53,7 @@ UI\Personnages.lua
 UI\Creation.lua
 UI\Document.lua
 UI\Vues.lua
-UI\Equipement.lua
+UI\Inventaires.lua
+UI\Metiers.lua
 UI\Radial.lua
+UI\Menu.lua

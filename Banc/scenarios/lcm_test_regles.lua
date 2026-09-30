@@ -48,14 +48,14 @@ dire("   " .. LCM.Roll.Describe(r))
 
 dire("== la fiche montre investi + apport, puis les bonus")
 LCM.Traits.Grant(moi, "coureur")
-SlashCmdList.LCM("fiche")
-local fiche = LCM.UI.Fiche.frame
-for _, b in ipairs(fiche.barre.boutons) do if b.ongletId == "expertises" then b:Click() end end
+local fe = LCM.UI.Vues.Fenetre("expertise")
+fe:Montrer(moi)
+fe:Afficher("athletisme")
 local course
-for _, l in ipairs(fiche.pages.expertises.lignes) do if l.label:GetText() == "Course" then course = l end end
+for _, l in ipairs(fe.pages.athletisme.lignes) do if l.label:GetText() == "Course" then course = l end end
 attendu("Course : valeur 4", course.valeur:GetText(), "4")
 attendu("Course : bonus +2", course.bonus:GetText(), "+2")
-SlashCmdList.LCM("fiche")
+fe:Hide()
 
 dire("== deplacement (template : base + investi + secondaires)")
 -- Terrestre : 8 + 3 (Course investie, pas sa valeur totale) + 0 = 11
@@ -116,7 +116,7 @@ vu = proposeForce("objets")
 attendu("objet : Force proposee", vu, true)
 
 dire("== la fenetre Deplacement")
-LCM.UI.Radial.Trouver("deplacement").onClick()
+LCM.UI.Menu.Trouver("deplacement").onClick()
 local fd = LCM.UI.Vues.frames.deplacement
 attendu("ouverte", fd:IsShown(), true)
 attendu("deux lignes", #fd.page.lignes, 2)

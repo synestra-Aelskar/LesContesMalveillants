@@ -17,7 +17,8 @@ Documents.Add({
         { kind = "separateur" },
         { kind = "titre", texte = "Ouvrir les fenetres" },
         { kind = "liste", items = {
-            "/lcm menu — le menu radial, point d'entree de tout",
+            "/lcm fenetres — le menu des fenetres (ou le bouton)",
+            "/lcm actions — le lanceur d'actions (le sceau)",
             "/lcm fiche — ta fiche",
             "/lcm aide — cette documentation",
         } },

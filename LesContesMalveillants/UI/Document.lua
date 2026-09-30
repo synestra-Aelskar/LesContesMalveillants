@@ -30,15 +30,19 @@ function Document.Fenetre()
     f.liste:SetWidth(140)
     f.liste.boutons = {}
 
-    f.page = CreateFrame("Frame", nil, f.contenu)
-    f.page:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 10, 0)
-    f.page:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
-    f.page.blocs = {}
+    -- Le contenu defile et se rogne : un long document ne deborde pas.
+    f.zone = UI.Defilement(f.contenu)
+    f.zone:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 12, 0)
+    f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.page = f.zone.contenu
+    f.page.blocs, f.page.ornements = {}, {}
+    local largeurTexte = 520 - 24 - 140 - 12
 
-    local function Bloc(gabarit, couleur)
-        local fs = UI.Texte(f.page, "", couleur, gabarit)
+    local function Bloc()
+        local fs = UI.Texte(f.page, "", UI.C.texte)
         fs:SetJustifyH("LEFT")
         fs:SetWordWrap(true)
+        fs:SetWidth(largeurTexte)
         return fs
     end
 
@@ -50,45 +54,59 @@ function Document.Fenetre()
             bouton:Selectionner(bouton.documentId == id)
         end
         Vider(self.page)
+        for _, o in ipairs(self.page.ornements) do o:Hide() end
 
-        local y = 0
-        local index = 0
+        local y, index, nOrnements = 0, 0, 0
         for _, bloc in ipairs(doc.blocs) do
             index = index + 1
             local fs = self.page.blocs[index]
             if not fs then
-                fs = Bloc("GameFontNormalSmall", UI.C.texte)
+                fs = Bloc()
                 self.page.blocs[index] = fs
             end
             fs:ClearAllPoints()
             fs:SetPoint("TOPLEFT", self.page, "TOPLEFT", 0, -y)
-            fs:SetPoint("TOPRIGHT", self.page, "TOPRIGHT", 0, -y)
             fs:Show()
 
             if bloc.kind == "titre" then
-                fs:SetText(bloc.texte)
-                fs:SetTextColor(UI.C.accent[1], UI.C.accent[2], UI.C.accent[3])
-                y = y + 24
+                -- Titre du modele : capitales dorees et leur ornement.
+                UI.Police(fs, 14)
+                fs:SetText(UI.Majuscules(bloc.texte))
+                fs:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+                if UI.AelRef then
+                    nOrnements = nOrnements + 1
+                    local o = self.page.ornements[nOrnements]
+                    if not o then
+                        o = UI.AelRef(self.page, 347, 344, 45, 17, "ARTWORK")
+                        o:SetSize(30, 11)
+                        self.page.ornements[nOrnements] = o
+                    end
+                    o:ClearAllPoints()
+                    o:SetPoint("LEFT", self.page, "TOPLEFT", (fs:GetStringWidth() or 0) + 8, -y - 8)
+                    o:Show()
+                end
+                y = y + 26
             elseif bloc.kind == "separateur" then
                 fs:SetText("")
-                y = y + 10
-            elseif bloc.kind == "liste" then
-                local lignes = {}
-                for _, item in ipairs(bloc.items or {}) do
-                    lignes[#lignes + 1] = "  - " .. tostring(item)
-                end
-                fs:SetText(table.concat(lignes, "\n"))
-                fs:SetTextColor(UI.C.texte[1], UI.C.texte[2], UI.C.texte[3])
-                y = y + 16 * math.max(1, #lignes) + 6
+                y = y + 12
             else
-                fs:SetText(bloc.texte)
+                local texte = bloc.texte
+                if bloc.kind == "liste" then
+                    local lignes = {}
+                    for _, item in ipairs(bloc.items or {}) do lignes[#lignes + 1] = "  -  " .. tostring(item) end
+                    texte = table.concat(lignes, "\n")
+                end
+                UI.Police(fs, 12)
+                fs:SetText(texte)
                 fs:SetTextColor(UI.C.texte[1], UI.C.texte[2], UI.C.texte[3])
-                -- Hauteur estimee : un retour a la ligne tous les ~70 signes.
-                local lignes = math.max(1, math.ceil(#bloc.texte / 70))
-                y = y + 16 * lignes + 6
+                -- Hauteur MESUREE : une estimation au nombre de signes laissait
+                -- des blocs se chevaucher.
+                y = y + (fs:GetStringHeight() or 14) + 8
             end
         end
         self.hauteur = y
+        self.zone.decalage = 0
+        self.zone:Regler(y)
     end
 
     function f:Reconstruire()
@@ -97,9 +115,10 @@ function Document.Fenetre()
         for index, doc in ipairs(docs) do
             local b = self.liste.boutons[index]
             if not b then
-                b = UI.Bouton(self.liste, "", 138, 22, function()
-                    self:AfficherDocument(self.liste.boutons[index].documentId)
+                b = UI.Bouton(self.liste, "", 138, 26, function(bouton)
+                    self:AfficherDocument(bouton.documentId)
                 end)
+                if UI.HabillerOnglet then UI.HabillerOnglet(b) end
                 self.liste.boutons[index] = b
             end
             b.documentId = doc.id

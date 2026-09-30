@@ -162,6 +162,25 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
     end
     f:Titre(titre)
 
+    -- Sous-titre (le nom du personnage affiche) : il vit DANS l'en-tete,
+    -- entre le titre et le filet d'or. Le titre remonte pour lui faire place ;
+    -- sans sous-titre, il reste centre dans l'en-tete.
+    f.sousTitre = UI.Texte(f, "", UI.C.discret)
+    f.sousTitre:SetJustifyH("CENTER")
+    UI.Police(f.sousTitre, math.max(11, m.police * 0.62))
+    f.sousTitre:SetPoint("CENTER", f, "TOP", 0, -m.regle + 9 * q + 2)
+    function f:SousTitre(texte)
+        texte = tostring(texte or "")
+        self.sousTitre:SetText(texte)
+        self.titre:ClearAllPoints()
+        if texte ~= "" then
+            self.titre:SetPoint("CENTER", self, "TOP", 0, -22 * q)
+        else
+            self.titre:SetPoint("CENTER", self, "TOP", 0, -32 * q)
+        end
+        self:Titre(self.titre:GetText())
+    end
+
     f.fermer = CreateFrame("Button", nil, f)
     f.fermer:SetSize(math.max(20, 54 * q), math.max(20, 54 * q))
     f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6 * q, -6 * q)
@@ -259,6 +278,7 @@ function UI.Onglets(parent, onglets, onChange, options)
             if onChange then onChange(onglet.id) end
         end)
         b.ongletId = onglet.id
+        if UI.HabillerOnglet then UI.HabillerOnglet(b) end
 
         local rangee = math.ceil(index / parRangee)
         local place = (index - 1) % parRangee
@@ -296,15 +316,12 @@ function UI.BandeauOnglets(parent, onglets, onChange)
     for _, onglet in ipairs(onglets) do
         local b = CreateFrame("Button", nil, bandeau)
         b.ongletId = onglet.id
-        b.fond = UI.Aplat(b, { 0.025, 0.023, 0.02, 0.95 })
-        b.fond:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
-        b.fond:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
-        if UI.AelCadre then b.cadre = UI.AelCadre(b, "onglet") end
         b.label = UI.Texte(b, onglet.label, UI.C.texte)
         b.label:SetPoint("CENTER", b, "CENTER", 0, 1)
         b.label:SetJustifyH("CENTER")
         b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
         b.survol:SetAllPoints(b)
+        if UI.HabillerOnglet then UI.HabillerOnglet(b) end
         b:SetScript("OnClick", function(bouton)
             bandeau:Selectionner(bouton.ongletId)
             if onChange then onChange(bouton.ongletId) end
@@ -315,14 +332,7 @@ function UI.BandeauOnglets(parent, onglets, onChange)
     function bandeau:Selectionner(id)
         self.actif = id
         for _, b in ipairs(self.boutons) do
-            local actif = b.ongletId == id
-            b.fond:SetColorTexture(actif and 0.13 or 0.025, actif and 0.095 or 0.023, actif and 0.045 or 0.02, 0.95)
-            if actif then b.label:SetTextColor(0.98, 0.87, 0.60) else b.label:SetTextColor(0.90, 0.86, 0.78) end
-            if b.cadre then
-                for _, t in ipairs(b.cadre.morceaux) do
-                    t:SetVertexColor(actif and 1 or 0.74, actif and 0.94 or 0.68, actif and 0.78 or 0.56, 1)
-                end
-            end
+            if b.Selectionner then b:Selectionner(b.ongletId == id) end
         end
     end
 
@@ -403,9 +413,10 @@ function UI.Champ(parent, largeur, hauteur, onChange)
     e:SetMaxLetters(40)
     e:SetFontObject("GameFontNormalSmall")
     e:SetTextInsets(6, 6, 0, 0)
-    e.fond = UI.Aplat(e, UI.C.fondClair)
+    e.fond = UI.Aplat(e, { 0.035, 0.030, 0.023, 0.9 })
     e.fond:SetAllPoints(e)
-    UI.Bordure(e, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 })
+    if UI.HabillerSaisie then UI.HabillerSaisie(e)
+    else UI.Bordure(e, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 }) end
     e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     if onChange then
@@ -428,9 +439,12 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     local l = CreateFrame("Frame", nil, parent)
     l:SetHeight(20)
     l.valeur, l.plafond = 0, 0
+    -- Meme boite que les lignes de fiche (UI.SkinAelAllocLine).
+    if UI.SurfaceLigne then UI.SurfaceLigne(l) end
 
     l.label = UI.Texte(l, libelle, UI.C.texte, "GameFontNormalSmall")
-    l.label:SetPoint("LEFT", l, "LEFT", 0, 0)
+    UI.Police(l.label, 12)
+    l.label:SetPoint("LEFT", l, "LEFT", 6, 0)
     l.label:SetWidth(largeurLibelle or 120)
 
     local function Poser(valeur)
@@ -483,8 +497,15 @@ end
 function UI.EnTeteGroupe(parent, libelle, onReset)
     local h = CreateFrame("Frame", nil, parent)
     h:SetHeight(18)
-    h.label = UI.Texte(h, libelle, UI.C.accent, "GameFontNormalSmall")
+    -- Titre du modele : capitales dorees suivies de leur ornement.
+    h.label = UI.Texte(h, UI.Majuscules(libelle), UI.C.titre, "GameFontNormalSmall")
+    UI.Police(h.label, 13)
     h.label:SetPoint("LEFT", h, "LEFT", 0, 0)
+    if UI.AelRef then
+        h.ornement = UI.AelRef(h, 347, 344, 45, 17, "ARTWORK")
+        h.ornement:SetSize(30, 11)
+        h.ornement:SetPoint("LEFT", h.label, "RIGHT", 8, 0)
+    end
 
     h.remise = UI.Bouton(h, "R", 16, 16, function() if onReset then onReset() end end)
     h.remise:SetPoint("RIGHT", h, "RIGHT", 0, 0)
@@ -508,16 +529,36 @@ function UI.EnTeteGroupe(parent, libelle, onReset)
     return h
 end
 
--- Zone defilante. Pas de barre : la molette suffit, et l'utilisateur les cache
--- de toute facon. `zone.contenu` est le cadre ou l'on pose, `zone:Regler(h)`
--- annonce la hauteur reelle du contenu.
+-- Zone defilante. Ce qui depasse est ROGNE au bord de la zone (sans ca, une
+-- page longue deborde sous la fenetre), et une barre fine, dans la marge a
+-- droite, montre ou l'on est : elle n'apparait que si le contenu depasse.
+-- Molette, clic sur la gouttiere (page par page) ou poignee tiree a la souris.
+-- `zone.contenu` est le cadre ou l'on pose, `zone:Regler(h)` annonce la
+-- hauteur reelle du contenu.
 function UI.Defilement(parent)
     local zone = CreateFrame("Frame", nil, parent)
-    zone.decalage, zone.hauteurContenu = 0, 0
+    zone.decalage, zone.hauteurContenu, zone.debord = 0, 0, 0
+    zone:SetClipsChildren(true)
 
     zone.contenu = CreateFrame("Frame", nil, zone)
     zone.contenu:SetPoint("TOPLEFT", zone, "TOPLEFT", 0, 0)
     zone.contenu:SetPoint("TOPRIGHT", zone, "TOPRIGHT", 0, 0)
+
+    -- La barre vit HORS de la zone (dans la marge du parent) : elle ne prend
+    -- pas de largeur au contenu, et le rognage de la zone ne la coupe pas.
+    local barre = CreateFrame("Button", nil, parent)
+    barre:SetWidth(6)
+    barre:SetPoint("TOPLEFT", zone, "TOPRIGHT", 3, 0)
+    barre:SetPoint("BOTTOMLEFT", zone, "BOTTOMRIGHT", 3, 0)
+    barre.gouttiere = UI.Aplat(barre, { 0.12, 0.10, 0.07, 0.8 })
+    barre.gouttiere:SetAllPoints(barre)
+    barre.poignee = CreateFrame("Frame", nil, barre)
+    barre.poignee:SetWidth(6)
+    barre.poignee.fond = UI.Aplat(barre.poignee, { 0.66, 0.51, 0.27, 0.9 }, "ARTWORK")
+    barre.poignee.fond:SetAllPoints(barre.poignee)
+    barre.poignee:EnableMouse(true)
+    barre:Hide()
+    zone.barre = barre
 
     local function Appliquer()
         local visible = zone:GetHeight()
@@ -527,12 +568,55 @@ function UI.Defilement(parent)
         zone.contenu:SetPoint("TOPLEFT", zone, "TOPLEFT", 0, zone.decalage)
         zone.contenu:SetPoint("TOPRIGHT", zone, "TOPRIGHT", 0, zone.decalage)
         zone.debord = debord
+
+        barre:SetShown(debord > 0)
+        if debord > 0 then
+            local hauteurBarre = barre:GetHeight()
+            -- La poignee est a l'echelle de ce qu'on voit, jamais minuscule.
+            local taille = math.max(24, hauteurBarre * visible / zone.hauteurContenu)
+            barre.poignee:SetHeight(taille)
+            barre.poignee:ClearAllPoints()
+            barre.poignee:SetPoint("TOP", barre, "TOP", 0, -(hauteurBarre - taille) * zone.decalage / debord)
+            zone.course = hauteurBarre - taille
+        end
+    end
+    zone.Appliquer = Appliquer
+
+    function zone:Aller(decalage)
+        self.decalage = decalage
+        Appliquer()
     end
 
     zone:EnableMouseWheel(true)
-    zone:SetScript("OnMouseWheel", function(_, delta)
-        zone.decalage = zone.decalage - delta * 24
-        Appliquer()
+    zone:SetScript("OnMouseWheel", function(_, delta) zone:Aller(zone.decalage - delta * 40) end)
+    -- Une fenetre dont la taille n'est connue qu'apres la mise en page : on
+    -- recalcule quand elle arrive.
+    zone:SetScript("OnSizeChanged", Appliquer)
+
+    -- Clic dans la gouttiere : une page vers le haut ou le bas.
+    barre:SetScript("OnClick", function(self)
+        local _, y = GetCursorPosition()
+        y = y / (self:GetEffectiveScale() or 1)
+        local haut = barre.poignee:GetTop() or 0
+        local page = zone:GetHeight() * 0.9
+        zone:Aller(zone.decalage + ((y > haut) and -page or page))
+    end)
+
+    -- Poignee tiree : le decalage suit la souris, proportionnellement.
+    barre.poignee:SetScript("OnMouseDown", function(self)
+        local _, y = GetCursorPosition()
+        self.depart = { y = y / (self:GetEffectiveScale() or 1), decalage = zone.decalage }
+        self:SetScript("OnUpdate", function(poignee)
+            if not poignee.depart or (zone.course or 0) <= 0 then return end
+            local _, cy = GetCursorPosition()
+            cy = cy / (poignee:GetEffectiveScale() or 1)
+            local ratio = (poignee.depart.y - cy) / zone.course
+            zone:Aller(poignee.depart.decalage + ratio * zone.debord)
+        end)
+    end)
+    barre.poignee:SetScript("OnMouseUp", function(self)
+        self.depart = nil
+        self:SetScript("OnUpdate", nil)
     end)
 
     function zone:Regler(hauteur)
@@ -552,7 +636,8 @@ function UI.Confirmer(parent, texte, libelleOui)
     d:EnableMouse(true)
     d.fond = UI.Aplat(d, UI.C.fond)
     d.fond:SetAllPoints(d)
-    UI.Bordure(d)
+    -- Cadre des blocs du modele ; une simple bordure si le skin manque.
+    if UI.AelCadre then d.cadre = UI.AelCadre(d, "section") else UI.Bordure(d) end
 
     d.texte = UI.Texte(d, texte or "", UI.C.texte, "GameFontNormalSmall")
     d.texte:SetPoint("TOPLEFT", d, "TOPLEFT", 16, -20)
@@ -596,9 +681,10 @@ function UI.Zone(parent, largeur, hauteur, onChange)
     z:SetSize(largeur or 260, hauteur or 70)
     z:SetClipsChildren(true)
     z:EnableMouse(true)
-    z.fond = UI.Aplat(z, UI.C.fondClair)
+    z.fond = UI.Aplat(z, { 0.035, 0.030, 0.023, 0.9 })
     z.fond:SetAllPoints(z)
-    UI.Bordure(z, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 })
+    if UI.HabillerSaisie then UI.HabillerSaisie(z)
+    else UI.Bordure(z, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 }) end
 
     local e = CreateFrame("EditBox", nil, z)
     e:SetMultiLine(true)
@@ -638,7 +724,8 @@ function UI.Choix(cle, titre)
     d:EnableMouse(true)
     d.fond = UI.Aplat(d, UI.C.fond)
     d.fond:SetAllPoints(d)
-    UI.Bordure(d)
+    -- Cadre des blocs du modele ; une simple bordure si le skin manque.
+    if UI.AelCadre then d.cadre = UI.AelCadre(d, "section") else UI.Bordure(d) end
 
     d.titre = UI.Texte(d, titre or "", UI.C.titre, "GameFontNormalSmall")
     d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -9)

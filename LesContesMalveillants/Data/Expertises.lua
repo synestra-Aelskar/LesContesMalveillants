@@ -17,7 +17,7 @@ Schema.AddTab({
     label = "Expertises",
     sections = {
         {
-            label = "Observations",
+            id = "observations", label = "Observations",
             fields = {
                 expertise("vue",           "Vue"),
                 expertise("odorat_gout",   "Odorat-Goût"),
@@ -30,7 +30,7 @@ Schema.AddTab({
             },
         },
         {
-            label = "Athlétisme",
+            id = "athletisme", label = "Athlétisme",
             fields = {
                 expertise("puissance",  "Puissance"),
                 expertise("projection", "Projection"),
@@ -45,7 +45,7 @@ Schema.AddTab({
             },
         },
         {
-            label = "Filouterie",
+            id = "filouterie", label = "Filouterie",
             fields = {
                 expertise("discretion",   "Discrétion"),
                 expertise("deguisement",  "Déguisement"),

@@ -86,6 +86,8 @@ local function NouvelleRegion(kind, parent)
     function r:SetHeight(h) self.__h = h end
     function r:GetWidth() return self.__w or 0 end
     function r:GetHeight() return self.__h or 0 end
+    -- Pas de geometrie d'ecran simulee : un bord vaut 0, assez pour les calculs relatifs.
+    function r:GetTop() return 0 end
     -- Afficher et masquer declenchent OnShow / OnHide, comme dans le jeu : des
     -- fenetres s'en servent pour se ranger ou revenir au premier plan.
     --
@@ -121,6 +123,8 @@ local function NouvelleRegion(kind, parent)
     function r:GetText() return self.__text end
     function r:SetTexture(t) self.__texture = t end
     function r:GetTexture() return self.__texture end
+    function r:SetDesaturated(v) self.__desature = v and true or false end
+    function r:IsDesaturated() return self.__desature == true end
     function r:SetColorTexture(...) self.__color = {...} end
     function r:SetVertexColor(...) self.__vertex = {...} end
     function r:SetTextColor(...) self.__textColor = {...} end
@@ -128,7 +132,8 @@ local function NouvelleRegion(kind, parent)
     function r:SetJustifyH(v) self.__justifyH = v end
     function r:SetJustifyV(v) self.__justifyV = v end
     function r:SetFontObject() end
-    function r:SetFont() end
+    function r:SetFont(chemin, taille, contour) self.__font = { chemin, taille, contour } end
+    function r:GetFont() local f = self.__font or {} return f[1], f[2], f[3] end
     function r:SetAllPoints(other) self.__allPoints = other or self.parent end
     function r:SetTexCoord(...) self.__texCoord = {...} end
     function r:SetRotation(a) self.__rotation = a end
@@ -202,6 +207,7 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:Raise() end
     function f:SetScale(s) self.__scale = s end
     function f:GetScale() return self.__scale or 1 end
+    function f:GetEffectiveScale() return self.__scale or 1 end
     function f:GetName() return self.__name end
     function f:SetBackdrop() end
     function f:SetScrollChild(c) self.__scrollChild = c end

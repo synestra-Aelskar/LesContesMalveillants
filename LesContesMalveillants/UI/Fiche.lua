@@ -36,28 +36,27 @@ end
 -- ===== Une ligne : surface, colonnes ======================================
 
 -- Le fond de pierre et le cadre discret d'une ligne de fiche (UI.SkinAelRow).
-local function Surface(l)
-    if UI.AelRef then
-        l.surface = UI.AelRef(l, 735, 800, 55, 30, "BACKGROUND")
-        l.surface:SetAllPoints(l)
-        l.surface:SetAlpha(0.65)
-        l.cadre = UI.AelCadre(l, "controle")
-        l.cadre:SetAlpha(0.25)
+function Fiche.Surface(l)
+    if UI.SurfaceLigne then
+        UI.SurfaceLigne(l)
     else
         l.surface = UI.Aplat(l, UI.C.fondClair)
         l.surface:SetAllPoints(l)
     end
 end
 
-local function Ligne(parent, c)
+local Surface = Fiche.Surface
+
+function Fiche.Ligne(parent, c)
     local l = CreateFrame("Frame", nil, parent)
     l:SetHeight(c.ligne)
     Surface(l)
     return l
 end
+local Ligne = Fiche.Ligne
 
 -- Le nom, a sa place : apres l'icone s'il y en a une, sinon a la sienne.
-local function Nom(l, c, texte, avecIcone)
+function Fiche.Nom(l, c, texte, avecIcone)
     l.nom = UI.Texte(l, texte, UI.C.texte)
     UI.Police(l.nom, c.police)
     l.nom:SetPoint("LEFT", l, "LEFT", avecIcone and c.nom or c.nomSansIcone, 0)
@@ -65,9 +64,10 @@ local function Nom(l, c, texte, avecIcone)
     l.label = l.nom
     return l.nom
 end
+local Nom = Fiche.Nom
 
 -- Icone encadree et son separateur (UI.LayoutAelContainerRow).
-local function Icone(l, c, texture)
+function Fiche.Icone(l, c, texture)
     l.icone = l:CreateTexture(nil, "ARTWORK")
     l.icone:SetSize(math.min(c.iconeTaille, c.ligne - 4), math.min(c.iconeTaille, c.ligne - 4))
     l.icone:SetPoint("LEFT", l, "LEFT", c.icone, 0)
@@ -83,6 +83,7 @@ local function Icone(l, c, texture)
         l.separateur:SetPoint("LEFT", l, "LEFT", c.separateur, 0)
     end
 end
+local Icone = Fiche.Icone
 
 -- Une jauge du modele : barre avec embouts dores, chiffres contournes dessus,
 -- trois boutons carres a droite. `rappels` : moins(), plus(), remise().
@@ -116,7 +117,7 @@ local function Jauge(l, c, couleur, rappels)
 end
 
 -- Bulle d'aide au survol d'une ligne.
-local function Bulle(l, titre, texte)
+function Fiche.Bulle(l, titre, texte)
     if not texte or texte == "" then return end
     l:EnableMouse(true)
     l:SetScript("OnEnter", function(self)
@@ -128,6 +129,7 @@ local function Bulle(l, titre, texte)
     end)
     l:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 end
+local Bulle = Fiche.Bulle
 
 -- ===== Lignes, une par type de champ =======================================
 
@@ -269,7 +271,12 @@ end
 -- Le corps (template : fenetre Sante, onglet Physique) : une jauge des points
 -- de vie, puis une jauge par zone avec son icone. Moins blesse, plus soigne,
 -- R soigne la zone entiere. Les PV courants = PV max - blessures.
-function Lignes.body(parent, field, c)
+--
+-- Options (Data/Vues.lua) : `zones = false` ne garde que la jauge des PV (la
+-- Fiche du template), `total = false` que les zones (Sante › Physique).
+function Lignes.body(parent, field, c, options)
+    options = options or {}
+    local avecZones, avecTotal = options.zones ~= false, options.total ~= false
     local l = CreateFrame("Frame", nil, parent)
     l.zones = {}
 
@@ -301,14 +308,16 @@ function Lignes.body(parent, field, c)
         return z
     end
 
+    l.total:SetShown(avecTotal)
+
     function l:Actualiser(e)
         self.entity = e
         local courant, maximum = LCM.Body.Totals(e)
         self.total.barre:Regler(courant, maximum)
         self.total:CaleBarre()
 
-        local etat = LCM.Body.State(e)
-        local y = c.ligne + ECART_LIGNES
+        local etat = avecZones and LCM.Body.State(e) or {}
+        local y = avecTotal and (c.ligne + ECART_LIGNES) or 0
         for index, partie in ipairs(etat) do
             local z = self.zones[index] or Zone(index)
             z.partieId = partie.id
@@ -337,7 +346,7 @@ end
 
 -- « Escalade +3  ·  Avantage : Escalade ». Trie, pour qu'un meme trait se lise
 -- toujours pareil.
-local function Effets(element)
+function Fiche.Effets(element)
     local bonus, avantages = {}, {}
     for champ, montant in pairs(element.bonus) do
         local field = LCM.Schema.Field(champ)
@@ -352,6 +361,7 @@ local function Effets(element)
     if #avantages > 0 then bonus[#bonus + 1] = "Avantage : " .. table.concat(avantages, ", ") end
     return table.concat(bonus, "  ·  ")
 end
+local Effets = Fiche.Effets
 
 -- Une carte pour tout ce qui porte des effets (trait, objet) : la fenetre
 -- d'equipement s'en sert aussi. `onRetirer(id)` est appele par la croix.
@@ -521,13 +531,193 @@ function Lignes.traits(parent, field, c)
     return l
 end
 
+-- ----- Recapitulatif -------------------------------------------------------
+-- Une ligne compacte par statistique (fenetre Statistiques du template) : le
+-- nom et la valeur TOTALE, toutes sources confondues — ou, pour le dossier
+-- « Bonus », ce que portent traits et objets.
+
+function Fiche.Total(e, field, mode)
+    if mode == "bonus" then return LCM.Effets.Bonus(e, field.id) end
+    if LCM.Effets.PRIMAIRES[field.id] then return LCM.Formules.Primaire(e, field.id) end
+    if field.kind == "roll" then return LCM.Formules.Expertise(e, field.id) end
+    local valeur = tonumber(LCM.Entities.Get_Value(e, field.id)) or 0
+    if field.kind == "stat" then valeur = valeur + LCM.Effets.Bonus(e, field.id) end
+    return valeur
+end
+
+function Lignes.recap(parent, field, c, mode)
+    local l = CreateFrame("Frame", nil, parent)
+    l:SetHeight(math.max(20, 34 * c.echelle))
+    Surface(l)
+    Nom(l, c, field.label)
+    UI.Police(l.nom, c.police * 0.85)
+    l.valeur = UI.Texte(l, "", UI.C.titre)
+    UI.Police(l.valeur, c.police * 0.85)
+    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur, 0)
+    l.valeur:SetJustifyH("RIGHT")
+    function l:Actualiser(e)
+        local total = Fiche.Total(e, field, mode)
+        self.valeur:SetText((mode == "bonus" and total > 0 and "+" or "") .. Nombre(total))
+        -- Une valeur nulle s'efface : on lit d'un coup d'oeil ce qui compte.
+        local couleur = total ~= 0 and UI.C.titre or UI.C.discret
+        self.valeur:SetTextColor(couleur[1], couleur[2], couleur[3])
+    end
+    return l
+end
+
+-- ----- Conteneurs -----------------------------------------------------------
+-- Les conteneurs du template (Equipements, Sante › Etats, Apprentissage) : une
+-- ligne par emplacement, sur le modele des emplacements Necronicon
+-- (UI.LayoutAelContainerRow) — icone encadree, separateur, nom, effets. Une
+-- case vide dit « Emplacement ». Placer et retirer sont des gestes de MJ.
+
+local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+
+-- La liste de choix partagee par tous les conteneurs (un seul menu ouvert a
+-- la fois, de toute facon).
+local function Choix()
+    Fiche.choixConteneur = Fiche.choixConteneur or UI.Choix("conteneur", "")
+    return Fiche.choixConteneur
+end
+
+local function Emplacement(conteneur, c)
+    local l = Ligne(conteneur, c)
+    l:SetHeight(math.max(48, c.ligne))
+    Icone(l, c, VIDE)
+    Nom(l, c, "", true)
+    l.effets = UI.Texte(l, "", UI.C.accent)
+    UI.Police(l.effets, c.police * 0.72)
+    l.effets:SetPoint("LEFT", l, "LEFT", c.plage, 0)
+    l.effets:SetPoint("RIGHT", l, "LEFT", c.action - 8 * c.echelle, 0)
+    l.effets:SetJustifyH("RIGHT")
+    l.effets:SetWordWrap(false)
+    l.action = UI.Bouton(l, "", c.actionLargeur, c.boutonH, function()
+        if l.elementId then conteneur:Retirer(l.elementId) else conteneur:Proposer(l.action) end
+    end)
+    l.action:SetPoint("LEFT", l, "LEFT", c.action, 0)
+    UI.Police(l.action.label, c.police * 0.8)
+
+    function l:Habiller(catalogue, id, mj)
+        self.elementId = id
+        local element = id and catalogue.Get(id)
+        if not id then
+            self.icone:SetTexture(VIDE)
+            self.nom:SetText("Emplacement")
+            self.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+            self.effets:SetText("")
+            Bulle(self, "Emplacement", "Emplacement disponible.")
+            self.action.label:SetText("+  Ajouter")
+        elseif element then
+            self.icone:SetTexture(element.icone)
+            self.nom:SetText(element.label .. (element.brouillon and "  |cff99907f·|r" or ""))
+            self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+            local effets = Effets(element)
+            self.effets:SetText(effets)
+            Bulle(self, element.label, (element.description ~= "" and (element.description .. "\n\n") or "")
+                .. (effets ~= "" and effets or "Aucun effet chiffré."))
+            self.action.label:SetText("Retirer")
+        else
+            -- Disparu : il occupe toujours sa case, et redevient actif s'il
+            -- revient.
+            self.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            self.nom:SetText("? " .. tostring(id))
+            self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+            self.effets:SetText("")
+            Bulle(self, tostring(id), "N'existe pas dans cette version de l'addon : ne donne rien.")
+            self.action.label:SetText("Retirer")
+        end
+        self.action:SetShown(mj)
+    end
+    return l
+end
+
+-- Un conteneur : autant de lignes que d'emplacements. `bloc` recoit le compte
+-- « occupes / total ».
+function Lignes.conteneur(bloc, def, c)
+    local l = CreateFrame("Frame", nil, bloc)
+    l.catalogue, l.categorie = def.catalogue, def.categorie
+    l.emplacements = {}
+    local m = UI.AelMesures(c.largeurLigne)
+    bloc.occupation = UI.Texte(bloc, "", UI.C.titre)
+    UI.Police(bloc.occupation, m.titre * 0.6)
+    -- Aligne sur le HAUT du titre, comme lui : ancre au centre, il flottait
+    -- d'une demi-ligne trop haut.
+    bloc.occupation:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -26 * m.echelle, -(bloc.hautTitre - 4) / 2 + 2)
+
+    function l:Proposer(ancre)
+        if not (self.entity and LCM.IsMaster()) then return end
+        local categorie = self.catalogue.Categorie(self.categorie)
+        local options = {}
+        for _, element in ipairs(self.catalogue.Candidats(self.entity, self.categorie)) do
+            options[#options + 1] = { id = element.id, label = element.label .. (element.brouillon and "  · brouillon" or "") }
+        end
+        if #options == 0 then
+            LCM.Alerte(string.format("rien a ajouter en %s.", categorie.label:lower()))
+            return
+        end
+        table.sort(options, function(a, b) return a.label:lower() < b.label:lower() end)
+        local choix = Choix()
+        choix.titre:SetText(categorie.label)
+        choix:Proposer(ancre, options, function(id)
+            local ok, raison = self.catalogue.Placer(self.entity, id)
+            if not ok then LCM.Alerte(raison) end
+            self:Actualiser(self.entity)
+        end)
+    end
+
+    -- Retirer se rattrape (on replace) : pas de confirmation.
+    function l:Retirer(id)
+        if not (self.entity and LCM.IsMaster()) then return end
+        if self.catalogue.Enlever(self.entity, id) then self:Actualiser(self.entity) end
+    end
+
+    function l:Actualiser(e)
+        self.entity = e
+        local mj = LCM.IsMaster()
+        local portes = self.catalogue.Ids(e, self.categorie)
+        local places = self.catalogue.Capacite(self.categorie)
+        -- Au-dessus du total (capacite reduite apres coup), le compte passe au
+        -- rouge : rien n'est retire en douce.
+        bloc.occupation:SetText(string.format("%d / %d", #portes, places))
+        local couleur = (#portes > places) and UI.C.plein or UI.C.titre
+        bloc.occupation:SetTextColor(couleur[1], couleur[2], couleur[3])
+        -- Les cases occupees, puis UNE case libre tant qu'il reste de la
+        -- place : trente cases vides ne disent rien de plus qu'une seule.
+        -- Sauf categorie qui demande toutes ses places (l'armure).
+        local categorie = self.catalogue.Categorie(self.categorie)
+        local n = math.max(#portes, math.min(places, #portes + 1))
+        if categorie and categorie.toutesLesCases then n = math.max(#portes, places) end
+        local y = 0
+        for index = 1, n do
+            local ligne = self.emplacements[index]
+            if not ligne then
+                ligne = Emplacement(self, c)
+                self.emplacements[index] = ligne
+            end
+            ligne:Habiller(self.catalogue, portes[index], mj)
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
+            ligne:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
+            ligne:Show()
+            y = y + ligne:GetHeight() + ECART_LIGNES
+        end
+        for index = n + 1, #self.emplacements do self.emplacements[index]:Hide() end
+        self:SetHeight(math.max(1, y - ECART_LIGNES))
+        if self.onChange then self.onChange(e) end
+    end
+    l:SetScript("OnHide", function() if Fiche.choixConteneur then Fiche.choixConteneur:Hide() end end)
+    return l
+end
+
 -- ===== Blocs de section ====================================================
 -- Un bloc par section (UI.SkinFicheBlocks) : cadre du modele, titre en
 -- capitales suivi de son ornement, filet sous le titre, gemme au sommet.
 
 local MARGE_BLOC = 10
+Fiche.MARGE_BLOC = MARGE_BLOC
+Fiche.ECART_LIGNES = ECART_LIGNES
 
-local function Bloc(parent, section, largeur)
+function Fiche.Bloc(parent, section, largeur)
     local b = CreateFrame("Frame", nil, parent)
     local m = UI.AelMesures(largeur)
     local q = largeur / 822
@@ -552,10 +742,33 @@ local function Bloc(parent, section, largeur)
         b.filet:SetHeight(1)
         b.filet:SetPoint("TOPLEFT", b, "TOPLEFT", 10 * q, -b.hautTitre)
         b.filet:SetPoint("TOPRIGHT", b, "TOPRIGHT", -10 * q, -b.hautTitre)
+        -- Un bloc repliable (le recapitulatif) : un clic sur son titre, un
+        -- signe a droite pour dire dans quel etat il est.
+        if section.repliable then
+            b.replie = section.replie == true
+            b.bascule = CreateFrame("Button", nil, b)
+            b.bascule:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+            b.bascule:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+            b.bascule:SetHeight(b.hautTitre)
+            b.signe = UI.Texte(b.bascule, "", UI.C.titre)
+            UI.Police(b.signe, m.titre * 0.8)
+            b.signe:SetPoint("RIGHT", b.bascule, "RIGHT", -26 * m.echelle, 0)
+            b.survolTitre = UI.Aplat(b.bascule, UI.C.survol, "HIGHLIGHT")
+            b.survolTitre:SetAllPoints(b.bascule)
+        end
+    end
+    -- Un paragraphe : la description d'une fenetre du template.
+    if section.texte and section.texte ~= "" then
+        b.paragraphe = UI.Texte(b, section.texte, UI.C.texte)
+        UI.Police(b.paragraphe, section.taille or math.max(11, m.police * 0.75))
+        b.paragraphe:SetWidth(largeur - 40)
+        b.paragraphe:SetWordWrap(true)
+        b.paragraphe:SetPoint("TOPLEFT", b, "TOPLEFT", 20, -(b.hautTitre + 12))
     end
     b.lignes = {}
     return b
 end
+local Bloc = Fiche.Bloc
 
 -- ===== La page =============================================================
 
@@ -576,13 +789,30 @@ function Fiche.Page(parent, sections, largeur)
 
     for _, section in ipairs(sections) do
         local bloc = Bloc(page, section, largeur)
+        if bloc.bascule then
+            bloc.bascule:SetScript("OnClick", function()
+                bloc.replie = not bloc.replie
+                page:Disposer()
+            end)
+        end
+        if section.conteneur then
+            local ligne = Lignes.conteneur(bloc, section.conteneur, c)
+            ligne.onChange = function() if not page.enDisposition then page:Disposer() end end
+            bloc.conteneur = ligne
+            bloc.lignes[#bloc.lignes + 1] = ligne
+            page.lignes[#page.lignes + 1] = ligne
+        end
         for _, field in ipairs(section.fields) do
             local fabrique = Lignes[field.kind]
+            if section.recap then
+                local mode = section.recap
+                fabrique = function(p, f, col) return Lignes.recap(p, f, col, mode) end
+            end
             -- Un champ masque (le maximum brut des PV, deja dans la jauge) ou
             -- reserve au MJ (une surcharge) ne se dessine pas pour les autres.
             local visible = not field.masque and (not field.mjSeulement or LCM.IsMaster())
             if fabrique and visible then
-                local ligne = fabrique(bloc, field, c)
+                local ligne = fabrique(bloc, field, c, section.options and section.options[field.id])
                 ligne.field = field
                 -- Une ligne qui change de hauteur (corps, traits) le signale :
                 -- la page se re-dispose.
@@ -591,7 +821,7 @@ function Fiche.Page(parent, sections, largeur)
                 page.lignes[#page.lignes + 1] = ligne
             end
         end
-        if #bloc.lignes > 0 then
+        if #bloc.lignes > 0 or section.texte then
             page.blocs[#page.blocs + 1] = bloc
         else
             bloc:Hide()
@@ -604,13 +834,21 @@ function Fiche.Page(parent, sections, largeur)
         local y = 0
         for _, bloc in ipairs(self.blocs) do
             local yb = bloc.hautTitre + (bloc.aTitre and 8 or 0)
-            for _, ligne in ipairs(bloc.lignes) do
-                ligne:ClearAllPoints()
-                ligne:SetPoint("TOPLEFT", bloc, "TOPLEFT", MARGE_BLOC, -yb)
-                ligne:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -MARGE_BLOC, -yb)
-                yb = yb + ligne:GetHeight() + ECART_LIGNES
+            if bloc.paragraphe then
+                yb = yb + (bloc.paragraphe:GetStringHeight() or 14) + 12
             end
-            local hauteur = yb - ECART_LIGNES + MARGE_BLOC
+            if bloc.signe then bloc.signe:SetText(bloc.replie and "+" or "-") end
+            for _, ligne in ipairs(bloc.lignes) do
+                -- Replie : on ne garde que le titre.
+                ligne:SetShown(not bloc.replie)
+                if not bloc.replie then
+                    ligne:ClearAllPoints()
+                    ligne:SetPoint("TOPLEFT", bloc, "TOPLEFT", MARGE_BLOC, -yb)
+                    ligne:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -MARGE_BLOC, -yb)
+                    yb = yb + ligne:GetHeight() + ECART_LIGNES
+                end
+            end
+            local hauteur = bloc.replie and (bloc.hautTitre + 4) or (yb - ECART_LIGNES + MARGE_BLOC)
             bloc:ClearAllPoints()
             bloc:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             bloc:SetSize(largeur, hauteur)
@@ -621,9 +859,13 @@ function Fiche.Page(parent, sections, largeur)
     end
 
     function page:Actualiser(entity)
+        -- Les lignes se re-disposent elles-memes quand elles changent de
+        -- hauteur ; pendant une actualisation complete, une seule fois a la fin.
+        self.enDisposition = true
         for _, ligne in ipairs(self.lignes) do
             if ligne.Actualiser then ligne:Actualiser(entity) end
         end
+        self.enDisposition = false
         self:Disposer()
     end
 
@@ -633,74 +875,12 @@ function Fiche.Page(parent, sections, largeur)
 end
 
 -- ===== La fenetre ==========================================================
-
-local LARGEUR, HAUTEUR = 600, 720
+-- La Fiche est une vue comme les autres (Data/Vues.lua, id « fiche ») : ses
+-- onglets sont ceux du template (Statistiques, Facultes, Traits).
 
 function Fiche.Fenetre()
-    if Fiche.frame then return Fiche.frame end
-
-    local f = UI.Fenetre("fiche", "Fiche", LARGEUR, HAUTEUR, { x = -180, y = 0 })
+    local f = UI.Vues.Fenetre("fiche")
     Fiche.frame = f
-    local m = f.mesures
-
-    f.nom = UI.Texte(f, "", UI.C.discret)
-    UI.Police(f.nom, m.police * 0.8)
-    f.nom:SetPoint("TOP", f.titre, "BOTTOM", 0, -2)
-    f.nom:SetJustifyH("CENTER")
-
-    local onglets = {}
-    for _, tab in ipairs(LCM.Schema.Tabs()) do
-        onglets[#onglets + 1] = { id = tab.id, label = tab.label }
-    end
-
-    local largeurContenu = LARGEUR - 24
-    f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
-    f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.barre:SetWidth(largeurContenu)
-    local hauteurBandeau = f.barre:Disposer(largeurContenu, m.onglet)
-
-    f.zone = UI.Defilement(f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -(hauteurBandeau + 10))
-    f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
-
-    f.pages = {}
-    for _, tab in ipairs(LCM.Schema.Tabs()) do
-        local page = Fiche.Page(f.zone.contenu, tab.sections, largeurContenu)
-        page.onHauteur = function(h) if page:IsShown() then f.zone:Regler(h) end end
-        f.pages[tab.id] = page
-    end
-
-    function f:Afficher(ongletId)
-        self.onglet = ongletId
-        self.barre:Selectionner(ongletId)
-        for id, page in pairs(self.pages) do
-            page:SetShown(id == ongletId)
-        end
-        local page = self.pages[ongletId]
-        if page then
-            if self.entity then page:Actualiser(self.entity) end
-            self.zone.decalage = 0
-            self.zone:Regler(page.hauteur)
-        end
-    end
-
-    function f:Montrer(entity)
-        self.entity = entity or LCM.Entities.Self()
-        if not self.entity then
-            LCM.Alerte("aucune entite a afficher.")
-            return
-        end
-        self.nom:SetText(tostring(self.entity.name or self.entity.id))
-        self:Afficher(self.onglet or onglets[1] and onglets[1].id)
-        self:Show()
-    end
-
-    function f:Actualiser()
-        if self.entity and self.onglet and self.pages[self.onglet] then
-            self.pages[self.onglet]:Actualiser(self.entity)
-        end
-    end
-
     return f
 end
 

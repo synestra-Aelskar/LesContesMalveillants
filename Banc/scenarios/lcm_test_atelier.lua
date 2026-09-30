@@ -263,8 +263,8 @@ attendu("sauvegarde : categorie", sauve.categorie, "accessoire")
 f:Ouvrir("amulette_du_guetteur")
 attendu("rouvert : categorie relue", f.edition.categorie, "accessoire")
 
-dire("== Radial")
-attendu("compendium lie", LCM.UI.Radial.EstLiee("compendium"), true)
+dire("== Menu")
+attendu("compendium lie", LCM.UI.Menu.EstLiee("compendium"), true)
 
 
 dire("== Atelier : statuts dans la liste")
@@ -281,5 +281,64 @@ dire("== Supprimer un doublon laisse le publie en place")
 attendu("le brouillon doublon part", B.Supprimer("traits", "escalade_jungle"), true)
 attendu("le trait publie reste", LCM.Traits.Get("escalade_jungle") ~= nil, true)
 attendu("et reste publie", LCM.Traits.Get("escalade_jungle").brouillon, nil)
+
+dire("== Atelier : les familles du compendium du template")
+local onglets = {}
+for _, b in ipairs(f.onglets.boutons) do onglets[#onglets + 1] = b.label:GetText() end
+attendu("six familles", table.concat(onglets, ", "), "Traits, Races, Objets, États, Apprentissages, Sacs")
+
+f.onglets.boutons[6]:Click()
+local ps = f.panneaux.sacs
+attendu("un sac n'a pas d'effets", ps.ajoutBonus:IsShown(), false)
+ps.nom:Saisir("Gros sac")
+ps.places:Saisir("12")
+f.enregistrer:Click()
+attendu("sac cree", LCM.Sacs.Get("gros_sac") and LCM.Sacs.Get("gros_sac").places, 12)
+f.onglets.boutons[1]:Click()
+
+f.onglets.boutons[4]:Click()
+local pe = f.panneaux.etats
+pe.nom:Saisir("Infection de sang")
+f.enregistrer:Click()
+attendu("etat sans categorie : refus", (f.message:GetText() or ""):find("catégorie") ~= nil, true)
+pe.categorie:Click()
+local cats = {}
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() then cats[#cats + 1] = b.choix end end
+attendu("trois categories d'etats", table.concat(cats, ","), "etat,maladie,intangible")
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "etat" then b:Click() end end
+pe.ajoutBonus:Click()
+local force = false
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "force" then force = true b:Click() end end
+attendu("un etat peut viser la Force", force, true)
+pe.lignesBonus[1].montant:Saisir("-10")
+f.enregistrer:Click()
+local infection = LCM.Etats.Get("infection_de_sang")
+attendu("etat cree", infection and infection.bonus.force, -10)
+
+f.onglets.boutons[5]:Click()
+local pa = f.panneaux.apprentissages
+attendu("apprentissage : pas de categorie a choisir", pa.categorie, nil)
+pa.nom:Saisir("Etude de l'acrobatie")
+pa.ajoutBonus:Click()
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "acrobaties" then b:Click() end end
+f.enregistrer:Click()
+attendu("apprentissage cree", LCM.Apprentissages.Get("etude_de_l_acrobatie") ~= nil, true)
+attendu("categorie implicite", LCM.Apprentissages.Get("etude_de_l_acrobatie").categorie, "apprentissage")
+
+f.onglets.boutons[2]:Click()
+local prace = f.panneaux.races
+prace.nom:Saisir("Insgardienne")
+prace.morphologie:Click()
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "humanoide" then b:Click() end end
+attendu("zones de la morphologie", prace.parties:GetText(), "Tête, Torse, Bras, Jambes, Internes")
+prace.ajoutBonus:Click()
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "perception" then b:Click() end end
+prace.lignesBonus[1].montant:Saisir("4")
+f.enregistrer:Click()
+local race = LCM.Races.Get("insgardienne")
+attendu("race avec effets", race and race.bonus.perception, 4)
+local heros = LCM.Entities.Create("h2", "H2", "player")
+LCM.Entities.Set_Value(heros, "race", "insgardienne")
+attendu("la race donne sa Perception", LCM.Formules.Primaire(heros, "perception"), 4)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

@@ -1,4 +1,10 @@
--- Le lanceur radial : le point d'entree de tout l'addon.
+-- Le lanceur radial des ACTIONS.
+--
+-- Comme dans Necronicon (RadialLauncher.lua), il sert aux actions, pas aux
+-- fenetres : ses categories sont les barres du template (Offensives,
+-- Supports, Competences, Controles ; Animation pour le MJ). Les fenetres
+-- passent par le menu (UI/Menu.lua). Tant que la resolution des actions
+-- n'existe pas, ses entrees sont eteintes et le disent.
 --
 -- Il est affiche en permanence. Clic gauche sur le sceau : la couronne des
 -- categories se deploie. Clic sur une categorie : ses entrees s'ouvrent en
@@ -29,7 +35,7 @@ Radial.ACTION = 34
 Radial.RAYON_CATEGORIE = 94
 Radial.RAYON_ACTION = 172
 Radial.FOND = 436
-Radial.MAX_ENTREES = 5 -- au-dela, l'eventail n'a plus de dessin (fan-1..5)
+Radial.MAX_ENTREES = 8 -- au-dela, l'eventail n'a plus de dessin (fan-1..8)
 
 -- ===== La structure, figee =================================================
 -- Ajouter une entree ici est un acte de developpement, pas un reglage : les
@@ -37,44 +43,43 @@ Radial.MAX_ENTREES = 5 -- au-dela, l'eventail n'a plus de dessin (fan-1..5)
 
 Radial.STRUCTURE = {
     {
-        id = "personnage", label = "Personnage", icone = ICONE .. "Achievement_Character_Human_Male",
+        id = "offensives", label = "Offensives", icone = ICONE .. "eps_lol_item_executionerscalling",
         entrees = {
-            { id = "fiche",         label = "Fiche",         icone = ICONE .. "INV_Misc_Note_01" },
-            { id = "equipement",    label = "Equipement",    icone = ICONE .. "INV_Chest_Plate04" },
-            { id = "sante",         label = "Sante",         icone = ICONE .. "Spell_Holy_Heal" },
-            { id = "expertise",     label = "Expertise",     icone = ICONE .. "INV_Misc_Book_09" },
-            { id = "apprentissage", label = "Apprentissage", icone = ICONE .. "INV_Scroll_03" },
+            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "ability_warrior_savageblow" },
+            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "ability_rogue_findweakness" },
+            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "ability_warrior_shieldbreak" },
+            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "spell_shadow_curseofsargeras" },
         },
     },
     {
-        id = "inventaire", label = "Inventaire", icone = ICONE .. "INV_Misc_Bag_08",
+        id = "supports", label = "Supports", icone = ICONE .. "eps_lol_jarvaniv_demacianstandard",
         entrees = {
-            { id = "metier",        label = "Metier",        icone = ICONE .. "Trade_BlackSmithing" },
-            { id = "emplacement_1", label = "Emplacement 1", icone = ICONE .. "INV_Misc_Bag_09" },
-            { id = "emplacement_2", label = "Emplacement 2", icone = ICONE .. "INV_Misc_Bag_10" },
-            { id = "emplacement_3", label = "Emplacement 3", icone = ICONE .. "INV_Misc_Bag_11" },
-            { id = "emplacement_4", label = "Emplacement 4", icone = ICONE .. "INV_Misc_Bag_12" },
+            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "spell_holy_powerwordshield" },
+            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "hots_ltmorales_healingbeam" },
+            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "ability_warrior_rallyingcry" },
+            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "spell_holy_dispelmagic" },
         },
     },
+    -- Les competences propres au personnage : vide tant qu'elles n'existent pas.
+    { id = "competences", label = "Compétences", icone = ICONE .. "eps_lol_spell_ignite", entrees = {} },
     {
-        id = "grimoire", label = "Grimoire", icone = ICONE .. "INV_Misc_Book_11",
+        id = "controles", label = "Contrôles", icone = ICONE .. "w3reforgedensnare",
         entrees = {
-            { id = "competences", label = "Competences", icone = ICONE .. "INV_Misc_Book_07" },
-            { id = "grimoires",   label = "Grimoires",   icone = ICONE .. "INV_Misc_Book_03" },
+            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "d3_waveofforce" },
+            { id = "attraction",     label = "Attraction",     icone = ICONE .. "ability_hunter_harpoon" },
+            { id = "permutation",    label = "Permutation",    icone = ICONE .. "ability_bastion_druid" },
+            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "spell_frost_frostnova" },
+            { id = "entrave",        label = "Entrave",        icone = ICONE .. "spell_nature_web" },
+            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "spell_magic_featherfall" },
         },
     },
-    -- Sans entree : le clic ouvre directement la fenetre de deplacement.
+    -- Le second lanceur du template (« Action mj ») : une categorie reservee.
     {
-        id = "deplacement", label = "Deplacement", icone = ICONE .. "Ability_Rogue_Sprint",
-        direct = true,
-    },
-    {
-        id = "outil", label = "Outil", icone = ICONE .. "Trade_Engineering", mjSeulement = true,
+        id = "animation", label = "Animation", icone = ICONE .. "ability_crown_of_the_heavens_icon", mjSeulement = true,
         entrees = {
-            { id = "panneau_mj",           label = "Panneau MJ",           icone = ICONE .. "INV_Misc_Gear_01" },
-            { id = "compendium",           label = "Compendium",           icone = ICONE .. "INV_Misc_Book_06" },
-            { id = "action_emplacement",   label = "Action d'emplacement", icone = ICONE .. "Trade_Engraving" },
-            { id = "incarner",             label = "Incarner",             icone = ICONE .. "Spell_Shadow_Possession" },
+            { id = "resolution_test_mj", label = "Résolution Test MJ", icone = ICONE .. "inv_misc_gear_02" },
+            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "eps_lol_aphelios_moonlightvigil" },
+            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "eps_lol_aatrox_darkflight" },
         },
     },
 }
@@ -467,7 +472,9 @@ Dessiner = function(f, animeCategories, animeEntrees)
             b = Vignette(f.orbite, Radial.ACTION, true)
             f.boutonsEntree[i] = b
         end
-        local angle = angleChoisi + (i - (#entrees + 1) / 2) * math.pi / 8.75
+        -- Sens horaire : la premiere entree a gauche, la derniere a droite,
+        -- comme on lit (Fiche ... Apprentissage).
+        local angle = angleChoisi - (i - (#entrees + 1) / 2) * math.pi / 8.75
         b.rx, b.ry = math.cos(angle) * Radial.RAYON_ACTION, math.sin(angle) * Radial.RAYON_ACTION
         b.cible = entree
         b:ClearAllPoints()
@@ -611,18 +618,10 @@ function Radial.Afficher(visible)
     LCM.db.settings.radialCache = (not visible) and true or nil
 end
 
-LCM.AddCommand("menu", "ouvre le menu radial", function() Radial.Basculer() end)
-LCM.AddCommand("sceau", "montre ou cache le sceau du menu", function() Radial.Afficher() end)
-
--- ===== Liaisons de base ====================================================
--- Chaque fenetre habille son entree. Celles qui n'existent pas encore restent
--- eteintes dans le menu, ce qui vaut mieux qu'une entree absente.
+LCM.AddCommand("actions", "ouvre le lanceur d'actions", function() Radial.Basculer() end)
+LCM.AddCommand("sceau", "montre ou cache le sceau des actions", function() Radial.Afficher() end)
 
 LCM.WhenReady(function()
-    Radial.Lier("fiche", function()
-        local f = LCM.UI.Fiche.Fenetre()
-        if f:IsShown() then f:Hide() else f:Montrer(LCM.Entities.Self()) end
-    end)
     Radial.Placer()
     local f = Radial.Fenetre()
     f:SetShown(not (LCM.db.settings and LCM.db.settings.radialCache))
@@ -630,10 +629,10 @@ end)
 
 -- Nom lisible dans les raccourcis clavier de WoW.
 _G.BINDING_HEADER_LESCONTESMALVEILLANTS = "Les Contes Malveillants"
-_G.BINDING_NAME_LCM_MENU = "Ouvrir le menu"
+_G.BINDING_NAME_LCM_MENU = "Ouvrir le menu des fenêtres"
 _G.BINDING_NAME_LCM_FICHE = "Ouvrir la fiche"
 
-function LCM_ToggleMenu() Radial.Basculer() end
+function LCM_ToggleMenu() LCM.UI.Menu.Basculer() end
 function LCM_ToggleFiche()
     local f = LCM.UI.Fiche.Fenetre()
     if f:IsShown() then f:Hide() else f:Montrer(LCM.Entities.Self()) end

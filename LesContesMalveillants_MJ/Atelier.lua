@@ -29,10 +29,14 @@ local LARGEUR_FORMULAIRE = LARGEUR - 24 - LARGEUR_LISTE - 12
 local COLONNE = 100      -- largeur des libelles du formulaire
 local LIGNE = 24
 
+-- Les familles du compendium du template qu'on cree en seance.
 local FAMILLES = {
-    { id = "traits", label = "Traits" },
-    { id = "races",  label = "Races" },
-    { id = "objets", label = "Objets" },
+    { id = "traits",         label = "Traits" },
+    { id = "races",          label = "Races" },
+    { id = "objets",         label = "Objets" },
+    { id = "etats",          label = "États" },
+    { id = "apprentissages", label = "Apprentissages" },
+    { id = "sacs",           label = "Sacs" },
 }
 
 -- ===== Ce qu'on propose dans les listes de choix ===========================
@@ -49,7 +53,7 @@ local function OptionsBonus(famille)
                     or (field.kind == "gauge" and field.id ~= "armure")
                     or (field.kind == "calc" and field.recoitBonus)
                 local primaire = LCM.Effets.PRIMAIRES[field.id]
-                if cible and (not primaire or famille == "objets") then
+                if cible and (not primaire or famille ~= "traits") then
                     out[#out + 1] = {
                         id = field.id, label = field.label,
                         groupe = section.label ~= "" and (tab.label .. " · " .. section.label) or tab.label,
@@ -107,6 +111,8 @@ local function Vierge(famille)
         morphology = LCM.DEFAULT_MORPHOLOGY,
         -- Pas de categorie par defaut : c'est un choix, pas un reglage.
         categorie = nil,
+        icone = "",
+        places = "12", placesDevise = "0",
     }
 end
 
@@ -134,6 +140,9 @@ local function Charger(famille, source, publie)
     e.cout = tonumber(source.cout) or 1
     e.morphology = source.morphology
     e.categorie = source.categorie
+    e.icone = tostring(source.icone or "")
+    e.places = tostring(source.places or 12)
+    e.placesDevise = tostring(source.placesDevise or 0)
     for champ, montant in pairs(type(source.bonus) == "table" and source.bonus or {}) do
         e.bonus[#e.bonus + 1] = { champ = tostring(champ), montant = tostring(montant) }
     end
@@ -150,10 +159,6 @@ local function Definition(e)
     if nom == "" then return nil, "donne-lui un nom" end
     local id = e.creation and Brouillons.Identifiant(nom) or e.id
 
-    if e.famille == "races" then
-        return { id = id, label = nom, morphology = e.morphology }
-    end
-
     local bonus = {}
     for _, ligne in ipairs(e.bonus) do
         if bonus[ligne.champ] ~= nil then
@@ -167,11 +172,28 @@ local function Definition(e)
     for _, champ in ipairs(e.avantage) do avantage[#avantage + 1] = champ end
 
     local definition = { id = id, label = nom, bonus = bonus, avantage = avantage }
-    if e.famille == "objets" then
-        if not e.categorie then return nil, "choisis sa catégorie" end
-        definition.categorie = e.categorie
-    else
+    if e.famille == "traits" then
         definition.cout = e.cout
+    else
+        -- Tout le reste porte une icone, comme dans le compendium du template.
+        local icone = tostring(e.icone or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if icone ~= "" then definition.icone = icone end
+        if e.famille == "races" then
+            definition.morphology = e.morphology
+        elseif e.famille == "sacs" then
+            -- Un sac ne donne rien : pas d'effets, ses places. Un nombre
+            -- illisible passe tel quel, le registre le refusera avec sa raison.
+            definition.bonus, definition.avantage = nil, nil
+            definition.places = tonumber(e.places) or e.places
+            definition.placesDevise = tonumber(e.placesDevise) or e.placesDevise
+        else
+            -- Un catalogue a une seule categorie la rend implicite.
+            local registre = Brouillons.Registre(e.famille)
+            if #registre.CATEGORIES > 1 then
+                if not e.categorie then return nil, "choisis sa catégorie" end
+                definition.categorie = e.categorie
+            end
+        end
     end
     local description = tostring(e.description or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if description ~= "" then definition.description = description end
@@ -270,23 +292,29 @@ end
 
 -- Trait et objet partagent tout (description, bonus, avantage) sauf une ligne :
 -- le cout d'un trait, la categorie d'un objet.
-local function OptionsCategories()
+local function OptionsCategories(famille)
+    local registre = Brouillons.Registre(famille)
     local out = {}
-    for _, categorie in ipairs(LCM.Objets.CATEGORIES) do
+    for _, categorie in ipairs(registre.CATEGORIES) do
+        local places = registre.Capacite(categorie.id)
         out[#out + 1] = { id = categorie.id, label = string.format("%s  (%d emplacement%s)",
-            categorie.label, LCM.Objets.Emplacements(categorie.id),
-            LCM.Objets.Emplacements(categorie.id) > 1 and "s" or "") }
+            categorie.label, places, places > 1 and "s" or "") }
     end
     return out
 end
 
+-- Un formulaire pour toutes les familles : elles partagent icone,
+-- description, bonus et avantage (le modele unique du compendium du
+-- template). Seule la ligne sous le nom change : le cout d'un trait, la
+-- morphologie d'une race, la categorie d'un objet ou d'un etat.
 local function PanneauEffets(f, genre)
     local p = UI.Defilement(f.droite)
     local c = p.contenu
     EnTete(f, p, c)
+    local registre = genre ~= "traits" and genre ~= "races" and Brouillons.Registre(genre) or nil
 
     local plafond = LCM.Traits.COUT_MAX
-    if genre == "trait" then
+    if genre == "traits" then
         p.cout = UI.Compteur(c, "Coût", COLONNE, {
             change = function(valeur)
                 if valeur < 1 or valeur > plafond then return false end
@@ -297,12 +325,41 @@ local function PanneauEffets(f, genre)
         })
         p.cout:SetWidth(300)
         p.cout:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -56)
-    else
+    elseif genre == "races" then
+        p.lblMorpho = Libelle(c, "Morphologie")
+        p.lblMorpho:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -61)
+        p.morphologie = UI.Bouton(c, "", 200, 22, function()
+            f.choix.titre:SetText("Morphologie")
+            f.choix:Proposer(p.morphologie, OptionsMorphologies(), function(id)
+                f.edition.morphology = id
+                p:Remplir()
+            end)
+        end)
+        p.morphologie:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -56)
+        -- Ce que la morphologie engendre : ce sont les zones du corps.
+        p.parties = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
+        p.parties:SetPoint("LEFT", p.morphologie, "RIGHT", 10, 0)
+        p.parties:SetWidth(LARGEUR_FORMULAIRE - COLONNE - 230)
+        p.parties:SetWordWrap(true)
+    elseif genre == "sacs" then
+        -- Les places d'un sac, et ses places de devise (compendium du template).
+        p.sansEffets = true
+        p.lblPlaces = Libelle(c, "Places")
+        p.lblPlaces:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -61)
+        p.places = UI.Champ(c, 60, 22, function(texte) f.edition.places = texte end)
+        p.places:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -56)
+        p.places:SetMaxLetters(3)
+        p.lblDevise = Libelle(c, "Places de devise")
+        p.lblDevise:SetPoint("LEFT", p.places, "RIGHT", 20, 0)
+        p.placesDevise = UI.Champ(c, 60, 22, function(texte) f.edition.placesDevise = texte end)
+        p.placesDevise:SetPoint("LEFT", p.lblDevise, "RIGHT", 10, 0)
+        p.placesDevise:SetMaxLetters(3)
+    elseif registre and #registre.CATEGORIES > 1 then
         p.lblCategorie = Libelle(c, "Catégorie")
         p.lblCategorie:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -61)
         p.categorie = UI.Bouton(c, "", 200, 22, function()
             f.choix.titre:SetText("Catégorie")
-            f.choix:Proposer(p.categorie, OptionsCategories(), function(id)
+            f.choix:Proposer(p.categorie, OptionsCategories(genre), function(id)
                 f.edition.categorie = id
                 p:Remplir()
             end)
@@ -310,12 +367,33 @@ local function PanneauEffets(f, genre)
         p.categorie:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -56)
     end
 
+    -- Un objet a une icone (comme dans le compendium du template) : une ligne
+    -- de plus, le reste du formulaire descend d'autant.
+    local decale = 0
+    if genre ~= "traits" then
+        decale = 30
+        p.lblIcone = Libelle(c, "Icône")
+        p.lblIcone:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -91)
+        p.icone = UI.Champ(c, 200, 22, function(texte)
+            f.edition.icone = texte
+            p.apercu:SetTexture(LCM.Objets.Icone(texte))
+        end)
+        p.icone:SetMaxLetters(120)
+        p.icone:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -86)
+        p.apercu = c:CreateTexture(nil, "ARTWORK")
+        p.apercu:SetSize(22, 22)
+        p.apercu:SetPoint("LEFT", p.icone, "RIGHT", 8, 0)
+        p.aideIcone = Libelle(c, "ex. INV_Sword_05")
+        p.aideIcone:SetPoint("LEFT", p.apercu, "RIGHT", 8, 0)
+    end
+    p.decale = decale
+
     p.lblDesc = Libelle(c, "Description")
-    p.lblDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -86)
+    p.lblDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -86 - decale)
     p.description = UI.Zone(c, LARGEUR_FORMULAIRE - 20, 72, function(texte)
         f.edition.description = texte
     end)
-    p.description:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -102)
+    p.description:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -102 - decale)
 
     p.enteteBonus = UI.EnTeteGroupe(c, "BONUS")
     p.enteteAvantage = UI.EnTeteGroupe(c, "AVANTAGE (relance, garde le meilleur)")
@@ -345,12 +423,40 @@ local function PanneauEffets(f, genre)
         self.nom:SetText(e.label or "")
         if self.cout then self.cout:Regler(e.cout or 1, plafond) end
         if self.categorie then
-            local categorie = LCM.Objets.Categorie(e.categorie)
+            local categorie = registre.Categorie(e.categorie)
             self.categorie.label:SetText(categorie and categorie.label or "|cff99907fChoisir…|r")
+        end
+        if self.morphologie then
+            local morphologie = LCM.Morphologies.Get(e.morphology)
+            if morphologie then
+                self.morphologie.label:SetText(morphologie.label)
+                local noms = {}
+                for _, partie in ipairs(morphologie.parts) do noms[#noms + 1] = partie.label end
+                self.parties:SetText(table.concat(noms, ", "))
+            else
+                self.morphologie.label:SetText("|cffe86b6b? " .. tostring(e.morphology) .. "|r")
+                self.parties:SetText("")
+            end
         end
         self.description:SetText(e.description or "")
 
-        local y = -186
+        if self.places then
+            self.places:SetText(tostring(e.places or ""))
+            self.placesDevise:SetText(tostring(e.placesDevise or ""))
+        end
+        if self.icone then
+            self.icone:SetText(e.icone or "")
+            self.apercu:SetTexture(LCM.Objets.Icone(e.icone))
+        end
+        local y = -186 - self.decale
+        -- Une famille sans effets (les sacs) s'arrete a la description.
+        for _, w in ipairs({ self.enteteBonus, self.ajoutBonus, self.enteteAvantage, self.ajoutAvantage }) do
+            w:SetShown(not self.sansEffets)
+        end
+        if self.sansEffets then
+            self:Regler(-y)
+            return
+        end
         self.enteteBonus:ClearAllPoints()
         self.enteteBonus:SetPoint("TOPLEFT", c, "TOPLEFT", 0, y)
         self.enteteBonus:SetPoint("TOPRIGHT", c, "TOPRIGHT", -20, y)
@@ -378,49 +484,6 @@ local function PanneauEffets(f, genre)
         y = y - 30
 
         self:Regler(-y)
-    end
-    return p
-end
-
-local function PanneauRace(f)
-    local p = UI.Defilement(f.droite)
-    local c = p.contenu
-    EnTete(f, p, c)
-
-    p.lblMorpho = Libelle(c, "Morphologie")
-    p.lblMorpho:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -61)
-    p.morphologie = UI.Bouton(c, "", 200, 22, function()
-        f.choix.titre:SetText("Morphologie")
-        f.choix:Proposer(p.morphologie, OptionsMorphologies(), function(id)
-            f.edition.morphology = id
-            p:Remplir()
-        end)
-    end)
-    p.morphologie:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -56)
-
-    -- Ce que la morphologie engendre : c'est ce qui decide des PV, le MJ doit
-    -- le voir avant de choisir.
-    p.parties = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
-    p.parties:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -86)
-    p.parties:SetWidth(LARGEUR_FORMULAIRE - COLONNE - 20)
-    p.parties:SetWordWrap(true)
-
-    function p:Remplir()
-        local e = f.edition
-        self.nom:SetText(e.label or "")
-        local morphologie = LCM.Morphologies.Get(e.morphology)
-        if morphologie then
-            self.morphologie.label:SetText(morphologie.label)
-            local noms = {}
-            for _, partie in ipairs(morphologie.parts) do
-                noms[#noms + 1] = string.format("%s (%s %%)", partie.label, tostring(partie.share))
-            end
-            self.parties:SetText(table.concat(noms, ", "))
-        else
-            self.morphologie.label:SetText("|cffe86b6b? " .. tostring(e.morphology) .. "|r")
-            self.parties:SetText("")
-        end
-        self:Regler(140)
     end
     return p
 end
@@ -472,7 +535,8 @@ local function Construire()
     f.message:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 32)
     f.message:SetWordWrap(true)
 
-    f.panneaux = { traits = PanneauEffets(f, "trait"), races = PanneauRace(f), objets = PanneauEffets(f, "objet") }
+    f.panneaux = {}
+    for _, famille in ipairs(FAMILLES) do f.panneaux[famille.id] = PanneauEffets(f, famille.id) end
     for _, p in pairs(f.panneaux) do
         p:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, 0)
         p:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 64)
@@ -683,9 +747,11 @@ end
 
 LCM.AddCommand("atelier", "(MJ) creer traits, races et objets en seance", function() Atelier.Basculer() end, true)
 
--- Le compendium du menu radial : c'est la que le MJ range son contenu.
 LCM.WhenReady(function()
-    if LCM.UI.Radial and LCM.UI.Radial.Lier then
-        LCM.UI.Radial.Lier("compendium", Atelier.Basculer)
+    -- Le compendium du template, et sa fenetre « Systeme d'Aelskar » : c'est
+    -- la que le MJ range son contenu.
+    if LCM.UI.Menu and LCM.UI.Menu.Lier then
+        LCM.UI.Menu.Lier("compendium", Atelier.Basculer)
+        LCM.UI.Menu.Lier("systeme_aelskar", Atelier.Basculer)
     end
 end)

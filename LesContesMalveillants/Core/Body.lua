@@ -113,6 +113,9 @@ end
 -- ===== Races ===============================================================
 
 -- Verifie et met en forme sans enregistrer (voir Traits.Construire).
+-- Une race a une morphologie et, comme dans le compendium du template, une
+-- icone, une description et des effets : elle peut donner des primaires
+-- (Insgardienne : Perception +4, Force +2...).
 function Races.Construire(definition)
     if type(definition) ~= "table" then Erreur("race invalide") end
     local id = tostring(definition.id or "")
@@ -121,7 +124,13 @@ function Races.Construire(definition)
     if not Morphologies.byId[morphologyId] then
         Erreur("race " .. id .. " : morphologie inconnue « " .. morphologyId .. " »")
     end
-    return { id = id, label = tostring(definition.label or id), morphology = morphologyId }
+    local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur, true)
+    return {
+        id = id, label = tostring(definition.label or id), morphology = morphologyId,
+        description = tostring(definition.description or ""),
+        icone = definition.icone and LCM.Icone and LCM.Icone(definition.icone) or nil,
+        bonus = bonus, avantage = avantage,
+    }
 end
 
 function Races.Add(definition)
@@ -146,6 +155,12 @@ function Races.Retirer(id)
     end
     return true
 end
+
+-- La race de l'entite est une source d'effets comme une autre.
+LCM.Effets.Source("race", function(entity)
+    local race = Races.Get(entity and entity.values and entity.values.race)
+    return race and { race } or {}
+end, function() return Races.list end)
 
 -- ===== Cote entite =========================================================
 
