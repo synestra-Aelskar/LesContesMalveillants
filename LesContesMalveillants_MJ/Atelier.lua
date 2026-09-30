@@ -477,10 +477,12 @@ local function Construire()
     end
 
     -- Ce qu'on montre dans la liste : les brouillons (jouables ou refuses au
-    -- chargement), puis le contenu publie.
+    -- chargement), puis le contenu publie. Un brouillon qui reprend
+    -- l'identifiant d'un contenu publie donne DEUX lignes : chacune ouvre sa
+    -- source, sinon le publie devient invisible derriere son doublon.
     function f:Entrees()
         local registre = Brouillons.Registre(self.famille)
-        local brouillons, publies, vus = {}, {}, {}
+        local brouillons, publies = {}, {}
         for _, entree in ipairs(Brouillons.List(self.famille)) do
             local id = tostring(entree.id)
             local statut = "refuse"
@@ -490,10 +492,9 @@ local function Construire()
                 statut = "brouillon"
             end
             brouillons[#brouillons + 1] = { id = id, label = tostring(entree.label or id), statut = statut }
-            vus[id] = true
         end
         for _, element in ipairs(registre and registre.list or {}) do
-            if not vus[element.id] and element.brouillon ~= true then
+            if element.brouillon ~= true then
                 publies[#publies + 1] = { id = element.id, label = element.label, statut = "publie" }
             end
         end
@@ -517,18 +518,22 @@ local function Construire()
         for index, entree in ipairs(entrees) do
             local b = self.liste.lignes[index]
             if not b then
-                b = UI.Bouton(zone.contenu, "", 10, 20, function(bouton) f:Ouvrir(bouton.entreeId) end)
+                b = UI.Bouton(zone.contenu, "", 10, 20, function(bouton)
+                    f:Ouvrir(bouton.entreeId, bouton.publie)
+                end)
                 b.label:ClearAllPoints()
                 b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
                 b.label:SetJustifyH("LEFT")
                 self.liste.lignes[index] = b
             end
             b.entreeId = entree.id
+            b.publie = entree.statut == "publie"
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", zone.contenu, "TOPLEFT", 0, -(index - 1) * 22)
             b:SetPoint("TOPRIGHT", zone.contenu, "TOPRIGHT", 0, -(index - 1) * 22)
             local statut = STATUTS[entree.statut]
             local choisi = (not self.edition.creation) and self.edition.id == entree.id
+                and (self.edition.publie == true) == b.publie
             b.label:SetText((choisi and "> " or "") .. entree.label .. statut.suffixe)
             local couleur = choisi and UI.C.titre or statut.couleur
             b.label:SetTextColor(couleur[1], couleur[2], couleur[3])
@@ -546,11 +551,17 @@ local function Construire()
         self:MajIdentifiant()
 
         local editable = Brouillons.Registre(self.famille) ~= nil and not e.publie
-        self.enregistrer:SetShown(editable)
+        -- Un brouillon qui double un contenu publie ne peut plus etre
+        -- enregistre (le registre le refuserait) ; il ne reste qu'a le retirer.
+        local doublon = editable and not e.creation and Brouillons.EstPublie(self.famille, e.id)
+        self.enregistrer:SetShown(editable and not doublon)
         self.supprimer:SetShown(editable and not e.creation)
         if e.publie then
             self:Message("Contenu publié : il vient d'un fichier généré, et c'est ce fichier "
                 .. "qui fait foi. Il ne se modifie pas ici.")
+        elseif doublon then
+            self:Message("Ce brouillon porte l'identifiant d'un contenu déjà publié : le fichier "
+                .. "fait foi, et ce brouillon est ignoré. Il ne reste qu'à le supprimer.", UI.C.plein)
         elseif e.creation then
             self:Message("")
         end
@@ -563,9 +574,10 @@ local function Construire()
         self:Afficher()
     end
 
-    function f:Ouvrir(id)
+    -- `publie` : ouvrir le contenu publie plutot que le brouillon du meme nom.
+    function f:Ouvrir(id, publie)
         self.choix:Hide()
-        local brouillon = Brouillons.Get(self.famille, id)
+        local brouillon = not publie and Brouillons.Get(self.famille, id)
         if brouillon then
             self.edition = Charger(self.famille, brouillon, false)
         else

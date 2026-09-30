@@ -159,6 +159,9 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:StartMoving() end
     function f:StopMovingOrSizing() end
     function f:SetClampedToScreen() end
+    -- Rognage des enfants (zone de texte multiligne) : retenu, pas simule.
+    function f:SetClipsChildren(v) self.__clips = v and true or false end
+    function f:DoesClipChildren() return self.__clips == true end
     function f:SetFrameStrata(v) self.__strata = v end
     function f:SetFrameLevel(v) self.__level = v end
     function f:GetFrameLevel() return self.__level or 1 end

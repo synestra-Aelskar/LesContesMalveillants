@@ -50,6 +50,7 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_pv.lua` | points de vie, répartition, dégâts |
 | `lcm_test_traits.lua` | traits, bonus, avantage, jets |
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
+| `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
 | `lcm_test_fiche.lua` | la fenêtre de fiche, construite depuis le schéma |
 | `lcm_test_silhouette.lua` | le dessin du corps (descriptif, pas d'assertions) |
 | `lcm_test_menu.lua` | le menu radial, structure figée, déploiement, animation |
