@@ -126,10 +126,17 @@ Il n'y a **pas besoin de lancer WoW** pour vérifier son travail. Le banc charge
 les `.toc` dans un Lua 5.1 avec une API WoW simulée (cadres, ancrages, tailles,
 textes, visibilité, clics, molette, animations) et joue un scénario.
 
+Il est dans **`Banc/`**, livré avec le dépôt. Une installation, une fois :
+
 ```
-cd C:\Users\Synestra\projects\NecroniconMock
+cd Banc
+installer.cmd
 lcm.cmd scenarios\lcm_test_creation.lua
 ```
+
+Il trouve les dossiers d'addon tout seul — le dépôt lui-même si tu le lances
+depuis un clone, ou le dossier que tu lui donnes avec `--addons`. Voir
+`Banc/LISEZ-MOI.md`.
 
 Douze scénarios couvrent le socle, le corps, les PV, les traits, les brouillons,
 la fiche, la silhouette, le menu, les personnages, la création (moteur et

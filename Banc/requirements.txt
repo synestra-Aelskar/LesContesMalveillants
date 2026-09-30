@@ -1,0 +1,4 @@
+# Le banc charge le Lua de l addon dans un Lua 5.1 embarque.
+lupa
+# Conversion des artworks en textures WoW (outil portraits.py).
+Pillow

@@ -58,11 +58,17 @@ c'est qu'il manque une entrée dans `Equilibrage`.
 Tu peux — et tu dois — vérifier ton travail **sans lancer WoW**.
 
 ```
-cd C:\Users\Synestra\projects\NecroniconMock
+cd Banc
+installer.cmd                              (une seule fois)
 lcm.cmd scenarios\lcm_test_creation.lua
 ```
 
-Le banc (`scenarios/lcm_bench.py`) charge les `.toc` dans un Lua 5.1 (lupa) avec
+Le banc trouve les dossiers d'addon tout seul : le dépôt s'il tourne depuis un
+clone, sinon `--addons <chemin>` ou la variable `LCM_ADDONS`. Il annonce en
+première ligne celui qu'il a retenu — **lis-la** avant de conclure quoi que ce
+soit d'un test qui passe.
+
+Le banc (`Banc/lcm_bench.py`) charge les `.toc` dans un Lua 5.1 (lupa) avec
 une API WoW simulée : hiérarchie de cadres, ancrages, tailles, textes,
 visibilité, clics (`frame:Click("RightButton")`), molette (`frame:Molette(-1)`),
 saisie (`editbox:Saisir("texte")`), animations (`__avancer(1)`), `OnShow` /
@@ -70,13 +76,13 @@ saisie (`editbox:Saisir("texte")`), animations (`__avancer(1)`), `OnShow` /
 
 Conventions des scénarios : une fonction `attendu(libellé, obtenu, voulu)`, des
 sections annoncées par `dire("== …")`, et une dernière ligne `TOUT PASSE` ou
-`n ECHEC(S)`. Copie n'importe lequel des douze existants pour démarrer.
+`n ECHEC(S)`. Copie n'importe lequel des douze de `Banc/scenarios/` pour démarrer.
 
 **Les douze scénarios doivent être au vert avant de publier.** Si tu en casses
 un, c'est soit un vrai bug, soit une attente du test devenue fausse — dans le
 second cas, corrige le test *et dis-le*, ne le contourne pas.
 
-Si le banc manque d'une fonction de l'API WoW, **ajoute-la au banc** plutôt que
+Si le banc manque d'une fonction de l'API WoW, **ajoute-la au banc** (`Banc/lcm_bench.py`) plutôt que
 de contourner dans le code de l'addon. Il ne doit y avoir aucun `if Mock then`
 dans l'addon.
 
