@@ -120,8 +120,10 @@ Schema.AddTab({
         {
             label = "Traits",
             fields = {
-                -- Contenu a definir : les traits sont probablement une liste
-                -- d'entrees plutot que des champs fixes. A traiter a part.
+                -- La liste des traits portes : un champ a part entiere, pour
+                -- que la fiche la dessine comme le reste, mais sa donnee vit
+                -- dans `entity.traits` (voir Core/Traits.lua).
+                { id = "traits_portes", kind = "traits", label = "Traits portés" },
                 { id = "traits_notes", kind = "text", label = "Notes" },
             },
         },

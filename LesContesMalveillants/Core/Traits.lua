@@ -147,6 +147,23 @@ function Traits.Owned(entity)
     return out
 end
 
+-- Les identifiants portes, TOUS, y compris ceux dont le trait n'existe plus
+-- (brouillon supprime, contenu pas encore publie chez ce joueur). `Owned` les
+-- tait ; la fiche doit pouvoir les montrer. Une copie : la modifier ne touche
+-- pas l'entite.
+function Traits.Ids(entity)
+    local out = {}
+    for _, id in ipairs(OwnedIds(entity)) do out[#out + 1] = id end
+    return out
+end
+
+-- Somme des couts des traits portes et connus.
+function Traits.CoutTotal(entity)
+    local total = 0
+    for _, trait in ipairs(Traits.Owned(entity)) do total = total + trait.cout end
+    return total
+end
+
 function Traits.Has(entity, traitId)
     for _, id in ipairs(OwnedIds(entity)) do
         if id == tostring(traitId) then return true end

@@ -88,12 +88,27 @@ local function NouvelleRegion(kind, parent)
     function r:GetHeight() return self.__h or 0 end
     -- Afficher et masquer declenchent OnShow / OnHide, comme dans le jeu : des
     -- fenetres s'en servent pour se ranger ou revenir au premier plan.
+    --
+    -- Comme dans le jeu, l'evenement descend aux enfants affiches : masquer une
+    -- fenetre declenche le OnHide de ce qu'elle contient (une liste de choix
+    -- s'y accroche pour se refermer).
+    local function Propager(cadre, script)
+        for _, enfant in ipairs(cadre.__children or {}) do
+            if enfant.__shown == true then
+                local fn = enfant.__scripts and enfant.__scripts[script]
+                if fn then fn(enfant) end
+                Propager(enfant, script)
+            end
+        end
+    end
     local function Visibilite(self, visible)
         local avant = self.__shown == true
         self.__shown = visible and true or false
         if avant == self.__shown then return end
-        local fn = self.__scripts and self.__scripts[visible and "OnShow" or "OnHide"]
+        local script = visible and "OnShow" or "OnHide"
+        local fn = self.__scripts and self.__scripts[script]
         if fn then fn(self) end
+        Propager(self, script)
     end
     function r:Show() Visibilite(self, true) end
     function r:Hide() Visibilite(self, false) end
@@ -120,6 +135,22 @@ local function NouvelleRegion(kind, parent)
     function r:GetCenter() return (self.__w or 0) / 2, (self.__h or 0) / 2 end
     function r:SetDrawLayer() end
     function r:SetWordWrap() end
+    -- Mesure approchee d'un texte qui passe a la ligne : 6 px par caractere,
+    -- 12 px par ligne. Assez pour verifier qu'un bloc grandit avec son texte,
+    -- pas pour juger d'un pixel.
+    function r:GetStringHeight()
+        local texte = tostring(self.__text or "")
+        if texte == "" then return 0 end
+        local largeur = self.__w or 0
+        local lignes = 0
+        for morceau in (texte .. "\n"):gmatch("([^\n]*)\n") do
+            local n = 1
+            if largeur > 0 then n = math.max(1, math.ceil(#morceau * 6 / largeur)) end
+            lignes = lignes + n
+        end
+        return lignes * 12
+    end
+    function r:GetStringWidth() return #tostring(self.__text or "") * 6 end
     function r:SetNonSpaceWrap() end
     function r:SetMaxLines() end
     return r

@@ -55,7 +55,7 @@ la sélection du personnage. Maj + glisser : le déplacer.
 
 ### Ce qui marche
 
-**Le socle.** Schéma figé (`Core/Schema.lua` + `Data/Fiche.lua`), 108 champs,
+**Le socle.** Schéma figé (`Core/Schema.lua` + `Data/Fiche.lua`), 109 champs,
 7 onglets. Les entités — joueurs **et** PNJ, même modèle — ne stockent que leurs
 valeurs : `{ id, name, icon, kind, values }`. Une valeur égale au défaut n'est
 pas écrite. Un PNJ complet pèse une centaine d'octets, contre 8,6 Mo dans
@@ -102,8 +102,9 @@ Par ordre de ce qui bloque le plus :
       ou « Compendium » dans le menu) crée et modifie les brouillons de traits
       et de races ; le contenu publié s'y affiche en lecture seule. Les objets
       attendent leur registre.
-- [ ] **L'onglet Traits de la fiche** n'a qu'un champ de notes ; les traits
-      portés ne s'affichent pas en liste.
+- [x] **L'onglet Traits de la fiche** : une carte par trait porté (coût,
+      description, effets) ; le MJ ajoute et retire, le joueur lit. Un trait
+      disparu reste affiché, marqué, sans effet.
 - [ ] **Les races** : humain seulement, sur décision de Syn'estra. Les autres
       morphologies s'utilisent via le champ `morphologie` d'une entité.
 - [ ] **Les portraits** : aucun livré. Déposer les images et lancer l'outil.

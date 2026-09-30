@@ -52,6 +52,7 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
 | `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
 | `lcm_test_fiche.lua` | la fenêtre de fiche, construite depuis le schéma |
+| `lcm_test_fiche_traits.lua` | l'onglet Traits : cartes, ajout / retrait MJ, trait disparu, lecture joueur |
 | `lcm_test_silhouette.lua` | le dessin du corps (descriptif, pas d'assertions) |
 | `lcm_test_menu.lua` | le menu radial, structure figée, déploiement, animation |
 | `lcm_test_personnages.lua` | profils, carrousel, portraits, suppression |

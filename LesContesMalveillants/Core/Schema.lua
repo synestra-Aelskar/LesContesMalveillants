@@ -22,7 +22,9 @@ LCM.Schema = Schema
 --   text    texte libre
 --   calc    valeur calculee, non saisissable       (somme, moyenne...)
 --   body    silhouette : les points de vie repartis sur les parties du corps
-Schema.KINDS = { stat = true, gauge = true, roll = true, text = true, calc = true, body = true }
+--   traits  la liste des traits portes (vit dans `entity.traits`, pas dans
+--           `values` : c'est une liste d'identifiants, pas une valeur)
+Schema.KINDS = { stat = true, gauge = true, roll = true, text = true, calc = true, body = true, traits = true }
 
 local sheet = { tabs = {}, byId = {}, order = {} }
 Schema.sheet = sheet

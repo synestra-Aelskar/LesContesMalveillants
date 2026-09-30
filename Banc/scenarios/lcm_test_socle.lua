@@ -10,7 +10,7 @@ end
 __declencher("PLAYER_LOGIN")
 
 dire("== schema")
-attendu("champs declares", LCM.Schema.Count(), 108)
+attendu("champs declares", LCM.Schema.Count(), 109)
 attendu("onglets", #LCM.Schema.Tabs(), 7)
 attendu("le champ armure existe", LCM.Schema.Field("armure") ~= nil, true)
 attendu("son type", LCM.Schema.Field("armure").kind, "gauge")
@@ -22,7 +22,7 @@ attendu("mon identite", moi.id, "Reika-Apertus")
 attendu("mon type", moi.kind, "player")
 local golem = LCM.Entities.Create("pnj_golem", "Golem de glace", "npc")
 attendu("pnj cree", golem.name, "Golem de glace")
-attendu("meme feuille pour les deux", LCM.Schema.Count(), 108)
+attendu("meme feuille pour les deux", LCM.Schema.Count(), 109)
 
 dire("== valeurs")
 attendu("force par defaut", LCM.Entities.Get_Value(moi, "force"), 0)

@@ -132,6 +132,193 @@ function Lignes.body(parent, field, entity)
     return l
 end
 
+-- ----- Les traits portes ----------------------------------------------------
+-- Une carte par trait : nom, cout, description, effets. La liste defile dans
+-- une hauteur fixe, pour que les lignes suivantes de l'onglet ne bougent pas
+-- selon le nombre de traits.
+--
+-- Donner ou retirer un trait est un geste de MJ : le joueur choisit les siens a
+-- la creation, avec un budget ; ensuite, c'est la partie qui les accorde.
+
+local HAUTEUR_TRAITS = 380
+local LARGEUR_CARTE = 500
+
+local function Montant(n)
+    return (n >= 0 and "+" or "") .. Nombre(n)
+end
+
+-- « Escalade +3  ·  Avantage : Escalade ». Trie, pour qu'un meme trait se lise
+-- toujours pareil.
+local function Effets(trait)
+    local bonus, avantages = {}, {}
+    for champ, montant in pairs(trait.bonus) do
+        local field = LCM.Schema.Field(champ)
+        bonus[#bonus + 1] = (field and field.label or champ) .. " " .. Montant(montant)
+    end
+    for champ in pairs(trait.avantage) do
+        local field = LCM.Schema.Field(champ)
+        avantages[#avantages + 1] = field and field.label or champ
+    end
+    table.sort(bonus)
+    table.sort(avantages)
+    if #avantages > 0 then bonus[#bonus + 1] = "Avantage : " .. table.concat(avantages, ", ") end
+    return table.concat(bonus, "  ·  ")
+end
+
+local function CarteTrait(parent, ligne)
+    local c = CreateFrame("Frame", nil, parent)
+    c.fond = UI.Aplat(c, UI.C.fondClair)
+    c.fond:SetAllPoints(c)
+
+    c.nom = UI.Texte(c, "", UI.C.titre, "GameFontNormalSmall")
+    c.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 8, -6)
+    c.cout = UI.Texte(c, "", UI.C.accent, "GameFontNormalSmall")
+    c.cout:SetPoint("TOPRIGHT", c, "TOPRIGHT", -32, -6)
+    c.cout:SetJustifyH("RIGHT")
+    -- L'identifiant est porte par la carte, lu au clic : les cartes sont
+    -- reutilisees d'un affichage a l'autre.
+    c.retirer = UI.Bouton(c, "x", 18, 18, function() ligne:Retirer(c.traitId) end)
+    c.retirer:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -4)
+
+    c.description = UI.Texte(c, "", UI.C.texte, "GameFontNormalSmall")
+    c.description:SetWidth(LARGEUR_CARTE - 16)
+    c.description:SetWordWrap(true)
+    c.effets = UI.Texte(c, "", UI.C.accent, "GameFontNormalSmall")
+    c.effets:SetWidth(LARGEUR_CARTE - 16)
+    c.effets:SetWordWrap(true)
+
+    -- Remplit la carte et renvoie sa hauteur.
+    function c:Habiller(id, mj)
+        self.traitId = id
+        local trait = LCM.Traits.Get(id)
+        local description, effets
+        if trait then
+            self.nom:SetText(trait.label .. (trait.brouillon and "  |cff99907f· brouillon|r" or ""))
+            self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+            self.cout:SetText(string.format("%d pt%s", trait.cout, trait.cout > 1 and "s" or ""))
+            description = trait.description
+            effets = Effets(trait)
+            if effets == "" then effets = "Aucun effet chiffré." end
+        else
+            -- Un trait disparu reste montre : il est encore sur l'entite, et
+            -- redevient actif s'il revient. Le taire ferait croire a une
+            -- fiche saine.
+            self.nom:SetText("? " .. tostring(id))
+            self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+            self.cout:SetText("")
+            description = "Ce trait n'existe pas dans cette version de l'addon (brouillon supprimé, "
+                .. "ou contenu pas encore publié). Il ne donne rien tant qu'il n'existe pas."
+            effets = ""
+        end
+        self.retirer:SetShown(mj)
+
+        local y = 24
+        self.description:ClearAllPoints()
+        self.description:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -y)
+        self.description:SetText(description or "")
+        if (description or "") ~= "" then
+            self.description:Show()
+            y = y + self.description:GetStringHeight() + 4
+        else
+            self.description:Hide()
+        end
+        self.effets:ClearAllPoints()
+        self.effets:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -y)
+        self.effets:SetText(effets)
+        if effets ~= "" then
+            self.effets:Show()
+            y = y + self.effets:GetStringHeight() + 4
+        else
+            self.effets:Hide()
+        end
+        return y + 4
+    end
+    return c
+end
+
+function Lignes.traits(parent, field)
+    local l = CreateFrame("Frame", nil, parent)
+    l:SetHeight(HAUTEUR_TRAITS)
+    l.cartes = {}
+
+    l.label = UI.Texte(l, field.label, UI.C.texte, "GameFontNormalSmall")
+    l.label:SetPoint("TOPLEFT", l, "TOPLEFT", 0, -4)
+    l.resume = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
+    l.resume:SetPoint("TOPLEFT", l, "TOPLEFT", COLONNE_LABEL, -4)
+
+    l.ajouter = UI.Bouton(l, "+  Ajouter", 90, 18, function() l:ProposerAjout() end)
+    l.ajouter:SetPoint("TOPRIGHT", l, "TOPRIGHT", -4, -2)
+    l.choix = UI.Choix("fiche_traits", "Ajouter un trait")
+    l:SetScript("OnHide", function() l.choix:Hide() end)
+
+    l.zone = UI.Defilement(l)
+    l.zone:SetPoint("TOPLEFT", l, "TOPLEFT", 0, -26)
+    l.zone:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT", 0, 0)
+
+    l.vide = UI.Texte(l.zone.contenu, "Aucun trait porté.", UI.C.discret, "GameFontNormalSmall")
+    l.vide:SetPoint("TOPLEFT", l.zone.contenu, "TOPLEFT", 8, -6)
+
+    -- Ne propose que ce qui n'est pas deja porte.
+    function l:ProposerAjout()
+        if not (self.entity and LCM.IsMaster()) then return end
+        local options = {}
+        for _, trait in ipairs(LCM.Traits.list) do
+            if not LCM.Traits.Has(self.entity, trait.id) then
+                options[#options + 1] = {
+                    id = trait.id,
+                    label = string.format("%s  (%d pt%s)%s", trait.label, trait.cout,
+                        trait.cout > 1 and "s" or "", trait.brouillon and "  · brouillon" or ""),
+                }
+            end
+        end
+        if #options == 0 then
+            LCM.Alerte("tous les traits connus sont deja portes.")
+            return
+        end
+        table.sort(options, function(a, b) return a.label:lower() < b.label:lower() end)
+        self.choix:Proposer(self.ajouter, options, function(id)
+            if LCM.Traits.Grant(self.entity, id) then self:Actualiser(self.entity) end
+        end)
+    end
+
+    -- Retirer se rattrape (on redonne le trait) : pas de confirmation.
+    function l:Retirer(id)
+        if not (self.entity and LCM.IsMaster()) then return end
+        if LCM.Traits.Revoke(self.entity, id) then self:Actualiser(self.entity) end
+    end
+
+    function l:Actualiser(e)
+        self.entity = e
+        local mj = LCM.IsMaster()
+        self.ajouter:SetShown(mj)
+
+        local ids = LCM.Traits.Ids(e)
+        local y = 0
+        for index, id in ipairs(ids) do
+            local c = self.cartes[index]
+            if not c then
+                c = CarteTrait(self.zone.contenu, self)
+                self.cartes[index] = c
+            end
+            c:ClearAllPoints()
+            c:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+            c:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
+            local hauteur = c:Habiller(id, mj)
+            c:SetHeight(hauteur)
+            c:Show()
+            y = y + hauteur + 6
+        end
+        for index = #ids + 1, #self.cartes do self.cartes[index]:Hide() end
+        self.vide:SetShown(#ids == 0)
+
+        local cout = LCM.Traits.CoutTotal(e)
+        self.resume:SetText(#ids == 0 and "" or string.format("%d trait%s  ·  %d pt%s",
+            #ids, #ids > 1 and "s" or "", cout, cout > 1 and "s" or ""))
+        self.zone:Regler(y)
+    end
+    return l
+end
+
 -- ===== La fenetre ==========================================================
 
 local function ConstruireOnglet(parent, tab)

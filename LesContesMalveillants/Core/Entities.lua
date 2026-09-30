@@ -100,6 +100,9 @@ function Entities.Set_Value(entity, fieldId, value)
         return false
     end
     if field.kind == "calc" then return false end
+    -- Les traits portes passent par LCM.Traits.Grant / Revoke : une valeur
+    -- ecrite ici serait une seconde source de verite, ignoree de tous.
+    if field.kind == "traits" then return false end
     if type(entity) ~= "table" then return false end
     -- Une valeur egale au defaut n'est pas ecrite : la sauvegarde ne garde que
     -- ce qui s'ecarte de la feuille vierge.
