@@ -16,7 +16,7 @@ attendu("six pieces fixes", #fiche.decor.fixes, 6)
 attendu("six bandes etirees", #fiche.decor.bandes, 6)
 attendu("titre centre", fiche.titreCentre, true)
 local point = fiche.titre:GetPoint(1)
-attendu("et ancre au milieu", point, "TOP")
+attendu("et centre sur le haut (en-tete Necronicon)", point, "CENTER")
 
 dire("== l'echelle suit la largeur, entre deux bornes")
 local creation = LCM.UI.Creation.Fenetre()

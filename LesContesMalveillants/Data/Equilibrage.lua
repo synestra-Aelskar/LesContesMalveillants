@@ -24,6 +24,9 @@ E.pv = {
     parNiveau = 1.5,
     parVitalite = 3,          -- points secondaires investis en vitalite
     constitution = { base = 2, parConstitution = 0.25 },
+    -- Chaque zone du corps vaut ce pourcentage des PV max (« Modif pv par
+    -- zone »). Les zones se chevauchent : ensemble, elles depassent le total.
+    parZone = 0.30,
 }
 
 -- Fatigue max = base + 2 x constitution + esprit + 2 x niveau

@@ -120,3 +120,142 @@ function UI.Cadre(cadre)
     decor:Disposer()
     return decor
 end
+
+-- ===== Atlas des widgets ===================================================
+-- `widgets-reference.tga` (1024 x 2048) : onglets, blocs, cadres d'icone,
+-- embouts de jauge, ornements de titre. Repris de Necronicon avec ses
+-- coordonnees (AelArtwork.lua / AelWidgets.lua) : ce sont elles qui donnent
+-- a une fenetre l'allure de la reference, pas une imitation a l'oeil.
+
+local WIDGETS = "Interface\\AddOns\\LesContesMalveillants\\ressources\\aelrazkah\\widgets-reference.tga"
+
+-- Un morceau de l'atlas, en pixels de l'atlas.
+function UI.AelRef(parent, x, y, w, h, layer)
+    local t = parent:CreateTexture(nil, layer or "ARTWORK")
+    t:SetTexture(WIDGETS)
+    t:SetTexCoord(x / 1024, (x + w) / 1024, y / 2048, (y + h) / 2048)
+    return t
+end
+
+-- Bordure en huit morceaux decoupee dans l'atlas, SANS le centre : le texte
+-- grave dans le modele ne doit jamais apparaitre. `b` : epaisseur du bord dans
+-- l'atlas ; `taille` : son epaisseur a l'ecran ; `fin` : bords haut / bas plus
+-- minces (onglets).
+function UI.AelDecoupe(parent, x, y, w, h, b, taille, fin)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetAllPoints(parent)
+    f:EnableMouse(false)
+    f:SetFrameLevel(parent:GetFrameLevel())
+    f.morceaux = {}
+    local function Morceau(px, py, pw, ph, a, c, dw, dh, ox, oy, cx, cy)
+        local t = UI.AelRef(f, px, py, pw, ph, "BORDER")
+        t:SetPoint(a, f, a, ox or 0, oy or 0)
+        if c then t:SetPoint(c, f, c, cx or 0, cy or 0) end
+        if dw then t:SetWidth(dw) end
+        if dh then t:SetHeight(dh) end
+        f.morceaux[#f.morceaux + 1] = t
+    end
+    local hb = fin or b
+    Morceau(x + b, y, w - 2 * b, hb, "TOPLEFT", "TOPRIGHT", nil, fin and 2 or taille, taille, 0, -taille, 0)
+    Morceau(x + b, y + h - hb, w - 2 * b, hb, "BOTTOMLEFT", "BOTTOMRIGHT", nil, fin and 2 or taille, taille, 0, -taille, 0)
+    Morceau(x, y + b, b, h - 2 * b, "TOPLEFT", "BOTTOMLEFT", taille, nil, 0, -taille, 0, taille)
+    Morceau(x + w - b, y + b, b, h - 2 * b, "TOPRIGHT", "BOTTOMRIGHT", taille, nil, 0, -taille, 0, taille)
+    Morceau(x, y, b, b, "TOPLEFT", nil, taille, taille)
+    Morceau(x + w - b, y, b, b, "TOPRIGHT", nil, taille, taille)
+    Morceau(x, y + h - b, b, b, "BOTTOMLEFT", nil, taille, taille)
+    Morceau(x + w - b, y + h - b, b, b, "BOTTOMRIGHT", nil, taille, taille)
+    return f
+end
+
+-- Les cadres nommes du modele.
+local CADRES = {
+    section  = { 103, 328, 822, 318, 14, 7, 4 },
+    onglet   = { 128, 165, 273, 55, 8, 4 },
+    icone    = { 134, 390, 54, 54, 5, 2 },
+    controle = { 694, 455, 37, 40, 4, 2 },
+}
+function UI.AelCadre(parent, genre)
+    local r = CADRES[genre] or CADRES.controle
+    return UI.AelDecoupe(parent, r[1], r[2], r[3], r[4], r[5], r[6], r[7])
+end
+
+-- Embouts dores d'une barre de jauge : le meme embout des deux cotes (le
+-- gauche du modele contient un bout de remplissage), et deux filets.
+function UI.AelCadreJauge(parent)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetAllPoints(parent)
+    f:EnableMouse(false)
+    f:SetFrameLevel(parent:GetFrameLevel() + 1)
+    for _, cote in ipairs({ "LEFT", "RIGHT" }) do
+        local t = UI.AelRef(f, 655, 459, 19, 34, "OVERLAY")
+        if cote == "LEFT" then t:SetTexCoord(674 / 1024, 655 / 1024, 459 / 2048, 493 / 2048) end
+        local dx = cote == "LEFT" and -4 or 4
+        t:SetPoint("TOP" .. cote, f, "TOP" .. cote, dx, 2)
+        t:SetPoint("BOTTOM" .. cote, f, "BOTTOM" .. cote, dx, -2)
+        t:SetWidth(9)
+    end
+    for _, r in ipairs({ { 459, "TOP" }, { 490, "BOTTOM" } }) do
+        local t = UI.AelRef(f, 413, r[1], 241, 3, "OVERLAY")
+        t:SetPoint(r[2] .. "LEFT", f, r[2] .. "LEFT", 5, 0)
+        t:SetPoint(r[2] .. "RIGHT", f, r[2] .. "RIGHT", -5, 0)
+        t:SetHeight(2)
+    end
+    return f
+end
+
+-- Bouton net : fond sombre et filet d'or d'un pixel. Une tranche d'atlas
+-- etiree a cette taille serait floue ; le modele Necronicon trace donc ce
+-- cadre en aplats, et nous aussi.
+local OR_TERNI = { 0.66, 0.51, 0.27, 1 }
+function UI.AelBoutonNet(bouton)
+    local f = CreateFrame("Frame", nil, bouton)
+    f:SetAllPoints(bouton)
+    f:EnableMouse(false)
+    f:SetFrameLevel(bouton:GetFrameLevel())
+    f.fond = f:CreateTexture(nil, "BACKGROUND")
+    f.fond:SetAllPoints(f)
+    f.fond:SetColorTexture(0.035, 0.030, 0.023, 1)
+    UI.Bordure(f, OR_TERNI)
+    local function Peindre(etat)
+        local c = etat == "appui" and { 0.12, 0.085, 0.04 }
+            or (etat == "survol" and { 0.09, 0.065, 0.03 } or { 0.035, 0.030, 0.023 })
+        f.fond:SetColorTexture(c[1], c[2], c[3], 1)
+    end
+    bouton:HookScript("OnEnter", function() Peindre("survol") end)
+    bouton:HookScript("OnLeave", function() Peindre() end)
+    bouton:HookScript("OnMouseDown", function() Peindre("appui") end)
+    bouton:HookScript("OnMouseUp", function() Peindre("survol") end)
+    bouton.aelCadre = f
+    return f
+end
+
+-- Police du theme : la Friz Quadrata du jeu, a une taille qui suit la
+-- fenetre. En dessous de 10, plus rien ne se lit.
+function UI.Police(fs, taille, contour)
+    if fs and fs.SetFont then
+        fs:SetFont("Fonts\\FRIZQT__.TTF", math.max(10, taille or 12), contour or "")
+    end
+end
+
+-- Mesures du modele. Fenetre : sur 845 unites de large (en-tete, onglets,
+-- titres). Lignes : sur 786 unites (colonnes d'une ligne de fiche).
+function UI.AelMesures(largeur)
+    local s = (tonumber(largeur) or 845) / 845
+    return { echelle = s, ligne = 62 * s, onglet = 55 * s, titre = 32 * s, police = 24 * s,
+             regle = 63 * s, bandeau = 70 * s }
+end
+
+function UI.AelColonnes(largeur)
+    local s = (tonumber(largeur) or 786) / 786
+    return {
+        echelle = s, ligne = 62 * s, police = 24 * s,
+        icone = 8 * s, iconeTaille = 50 * s, separateur = 72 * s,
+        nom = 96 * s, nomSansIcone = 24 * s, nomLargeur = 205 * s,
+        plage = 310 * s, plageLargeur = 95 * s,
+        valeur = 418 * s, valeurLargeur = 90 * s,
+        modificateur = 535 * s, modificateurLargeur = 85 * s,
+        action = 652 * s, actionLargeur = 110 * s,
+        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = 30 * s,
+        boutons = { 561 * s, 607 * s, 653 * s }, boutonL = 37 * s, boutonH = 38 * s,
+    }
+end

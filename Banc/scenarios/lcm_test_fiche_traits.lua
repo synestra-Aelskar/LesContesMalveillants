@@ -91,7 +91,8 @@ local ligneVue
 for _, l in ipairs(f.pages.expertises.lignes) do
     if l.label and l.label:GetText() == "Vue" then ligneVue = l end
 end
-attendu("vue : bonus montre", ligneVue.valeur:GetText(), "0 +2")
+attendu("vue : valeur", ligneVue.valeur:GetText(), "0")
+attendu("vue : bonus dans sa colonne", ligneVue.bonus:GetText(), "+2")
 attendu("vue : case d'avantage", ligneVue.avantage:IsShown(), true)
 for _, b in ipairs(f.barre.boutons) do
     if b.ongletId == "traits" then b:Click() end

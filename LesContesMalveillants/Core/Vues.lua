@@ -44,8 +44,10 @@ local function Resoudre(vueId, bloc, sections)
         local tab = Onglet(tabId)
         if not tab then Erreur(vueId .. " : onglet inconnu « " .. tostring(tabId) .. " »") end
         local trouvee
+        -- Par identifiant de section d'abord ; le libelle reste accepte pour
+        -- une section qui n'en a pas.
         for _, section in ipairs(tab.sections) do
-            if section.label == label then trouvee = section end
+            if section.id == label or (not section.id and section.label == label) then trouvee = section end
         end
         if not trouvee then
             Erreur(string.format("%s : section « %s » absente de l'onglet %s", vueId, tostring(label), tabId))

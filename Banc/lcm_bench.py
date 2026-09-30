@@ -120,9 +120,11 @@ local function NouvelleRegion(kind, parent)
     function r:SetText(t) self.__text = t end
     function r:GetText() return self.__text end
     function r:SetTexture(t) self.__texture = t end
+    function r:GetTexture() return self.__texture end
     function r:SetColorTexture(...) self.__color = {...} end
     function r:SetVertexColor(...) self.__vertex = {...} end
     function r:SetTextColor(...) self.__textColor = {...} end
+    function r:GetTextColor() local c = self.__textColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] or 1 end
     function r:SetJustifyH(v) self.__justifyH = v end
     function r:SetJustifyV(v) self.__justifyV = v end
     function r:SetFontObject() end

@@ -9,15 +9,15 @@ local Vues = LCM.Vues
 
 Vues.Add({
     id = "sante", titre = "Santé",
-    largeur = 460, hauteur = 400,
+    largeur = 560, hauteur = 640,
     blocs = {
-        { section = { "general", "Vitalite" } },
+        { section = { "general", "vitalite" } },
     },
 })
 
 Vues.Add({
     id = "expertise", titre = "Expertise",
-    largeur = 460, hauteur = 600,
+    largeur = 600, hauteur = 700,
     blocs = {
         { onglet = "expertises" },
     },
@@ -26,7 +26,7 @@ Vues.Add({
 -- Categorie directe du menu (pas d'eventail) : le clic ouvre cette vue.
 Vues.Add({
     id = "deplacement", titre = "Déplacement",
-    largeur = 360, hauteur = 200,
+    largeur = 480, hauteur = 300,
     blocs = {
         { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
     },

@@ -11,10 +11,10 @@ local Schema = LCM.Schema
 
 Schema.AddTab({
     id = "general",
-    label = "General",
+    label = "Général",
     sections = {
         {
-            label = "Vitalite",
+            id = "vitalite", label = "Vitalité",
             fields = {
                 -- Le maximum vient d'une formule ; sa repartition sur les
                 -- parties du corps vient de la morphologie de la race.
@@ -24,7 +24,7 @@ Schema.AddTab({
                 --   + constitution totale x (2 + constitution investie x 0,25).
                 -- La constitution compte deux fois : elle multiplie, et sa part
                 -- investie fait grandir le multiplicateur.
-                { id = "pv_max", kind = "calc", label = "Points de vie (max)",
+                { id = "pv_max", kind = "calc", label = "Points de vie (max)", masque = true,
                   formula = function(entity)
                       local e = LCM.Equilibrage.pv
                       local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
@@ -34,9 +34,10 @@ Schema.AddTab({
                           + totale * (e.constitution.base + investie * e.constitution.parConstitution))
                   end },
                 -- Surcharge : un PNJ dont on fixe les PV a la main.
-                { id = "pv_max_override", kind = "stat", label = "PV max impose" },
-                { id = "corps",    kind = "body", label = "Silhouette",
-                  note = "Repartition des points de vie sur les parties du corps." },
+                { id = "pv_max_override", kind = "stat", label = "PV max imposé", mjSeulement = true,
+                  note = "Surcharge du MJ : fixe les PV max d'un PNJ a la main." },
+                { id = "corps",    kind = "body", label = "Parties du corps",
+                  note = "Points de vie et blessures, zone par zone." },
                 -- Fatigue (template) : 15 + 2 x niveau + esprit + 2 x constitution
                 --   + Endurance totale / 1 + 3 x (pts secondaires) + bonus portes.
                 { id = "fatigue",  kind = "gauge", label = "Fatigue",
@@ -48,20 +49,22 @@ Schema.AddTab({
                           + LCM.Formules.Expertise(entity, "endurance") / e.diviseurEndurance
                           + e.parSecondaire * v("sec_fatigue") + LCM.Effets.Bonus(entity, "fatigue"))
                   end },
-                { id = "armure",   kind = "gauge", label = "Armure ponctuelle", max = 1000, default = 0 },
+                -- « Boucliers » dans le template : 0 / 1000 au depart.
+                { id = "armure",   kind = "gauge", label = "Boucliers", max = 1000, default = 0,
+                  note = "Protection temporaire. Part de zéro ; R la remet à zéro." },
             },
         },
         {
-            label = "Identite",
+            label = "Identité",
             fields = {
                 { id = "race",         kind = "text", label = "Race" },
                 { id = "portrait",     kind = "text", label = "Portrait",
-                  note = "Identifiant de l'artwork livre avec l'addon ; vide = celui du personnage." },
-                { id = "morphologie",  kind = "text", label = "Morphologie imposee",
+                  note = "Identifiant de l'artwork livré avec l'addon ; vide = celui du personnage." },
+                { id = "morphologie",  kind = "text", label = "Morphologie imposée", mjSeulement = true,
                   note = "Pour un PNJ sans race : prime sur celle de la race." },
                 { id = "niveau", kind = "stat", label = "Niveau",
                   default = LCM.Equilibrage.creation.niveauDepart },
-                { id = "age",   kind = "stat", label = "Age" },
+                { id = "age",   kind = "stat", label = "Âge" },
                 { id = "sexe",  kind = "text", label = "Sexe" },
                 { id = "poids", kind = "stat", label = "Poids", note = "En kilogrammes." },
             },
@@ -109,7 +112,7 @@ Schema.AddTab({
             fields = champsSecondaires,
         },
         {
-            label = "Caracteristiques",
+            label = "Caractéristiques",
             fields = {
                 -- Initiative (template) : pts secondaires + niveau / 2
                 --   + esprit / 2 + perception / 2. Les bonus portes s'ajoutent

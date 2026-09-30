@@ -53,7 +53,8 @@ local fiche = LCM.UI.Fiche.frame
 for _, b in ipairs(fiche.barre.boutons) do if b.ongletId == "expertises" then b:Click() end end
 local course
 for _, l in ipairs(fiche.pages.expertises.lignes) do if l.label:GetText() == "Course" then course = l end end
-attendu("Course : 4 +2", course.valeur:GetText(), "4 +2")
+attendu("Course : valeur 4", course.valeur:GetText(), "4")
+attendu("Course : bonus +2", course.bonus:GetText(), "+2")
 SlashCmdList.LCM("fiche")
 
 dire("== deplacement (template : base + investi + secondaires)")

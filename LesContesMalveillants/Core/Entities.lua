@@ -126,7 +126,10 @@ function Entities.Gauge(entity, fieldId)
         if ok then maximum = math.floor(tonumber(value) or 0) end
     end
     maximum = maximum or tonumber(field.max) or 0
-    local current = (type(stored) == "table" and tonumber(stored.current)) or maximum
+    -- Sans valeur retenue, une jauge part de son defaut s'il existe (l'armure
+    -- ponctuelle part de zero), sinon pleine.
+    local depart = tonumber(field.default) or maximum
+    local current = (type(stored) == "table" and tonumber(stored.current)) or depart
     if current > maximum then current = maximum end
     if current < 0 then current = 0 end
     return { current = current, max = maximum }
@@ -138,7 +141,8 @@ function Entities.SetGauge(entity, fieldId, current, maximum)
     local gauge = Entities.Gauge(entity, fieldId)
     local newMax = tonumber(maximum) or gauge.max
     local newCurrent = math.max(0, math.min(tonumber(current) or gauge.current, newMax))
-    if newCurrent == newMax and newMax == (tonumber(field.max) or 0) then
+    local depart = tonumber(field.default) or newMax
+    if newCurrent == depart and newMax == (tonumber(field.max) or 0) then
         entity.values[field.id] = nil
     else
         entity.values[field.id] = { current = newCurrent, max = newMax }

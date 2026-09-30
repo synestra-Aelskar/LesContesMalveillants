@@ -1,15 +1,13 @@
--- Morphologies : combien de chaque partie, et ce que vaut chacune.
+-- Morphologies : combien de chaque zone du corps.
 --
--- `effectifs` : le nombre de parties par categorie. Buste et internes sont
--- toujours presents, on ne les compte pas.
--- `parts` : la part du total de PV que vaut UNE partie de cette categorie.
---           somme(effectif x part) doit faire exactement 100.
+-- `effectifs` : le nombre de zones par categorie. Torse et internes sont
+-- toujours presents, on ne les compte pas. Chaque zone vaut 30 % des PV max
+-- (Equilibrage.pv.parZone, regle du template) : il n'y a plus de part a
+-- repartir, seulement des zones a compter.
 --
--- Ajouter une morphologie = ajouter un bloc ici. Six bras, douze pattes : il
--- suffit d'ecrire le nombre, la silhouette s'arrange toute seule.
---
--- LES PARTS SONT A VALIDER : elles tiennent mathematiquement, elles ne viennent
--- pas encore de tes regles.
+-- L'humanoide suit le template Necronicon : une zone Bras, une zone Jambes.
+-- Les autres morphologies sont des extensions de l'addon (elles n'existaient
+-- pas dans Necronicon) ; leurs effectifs sont a valider.
 
 local _, LCM = ...
 local Morphologies = LCM.Morphologies
@@ -17,27 +15,21 @@ local Morphologies = LCM.Morphologies
 LCM.DEFAULT_MORPHOLOGY = "humanoide"
 
 Morphologies.Add({
-    id = "humanoide", label = "Humanoide",
-    effectifs = { tete = 1, bras = 2, jambe = 2 },
-    parts = { tete = 10, buste = 22, internes = 18, bras = 10, jambe = 15 },
+    id = "humanoide", label = "Humanoïde",
+    effectifs = { tete = 1, bras = 1, jambe = 1 },
 })
 
 Morphologies.Add({
-    id = "quadrupede", label = "Quadrupede",
+    id = "quadrupede", label = "Quadrupède",
     effectifs = { tete = 1, jambe = 4, queue = 1 },
-    parts = { tete = 10, buste = 26, internes = 18, jambe = 11, queue = 2 },
 })
 
 Morphologies.Add({
-    id = "aile", label = "Humanoide aile",
-    effectifs = { tete = 1, bras = 2, jambe = 2, aile = 2 },
-    parts = { tete = 9, buste = 20, internes = 16, bras = 9, jambe = 12.5, aile = 6 },
+    id = "aile", label = "Humanoïde ailé",
+    effectifs = { tete = 1, bras = 1, jambe = 1, aile = 2 },
 })
 
--- Preuve par l'absurde que le systeme encaisse : une chose a douze pattes,
--- trois tetes et deux queues. Rien de special a ecrire.
 Morphologies.Add({
     id = "aberration", label = "Aberration",
     effectifs = { tete = 3, jambe = 12, queue = 2 },
-    parts = { tete = 6, buste = 20, internes = 14, jambe = 3, queue = 6 },
 })

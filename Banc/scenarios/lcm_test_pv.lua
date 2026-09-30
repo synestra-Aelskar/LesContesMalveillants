@@ -23,10 +23,10 @@ LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
 -- Template : 2 + 1,5 x 5 + 3 x 4 + 6 x (2 + 6 x 0,25) = 42,5 -> 42
 attendu("niveau 5, const 6, vitalite 4", LCM.Entities.Get_Value(moi, "pv_max"), 42)
 
-dire("== les PV courants sont la somme des parties, jamais stockes")
+dire("== les PV courants = PV max - blessures, jamais stockes")
 local courant, maximum = LCM.Body.Totals(moi)
 attendu("intact", courant .. "/" .. maximum, "42/42")
-LCM.Body.Damage(moi, "bras_1", 2)
+LCM.Body.Damage(moi, "bras", 2)
 LCM.Body.Damage(moi, "tete", 1)
 courant, maximum = LCM.Body.Totals(moi)
 attendu("apres 3 degats", courant .. "/" .. maximum, "39/42")
@@ -52,31 +52,14 @@ LCM.Entities.Set_Value(boss, "morphologie", "aberration")
 LCM.Entities.Set_Value(boss, "pv_max_override", 400)
 local etatBoss, morpho = LCM.Body.State(boss)
 attendu("morphologie", morpho.id, "aberration")
-attendu("parties", #etatBoss, 19)
-local somme = 0
-for _, p in ipairs(etatBoss) do somme = somme + p.max end
-attendu("somme des parties", somme, 400)
-dire("  ses parties :")
+attendu("zones", #etatBoss, 19)
+-- Chaque zone vaut 30 % du total, quelle que soit la morphologie.
+attendu("une zone", etatBoss[1].max, 120)
+dire("  ses zones :")
 local parCategorie = {}
 for _, p in ipairs(etatBoss) do
     parCategorie[p.part.category] = (parCategorie[p.part.category] or 0) + 1
 end
 for categorie, n in pairs(parCategorie) do dire("    ", categorie, "x" .. n) end
 
-dire("== placement sur la silhouette")
-local _, m = LCM.Body.State(moi)
-for _, p in ipairs(m.parts) do
-    dire(string.format("    %-14s rangee %d, place %d/%d%s", p.label, p.row, p.slot or 0, p.slots or 0, p.inner and "  (interne)" or ""))
-end
-
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
-
-dire("== silhouette d'une harpie (ailes au bord)")
-local h = LCM.Entities.Create("harpie_test", "Harpie", "npc")
-LCM.Entities.Set_Value(h, "morphologie", "aile")
-local _, mh = LCM.Body.State(h)
-local rangee2 = {}
-for _, p in ipairs(mh.parts) do
-    if p.row == 2 and not p.inner then rangee2[p.slot] = p.label end
-end
-dire("    rangee 2 : " .. table.concat(rangee2, " | "))

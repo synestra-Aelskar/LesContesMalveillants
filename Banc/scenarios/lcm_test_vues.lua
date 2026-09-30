@@ -30,7 +30,7 @@ dire("== les vues declarees")
 local sante, expertise = V.Get("sante"), V.Get("expertise")
 attendu("sante", sante ~= nil, true)
 attendu("sante : une section", #sante.sections, 1)
-attendu("c'est Vitalite", sante.sections[1].label, "Vitalite")
+attendu("c'est Vitalite", sante.sections[1].id, "vitalite")
 attendu("expertise : les trois domaines", #expertise.sections, 3)
 local n = 0
 for _, s in ipairs(expertise.sections) do n = n + #s.fields end
@@ -50,26 +50,27 @@ LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
 R.Trouver("sante").onClick()
 local fs = LCM.UI.Vues.frames.sante
 attendu("ouverte", fs:IsShown(), true)
-attendu("titre", fs.titre:GetText(), "Santé")
+attendu("titre en capitales", fs.titre:GetText(), "SANTÉ")
 attendu("nom du personnage", fs.nom:GetText(), tostring(moi.name))
-attendu("une ligne par champ", #fs.page.lignes, #sante.sections[1].fields)
+-- pv_max est masque (la jauge des PV le montre) : une ligne de moins.
+attendu("une ligne par champ visible", #fs.page.lignes, #sante.sections[1].fields - 1)
 local corps
-for _, l in ipairs(fs.page.lignes) do if l.silhouette then corps = l end end
-attendu("la silhouette y est", corps ~= nil, true)
-attendu("les PV sont lus", corps.total:GetText(), "42 / 42 PV")
+for _, l in ipairs(fs.page.lignes) do if l.zones then corps = l end end
+attendu("le corps y est", corps ~= nil, true)
+attendu("les PV sont lus", corps.total.barre.label:GetText(), "42 / 42")
 attendu("la page est visible", fs.page:IsShown(), true)
 
 dire("== la blessure se voit dans la fiche")
 local bras
-for _, p in ipairs(corps.silhouette.parties) do if p.partieId == "bras_1" then bras = p end end
-bras:GetScript("OnMouseWheel")(bras, -1)
-attendu("un PV de moins", corps.total:GetText(), "41 / 42 PV")
+for _, z in ipairs(corps.zones) do if z.partieId == "bras" then bras = z end end
+bras.boutons[1]:Click()
+attendu("un PV de moins", corps.total.barre.label:GetText(), "41 / 42")
 SlashCmdList.LCM("fiche")
 local ligneFiche
-for _, l in ipairs(LCM.UI.Fiche.frame.pages.general.lignes) do if l.silhouette then ligneFiche = l end end
-attendu("la fiche le montre", ligneFiche.total:GetText(), "41 / 42 PV")
+for _, l in ipairs(LCM.UI.Fiche.frame.pages.general.lignes) do if l.zones then ligneFiche = l end end
+attendu("la fiche le montre", ligneFiche.total.barre.label:GetText(), "41 / 42")
 SlashCmdList.LCM("fiche")
-bras:GetScript("OnMouseWheel")(bras, 1)
+bras.boutons[3]:Click()
 
 dire("== Expertise")
 LCM.Entities.Set_Value(moi, "escalade", 4)
@@ -80,7 +81,8 @@ attendu("ouverte", fe:IsShown(), true)
 attendu("25 lignes", #fe.page.lignes, 25)
 local escalade
 for _, l in ipairs(fe.page.lignes) do if l.label:GetText() == "Escalade" then escalade = l end end
-attendu("bonus de trait montre", escalade.valeur:GetText(), "4 +3")
+attendu("valeur", escalade.valeur:GetText(), "4")
+attendu("bonus de trait dans sa colonne", escalade.bonus:GetText(), "+3")
 attendu("case d'avantage", escalade.avantage:IsShown(), true)
 local avant = #__sorties
 escalade.lancer:Click()
@@ -97,7 +99,7 @@ local autre = LCM.Personnages.Creer("Ysolde", { race = "humain", niveau = 3 })
 LCM.Personnages.Choisir(autre.id)
 R.Trouver("expertise").onClick()
 attendu("montre le nouveau personnage", fe.nom:GetText(), "Ysolde")
-attendu("plus le bonus de l'ancien", escalade.valeur:GetText(), "0")
+attendu("plus le bonus de l'ancien", escalade.bonus:GetText(), "")
 attendu("meme fenetre, pas une nouvelle", LCM.UI.Vues.frames.expertise, fe)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

@@ -53,6 +53,9 @@ function Schema.AddTab(definition)
 
     for _, sectionDef in ipairs(definition.sections or {}) do
         local section = {
+            -- Identifiant stable, pour qu'une vue designe la section sans
+            -- dependre de son libelle (qui, lui, peut changer).
+            id = sectionDef.id and tostring(sectionDef.id) or nil,
             label = tostring(sectionDef.label or ""),
             fields = {},
         }
@@ -86,6 +89,10 @@ function Schema.AddTab(definition)
                 -- Un champ calcule qui accepte les bonus portes (sa formule les
                 -- lit) : l'atelier le propose comme cible d'un bonus.
                 recoitBonus = fieldDef.recoitBonus == true,
+                -- `masque` : jamais dessine (sa valeur est montree ailleurs).
+                -- `mjSeulement` : dessine pour le MJ seulement (une surcharge).
+                masque = fieldDef.masque == true,
+                mjSeulement = fieldDef.mjSeulement == true,
             }
             sheet.byId[fieldId] = field
             sheet.order[#sheet.order + 1] = fieldId

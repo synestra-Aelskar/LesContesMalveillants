@@ -23,14 +23,17 @@ local function Construire(vue, rang)
         { x = 180 + rang * DECALAGE, y = -rang * DECALAGE })
     f.vue = vue
 
-    f.nom = UI.Texte(f, "", UI.C.texte, "GameFontNormalSmall")
-    f.nom:SetPoint("TOPLEFT", f.titre, "BOTTOMLEFT", 0, -4)
+    f.nom = UI.Texte(f, "", UI.C.discret)
+    UI.Police(f.nom, f.mesures.police * 0.8)
+    f.nom:SetPoint("TOP", f.titre, "BOTTOM", 0, -2)
+    f.nom:SetJustifyH("CENTER")
 
     f.zone = UI.Defilement(f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -18)
+    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
-    f.page = UI.Fiche.Page(f.zone.contenu, vue.sections)
+    f.page = UI.Fiche.Page(f.zone.contenu, vue.sections, vue.largeur - 24)
+    f.page.onHauteur = function(h) f.zone:Regler(h) end
     f.page:Show()
     f.zone:Regler(f.page.hauteur)
 

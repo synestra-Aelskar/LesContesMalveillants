@@ -40,7 +40,6 @@ Data\Genere\Objets.lua
 # Interface
 UI\Kit.lua
 UI\Skin.lua
-UI\Silhouette.lua
 UI\Fiche.lua
 UI\Personnages.lua
 UI\Creation.lua

@@ -61,12 +61,12 @@ valeurs : `{ id, name, icon, kind, values }`. Une valeur égale au défaut n'est
 pas écrite. Un PNJ complet pèse une centaine d'octets, contre 8,6 Mo dans
 Necronicon avant correctif.
 
-**Le corps.** Les PV ne sont pas un nombre mais une répartition sur des parties
-du corps, engendrées depuis la **morphologie** de la race : on déclare un
-effectif (combien de têtes, bras, jambes, queues, ailes) et les parties sont
-créées et placées automatiquement. Une aberration à 3 têtes, 12 pattes et
-2 queues fonctionne sans une ligne de code de plus. Le stockage retient les
-**dégâts**, pas les points restants.
+**Le corps.** Règle du template Necronicon : chaque zone du corps vaut 30 %
+des PV max, et les PV courants sont les PV max moins les blessures des zones.
+L'humanoïde a les cinq zones du template (Tête, Torse, Bras, Jambes,
+Internes) ; une morphologie déclare seulement combien elle a de chaque zone
+(trois têtes, douze pattes…). Le stockage retient les **dégâts**, pas les
+points restants.
 
 **Les jets et les traits.** Un trait donne des bonus et un « avantage »
 (relancer, garder le meilleur) sur des expertises nommées. Un trait ne peut
@@ -79,7 +79,9 @@ repliable à gauche. Le moteur (`Core/Creation.lua`) ne connaît aucune fenêtre
 les règles sont testables sans rien dessiner.
 
 **Le menu radial**, la **sélection de personnage** (carrousel d'artworks), la
-**documentation en jeu**, le **skin Ael'Raz'kah**.
+**documentation en jeu**, le **skin Ael'Raz'kah** : cadre, en-tête, onglets,
+blocs et lignes repris du thème Necronicon avec ses mesures et son atlas
+(`ressources/aelrazkah/widgets-reference.tga`).
 
 **Les chaînes d'outillage** : export du contenu créé en séance, conversion des
 artworks, publication. Voir plus bas.
@@ -119,9 +121,8 @@ Par ordre de ce qui bloque le plus :
 
 ### Ce qui est posé mais pas validé en jeu
 
-- Les **parts en pourcentage** des morphologies sont des valeurs que Claude a
-  posées, pas des règles de Syn'estra. À valider avant de s'en servir pour
-  équilibrer.
+- Les **effectifs des morphologies non humanoïdes** (quadrupède, ailé,
+  aberration) sont des extensions de l'addon, absentes du template : à valider.
 - L'équilibrage et les formules (PV, fatigue, initiative, PA, déplacement,
   apports des primaires aux expertises) suivent le **template Necronicon**
   (voir `CLAUDE.md`). Les écarts voulus sont commentés dans
@@ -149,9 +150,10 @@ Il trouve les dossiers d'addon tout seul — le dépôt lui-même si tu le lance
 depuis un clone, ou le dossier que tu lui donnes avec `--addons`. Voir
 `Banc/LISEZ-MOI.md`.
 
-Douze scénarios couvrent le socle, le corps, les PV, les traits, les brouillons,
-la fiche, la silhouette, le menu, les personnages, la création (moteur et
-écran) et le skin. **Ils doivent tous être au vert avant de publier.**
+Les scénarios de `Banc/scenarios/` (liste dans `Banc/LISEZ-MOI.md`) couvrent
+le socle, les règles du template, le corps, les PV, les traits, les objets,
+l'atelier, la fiche, les fenêtres du menu, les personnages, la création et le
+skin. **Ils doivent tous être au vert avant de publier.**
 
 Le banc a déjà attrapé une dizaine de vrais bugs. Écrire le scénario en même
 temps que le code n'est pas une politesse ici, c'est ce qui fait gagner du

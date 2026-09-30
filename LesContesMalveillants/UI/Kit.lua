@@ -66,6 +66,15 @@ function UI.Texte(parent, texte, couleur, gabarit)
     return fs
 end
 
+-- Capitales avec leurs accents : string.upper ne connait que l'ASCII, il
+-- laisserait « é » en minuscule au milieu d'un titre.
+local CAPITALES = { ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["ë"] = "Ë", ["à"] = "À", ["â"] = "Â",
+    ["î"] = "Î", ["ï"] = "Ï", ["ô"] = "Ô", ["ù"] = "Ù", ["û"] = "Û", ["ç"] = "Ç", ["œ"] = "Œ" }
+function UI.Majuscules(texte)
+    texte = tostring(texte or ""):gsub("[\195\197][\128-\191]", function(c) return CAPITALES[c] or c end)
+    return (texte:upper())
+end
+
 -- Toutes les fenetres de l'addon, pour pouvoir passer l'une devant l'autre.
 UI.fenetres = {}
 UI.niveauDevant = 10
@@ -111,29 +120,67 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
     f.fond = UI.Aplat(f, UI.C.fond)
     f.fond:SetAllPoints(f)
 
-    f.titre = UI.Texte(f, titre, UI.C.titre)
-    f.titre:SetPoint("TOP", f, "TOP", 0, -12)
+    -- En-tete du modele Necronicon (AelWidgets, LayoutFiche) : titre en
+    -- capitales entre deux ornements, deux pendentifs, un filet d'or a 63
+    -- unites, la croix du modele. Tout suit la largeur (845 unites).
+    local m = UI.AelMesures(largeur or 420)
+    local q = m.echelle
+    f.titre = UI.Texte(f, "", UI.C.titre)
+    f.titre:SetPoint("CENTER", f, "TOP", 0, -32 * q)
     f.titre:SetJustifyH("CENTER")
+    UI.Police(f.titre, m.titre)
     -- Le motif du haut du cadre se rogne pour laisser passer le titre.
     f.titreCentre = true
 
+    if UI.AelRef then
+        f.ornementG = UI.AelRef(f, 329, 119, 63, 19, "ARTWORK")
+        f.ornementD = UI.AelRef(f, 635, 119, 64, 19, "ARTWORK")
+        f.ornementG:SetSize(63 * q, 19 * q)
+        f.ornementD:SetSize(64 * q, 19 * q)
+        f.pendentifs = { UI.AelRef(f, 262, 100, 20, 46, "ARTWORK"), UI.AelRef(f, 742, 100, 20, 46, "ARTWORK") }
+        f.pendentifs[1]:SetSize(20 * q, 46 * q)
+        f.pendentifs[1]:SetPoint("TOPLEFT", f, "TOPLEFT", 172 * q, -5 * q)
+        f.pendentifs[2]:SetSize(20 * q, 46 * q)
+        f.pendentifs[2]:SetPoint("TOPRIGHT", f, "TOPRIGHT", -173 * q, -5 * q)
+        f.regle = UI.AelRef(f, 420, 158, 180, 3, "ARTWORK")
+        f.regle:SetPoint("TOPLEFT", f, "TOPLEFT", 10 * q, -m.regle)
+        f.regle:SetPoint("TOPRIGHT", f, "TOPRIGHT", -13 * q, -m.regle)
+        f.regle:SetHeight(math.max(1, 3 * q))
+    end
+
+    -- Le titre s'ecrit en capitales, et les ornements l'encadrent au plus
+    -- pres, quelle que soit sa longueur.
+    function f:Titre(texte)
+        self.titre:SetText(UI.Majuscules(texte))
+        if self.ornementG then
+            local demi = (self.titre:GetStringWidth() or 0) / 2 + 14 * q
+            self.ornementG:ClearAllPoints()
+            self.ornementG:SetPoint("RIGHT", self.titre, "CENTER", -demi, 0)
+            self.ornementD:ClearAllPoints()
+            self.ornementD:SetPoint("LEFT", self.titre, "CENTER", demi, 0)
+        end
+    end
+    f:Titre(titre)
+
     f.fermer = CreateFrame("Button", nil, f)
-    f.fermer:SetSize(20, 20)
-    f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -10)
+    f.fermer:SetSize(math.max(20, 54 * q), math.max(20, 54 * q))
+    f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6 * q, -6 * q)
     -- Au-dessus de l'habillage : l'ornement du coin passait par-dessus la croix
     -- et la fenetre n'avait plus l'air d'avoir de fermeture.
     f.fermer:SetFrameLevel(f:GetFrameLevel() + 6)
-    f.fermer.fond = UI.Aplat(f.fermer, UI.C.fondClair)
-    f.fermer.fond:SetAllPoints(f.fermer)
-    UI.Bordure(f.fermer, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.45 })
-    f.fermer.label = UI.Texte(f.fermer, "x", UI.C.titre)
-    f.fermer.label:SetAllPoints(f.fermer)
-    f.fermer.label:SetJustifyH("CENTER")
+    if UI.AelRef then
+        f.fermer.icone = UI.AelRef(f.fermer, 898, 102, 54, 54, "OVERLAY")
+        f.fermer.icone:SetAllPoints(f.fermer)
+    end
+    f.fermer.survol = UI.Aplat(f.fermer, UI.C.survol, "HIGHLIGHT")
+    f.fermer.survol:SetAllPoints(f.fermer)
     f.fermer:SetScript("OnClick", function() f:Hide() end)
 
+    -- Le contenu commence sous le filet, la ou le modele pose ses onglets.
     f.contenu = CreateFrame("Frame", nil, f)
-    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -38)
+    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -m.bandeau)
     f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
+    f.mesures = m
 
     -- Position retenue.
     LCM.EnsureDatabase()
@@ -166,7 +213,14 @@ function UI.Bouton(parent, texte, largeur, hauteur, onClick)
     b:EnableMouse(true)
     b.fond = UI.Aplat(b, UI.C.fondClair)
     b.fond:SetAllPoints(b)
-    UI.Bordure(b, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 })
+    b.traits = UI.Bordure(b, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 })
+    -- L'habillage du modele remplace le fond et la bordure d'origine, qui
+    -- restent pour le cas ou le skin manquerait.
+    if UI.AelBoutonNet then
+        UI.AelBoutonNet(b)
+        b.fond:Hide()
+        for _, t in ipairs(b.traits) do t:Hide() end
+    end
     b.label = UI.Texte(b, texte, UI.C.texte, "GameFontNormalSmall")
     b.label:SetAllPoints(b)
     b.label:SetJustifyH("CENTER")
@@ -223,6 +277,93 @@ function UI.Onglets(parent, onglets, onChange, options)
     end
     if onglets[1] then barre:Selectionner(onglets[1].id) end
     return barre
+end
+
+-- Bande d'onglets du modele (Necronicon, Fiche.lua + ApplyAelTab) :
+-- chaque onglet prend la largeur de son libelle + 50 (70 au moins) ; une
+-- rangee qui deborde passe a la ligne ; chaque rangee est ensuite justifiee sur
+-- toute la largeur, 6 d'ecart. Hauteur : 55 unites de la fenetre. L'actif est
+-- dore, les autres ivoire.
+--
+-- `bandeau:Disposer(largeur, hauteurRangee)` pose les onglets et renvoie la
+-- hauteur occupee : c'est au proprietaire de placer son contenu dessous.
+function UI.BandeauOnglets(parent, onglets, onChange)
+    local bandeau = CreateFrame("Frame", nil, parent)
+    bandeau.boutons = {}
+    bandeau.mesure = bandeau:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    bandeau.mesure:SetAlpha(0)
+
+    for _, onglet in ipairs(onglets) do
+        local b = CreateFrame("Button", nil, bandeau)
+        b.ongletId = onglet.id
+        b.fond = UI.Aplat(b, { 0.025, 0.023, 0.02, 0.95 })
+        b.fond:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+        b.fond:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+        if UI.AelCadre then b.cadre = UI.AelCadre(b, "onglet") end
+        b.label = UI.Texte(b, onglet.label, UI.C.texte)
+        b.label:SetPoint("CENTER", b, "CENTER", 0, 1)
+        b.label:SetJustifyH("CENTER")
+        b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
+        b.survol:SetAllPoints(b)
+        b:SetScript("OnClick", function(bouton)
+            bandeau:Selectionner(bouton.ongletId)
+            if onChange then onChange(bouton.ongletId) end
+        end)
+        bandeau.boutons[#bandeau.boutons + 1] = b
+    end
+
+    function bandeau:Selectionner(id)
+        self.actif = id
+        for _, b in ipairs(self.boutons) do
+            local actif = b.ongletId == id
+            b.fond:SetColorTexture(actif and 0.13 or 0.025, actif and 0.095 or 0.023, actif and 0.045 or 0.02, 0.95)
+            if actif then b.label:SetTextColor(0.98, 0.87, 0.60) else b.label:SetTextColor(0.90, 0.86, 0.78) end
+            if b.cadre then
+                for _, t in ipairs(b.cadre.morceaux) do
+                    t:SetVertexColor(actif and 1 or 0.74, actif and 0.94 or 0.68, actif and 0.78 or 0.56, 1)
+                end
+            end
+        end
+    end
+
+    function bandeau:Disposer(largeur, hauteurRangee)
+        local police = 24 * ((hauteurRangee - 2) / 55)
+        UI.Police(self.mesure, police)
+        local rangees, courante, x = {}, nil, 0
+        for _, b in ipairs(self.boutons) do
+            UI.Police(b.label, police)
+            self.mesure:SetText(b.label:GetText() or "")
+            local l = math.max(70, math.ceil((self.mesure:GetStringWidth() or 0) + 50))
+            if courante and x > 0 and x + l > largeur then courante = nil end
+            if not courante then
+                courante = { boutons = {}, naturelle = 0 }
+                rangees[#rangees + 1] = courante
+                x = 0
+            end
+            courante.boutons[#courante.boutons + 1] = { bouton = b, largeur = l }
+            courante.naturelle = courante.naturelle + l
+            x = x + l + 6
+        end
+        for r, rangee in ipairs(rangees) do
+            local n = #rangee.boutons
+            local ecarts = (n - 1) * 6
+            local extra = n > 1 and math.max(0, (largeur - rangee.naturelle - ecarts) / n) or 0
+            local justifiee = rangee.naturelle + ecarts + extra * n
+            local px = n == 1 and math.max(0, (largeur - justifiee) / 2) or 0
+            for index, info in ipairs(rangee.boutons) do
+                local b = info.bouton
+                b:SetSize(info.largeur + extra, hauteurRangee - 2)
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", self, "TOPLEFT", px, -(r - 1) * hauteurRangee)
+                px = px + info.largeur + extra + (index < n and 6 or 0)
+            end
+        end
+        local hauteur = math.max(1, #rangees) * hauteurRangee
+        self:SetHeight(hauteur)
+        self:Selectionner(self.actif or (self.boutons[1] and self.boutons[1].ongletId))
+        return hauteur
+    end
+    return bandeau
 end
 
 -- Barre de progression (jauge, partie du corps...).

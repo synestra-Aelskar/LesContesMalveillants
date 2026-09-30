@@ -43,7 +43,7 @@ attendu("revenu au defaut : plus rien de stocke", n, 0)
 
 dire("== jauges")
 local pv = LCM.Entities.Gauge(moi, "armure")
-attendu("armure au max par defaut", pv.current .. "/" .. pv.max, "1000/1000")
+attendu("boucliers : 0 / 1000 au depart (template)", pv.current .. "/" .. pv.max, "0/1000")
 LCM.Entities.SetGauge(moi, "armure", 12)
 pv = LCM.Entities.Gauge(moi, "armure")
 attendu("apres depense", pv.current .. "/" .. pv.max, "12/1000")
