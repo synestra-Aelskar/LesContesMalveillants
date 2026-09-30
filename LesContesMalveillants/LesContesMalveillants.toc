@@ -15,7 +15,9 @@ Core\Entities.lua
 Core\Personnages.lua
 Core\Portraits.lua
 Core\Body.lua
+Core\Effets.lua
 Core\Traits.lua
+Core\Objets.lua
 Core\Roll.lua
 Core\Creation.lua
 Core\Documents.lua
@@ -43,4 +45,5 @@ UI\Personnages.lua
 UI\Creation.lua
 UI\Document.lua
 UI\Vues.lua
+UI\Equipement.lua
 UI\Radial.lua

@@ -98,7 +98,7 @@ for _, b in ipairs(f.barre.boutons) do
 end
 
 dire("== retirer")
-local premier = ligne.cartes[1].traitId
+local premier = ligne.cartes[1].elementId
 ligne.cartes[1].retirer:Click()
 attendu("le bon trait retire", LCM.Traits.Has(moi, premier), false)
 attendu("l'autre reste", #LCM.Traits.Ids(moi), 1)
@@ -110,7 +110,7 @@ LCM.Brouillons.Supprimer("traits", "oeil_du_faucon")
 f:Actualiser()
 local fantome
 for _, carte in ipairs(ligne.cartes) do
-    if carte:IsShown() and carte.traitId == "oeil_du_faucon" then fantome = carte end
+    if carte:IsShown() and carte.elementId == "oeil_du_faucon" then fantome = carte end
 end
 attendu("toujours liste", fantome ~= nil, true)
 attendu("marque inconnu", __sansCouleur(fantome.nom:GetText()), "? oeil_du_faucon")

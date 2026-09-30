@@ -43,6 +43,17 @@ E.deplacement = {
     parSecondaire = 1,
 }
 
+-- ===== Emplacements d'objets ===============================================
+-- Combien d'objets de chaque categorie on peut porter a la fois. Pas de place
+-- precise (tete, mains...) : un emplacement accueille n'importe quel objet de
+-- sa categorie. Valide par l'utilisateur.
+
+E.emplacements = {
+    arme = 1,
+    equipement = 5,
+    accessoire = 5,
+}
+
 -- ===== Budgets de creation =================================================
 -- Tout se lit au niveau courant : un PNJ cree directement au niveau 9 recoit
 -- le budget de son niveau, sans table a maintenir par palier.

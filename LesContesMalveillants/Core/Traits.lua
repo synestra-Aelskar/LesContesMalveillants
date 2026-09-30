@@ -12,18 +12,18 @@
 --
 -- Les traits d'une entite sont une LISTE D'IDENTIFIANTS. Le contenu du trait
 -- vit dans le code, jamais dans la sauvegarde.
+--
+-- Bonus et avantage suivent les regles communes de Core/Effets.lua (les memes
+-- que pour les objets) ; ce fichier n'ajoute que ce qui est propre au trait :
+-- son cout.
 
 local _, LCM = ...
 
 local Traits = { list = {}, byId = {} }
 LCM.Traits = Traits
 
--- Les six primaires sont hors de portee des traits : c'est une regle de jeu,
--- donc elle est verifiee par le code et pas seulement ecrite quelque part.
-Traits.PRIMAIRES = {
-    force = true, mystique = true, perception = true,
-    adresse = true, esprit = true, constitution = true,
-}
+-- La regle vit dans Effets ; le nom reste ici pour qui le lisait deja.
+Traits.PRIMAIRES = LCM.Effets.PRIMAIRES
 
 Traits.COUT_MAX = 4
 
@@ -46,32 +46,15 @@ function Traits.Construire(definition)
         Erreur(id .. " : cout invalide (" .. tostring(definition.cout) .. "), attendu 1 a " .. Traits.COUT_MAX)
     end
 
-    local trait = {
+    local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur)
+    return {
         id = id,
         label = tostring(definition.label or id),
         description = tostring(definition.description or ""),
         cout = cout,
-        bonus = {},
-        avantage = {},
+        bonus = bonus,
+        avantage = avantage,
     }
-
-    for fieldId, value in pairs(definition.bonus or {}) do
-        local cible = tostring(fieldId)
-        if Traits.PRIMAIRES[cible] then
-            Erreur(id .. " : un trait ne peut pas modifier une statistique primaire (" .. cible .. ")")
-        end
-        local montant = tonumber(value)
-        if not montant or montant == 0 then
-            Erreur(id .. " : bonus nul ou illisible sur " .. cible)
-        end
-        trait.bonus[cible] = montant
-    end
-
-    for _, fieldId in ipairs(definition.avantage or {}) do
-        trait.avantage[tostring(fieldId)] = true
-    end
-
-    return trait
 end
 
 function Traits.Add(definition)
@@ -99,27 +82,6 @@ function Traits.Retirer(id)
     end
     return true
 end
-
--- Les champs vises n'existent pas forcement au moment ou le trait est declare
--- (les fichiers se chargent dans l'ordre du .toc). On verifie donc une fois, a
--- la connexion, quand toute la feuille est connue.
-LCM.WhenReady(function()
-    for _, trait in ipairs(Traits.list) do
-        for fieldId in pairs(trait.bonus) do
-            if not LCM.Schema.Field(fieldId) then
-                LCM.Erreur(string.format("trait « %s » : bonus vers un champ inconnu (%s)", trait.label, fieldId))
-            end
-        end
-        for fieldId in pairs(trait.avantage) do
-            local field = LCM.Schema.Field(fieldId)
-            if not field then
-                LCM.Erreur(string.format("trait « %s » : avantage sur un champ inconnu (%s)", trait.label, fieldId))
-            elseif field.kind ~= "roll" then
-                LCM.Erreur(string.format("trait « %s » : avantage sur « %s », qui ne se lance pas", trait.label, fieldId))
-            end
-        end
-    end
-end)
 
 -- ===== Cote entite =========================================================
 
@@ -209,3 +171,6 @@ function Traits.Advantage(entity, fieldId)
     end
     return nil
 end
+
+-- Les traits portes sont une source d'effets comme une autre.
+LCM.Effets.Source("trait", Traits.Owned, function() return Traits.list end)

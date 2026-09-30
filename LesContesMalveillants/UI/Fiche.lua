@@ -36,7 +36,15 @@ function Lignes.stat(parent, field, entity)
     l.valeur = UI.Texte(l, "", UI.C.titre, "GameFontNormalSmall")
     l.valeur:SetPoint("LEFT", l, "LEFT", COLONNE_LABEL, 0)
     function l:Actualiser(e)
-        self.valeur:SetText(Nombre(LCM.Entities.Get_Value(e, field.id)))
+        local valeur = LCM.Entities.Get_Value(e, field.id)
+        -- Un nombre saisi recoit les bonus portes (traits, objets), montres a
+        -- part : « 2 +3 », pour qu'on sache ce qui vient de soi.
+        local bonus = field.kind == "stat" and LCM.Effets.Bonus(e, field.id) or 0
+        if bonus ~= 0 then
+            self.valeur:SetText(Nombre(tonumber(valeur) or 0) .. " " .. ((bonus > 0) and "+" or "") .. Nombre(bonus))
+        else
+            self.valeur:SetText(Nombre(valeur))
+        end
     end
     return l
 end
@@ -95,13 +103,13 @@ function Lignes.roll(parent, field, entity)
     function l:Actualiser(e)
         self.entity = e
         local valeur = tonumber(LCM.Entities.Get_Value(e, field.id)) or 0
-        local bonus = LCM.Traits.Bonus(e, field.id)
+        local bonus = LCM.Effets.Bonus(e, field.id)
         if bonus ~= 0 then
             self.valeur:SetText(string.format("%d %+d", valeur, bonus))
         else
             self.valeur:SetText(Nombre(valeur))
         end
-        local trait = LCM.Traits.Advantage(e, field.id)
+        local trait = LCM.Effets.Avantage(e, field.id)
         self.avantage:SetShown(trait ~= nil)
         if not trait then
             self.avantage:SetChecked(false)
@@ -165,7 +173,9 @@ local function Effets(trait)
     return table.concat(bonus, "  ·  ")
 end
 
-local function CarteTrait(parent, ligne)
+-- Une carte pour tout ce qui porte des effets (trait, objet) : la fenetre
+-- d'equipement s'en sert aussi. `onRetirer(id)` est appele par la croix.
+function Fiche.Carte(parent, onRetirer)
     local c = CreateFrame("Frame", nil, parent)
     c.fond = UI.Aplat(c, UI.C.fondClair)
     c.fond:SetAllPoints(c)
@@ -177,7 +187,7 @@ local function CarteTrait(parent, ligne)
     c.cout:SetJustifyH("RIGHT")
     -- L'identifiant est porte par la carte, lu au clic : les cartes sont
     -- reutilisees d'un affichage a l'autre.
-    c.retirer = UI.Bouton(c, "x", 18, 18, function() ligne:Retirer(c.traitId) end)
+    c.retirer = UI.Bouton(c, "x", 18, 18, function() onRetirer(c.elementId) end)
     c.retirer:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -4)
 
     c.description = UI.Texte(c, "", UI.C.texte, "GameFontNormalSmall")
@@ -187,27 +197,28 @@ local function CarteTrait(parent, ligne)
     c.effets:SetWidth(LARGEUR_CARTE - 16)
     c.effets:SetWordWrap(true)
 
-    -- Remplit la carte et renvoie sa hauteur.
-    function c:Habiller(id, mj)
-        self.traitId = id
-        local trait = LCM.Traits.Get(id)
+    -- Remplit la carte et renvoie sa hauteur. `element` est nil quand
+    -- l'identifiant ne designe plus rien ; `coin` est le texte en haut a
+    -- droite (le cout d'un trait).
+    function c:Habiller(id, element, mj, coin)
+        self.elementId = id
         local description, effets
-        if trait then
-            self.nom:SetText(trait.label .. (trait.brouillon and "  |cff99907f· brouillon|r" or ""))
+        if element then
+            self.nom:SetText(element.label .. (element.brouillon and "  |cff99907f· brouillon|r" or ""))
             self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
-            self.cout:SetText(string.format("%d pt%s", trait.cout, trait.cout > 1 and "s" or ""))
-            description = trait.description
-            effets = Effets(trait)
+            self.cout:SetText(coin or "")
+            description = element.description
+            effets = Effets(element)
             if effets == "" then effets = "Aucun effet chiffré." end
         else
-            -- Un trait disparu reste montre : il est encore sur l'entite, et
+            -- Un element disparu reste montre : il est encore sur l'entite, et
             -- redevient actif s'il revient. Le taire ferait croire a une
             -- fiche saine.
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.cout:SetText("")
-            description = "Ce trait n'existe pas dans cette version de l'addon (brouillon supprimé, "
-                .. "ou contenu pas encore publié). Il ne donne rien tant qu'il n'existe pas."
+            description = "N'existe pas dans cette version de l'addon (brouillon supprimé, "
+                .. "ou contenu pas encore publié). Ne donne rien tant qu'il n'existe pas."
             effets = ""
         end
         self.retirer:SetShown(mj)
@@ -297,13 +308,15 @@ function Lignes.traits(parent, field)
         for index, id in ipairs(ids) do
             local c = self.cartes[index]
             if not c then
-                c = CarteTrait(self.zone.contenu, self)
+                c = Fiche.Carte(self.zone.contenu, function(traitId) self:Retirer(traitId) end)
                 self.cartes[index] = c
             end
             c:ClearAllPoints()
             c:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
             c:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
-            local hauteur = c:Habiller(id, mj)
+            local trait = LCM.Traits.Get(id)
+            local hauteur = c:Habiller(id, trait, mj,
+                trait and string.format("%d pt%s", trait.cout, trait.cout > 1 and "s" or ""))
             c:SetHeight(hauteur)
             c:Show()
             y = y + hauteur + 6

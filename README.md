@@ -42,7 +42,7 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm sceau      montrer / cacher le sceau du menu
 /lcm doc        la documentation en jeu
 /lcm brouillons (MJ) le contenu créé en séance
-/lcm atelier    (MJ) créer traits et races en séance
+/lcm atelier    (MJ) créer traits, races et objets en séance
 /lcm debug      les traces
 ```
 
@@ -88,10 +88,10 @@ artworks, publication. Voir plus bas.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **Les fenêtres du menu.** « Fiche », « Santé » et « Expertise » sont
-      branchées (les deux dernières sont des *vues* : trois lignes dans
+- [ ] **Les fenêtres du menu.** « Fiche », « Équipement », « Santé » et
+      « Expertise » sont branchées (les deux dernières sont des *vues* : trois lignes dans
       `Data/Vues.lua` qui désignent des morceaux du schéma). Le reste attend
-      ses règles : Équipement, Apprentissage, Métier, Emplacements 1 à 4,
+      ses règles : Apprentissage, Métier, Emplacements 1 à 4,
       Compétences, Grimoires, Déplacement, et les outils MJ (Panneau MJ,
       Action d'emplacement, Incarner) apparaissent **éteints** et le disent au
       clic. « Compendium » ouvre l'atelier MJ.
@@ -99,8 +99,11 @@ Par ordre de ce qui bloque le plus :
       bandeau d'initiative, pas de combat. (Dans Necronicon, se souvenir que les
       messages d'addon sont **limités à 255 octets** — c'est ce qui cassait les
       invitations de combat.)
-- [ ] **L'objet.** `LCM.Objets` n'existe pas : un brouillon d'objet exporté
-      appellerait une fonction absente.
+- [x] **L'objet.** `LCM.Objets` : arme, équipement, accessoire (1 / 5 / 5
+      emplacements, `Equilibrage.emplacements`), bonus et avantage comme un
+      trait. Créés dans l'atelier, équipés par le MJ dans « Équipement ».
+      Reste à décider : bonus aux primaires, dégâts d'arme, inventaire (les
+      « Emplacements 1 à 4 »).
 - [x] **L'interface MJ de création de contenu.** L'atelier (`/lcm atelier`,
       ou « Compendium » dans le menu) crée et modifie les brouillons de traits
       et de races ; le contenu publié s'y affiche en lecture seule. Les objets

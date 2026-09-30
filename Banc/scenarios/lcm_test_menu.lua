@@ -83,7 +83,7 @@ attendu("dessin d'eventail a 5 branches",
 
 dire("== une entree sans fenetre le dit, sans rien casser")
 local avant = #__sorties
-f.boutonsEntree[2]:Click("LeftButton") -- Equipement
+f.boutonsEntree[5]:Click("LeftButton") -- Apprentissage
 attendu("prevenu", dernierMessage():find("pas encore disponible") ~= nil, true)
 attendu("la couronne reste ouverte", f.orbite:IsShown(), true)
 attendu("aucune fenetre ouverte", #__sorties, avant + 1)

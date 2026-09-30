@@ -1,8 +1,9 @@
 -- Jets.
 --
--- Un jet = des + valeur du champ + bonus de traits + modificateur ponctuel.
--- Avec avantage, on lance DEUX FOIS et l'on garde le meilleur : c'est le joueur
--- qui coche la case, car lui seul sait si la situation correspond a son trait.
+-- Un jet = des + valeur du champ + bonus portes (traits, objets) + modificateur
+-- ponctuel. Avec avantage, on lance DEUX FOIS et l'on garde le meilleur : c'est
+-- le joueur qui coche la case, car lui seul sait si la situation correspond a
+-- son trait ou a son objet.
 --
 -- Le resultat est detaille (les deux jets, ce qui a ete garde, d'ou vient
 -- chaque point) : un jet qu'on ne peut pas expliquer est un jet qu'on conteste.
@@ -30,12 +31,13 @@ function Roll.Field(entity, fieldId, options)
     if maximum < minimum then minimum, maximum = maximum, minimum end
 
     local valeur = tonumber(LCM.Entities.Get_Value(entity, fieldId)) or 0
-    local bonus = LCM.Traits.Bonus(entity, fieldId)
+    local bonus = LCM.Effets.Bonus(entity, fieldId)
     local modificateur = tonumber(options.modificateur) or 0
     local fixe = valeur + bonus + modificateur
 
-    -- L'avantage doit etre accorde par un trait : cocher la case ne suffit pas.
-    local trait = LCM.Traits.Advantage(entity, fieldId)
+    -- L'avantage doit etre accorde par un trait ou un objet : cocher la case
+    -- ne suffit pas. `trait` garde son nom, mais peut designer un objet.
+    local trait, source = LCM.Effets.Avantage(entity, fieldId)
     local avantage = options.avantage == true and trait ~= nil
 
     local premier = Alea(minimum, maximum)
@@ -55,6 +57,7 @@ function Roll.Field(entity, fieldId, options)
         total = garde + fixe,
         avantage = avantage,
         trait = trait,
+        source = source,
         -- Vrai quand la case etait cochee mais qu'aucun trait ne l'autorisait :
         -- on le dit plutot que d'ignorer en silence.
         avantageRefuse = options.avantage == true and trait == nil,
@@ -72,7 +75,7 @@ function Roll.Describe(resultat)
         morceaux[#morceaux + 1] = string.format("de %d", resultat.garde)
     end
     if resultat.valeur ~= 0 then morceaux[#morceaux + 1] = string.format("valeur %+d", resultat.valeur) end
-    if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("trait %+d", resultat.bonus) end
+    if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("bonus %+d", resultat.bonus) end
     if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("modificateur %+d", resultat.modificateur) end
     local ligne = string.format("%s : %d  (%s)", resultat.label, resultat.total, table.concat(morceaux, ", "))
     if resultat.avantage and resultat.trait then

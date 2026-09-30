@@ -64,8 +64,14 @@ ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", 
 attendu("contenu publie protege", ok, false)
 dire("     raison : " .. tostring(raison))
 
-ok = B.Enregistrer("objets", { id = "epee", label = "Epee" }, true)
-attendu("objets : pas de registre", ok, false)
+ok, raison = B.Enregistrer("objets", { id = "epee", label = "Epee" }, true)
+attendu("objet sans categorie refuse", ok, false)
+dire("     raison : " .. tostring(raison))
+ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", bonus = { pen_tranchant = 2 } }, true)
+attendu("objet accepte", ok, true)
+attendu("objet jouable", LCM.Objets.Get("epee") and LCM.Objets.Get("epee").brouillon, true)
+ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", bonus = { force = 1 } }, true)
+attendu("objet : primaire refusee aussi", ok, false)
 
 dire("== Modifier sur place")
 local tenu = LCM.Traits.Get("pied_sur")
@@ -224,8 +230,38 @@ attendu("morphologie choisie", f.edition.morphology, "quadrupede")
 f.enregistrer:Click()
 attendu("race creee", LCM.Races.Get("minotaure") and LCM.Races.Get("minotaure").morphology, "quadrupede")
 
+dire("== Atelier : un objet")
 f.onglets.boutons[3]:Click()
-attendu("objets : pas d'enregistrement", f.enregistrer:IsShown(), false)
+attendu("famille objets", f.famille, "objets")
+local po = f.panneaux.objets
+attendu("panneau objets", po:IsShown(), true)
+attendu("pas de cout pour un objet", po.cout, nil)
+attendu("enregistrement propose", f.enregistrer:IsShown(), true)
+po.nom:Saisir("Amulette du guetteur")
+f.enregistrer:Click()
+attendu("sans categorie : refus explique", (f.message:GetText() or ""):find("catégorie") ~= nil, true)
+po.categorie:Click()
+local cats = {}
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() then cats[#cats + 1] = b.choix end end
+attendu("trois categories proposees", table.concat(cats, ","), "arme,equipement,accessoire")
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "accessoire" then b:Click() end end
+attendu("categorie affichee", po.categorie.label:GetText(), "Accessoire")
+po.ajoutBonus:Click()
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "vue" then b:Click() end end
+po.lignesBonus[1].montant:Saisir("2")
+po.ajoutAvantage:Click()
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "pistage" then b:Click() end end
+f.enregistrer:Click()
+local amulette = LCM.Objets.Get("amulette_du_guetteur")
+attendu("objet cree", amulette ~= nil, true)
+attendu("categorie", amulette and amulette.categorie, "accessoire")
+attendu("bonus", amulette and amulette.bonus.vue, 2)
+attendu("avantage", amulette and amulette.avantage.pistage, true)
+local sauve = LCM_MJ_DB.brouillons.objets.amulette_du_guetteur
+attendu("sauvegarde sans cout", sauve.cout, nil)
+attendu("sauvegarde : categorie", sauve.categorie, "accessoire")
+f:Ouvrir("amulette_du_guetteur")
+attendu("rouvert : categorie relue", f.edition.categorie, "accessoire")
 
 dire("== Radial")
 attendu("compendium lie", LCM.UI.Radial.EstLiee("compendium"), true)

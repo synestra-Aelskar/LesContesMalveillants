@@ -1,7 +1,7 @@
 -- Atelier du maitre du jeu.
 --
--- Le formulaire qui fabrique les brouillons : un trait, une race, en seance,
--- sans toucher au code. Ce qu'il produit est exactement ce qu'un fichier genere
+-- Le formulaire qui fabrique les brouillons : un trait, une race, un objet,
+-- en seance, sans toucher au code. Ce qu'il produit est exactement ce qu'un fichier genere
 -- declarerait (`Traits.Add({...})`), range dans la sauvegarde du compagnon en
 -- attendant l'export.
 --
@@ -100,6 +100,8 @@ local function Vierge(famille)
         label = "", description = "", cout = 1,
         bonus = {}, avantage = {},
         morphology = LCM.DEFAULT_MORPHOLOGY,
+        -- Pas de categorie par defaut : c'est un choix, pas un reglage.
+        categorie = nil,
     }
 end
 
@@ -126,6 +128,7 @@ local function Charger(famille, source, publie)
     e.description = tostring(source.description or "")
     e.cout = tonumber(source.cout) or 1
     e.morphology = source.morphology
+    e.categorie = source.categorie
     for champ, montant in pairs(type(source.bonus) == "table" and source.bonus or {}) do
         e.bonus[#e.bonus + 1] = { champ = tostring(champ), montant = tostring(montant) }
     end
@@ -158,7 +161,13 @@ local function Definition(e)
     local avantage = {}
     for _, champ in ipairs(e.avantage) do avantage[#avantage + 1] = champ end
 
-    local definition = { id = id, label = nom, cout = e.cout, bonus = bonus, avantage = avantage }
+    local definition = { id = id, label = nom, bonus = bonus, avantage = avantage }
+    if e.famille == "objets" then
+        if not e.categorie then return nil, "choisis sa catégorie" end
+        definition.categorie = e.categorie
+    else
+        definition.cout = e.cout
+    end
     local description = tostring(e.description or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if description ~= "" then definition.description = description end
     return definition
@@ -254,22 +263,47 @@ end
 
 -- ===== Panneaux ============================================================
 
-local function PanneauTrait(f)
+-- Trait et objet partagent tout (description, bonus, avantage) sauf une ligne :
+-- le cout d'un trait, la categorie d'un objet.
+local function OptionsCategories()
+    local out = {}
+    for _, categorie in ipairs(LCM.Objets.CATEGORIES) do
+        out[#out + 1] = { id = categorie.id, label = string.format("%s  (%d emplacement%s)",
+            categorie.label, LCM.Objets.Emplacements(categorie.id),
+            LCM.Objets.Emplacements(categorie.id) > 1 and "s" or "") }
+    end
+    return out
+end
+
+local function PanneauEffets(f, genre)
     local p = UI.Defilement(f.droite)
     local c = p.contenu
     EnTete(f, p, c)
 
     local plafond = LCM.Traits.COUT_MAX
-    p.cout = UI.Compteur(c, "Coût", COLONNE, {
-        change = function(valeur)
-            if valeur < 1 or valeur > plafond then return false end
-            f.edition.cout = valeur
-            p.cout:Regler(valeur, plafond)
-        end,
-        max = function() return plafond end,
-    })
-    p.cout:SetWidth(300)
-    p.cout:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -56)
+    if genre == "trait" then
+        p.cout = UI.Compteur(c, "Coût", COLONNE, {
+            change = function(valeur)
+                if valeur < 1 or valeur > plafond then return false end
+                f.edition.cout = valeur
+                p.cout:Regler(valeur, plafond)
+            end,
+            max = function() return plafond end,
+        })
+        p.cout:SetWidth(300)
+        p.cout:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -56)
+    else
+        p.lblCategorie = Libelle(c, "Catégorie")
+        p.lblCategorie:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -61)
+        p.categorie = UI.Bouton(c, "", 200, 22, function()
+            f.choix.titre:SetText("Catégorie")
+            f.choix:Proposer(p.categorie, OptionsCategories(), function(id)
+                f.edition.categorie = id
+                p:Remplir()
+            end)
+        end)
+        p.categorie:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -56)
+    end
 
     p.lblDesc = Libelle(c, "Description")
     p.lblDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -86)
@@ -304,7 +338,11 @@ local function PanneauTrait(f)
     function p:Remplir()
         local e = f.edition
         self.nom:SetText(e.label or "")
-        self.cout:Regler(e.cout or 1, plafond)
+        if self.cout then self.cout:Regler(e.cout or 1, plafond) end
+        if self.categorie then
+            local categorie = LCM.Objets.Categorie(e.categorie)
+            self.categorie.label:SetText(categorie and categorie.label or "|cff99907fChoisir…|r")
+        end
         self.description:SetText(e.description or "")
 
         local y = -186
@@ -382,21 +420,6 @@ local function PanneauRace(f)
     return p
 end
 
--- Pas de registre des objets : le format d'un objet n'est pas decide, et
--- l'inventer ici serait ecrire une regle de jeu dans un formulaire.
-local function PanneauObjet(f)
-    local p = CreateFrame("Frame", nil, f.droite)
-    p.texte = UI.Texte(p, "Les objets n'ont pas encore de registre : ce qu'un objet porte "
-        .. "(catégorie, poids, emplacement, bonus…) reste à définir.\n\n"
-        .. "Une fois le format décidé, il se déclare dans Core/, et cet onglet "
-        .. "devient un formulaire comme les autres.", UI.C.discret, "GameFontNormalSmall")
-    p.texte:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -4)
-    p.texte:SetWidth(LARGEUR_FORMULAIRE - 20)
-    p.texte:SetWordWrap(true)
-    function p:Remplir() end
-    return p
-end
-
 -- ===== La fenetre ==========================================================
 
 local function Construire()
@@ -444,7 +467,7 @@ local function Construire()
     f.message:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 32)
     f.message:SetWordWrap(true)
 
-    f.panneaux = { traits = PanneauTrait(f), races = PanneauRace(f), objets = PanneauObjet(f) }
+    f.panneaux = { traits = PanneauEffets(f, "trait"), races = PanneauRace(f), objets = PanneauEffets(f, "objet") }
     for _, p in pairs(f.panneaux) do
         p:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, 0)
         p:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 64)
@@ -653,7 +676,7 @@ function Atelier.Basculer()
     if f:IsShown() then f:Hide() else f:Montrer() end
 end
 
-LCM.AddCommand("atelier", "(MJ) creer traits et races en seance", function() Atelier.Basculer() end, true)
+LCM.AddCommand("atelier", "(MJ) creer traits, races et objets en seance", function() Atelier.Basculer() end, true)
 
 -- Le compendium du menu radial : c'est la que le MJ range son contenu.
 LCM.WhenReady(function()

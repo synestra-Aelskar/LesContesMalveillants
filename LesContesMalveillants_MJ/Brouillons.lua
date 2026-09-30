@@ -103,6 +103,9 @@ function Brouillons.Published()
     for _, entree in ipairs(Brouillons.List("races")) do
         if DejaEnDur(LCM.Races, entree.id) then out[#out + 1] = "races/" .. tostring(entree.id) end
     end
+    for _, entree in ipairs(Brouillons.List("objets")) do
+        if DejaEnDur(LCM.Objets, entree.id) then out[#out + 1] = "objets/" .. tostring(entree.id) end
+    end
     return out
 end
 
@@ -138,6 +141,7 @@ end
 local function Registre(famille)
     if famille == "traits" then return LCM.Traits end
     if famille == "races" then return LCM.Races end
+    if famille == "objets" then return LCM.Objets end
     return nil
 end
 Brouillons.Registre = Registre
@@ -210,7 +214,7 @@ end
 LCM.WhenReady(function()
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
-    for _, famille in ipairs({ "races", "traits" }) do
+    for _, famille in ipairs({ "races", "traits", "objets" }) do
         local registre = Registre(famille)
         for _, entree in ipairs(Brouillons.List(famille)) do
             if not registre.Get(entree.id) then

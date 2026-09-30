@@ -39,7 +39,7 @@ attendu("25 expertises", n, 25)
 dire("== le menu s'allume")
 attendu("Sante liee", R.EstLiee("sante"), true)
 attendu("Expertise liee", R.EstLiee("expertise"), true)
-attendu("Equipement reste eteinte", R.EstLiee("equipement"), false)
+attendu("Apprentissage reste eteinte", R.EstLiee("apprentissage"), false)
 
 dire("== Sante")
 local moi = LCM.Entities.Self()
