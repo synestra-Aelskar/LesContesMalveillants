@@ -42,6 +42,7 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm sceau      montrer / cacher le sceau du menu
 /lcm doc        la documentation en jeu
 /lcm brouillons (MJ) le contenu créé en séance
+/lcm atelier    (MJ) créer traits et races en séance
 /lcm debug      les traces
 ```
 
@@ -97,8 +98,10 @@ Par ordre de ce qui bloque le plus :
       invitations de combat.)
 - [ ] **L'objet.** `LCM.Objets` n'existe pas : un brouillon d'objet exporté
       appellerait une fonction absente.
-- [ ] **L'interface MJ de création de contenu.** Les brouillons ne se créent
-      qu'en code pour l'instant.
+- [x] **L'interface MJ de création de contenu.** L'atelier (`/lcm atelier`,
+      ou « Compendium » dans le menu) crée et modifie les brouillons de traits
+      et de races ; le contenu publié s'y affiche en lecture seule. Les objets
+      attendent leur registre.
 - [ ] **L'onglet Traits de la fiche** n'a qu'un champ de notes ; les traits
       portés ne s'affichent pas en liste.
 - [ ] **Les races** : humain seulement, sur décision de Syn'estra. Les autres

@@ -445,3 +445,130 @@ function UI.Confirmer(parent, texte, libelleOui)
     d:Hide()
     return d
 end
+
+-- Texte sur plusieurs lignes (une description). Une zone de saisie multiligne
+-- grandit avec son texte : on l'enferme dans un cadre qui rogne, pour qu'une
+-- longue description ne deborde pas sur le reste du formulaire. Entree passe a
+-- la ligne ; Echap rend la main.
+function UI.Zone(parent, largeur, hauteur, onChange)
+    local z = CreateFrame("Frame", nil, parent)
+    z:SetSize(largeur or 260, hauteur or 70)
+    z:SetClipsChildren(true)
+    z:EnableMouse(true)
+    z.fond = UI.Aplat(z, UI.C.fondClair)
+    z.fond:SetAllPoints(z)
+    UI.Bordure(z, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 })
+
+    local e = CreateFrame("EditBox", nil, z)
+    e:SetMultiLine(true)
+    e:SetAutoFocus(false)
+    e:SetMaxLetters(500)
+    e:SetFontObject("GameFontNormalSmall")
+    e:SetPoint("TOPLEFT", z, "TOPLEFT", 6, -4)
+    e:SetWidth((largeur or 260) - 12)
+    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    if onChange then
+        e:SetScript("OnTextChanged", function(self, parLUtilisateur)
+            if parLUtilisateur ~= false then onChange(self:GetText() or "") end
+        end)
+    end
+    z.saisie = e
+    -- Cliquer n'importe ou dans le cadre donne la main au texte, meme sous la
+    -- derniere ligne ecrite.
+    z:SetScript("OnMouseDown", function() e:SetFocus() end)
+
+    function z:SetText(texte) self.saisie:SetText(texte or "") end
+    function z:GetText() return self.saisie:GetText() or "" end
+    return z
+end
+
+-- Liste de choix, ouverte a cote d'un bouton : « quel champ ? », « quelle
+-- morphologie ? ». Les options sont { id, label, groupe } ; un changement de
+-- groupe pose un intertitre. `cle` nomme le cadre, ce qui le fait fermer par
+-- Echap comme les fenetres.
+--
+-- Les lignes sont gardees d'une ouverture a l'autre et seulement completees :
+-- on ne recree pas des cadres a chaque clic.
+function UI.Choix(cle, titre)
+    local d = CreateFrame("Frame", "LCM_Choix_" .. tostring(cle), UIParent)
+    d:SetSize(260, 320)
+    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    d:SetClampedToScreen(true)
+    d:EnableMouse(true)
+    d.fond = UI.Aplat(d, UI.C.fond)
+    d.fond:SetAllPoints(d)
+    UI.Bordure(d)
+
+    d.titre = UI.Texte(d, titre or "", UI.C.titre, "GameFontNormalSmall")
+    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -9)
+
+    d.fermer = UI.Bouton(d, "x", 18, 18, function() d:Hide() end)
+    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -6, -6)
+
+    d.zone = UI.Defilement(d)
+    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 8, -30)
+    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -8, 8)
+
+    d.lignes, d.intertitres = {}, {}
+
+    local HAUTEUR = 20
+
+    function d:Proposer(ancre, options, onChoix)
+        self.onChoix = onChoix
+        local y, nLignes, nIntertitres, groupe = 0, 0, 0, nil
+        for _, option in ipairs(options or {}) do
+            if option.groupe and option.groupe ~= groupe then
+                groupe = option.groupe
+                nIntertitres = nIntertitres + 1
+                local t = self.intertitres[nIntertitres]
+                if not t then
+                    t = UI.Texte(self.zone.contenu, "", UI.C.accent, "GameFontNormalSmall")
+                    self.intertitres[nIntertitres] = t
+                end
+                t:ClearAllPoints()
+                t:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 2, -y - 4)
+                t:SetText(groupe)
+                t:Show()
+                y = y + HAUTEUR
+            end
+            nLignes = nLignes + 1
+            local b = self.lignes[nLignes]
+            if not b then
+                -- La valeur choisie est portee par la ligne : une fermeture qui
+                -- capturerait l'index de boucle renverrait toujours la derniere.
+                b = UI.Bouton(self.zone.contenu, "", 10, HAUTEUR - 2, function(ligne)
+                    d:Hide()
+                    if d.onChoix then d.onChoix(ligne.choix) end
+                end)
+                b.label:ClearAllPoints()
+                b.label:SetPoint("LEFT", b, "LEFT", 8, 0)
+                b.label:SetJustifyH("LEFT")
+                self.lignes[nLignes] = b
+            end
+            b.choix = option.id
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+            b:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
+            b.label:SetText(option.label or option.id)
+            b:Show()
+            y = y + HAUTEUR
+        end
+        for index = nLignes + 1, #self.lignes do self.lignes[index]:Hide() end
+        for index = nIntertitres + 1, #self.intertitres do self.intertitres[index]:Hide() end
+
+        self:ClearAllPoints()
+        if ancre then
+            self:SetPoint("TOPLEFT", ancre, "BOTTOMLEFT", 0, -2)
+        else
+            self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+        end
+        self.zone.decalage = 0
+        self:Show()
+        self:Raise()
+        self.zone:Regler(y)
+    end
+
+    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
+    d:Hide()
+    return d
+end

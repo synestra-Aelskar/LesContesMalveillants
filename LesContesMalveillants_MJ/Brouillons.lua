@@ -106,6 +106,103 @@ function Brouillons.Published()
     return out
 end
 
+-- ===== Saisie en seance ====================================================
+-- Ce que l'atelier appelle. La saisie passe par les MEMES regles que le
+-- chargement d'un fichier genere (`Construire` du registre) : un brouillon
+-- refuse ici l'aurait ete a l'export, autant le dire tout de suite.
+
+-- Les identifiants sont sans accents (convention de l'addon) : on les derive du
+-- nom saisi. Lua ne connait que des octets, d'ou la table des sequences UTF-8.
+local ACCENTS = {
+    ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["À"] = "a", ["Â"] = "a", ["Ä"] = "a",
+    ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e",
+    ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["Ë"] = "e",
+    ["î"] = "i", ["ï"] = "i", ["Î"] = "i", ["Ï"] = "i",
+    ["ô"] = "o", ["ö"] = "o", ["Ô"] = "o", ["Ö"] = "o",
+    ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["Ù"] = "u", ["Û"] = "u", ["Ü"] = "u",
+    ["ç"] = "c", ["Ç"] = "c", ["ÿ"] = "y",
+    ["œ"] = "oe", ["Œ"] = "oe", ["æ"] = "ae", ["Æ"] = "ae",
+}
+
+-- « Escalade de la jungle » -> « escalade_de_la_jungle ». Un caractere
+-- inconnu disparait plutot que de produire un identifiant illisible.
+function Brouillons.Identifiant(nom)
+    local texte = tostring(nom or ""):gsub("[\192-\255][\128-\191]*", function(c)
+        return ACCENTS[c] or ""
+    end)
+    texte = texte:lower():gsub("[^%w]+", "_"):gsub("^_+", ""):gsub("_+$", "")
+    return texte
+end
+
+-- Resolu a l'appel : les registres vivent dans l'addon principal.
+local function Registre(famille)
+    if famille == "traits" then return LCM.Traits end
+    if famille == "races" then return LCM.Races end
+    return nil
+end
+Brouillons.Registre = Registre
+
+-- « LCM/Traits : cout invalide » -> « cout invalide » : le prefixe sert a qui
+-- lit une trace, pas au MJ devant son formulaire.
+local function Raison(message)
+    return (tostring(message or ""):gsub("^LCM/%a+ : ", ""))
+end
+
+-- Vrai si l'identifiant appartient a du contenu publie (un fichier genere).
+function Brouillons.EstPublie(famille, id)
+    local registre = Registre(famille)
+    local existant = registre and registre.Get(id)
+    return existant ~= nil and existant.brouillon ~= true
+end
+
+-- Enregistre un brouillon et le rend jouable aussitot. `creation` : le MJ
+-- pense creer une entree neuve, donc un identifiant deja pris est une
+-- collision, pas une modification. Renvoie true, ou false et la raison.
+function Brouillons.Enregistrer(famille, entree, creation)
+    famille = tostring(famille or "")
+    if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
+    local registre = Registre(famille)
+    if not (registre and registre.Construire) then
+        return false, "le format des " .. famille .. " n'est pas encore defini"
+    end
+
+    local ok, neuf = pcall(registre.Construire, entree)
+    if not ok then return false, Raison(neuf) end
+
+    if Brouillons.EstPublie(famille, neuf.id) then
+        return false, string.format("« %s » est deja du contenu publie : le fichier fait foi", neuf.id)
+    end
+    if creation and Brouillons.Get(famille, neuf.id) then
+        return false, string.format("un brouillon porte deja l'identifiant « %s »", neuf.id)
+    end
+
+    Brouillons.Set(famille, entree)
+
+    -- Modifie SUR PLACE : les entites designent le trait par son identifiant,
+    -- mais les ecrans ouverts tiennent la table elle-meme.
+    local existant = registre.Get(neuf.id)
+    if existant then
+        for cle in pairs(existant) do existant[cle] = nil end
+        for cle, valeur in pairs(neuf) do existant[cle] = valeur end
+        existant.brouillon = true
+    else
+        registre.Add(entree).brouillon = true
+    end
+    return true
+end
+
+-- Supprime un brouillon, et le retire du jeu s'il n'etait qu'un brouillon.
+-- Les entites qui le portaient gardent son identifiant : on n'efface pas les
+-- donnees d'un joueur parce que le contenu a disparu.
+function Brouillons.Supprimer(famille, id)
+    famille = tostring(famille or "")
+    if not Brouillons.Remove(famille, id) then return false end
+    local registre = Registre(famille)
+    local existant = registre and registre.Get(id)
+    if existant and existant.brouillon == true then registre.Retirer(id) end
+    return true
+end
+
 -- ===== Prise en compte immediate ===========================================
 -- Les brouillons sont declares comme le reste, pour etre jouables des la
 -- seance. S'ils existent deja en dur, on n'ecrase pas : le fichier fait foi.
@@ -113,18 +210,16 @@ end
 LCM.WhenReady(function()
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
-    for _, entree in ipairs(Brouillons.List("races")) do
-        if not LCM.Races.Get(entree.id) then
-            local ok, cree = pcall(LCM.Races.Add, entree)
-            if ok and type(cree) == "table" then cree.brouillon = true
-            elseif not ok then LCM.Erreur("brouillon de race refuse : " .. tostring(cree)) end
-        end
-    end
-    for _, entree in ipairs(Brouillons.List("traits")) do
-        if not LCM.Traits.Get(entree.id) then
-            local ok, cree = pcall(LCM.Traits.Add, entree)
-            if ok and type(cree) == "table" then cree.brouillon = true
-            elseif not ok then LCM.Erreur("brouillon de trait refuse : " .. tostring(cree)) end
+    for _, famille in ipairs({ "races", "traits" }) do
+        local registre = Registre(famille)
+        for _, entree in ipairs(Brouillons.List(famille)) do
+            if not registre.Get(entree.id) then
+                local ok, cree = pcall(registre.Add, entree)
+                if ok and type(cree) == "table" then cree.brouillon = true
+                elseif not ok then
+                    LCM.Erreur(string.format("brouillon refuse (%s) : %s", famille, Raison(cree)))
+                end
+            end
         end
     end
     local nombre = Brouillons.Count()

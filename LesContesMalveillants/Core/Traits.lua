@@ -31,11 +31,14 @@ local function Erreur(message)
     error("LCM/Traits : " .. tostring(message), 0)
 end
 
-function Traits.Add(definition)
+-- Verifie une definition et la met en forme, SANS l'enregistrer. C'est la seule
+-- porte des regles d'un trait : l'atelier du MJ s'en sert pour refuser une
+-- saisie avant qu'elle n'atteigne la sauvegarde, avec le meme message que le
+-- chargement d'un fichier genere.
+function Traits.Construire(definition)
     if type(definition) ~= "table" then Erreur("trait invalide") end
     local id = tostring(definition.id or "")
     if id == "" then Erreur("trait sans identifiant") end
-    if Traits.byId[id] then Erreur("trait en double : " .. id) end
 
     -- Un trait coute de 1 a 4 points ; c'est la regle, donc le code la tient.
     local cout = tonumber(definition.cout) or 1
@@ -68,13 +71,33 @@ function Traits.Add(definition)
         trait.avantage[tostring(fieldId)] = true
     end
 
-    Traits.byId[id] = trait
+    return trait
+end
+
+function Traits.Add(definition)
+    local trait = Traits.Construire(definition)
+    if Traits.byId[trait.id] then Erreur("trait en double : " .. trait.id) end
+    Traits.byId[trait.id] = trait
     Traits.list[#Traits.list + 1] = trait
     return trait
 end
 
 function Traits.Get(id)
     return Traits.byId[tostring(id or "")]
+end
+
+-- Ne sert qu'aux brouillons que le MJ supprime en seance : le contenu publie se
+-- recharge depuis son fichier, le retirer ici ne l'effacerait de rien. Les
+-- entites qui portaient ce trait gardent son identifiant ; il redevient visible
+-- si le trait revient.
+function Traits.Retirer(id)
+    id = tostring(id or "")
+    if not Traits.byId[id] then return false end
+    Traits.byId[id] = nil
+    for index = #Traits.list, 1, -1 do
+        if Traits.list[index].id == id then table.remove(Traits.list, index) end
+    end
+    return true
 end
 
 -- Les champs vises n'existent pas forcement au moment ou le trait est declare

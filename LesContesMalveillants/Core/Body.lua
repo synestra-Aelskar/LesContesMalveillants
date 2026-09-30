@@ -169,23 +169,39 @@ function Morphologies.Get(id)
     return Morphologies.byId[tostring(id or "")]
 end
 
-function Races.Add(definition)
+-- Verifie et met en forme sans enregistrer (voir Traits.Construire).
+function Races.Construire(definition)
     if type(definition) ~= "table" then Erreur("race invalide") end
     local id = tostring(definition.id or "")
     if id == "" then Erreur("race sans identifiant") end
-    if Races.byId[id] then Erreur("race en double : " .. id) end
     local morphologyId = tostring(definition.morphology or "")
     if not Morphologies.byId[morphologyId] then
         Erreur("race " .. id .. " : morphologie inconnue « " .. morphologyId .. " »")
     end
-    local race = { id = id, label = tostring(definition.label or id), morphology = morphologyId }
-    Races.byId[id] = race
+    return { id = id, label = tostring(definition.label or id), morphology = morphologyId }
+end
+
+function Races.Add(definition)
+    local race = Races.Construire(definition)
+    if Races.byId[race.id] then Erreur("race en double : " .. race.id) end
+    Races.byId[race.id] = race
     Races.list[#Races.list + 1] = race
     return race
 end
 
 function Races.Get(id)
     return Races.byId[tostring(id or "")]
+end
+
+-- Brouillons supprimes en seance uniquement (voir Traits.Retirer).
+function Races.Retirer(id)
+    id = tostring(id or "")
+    if not Races.byId[id] then return false end
+    Races.byId[id] = nil
+    for index = #Races.list, 1, -1 do
+        if Races.list[index].id == id then table.remove(Races.list, index) end
+    end
+    return true
 end
 
 -- ===== Cote entite =========================================================
