@@ -88,10 +88,13 @@ artworks, publication. Voir plus bas.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **Les fenêtres du menu.** Seule « Fiche » est branchée. Équipement, Santé,
-      Expertise, Apprentissage, Métier, Emplacements 1 à 4, Compétences,
-      Grimoires, Déplacement, et les outils MJ (Panneau MJ, Compendium, Action
-      d'emplacement, Incarner) apparaissent **éteints** et le disent au clic.
+- [ ] **Les fenêtres du menu.** « Fiche », « Santé » et « Expertise » sont
+      branchées (les deux dernières sont des *vues* : trois lignes dans
+      `Data/Vues.lua` qui désignent des morceaux du schéma). Le reste attend
+      ses règles : Équipement, Apprentissage, Métier, Emplacements 1 à 4,
+      Compétences, Grimoires, Déplacement, et les outils MJ (Panneau MJ,
+      Action d'emplacement, Incarner) apparaissent **éteints** et le disent au
+      clic. « Compendium » ouvre l'atelier MJ.
 - [ ] **Le réseau.** Rien n'existe encore : pas de partage MJ ↔ joueurs, pas de
       bandeau d'initiative, pas de combat. (Dans Necronicon, se souvenir que les
       messages d'addon sont **limités à 255 octets** — c'est ce qui cassait les

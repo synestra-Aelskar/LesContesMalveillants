@@ -48,6 +48,7 @@ UI/      Kit, Skin, puis les écrans
 | un chiffre d'équilibrage | `Data/Equilibrage.lua`, **et nulle part ailleurs** |
 | un champ de fiche | `Data/Fiche.lua` (ou `Types.lua`, `Expertises.lua`, `Mecaniques.lua`) |
 | un widget d'interface | `UI/Kit.lua`, jamais dans un écran |
+| une fenêtre du menu qui montre une partie de la fiche | `Data/Vues.lua` (une vue, pas un écran) |
 | du contenu (trait, race, objet) | créé en jeu par le MJ, puis exporté vers `Data/Genere/` |
 
 **Aucune formule ne code un nombre en dur.** Si tu écris `2.5` dans un calcul,

@@ -321,13 +321,16 @@ end
 
 -- ===== La fenetre ==========================================================
 
-local function ConstruireOnglet(parent, tab)
+-- Une page : des sections du schema, dessinees ligne a ligne. La fiche en fait
+-- un onglet ; les fenetres du menu (UI/Vues.lua) en font une fenetre a part
+-- avec les MEMES lignes — une seule facon de montrer un champ dans l'addon.
+function Fiche.Page(parent, sections)
     local page = CreateFrame("Frame", nil, parent)
     page:SetAllPoints(parent)
     page.lignes = {}
 
     local y = 0
-    for _, section in ipairs(tab.sections) do
+    for _, section in ipairs(sections) do
         if section.label ~= "" then
             local titre = UI.Texte(page, section.label, UI.C.accent, "GameFontNormalSmall")
             titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
@@ -382,7 +385,7 @@ function Fiche.Fenetre()
     f.barre:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -18)
 
     for _, tab in ipairs(LCM.Schema.Tabs()) do
-        f.pages[tab.id] = ConstruireOnglet(f.zone, tab)
+        f.pages[tab.id] = Fiche.Page(f.zone, tab.sections)
     end
 
     function f:Afficher(ongletId)

@@ -19,6 +19,7 @@ Core\Traits.lua
 Core\Roll.lua
 Core\Creation.lua
 Core\Documents.lua
+Core\Vues.lua
 Data\Equilibrage.lua
 Data\Morphologies.lua
 Data\Fiche.lua
@@ -26,6 +27,7 @@ Data\Expertises.lua
 Data\Types.lua
 Data\Mecaniques.lua
 Data\Documents.lua
+Data\Vues.lua
 # Contenu genere par loutil dexport (voir Data\Genere)
 Data\Genere\Races.lua
 Data\Genere\Portraits.lua
@@ -40,4 +42,5 @@ UI\Fiche.lua
 UI\Personnages.lua
 UI\Creation.lua
 UI\Document.lua
+UI\Vues.lua
 UI\Radial.lua
