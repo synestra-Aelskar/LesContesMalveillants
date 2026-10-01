@@ -194,6 +194,10 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
 end
 
 -- Une ligne de lecture : libelle a gauche, valeur a droite.
+local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+
+local function Teinte(fs, c) fs:SetTextColor(c[1], c[2], c[3]) end
+
 local function Lecture(bloc, libelle, y)
     local l = CreateFrame("Frame", nil, bloc)
     l:SetHeight(LIGNE)
@@ -279,37 +283,91 @@ function Pages.generale(page, f)
     end
     identite.hauteurContenu = y + 26 - Haut(identite)
 
-    -- Race (un seul emplacement dans le template).
+    -- Race : un CONTENEUR d'un emplacement dans le template (Creation ›
+    -- Generale, « RACE », ajout limite a la categorie Races du compendium).
+    -- On y depose une race en la glissant depuis le compendium ; un clic droit
+    -- sur la case occupee la montre ou la retire.
     local race = Bloc(page, "Race", TEXTES.race)
-    page.races = {}
-    y = Haut(race)
-    for _, r in ipairs(LCM.Races.list) do
-        local b = UI.Bouton(race, r.label, 220, 24, function()
-            f.brouillon.race = r.id
-            f:Actualiser()
-        end)
-        b.raceId = r.id
-        b:SetPoint("TOPLEFT", race, "TOPLEFT", x, -y)
-        page.races[#page.races + 1] = b
-        y = y + 28
-    end
-    if #page.races == 0 then
-        Etiquette("Aucune race déclarée.", y)
-        y = y + 24
-    end
-    race.hauteurContenu = y - Haut(race)
-
-    -- Niveau d'aventure.
-    local niveau = Bloc(page, "Niveau d'aventure", TEXTES.niveau)
-    page.niveau = UI.Compteur(niveau, "Niveau du personnage", LARGEUR_LABEL + 40, function(valeur)
-        if valeur < 1 then return false end
-        f.brouillon.niveau = valeur
+    local c = UI.AelColonnes(LARGEUR_PAGE - 2 * UI.Fiche.MARGE_BLOC)
+    local slot = UI.Fiche.Ligne(race, c)
+    slot:SetHeight(math.max(48, c.ligne))
+    slot:SetPoint("TOPLEFT", race, "TOPLEFT", UI.Fiche.MARGE_BLOC, -Haut(race))
+    slot:SetPoint("TOPRIGHT", race, "TOPRIGHT", -UI.Fiche.MARGE_BLOC, -Haut(race))
+    UI.Fiche.Icone(slot, c, VIDE)
+    UI.Fiche.Nom(slot, c, "Emplacement", true)
+    slot.effets = UI.Texte(slot, "", UI.C.accent)
+    UI.Police(slot.effets, c.police * 0.72)
+    slot.effets:SetPoint("LEFT", slot, "LEFT", c.plage, 0)
+    slot.effets:SetPoint("RIGHT", slot, "RIGHT", -12 * c.echelle, 0)
+    slot.effets:SetJustifyH("RIGHT")
+    slot.effets:SetWordWrap(false)
+    slot:EnableMouse(true)
+    page.race = slot
+    UI.Glisser.Cible(slot, function(objet)
+        if objet.categorie ~= "races" then
+            return false, "cet emplacement n'accepte qu'une race (catégorie Races du compendium)."
+        end
+        return true
+    end, function(objet)
+        f.brouillon.race = objet.element.id
         f:Actualiser()
     end)
-    page.niveau:SetHeight(LIGNE - 2)
-    page.niveau:SetWidth(400)
-    page.niveau:SetPoint("TOPLEFT", niveau, "TOPLEFT", x, -Haut(niveau))
-    page.niveau.maximum:Hide()
+    slot:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local r = f.brouillon.race ~= "" and LCM.Races.Get(f.brouillon.race)
+        if r then
+            GameTooltip:SetText(r.label)
+            if r.description ~= "" then GameTooltip:AddLine(r.description, 0.88, 0.84, 0.76, true) end
+            local effets = UI.Fiche.Effets(r)
+            if effets ~= "" then GameTooltip:AddLine(effets, 0.83, 0.68, 0.33, true) end
+            GameTooltip:AddLine("Clic droit : voir ou retirer.", 0.6, 0.56, 0.5)
+        else
+            GameTooltip:SetText("Emplacement")
+            GameTooltip:AddLine("Glisse ici une race depuis le compendium (Système d'Aelskar, catégorie Races).",
+                0.88, 0.84, 0.76, true)
+        end
+        GameTooltip:Show()
+    end)
+    slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    slot.menu = UI.Choix("creation_race", "Race")
+    slot:SetScript("OnMouseUp", function(self, bouton)
+        if bouton ~= "RightButton" or f.brouillon.race == "" then return end
+        local r = LCM.Races.Get(f.brouillon.race)
+        local options = { { id = "retirer", label = "Retirer" } }
+        if r then table.insert(options, 1, { id = "voir", label = "Voir" }) end
+        self.menu:Proposer(self, options, function(choix)
+            if choix == "voir" and r then
+                UI.Compendium.Voir(LCM.Compendium.Get("races"), r, f)
+            elseif choix == "retirer" then
+                f.brouillon.race = ""
+                f:Actualiser()
+            end
+        end)
+    end)
+    race.hauteurContenu = slot:GetHeight()
+
+    -- Niveau d'aventure : un champ de la fiche (« Niveau du personnage »,
+    -- modifiable en vue), comme les lignes d'informations qui suivent. La
+    -- valeur se saisit a droite ; une saisie illisible reste affichee en
+    -- rouge et bloque la creation, rien n'est corrige en douce.
+    local niveau = Bloc(page, "Niveau d'aventure", TEXTES.niveau)
+    local ligneNiveau = Lecture(niveau, "Niveau du personnage (5 par défaut)", Haut(niveau))
+    ligneNiveau.valeur:Hide()
+    ligneNiveau.saisie = UI.Champ(ligneNiveau, 56, LIGNE - 6, function(texte)
+        local n = tonumber(texte)
+        if n and n == math.floor(n) and n >= 1 then
+            f.brouillon.niveau = n
+            f.brouillon.niveauSaisie = nil
+        else
+            f.brouillon.niveauSaisie = texte
+        end
+        f:Actualiser()
+    end)
+    ligneNiveau.saisie:SetMaxLetters(3)
+    ligneNiveau.saisie:SetJustifyH("RIGHT")
+    ligneNiveau.saisie:SetPoint("RIGHT", ligneNiveau, "RIGHT", -8, 0)
+    UI.Police(ligneNiveau.saisie, 13)
+    page.niveau = ligneNiveau
     niveau.hauteurContenu = LIGNE
 
     -- Informations generales : ce qu'on a a repartir, au niveau choisi.
@@ -332,9 +390,32 @@ function Pages.generale(page, f)
         if self.age:GetText() ~= age then self.age:SetText(age) end
         local poids = tostring(b.valeurs.poids or "")
         if self.poids:GetText() ~= poids then self.poids:SetText(poids) end
-        self.niveau:Regler(b.niveau, 20)
+        -- Une saisie en cours (meme illisible) n'est pas remplacee.
+        local saisie = self.niveau.saisie
+        if b.niveauSaisie == nil and saisie:GetText() ~= tostring(b.niveau) then saisie:SetText(tostring(b.niveau)) end
+        local teinte = b.niveauSaisie ~= nil and UI.C.plein or UI.C.titre
+        saisie:SetTextColor(teinte[1], teinte[2], teinte[3])
+        self.niveau.valeur = b.niveau
         for _, bouton in ipairs(self.sexes) do bouton:Selectionner(bouton.sexe == b.valeurs.sexe) end
-        for _, bouton in ipairs(self.races) do bouton:Selectionner(bouton.raceId == b.race) end
+        -- La case de race : la race deposee, ou « Emplacement ». Une race
+        -- disparue reste visible, marquee, et bloque la creation.
+        local slot, r = self.race, b.race ~= "" and LCM.Races.Get(b.race)
+        if b.race == "" then
+            slot.icone:SetTexture(VIDE)
+            slot.nom:SetText("Emplacement")
+            Teinte(slot.nom, UI.C.discret)
+            slot.effets:SetText("")
+        elseif r then
+            slot.icone:SetTexture(r.icone)
+            slot.nom:SetText(r.label)
+            slot.nom:SetTextColor(UI.Compendium.Couleur(r.couleurTitre or LCM.COULEUR_TITRE))
+            slot.effets:SetText(UI.Fiche.Effets(r))
+        else
+            slot.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            slot.nom:SetText("? " .. tostring(b.race))
+            Teinte(slot.nom, UI.C.plein)
+            slot.effets:SetText("")
+        end
         for _, l in ipairs(self.infos) do l.valeur:SetText(tostring(C.Total(b, l.categorie))) end
     end
 end
@@ -376,7 +457,6 @@ end
 -- Pas de liste « prendre ou laisser » : le choix des traits se fera
 -- autrement. Pour l'instant, les emplacements seulement — les pris, puis une
 -- case libre tant qu'il en reste (trente cases vides ne disent rien de plus).
-local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 function Pages.traits(page, f)
     Bloc(page, "Traits de votre personnage", TEXTES.traits)

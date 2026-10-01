@@ -22,7 +22,11 @@ MJ.Brouillons = Brouillons
 LCM.Brouillons = Brouillons
 
 -- Les familles exportables. En ajouter une ici ET dans l'outil d'export.
-Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs" }
+-- Les huit dernieres viennent du compendium (Core/Contenus.lua) : l'outil
+-- d'export ne les connait pas encore, leurs brouillons attendent qu'il le
+-- fasse.
+Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
+    "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj" }
 
 local function Store(famille)
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
@@ -136,15 +140,11 @@ function Brouillons.Identifiant(nom)
     return texte
 end
 
--- Resolu a l'appel : les registres vivent dans l'addon principal.
+-- Resolu a l'appel : les registres vivent dans l'addon principal. La table
+-- famille -> registre est celle du compendium, la seule.
 local function Registre(famille)
-    if famille == "traits" then return LCM.Traits end
-    if famille == "races" then return LCM.Races end
-    if famille == "objets" then return LCM.Objets end
-    if famille == "etats" then return LCM.Etats end
-    if famille == "apprentissages" then return LCM.Apprentissages end
-    if famille == "sacs" then return LCM.Sacs end
-    return nil
+    local nom = LCM.Compendium and LCM.Compendium.FAMILLES[tostring(famille or "")]
+    return nom and LCM[nom] or nil
 end
 Brouillons.Registre = Registre
 

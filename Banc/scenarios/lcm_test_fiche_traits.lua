@@ -131,6 +131,9 @@ LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
 dire("== tout est porte : on le dit au lieu d'ouvrir une liste vide")
+-- Le compendium importe apporte d'autres traits : on les porte tous.
+for _, trait in ipairs(LCM.Traits.list) do LCM.Traits.Grant(moi, trait.id) end
+f:Actualiser()
 local avant = #__sorties
 ligne.ajouter:Click()
 attendu("pas de liste", ligne.choix:IsShown(), false)

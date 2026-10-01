@@ -40,15 +40,35 @@ dire("== Generale : identite, race, niveau, points")
 f.barre.boutons[2]:Click()
 local g = f.pages.generale
 attendu("niveau de depart affiche", g.niveau.valeur, 5)
-attendu("une race proposee", #g.races, 1)
-attendu("nom du bouton de race", g.races[1].label:GetText(), "Humain")
+attendu("et dans sa saisie", g.niveau.saisie:GetText(), "5")
+-- La race est un emplacement (conteneur du template), vide au depart.
+attendu("emplacement de race vide", g.race.nom:GetText(), "Emplacement")
 attendu("creation bloquee", f.valider:IsEnabled(), false)
 attendu("et on dit pourquoi", f.probleme:GetText(), "il faut un nom.")
 g.nom:Saisir("Ysolde")
 attendu("nom retenu", f.brouillon.nom, "Ysolde")
 attendu("il manque encore la race", f.probleme:GetText(), "il faut choisir une race.")
-g.races[1]:Click()
+-- On la glisse depuis le compendium : un trait est refuse, une race acceptee.
+local Comp = LCM.UI.Compendium.Ouvrir("traits")
+local ligne = Comp.rangees[1]
+__souris.LeftButton = true
+ligne:GetScript("OnDragStart")(ligne)
+attendu("fantome affiche", LCM.UI.Glisser.fantome:IsShown(), true)
+g.race.__survol = true
+__souris.LeftButton = false
+__avancer(0.05)
+attendu("un trait est refuse", f.brouillon.race, "")
+attendu("fantome range", LCM.UI.Glisser.fantome:IsShown(), false)
+Comp:ChoisirCategorie("races")
+ligne = Comp.rangees[1]
+__souris.LeftButton = true
+ligne:GetScript("OnDragStart")(ligne)
+__souris.LeftButton = false
+__avancer(0.05)
+g.race.__survol = nil
 attendu("race retenue", f.brouillon.race, "humain")
+attendu("la case la montre", g.race.nom:GetText(), "Humain")
+Comp:Hide()
 attendu("creation possible", f.valider:IsEnabled(), true)
 g.age:Saisir("28")
 attendu("age retenu", f.brouillon.valeurs.age, 28)
@@ -60,6 +80,18 @@ attendu("sexe retenu", f.brouillon.valeurs.sexe, "Féminin")
 attendu("points de statistiques", g.infos[1].valeur:GetText(), "32")
 attendu("points secondaires", g.infos[2].valeur:GetText(), "32")
 attendu("points d'expertises", g.infos[3].valeur:GetText(), "18")
+-- Le niveau se saisit dans sa ligne ; une saisie illisible reste, en rouge,
+-- et bloque la creation en disant pourquoi.
+g.niveau.saisie:Saisir("0")
+attendu("niveau 0 refuse", f.valider:IsEnabled(), false)
+attendu("la raison", (f.probleme:GetText() or ""):find("1 au minimum") ~= nil, true)
+attendu("la saisie reste", g.niveau.saisie:GetText(), "0")
+attendu("en rouge", select(1, g.niveau.saisie:GetTextColor()), LCM.UI.C.plein[1])
+g.niveau.saisie:Saisir("7")
+attendu("niveau 7 retenu", f.brouillon.niveau, 7)
+attendu("budget au niveau 7 (17 + 3 x 7)", g.infos[1].valeur:GetText(), "38")
+g.niveau.saisie:Saisir("5")
+attendu("creation de nouveau possible", f.valider:IsEnabled(), true)
 
 dire("== Statistiques : primaires")
 f.barre.boutons[3]:Click()

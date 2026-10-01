@@ -26,6 +26,12 @@ UI.C = {
     survol      = { 1, 1, 1, 0.07 },
     -- Coloration d'un investissement : rien, quelque chose, au plafond.
     plein       = { 0.90, 0.36, 0.30 },
+    -- Repris de la palette Necronicon (UI.colors) : libelles de champ,
+    -- filets de separation, bordure fine des panneaux.
+    libelle     = { 0.70, 0.65, 0.50 },
+    filet       = { 0.25, 0.25, 0.25, 1 },
+    filetDoux   = { 0.18, 0.18, 0.18, 1 },
+    bordureFine = { 0.88, 0.82, 0.65 },
 }
 
 local function Couleur(frame, methode, couleur)
@@ -94,7 +100,12 @@ end
 -- sa position d'une session a l'autre ; `defaut` donne sa place a la premiere
 -- ouverture, pour que deux fenetres ne naissent pas exactement l'une sur
 -- l'autre.
-function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
+--
+-- `options.enTeteSimple` : l'en-tete des fenetres de travail du modele
+-- (compendium, hub) — titre centre en 18, sans ornements ni filet d'or, et
+-- un contenu qui commence a 38 du haut (PANEL_TOP_OFFSET de Necronicon).
+function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
+    options = options or {}
     local f = CreateFrame("Frame", "LCM_" .. tostring(cle), UIParent)
     f.cle = cle
     f:SetSize(largeur or 420, hauteur or 520)
@@ -114,7 +125,9 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
         LCM.EnsureDatabase()
         LCM.db.fenetres = type(LCM.db.fenetres) == "table" and LCM.db.fenetres or {}
         local point, _, relPoint, x, y = self:GetPoint()
-        LCM.db.fenetres[self.cle] = { point = point, relPoint = relPoint, x = x, y = y }
+        local avant = type(LCM.db.fenetres[self.cle]) == "table" and LCM.db.fenetres[self.cle] or {}
+        LCM.db.fenetres[self.cle] = { point = point, relPoint = relPoint, x = x, y = y,
+                                      largeur = avant.largeur, hauteur = avant.hauteur }
     end)
 
     f.fond = UI.Aplat(f, UI.C.fond)
@@ -132,7 +145,15 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
     -- Le motif du haut du cadre se rogne pour laisser passer le titre.
     f.titreCentre = true
 
-    if UI.AelRef then
+    if options.enTeteSimple then
+        f.titre:ClearAllPoints()
+        f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 150 * q, -20 * q)
+        f.titre:SetPoint("TOPRIGHT", f, "TOPRIGHT", -150 * q, -20 * q)
+        UI.Police(f.titre, 18)
+        f.enTeteSimple = true
+    end
+
+    if UI.AelRef and not options.enTeteSimple then
         f.ornementG = UI.AelRef(f, 329, 119, 63, 19, "ARTWORK")
         f.ornementD = UI.AelRef(f, 635, 119, 64, 19, "ARTWORK")
         f.ornementG:SetSize(63 * q, 19 * q)
@@ -170,6 +191,7 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
     UI.Police(f.sousTitre, math.max(11, m.police * 0.62))
     f.sousTitre:SetPoint("CENTER", f, "TOP", 0, -m.regle + 9 * q + 2)
     function f:SousTitre(texte)
+        if self.enTeteSimple then return end
         texte = tostring(texte or "")
         self.sousTitre:SetText(texte)
         self.titre:ClearAllPoints()
@@ -197,7 +219,7 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
 
     -- Le contenu commence sous le filet, la ou le modele pose ses onglets.
     f.contenu = CreateFrame("Frame", nil, f)
-    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -m.bandeau)
+    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, options.enTeteSimple and -38 or -m.bandeau)
     f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
     f.mesures = m
 
@@ -208,6 +230,10 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut)
         f:ClearAllPoints()
         f:SetPoint(memoire.point or "CENTER", UIParent, memoire.relPoint or "CENTER",
             tonumber(memoire.x) or 0, tonumber(memoire.y) or 0)
+        -- Une fenetre redimensionnable retrouve sa taille (UI.Redimensionner).
+        if options.redimensionnable and tonumber(memoire.largeur) and tonumber(memoire.hauteur) then
+            f:SetSize(tonumber(memoire.largeur), tonumber(memoire.hauteur))
+        end
     end
 
     f:HookScript("OnShow", function(self) UI.Devant(self) end)
@@ -798,5 +824,378 @@ function UI.Choix(cle, titre)
 
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
     d:Hide()
+    return d
+end
+
+-- ===== Widgets des fenetres de travail (compendium) ========================
+
+-- Bordure fine d'un panneau (UI.EnsureThinBorder de Necronicon) : un pixel,
+-- couleur de bordure du modele, opacite au choix.
+function UI.BordureFine(frame, alpha)
+    local c = UI.C.bordureFine
+    return UI.Bordure(frame, { c[1], c[2], c[3], alpha or 0.2 })
+end
+
+-- Filet de separation (UI.ApplySeparator) : horizontal par defaut.
+function UI.Filet(parent, doux, vertical)
+    local t = UI.Aplat(parent, doux and UI.C.filetDoux or UI.C.filet, "ARTWORK")
+    if vertical then t:SetWidth(1) else t:SetHeight(1) end
+    return t
+end
+
+-- Poignee de redimensionnement en bas a droite (18 x 18, a 4 du bord). La
+-- taille finale est retenue avec la position de la fenetre ; `onFin` est
+-- appele quand on lache, pour que la fenetre se remette en page une fois.
+function UI.Redimensionner(f, minL, minH, onFin)
+    f:SetResizable(true)
+    if f.SetResizeBounds then f:SetResizeBounds(minL, minH) end
+    local poignee = CreateFrame("Button", nil, f)
+    poignee:SetSize(18, 18)
+    poignee:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
+    poignee:SetFrameLevel(f:GetFrameLevel() + 8)
+    poignee.icone = poignee:CreateTexture(nil, "OVERLAY")
+    poignee.icone:SetAllPoints(poignee)
+    poignee.icone:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+    poignee:SetScript("OnMouseDown", function()
+        f.enRedimension = true
+        f:StartSizing("BOTTOMRIGHT")
+    end)
+    poignee:SetScript("OnMouseUp", function()
+        if not f.enRedimension then return end
+        f.enRedimension = nil
+        f:StopMovingOrSizing()
+        -- Jamais plus petit que le minimum, meme si le client l'a laisse passer.
+        if f:GetWidth() < minL or f:GetHeight() < minH then
+            f:SetSize(math.max(minL, f:GetWidth()), math.max(minH, f:GetHeight()))
+        end
+        if f.cle then
+            LCM.EnsureDatabase()
+            LCM.db.fenetres = type(LCM.db.fenetres) == "table" and LCM.db.fenetres or {}
+            local m = type(LCM.db.fenetres[f.cle]) == "table" and LCM.db.fenetres[f.cle] or {}
+            m.largeur, m.hauteur = f:GetWidth(), f:GetHeight()
+            LCM.db.fenetres[f.cle] = m
+        end
+        if onFin then onFin() end
+    end)
+    f.poignee = poignee
+    return poignee
+end
+
+-- Curseur horizontal (le defilement lateral d'un tableau trop large) :
+-- gouttiere sombre et poignee doree, comme la barre de UI.Defilement.
+-- `curseur:Regler(max, valeur)` ; `onChange(valeur)` au deplacement.
+function UI.Curseur(parent, onChange)
+    local c = CreateFrame("Button", nil, parent)
+    c:SetHeight(12)
+    c.valeur, c.max = 0, 0
+    c.gouttiere = UI.Aplat(c, { 0.07, 0.07, 0.07, 1 })
+    c.gouttiere:SetAllPoints(c)
+    c.poignee = CreateFrame("Frame", nil, c)
+    c.poignee:SetSize(24, 10)
+    c.poignee.fond = UI.Aplat(c.poignee, { 0.50, 0.42, 0.22, 0.85 }, "ARTWORK")
+    c.poignee.fond:SetAllPoints(c.poignee)
+    c.poignee:EnableMouse(true)
+
+    local function Poser()
+        local course = math.max(0, c:GetWidth() - c.poignee:GetWidth())
+        local x = c.max > 0 and course * c.valeur / c.max or 0
+        c.poignee:ClearAllPoints()
+        c.poignee:SetPoint("LEFT", c, "LEFT", x, 0)
+    end
+
+    function c:Aller(valeur)
+        valeur = math.floor(math.max(0, math.min(tonumber(valeur) or 0, self.max)))
+        if valeur == self.valeur then return end
+        self.valeur = valeur
+        Poser()
+        if onChange then onChange(valeur) end
+    end
+
+    function c:Regler(maximum, valeur)
+        self.max = math.max(0, math.floor(tonumber(maximum) or 0))
+        self.valeur = math.max(0, math.min(math.floor(tonumber(valeur) or 0), self.max))
+        self:SetShown(self.max > 0)
+        Poser()
+    end
+
+    -- Clic dans la gouttiere : un ecran de cote.
+    c:SetScript("OnClick", function(self)
+        local x = GetCursorPosition()
+        x = x / (self:GetEffectiveScale() or 1)
+        local milieu = (self.poignee:GetLeft() or 0) + self.poignee:GetWidth() / 2
+        local page = math.max(40, self:GetWidth() * 0.9)
+        self:Aller(self.valeur + ((x < milieu) and -page or page))
+    end)
+    c.poignee:SetScript("OnMouseDown", function(self)
+        local x = GetCursorPosition()
+        self.depart = { x = x / (self:GetEffectiveScale() or 1), valeur = c.valeur }
+        self:SetScript("OnUpdate", function(poignee)
+            local course = c:GetWidth() - poignee:GetWidth()
+            if not poignee.depart or course <= 0 then return end
+            local cx = GetCursorPosition()
+            cx = cx / (poignee:GetEffectiveScale() or 1)
+            c:Aller(poignee.depart.valeur + (cx - poignee.depart.x) / course * c.max)
+        end)
+    end)
+    c.poignee:SetScript("OnMouseUp", function(self)
+        self.depart = nil
+        self:SetScript("OnUpdate", nil)
+    end)
+    c:SetScript("OnSizeChanged", Poser)
+    c:Hide()
+    return c
+end
+
+-- Case a cocher du modele (UI.CreateStyledCheckbox) : une boite sombre,
+-- bordure doree, coche doree. `onChange(coche)` au clic.
+function UI.Case(parent, libelle, onChange)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(18, 18)
+    b.fond = UI.Aplat(b, { 0.10, 0.10, 0.10, 1 })
+    b.fond:SetAllPoints(b)
+    UI.Bordure(b, { 0.82, 0.66, 0.20, 1 })
+    b.coche = UI.Aplat(b, { 0.82, 0.66, 0.20, 1 }, "ARTWORK")
+    b.coche:SetPoint("TOPLEFT", b, "TOPLEFT", 4, -4)
+    b.coche:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 4)
+    b.survol = UI.Aplat(b, { 0.90, 0.78, 0.30, 0.22 }, "HIGHLIGHT")
+    b.survol:SetAllPoints(b)
+    b.label = UI.Texte(parent, libelle or "", UI.C.texte, "GameFontNormalSmall")
+    b.label:SetPoint("LEFT", b, "RIGHT", 6, 0)
+    b.coche:Hide()
+    function b:Cocher(v)
+        self.cochee = v and true or false
+        self.coche:SetShown(self.cochee)
+    end
+    function b:EstCochee() return self.cochee == true end
+    b:SetScript("OnClick", function(self)
+        self:Cocher(not self.cochee)
+        if onChange then onChange(self.cochee) end
+    end)
+    -- Le libelle suit la case : il vit sur le parent, pas dans le bouton.
+    b:HookScript("OnShow", function() b.label:Show() end)
+    b:HookScript("OnHide", function() b.label:Hide() end)
+    return b
+end
+
+-- ===== Glisser-deposer =====================================================
+-- Repris de Necronicon (Inventory.lua : ShowInventoryDragGhost) : on glisse
+-- une entree (une ligne du compendium), un fantome de 180 x 42 — icone et nom
+-- — suit le curseur, et au relache l'emplacement survole la recoit s'il
+-- l'accepte. Un emplacement s'inscrit avec UI.Glisser.Cible ; c'est lui qui
+-- dit ce qu'il accepte, et il le dit aussi quand il refuse.
+
+local Glisser = { cibles = {} }
+UI.Glisser = Glisser
+
+local function Fantome()
+    if Glisser.fantome then return Glisser.fantome end
+    local g = CreateFrame("Frame", nil, UIParent)
+    g:SetFrameStrata("TOOLTIP")
+    g:SetSize(180, 42)
+    g:EnableMouse(false)
+    g.fond = UI.Aplat(g, { 0.06, 0.06, 0.06, 0.72 })
+    g.fond:SetAllPoints(g)
+    UI.Bordure(g, { UI.C.bordureFine[1], UI.C.bordureFine[2], UI.C.bordureFine[3], 0.35 })
+    g.icone = g:CreateTexture(nil, "ARTWORK")
+    g.icone:SetSize(30, 30)
+    g.icone:SetPoint("LEFT", g, "LEFT", 6, 0)
+    g.nom = UI.Texte(g, "", UI.C.texte, "GameFontNormalSmall")
+    g.nom:SetPoint("LEFT", g.icone, "RIGHT", 8, 0)
+    g.nom:SetPoint("RIGHT", g, "RIGHT", -8, 0)
+    g.nom:SetWordWrap(false)
+    g:SetAlpha(0.78)
+    g:SetScript("OnUpdate", function(self)
+        -- Bouton relache : on depose (ou on abandonne) une fois, puis on range.
+        if IsMouseButtonDown and not IsMouseButtonDown("LeftButton") then
+            Glisser.Lacher()
+            return
+        end
+        local x, y = GetCursorPosition()
+        local echelle = UIParent:GetEffectiveScale() or 1
+        self:ClearAllPoints()
+        self:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", x / echelle + 14, y / echelle - 10)
+    end)
+    g:Hide()
+    Glisser.fantome = g
+    return g
+end
+
+-- `objet` : { icone, nom, ... } — le reste ne regarde que les cibles.
+function Glisser.Commencer(objet)
+    if type(objet) ~= "table" then return false end
+    Glisser.objet = objet
+    local g = Fantome()
+    g.icone:SetTexture(objet.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
+    g.nom:SetText(objet.nom or "Entrée")
+    g:Show()
+    return true
+end
+
+function Glisser.EnCours() return Glisser.objet ~= nil end
+
+-- La cible survolee au relache, parmi celles qui sont affichees.
+function Glisser.Lacher()
+    local objet = Glisser.objet
+    Glisser.objet = nil
+    if Glisser.fantome then Glisser.fantome:Hide() end
+    if not objet then return false end
+    for _, cible in ipairs(Glisser.cibles) do
+        if cible:IsVisible() and cible:IsMouseOver() then
+            local ok, raison = cible.glisserAccepte(objet)
+            if ok then
+                cible.glisserDepose(objet)
+                return true
+            end
+            if raison then LCM.Alerte(raison) end
+            return false
+        end
+    end
+    return false
+end
+
+-- `accepte(objet)` -> true, ou false et la raison ; `depose(objet)`.
+function Glisser.Cible(frame, accepte, depose)
+    frame.glisserAccepte, frame.glisserDepose = accepte, depose
+    Glisser.cibles[#Glisser.cibles + 1] = frame
+    -- Le survol pendant un glissement se voit : la case s'eclaire.
+    frame.glisserSurvol = UI.Aplat(frame, { 0.95, 0.82, 0.38, 0.20 }, "OVERLAY")
+    frame.glisserSurvol:SetAllPoints(frame)
+    frame.glisserSurvol:Hide()
+    frame:HookScript("OnEnter", function(self)
+        if Glisser.objet and self.glisserAccepte(Glisser.objet) then self.glisserSurvol:Show() end
+    end)
+    frame:HookScript("OnLeave", function(self) self.glisserSurvol:Hide() end)
+    return frame
+end
+
+-- ===== Menu contextuel (clic droit) ========================================
+-- Repris de Necronicon (Inventory.lua : GetEntryContextMenu) : 150 de large,
+-- lignes de 24 tous les 26, un sous-menu a droite pour « Deplacer > », et un
+-- voile plein ecran qui ferme le menu au premier clic ailleurs.
+-- `menu:Ouvrir(ancre, options)` ; une option : { label, action } ou
+-- { label, sous = { { label, action }, ... } }.
+
+function UI.MenuContexte()
+    if UI.menuContexte then return UI.menuContexte end
+    local m = CreateFrame("Frame", "LCM_MenuContexte", UIParent)
+    m:SetFrameStrata("FULLSCREEN_DIALOG")
+    m:SetSize(150, 92)
+    m:EnableMouse(true)
+    m.voile = CreateFrame("Frame", nil, UIParent)
+    m.voile:SetFrameStrata("FULLSCREEN_DIALOG")
+    m.voile:SetAllPoints(UIParent)
+    m.voile:EnableMouse(true)
+    m.voile:SetScript("OnMouseDown", function() m:Hide() end)
+    m.voile:Hide()
+    m.fond = UI.Aplat(m, { 0.05, 0.05, 0.05, 1 })
+    m.fond:SetAllPoints(m)
+    UI.BordureFine(m, 0.35)
+    m.sous = CreateFrame("Frame", nil, m)
+    m.sous:SetPoint("TOPLEFT", m, "TOPRIGHT", 4, 0)
+    m.sous:SetSize(190, 1)
+    m.sous:EnableMouse(true)
+    m.sous.fond = UI.Aplat(m.sous, { 0.05, 0.05, 0.05, 1 })
+    m.sous.fond:SetAllPoints(m.sous)
+    UI.BordureFine(m.sous, 0.35)
+    m.sous:Hide()
+    m.lignes, m.sousLignes = {}, {}
+
+    local function Ligne(parent, vivier, n)
+        local l = vivier[n]
+        if l then return l end
+        l = CreateFrame("Button", nil, parent)
+        l:SetHeight(24)
+        l:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -4 - (n - 1) * 26)
+        l:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -4 - (n - 1) * 26)
+        l.survol = UI.Aplat(l, { 0.80, 0.70, 0.40, 0.12 }, "HIGHLIGHT")
+        l.survol:SetAllPoints(l)
+        l.texte = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
+        l.texte:SetPoint("LEFT", l, "LEFT", 8, 0)
+        l.texte:SetPoint("RIGHT", l, "RIGHT", -8, 0)
+        vivier[n] = l
+        return l
+    end
+
+    local function Remplir(parent, vivier, options, sousMenu)
+        for n, o in ipairs(options) do
+            local l = Ligne(parent, vivier, n)
+            l.option = o
+            l.texte:SetText(o.label)
+            l:SetScript("OnClick", function(self)
+                if self.option.sous then
+                    Remplir(m.sous, m.sousLignes, self.option.sous, true)
+                    m.sous:Show()
+                    return
+                end
+                m:Hide()
+                if self.option.action then self.option.action() end
+            end)
+            l:Show()
+        end
+        for n = #options + 1, #vivier do vivier[n]:Hide() end
+        parent:SetHeight(8 + #options * 26 - 2)
+        if sousMenu and #options == 0 then parent:Hide() end
+    end
+
+    function m:Ouvrir(ancre, options)
+        self.sous:Hide()
+        Remplir(self, self.lignes, options)
+        self:ClearAllPoints()
+        if ancre then self:SetPoint("TOPLEFT", ancre, "BOTTOMLEFT", 0, -4)
+        else self:SetPoint("CENTER", UIParent, "CENTER", 0, 0) end
+        self.voile:Show()
+        self:Show()
+        self:Raise()
+    end
+    m:SetScript("OnHide", function(self) self.sous:Hide() self.voile:Hide() end)
+    m:Hide()
+    UI.menuContexte = m
+    return m
+end
+
+-- ===== Petite saisie ======================================================
+-- La fenetre « Quantite de la pile » de Necronicon (300 x 132) : un titre,
+-- une saisie, Valider. `onValider(texte)` renvoie true, ou false et la
+-- raison, qui s'affiche sans fermer.
+
+function UI.Demande()
+    if UI.demande then return UI.demande end
+    local d = CreateFrame("Frame", "LCM_Demande", UIParent)
+    d:SetSize(300, 132)
+    d:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    d:EnableMouse(true)
+    d.fond = UI.Aplat(d, { 0.05, 0.05, 0.05, 1 })
+    d.fond:SetAllPoints(d)
+    UI.BordureFine(d, 0.38)
+    d.titre = UI.Texte(d, "", UI.C.titre, "GameFontNormalSmall")
+    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 12, -12)
+    d.fermer = UI.Bouton(d, "x", 16, 16, function() d:Hide() end)
+    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -8, -8)
+    d.saisie = UI.Champ(d, 190, 24)
+    d.saisie:SetMaxLetters(15)
+    d.saisie:SetPoint("TOPLEFT", d, "TOPLEFT", 12, -44)
+    d.message = UI.Texte(d, "", UI.C.plein, "GameFontNormalSmall")
+    d.message:SetPoint("TOPLEFT", d, "TOPLEFT", 12, -74)
+    d.message:SetPoint("TOPRIGHT", d, "TOPRIGHT", -12, -74)
+    d.message:SetWordWrap(true)
+    d.valider = UI.Bouton(d, "Valider", 82, 24, function()
+        local ok, raison = d.onValider(d.saisie:GetText() or "")
+        if ok then d:Hide() else d.message:SetText(raison or "") end
+    end)
+    d.valider:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -12, 12)
+    d.saisie:SetScript("OnEnterPressed", function() d.valider:Click() end)
+    function d:Demander(titre, valeur, onValider)
+        self.titre:SetText(titre)
+        self.saisie:SetText(tostring(valeur or ""))
+        self.message:SetText("")
+        self.onValider = onValider
+        self:Show()
+        self:Raise()
+        self.saisie:SetFocus()
+    end
+    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
+    d:Hide()
+    UI.demande = d
     return d
 end

@@ -745,13 +745,8 @@ function Atelier.Basculer()
     if f:IsShown() then f:Hide() else f:Montrer() end
 end
 
+-- Le menu (« Compendium », « Systeme d'Aelskar ») ouvre desormais le
+-- compendium (UI/Compendium.lua), dont l'editeur MJ (Compendium.lua du
+-- compagnon) cree et modifie les memes brouillons. L'atelier reste joignable
+-- par sa commande.
 LCM.AddCommand("atelier", "(MJ) creer traits, races et objets en seance", function() Atelier.Basculer() end, true)
-
-LCM.WhenReady(function()
-    -- Le compendium du template, et sa fenetre « Systeme d'Aelskar » : c'est
-    -- la que le MJ range son contenu.
-    if LCM.UI.Menu and LCM.UI.Menu.Lier then
-        LCM.UI.Menu.Lier("compendium", Atelier.Basculer)
-        LCM.UI.Menu.Lier("systeme_aelskar", Atelier.Basculer)
-    end
-end)

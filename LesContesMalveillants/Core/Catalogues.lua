@@ -19,15 +19,9 @@
 
 local _, LCM = ...
 
-local ICONE_DEFAUT = "Interface\\Icons\\INV_Misc_QuestionMark"
-
--- Une icone du jeu : un nom court (« INV_Sword_05 ») ou un chemin complet.
-function LCM.Icone(valeur)
-    valeur = tostring(valeur or ""):gsub("^%s+", ""):gsub("%s+$", "")
-    if valeur == "" then return ICONE_DEFAUT end
-    if not valeur:find("\\") then valeur = "Interface\\Icons\\" .. valeur end
-    return valeur
-end
+-- LCM.Icone et les champs communs (onglet General du template) vivent dans
+-- Core/Contenus.lua : un catalogue n'est qu'une famille du compendium parmi
+-- d'autres.
 
 -- Core se charge avant Data : l'equilibrage se lit a l'appel.
 local function Capacites()
@@ -65,21 +59,25 @@ function LCM.Catalogue(def)
         local element = {
             id = id,
             label = tostring(definition.label or id),
-            description = tostring(definition.description or ""),
             categorie = categorie,
-            icone = LCM.Icone(definition.icone),
             bonus = bonus,
             avantage = avantage,
         }
+        LCM.ChampsCommuns(definition, element, Erreur)
         -- Champs propres a une famille (les places d'un sac) : des entiers,
-        -- bornes, avec un defaut. Un nombre illisible est refuse, pas devine.
+        -- bornes, avec un defaut, ou des cases a cocher (sac du MJ). Un nombre
+        -- illisible est refuse, pas devine.
         for _, champ in ipairs(def.champs or {}) do
             local brut = definition[champ.cle]
-            local valeur = brut == nil and champ.defaut or tonumber(brut)
-            if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0) then
-                Erreur(string.format("%s : %s invalide (%s)", id, champ.libelle or champ.cle, tostring(brut)))
+            if champ.genre == "case" then
+                element[champ.cle] = brut == true or brut == 1 or brut == "1" or nil
+            else
+                local valeur = brut == nil and champ.defaut or tonumber(brut)
+                if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0) then
+                    Erreur(string.format("%s : %s invalide (%s)", id, champ.libelle or champ.cle, tostring(brut)))
+                end
+                element[champ.cle] = valeur
             end
-            element[champ.cle] = valeur
         end
         return element
     end

@@ -335,6 +335,14 @@ function Creation.Problemes(brouillon)
     end
     if tostring(brouillon.race or "") == "" then
         out[#out + 1] = "il faut choisir une race."
+    elseif not LCM.Races.Get(brouillon.race) then
+        out[#out + 1] = string.format("la race « %s » n'existe pas dans cette version.", tostring(brouillon.race))
+    end
+    -- Une saisie de niveau illisible reste affichee (en rouge) et bloque :
+    -- `niveau`, lui, garde la derniere valeur valable pour les calculs.
+    if brouillon.niveauSaisie ~= nil then
+        out[#out + 1] = string.format("niveau illisible (%s) : un nombre entier, 1 au minimum.",
+            tostring(brouillon.niveauSaisie))
     end
     for _, debordement in ipairs(Creation.Debordements(brouillon)) do
         out[#out + 1] = string.format("%s depasse son plafond (%d pour %d).",

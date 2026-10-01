@@ -3,8 +3,8 @@
 -- devises (compendium : « Gros sac », 12 places ; « Sac de gros », 25).
 --
 -- Un catalogue (Core/Catalogues.lua) sans effets : un sac ne donne rien, il
--- contient. On peut en porter plusieurs identiques. Ce qu'on range dedans (les
--- placements) viendra ensuite : ce fichier ne pose que les sacs.
+-- contient. Ce fichier ne pose que les DEFINITIONS des sacs ; ou une entite
+-- les range, et ce qu'elle met dedans, c'est l'inventaire (Core/Inventaire.lua).
 
 local _, LCM = ...
 
@@ -16,5 +16,7 @@ LCM.Sacs = LCM.Catalogue({
     champs = {
         { cle = "places", libelle = "nombre de places", min = 1, defaut = 12 },
         { cle = "placesDevise", libelle = "places de devise", min = 0, defaut = 0 },
+        -- « Sac maitre du jeu » du template (case de l'onglet General).
+        { cle = "sacMJ", libelle = "sac du maitre du jeu", genre = "case" },
     },
 })

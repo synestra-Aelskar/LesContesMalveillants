@@ -50,12 +50,13 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_pv.lua` | points de vie, répartition, dégâts |
 | `lcm_test_traits.lua` | traits, bonus, avantage, jets |
 | `lcm_test_objets.lua` | objets : registre, emplacements, effets cumulés avec les traits, fenêtre d'équipement |
-| `lcm_test_inventaires.lua` | les sacs (catalogue, doublons, capacité) et la fenêtre Inventaires en grille |
+| `lcm_test_inventaires.lua` | l'inventaire du template : onglets Sacs / Saccoches / Devises, sacs posés et repris de l'ancien format, cases, quantités, soldes, refus ; la fenêtre (grille / liste, glisser depuis le compendium) et la fenêtre d'un sac (cases, menu clic droit, déplacer) |
 | `lcm_test_metiers.lua` | les 31 métiers du template, paliers d'XP incrémentaux, bonus de jet, fenêtre Métiers (XP réservée au MJ) |
 | `lcm_test_identite.lua` | l'identité Total RP 3 (nom RP, icône) reprise de Necronicon, bouton du menu, TRP3 absent ou défaillant |
 | `lcm_test_regles.lua` | les formules du template, vérifiées à la main : apports aux expertises, déplacement, PA, fatigue, initiative, PV |
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
 | `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
+| `lcm_test_compendium.lua` | le compendium « Système d'Aelskar » : les 24 catégories, le contenu importé, la fenêtre (types, catégories, sous-catégories, tableau, colonnes, pagination, sélection, carte), l'éditeur MJ (création, refus, publié en lecture, Dup, suppression, modification groupée, connaissance, cheminement), le hub |
 | `lcm_test_fiche.lua` | la fenêtre de fiche, construite depuis le schéma |
 | `lcm_test_fiche_traits.lua` | l'onglet Traits : cartes, ajout / retrait MJ, trait disparu, lecture joueur |
 | `lcm_test_menu.lua` | le lanceur d'actions (radial) et le menu des fenêtres du template |

@@ -57,7 +57,9 @@ Menu.STRUCTURE = {
           { id = "ressources", label = "Ressources", icone = ICONE .. "INV_Misc_Herb_07" },
           { id = "incarner",   label = "Incarner",   icone = ICONE .. "Spell_Shadow_Possession", mjSeulement = true },
       } },
-    { id = "systeme_aelskar", label = "Système d'Aelskar", icone = ICONE .. "achievement_zone_stormpeaks_03", mjSeulement = true },
+    -- A la racine et visible de tous, comme dans le template : le joueur y
+    -- consulte (et y prend sa race) ; seul le MJ edite.
+    { id = "systeme_aelskar", label = "Système d'Aelskar", icone = ICONE .. "achievement_zone_stormpeaks_03" },
     { id = "deplacement", label = "Déplacement", icone = ICONE .. "eps_lol_janna_tailwind" },
 }
 

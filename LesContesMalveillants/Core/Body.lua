@@ -125,12 +125,11 @@ function Races.Construire(definition)
         Erreur("race " .. id .. " : morphologie inconnue « " .. morphologyId .. " »")
     end
     local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur, true)
-    return {
+    -- Icone, description, tags, couleurs... : l'onglet General du compendium.
+    return LCM.ChampsCommuns(definition, {
         id = id, label = tostring(definition.label or id), morphology = morphologyId,
-        description = tostring(definition.description or ""),
-        icone = definition.icone and LCM.Icone and LCM.Icone(definition.icone) or nil,
         bonus = bonus, avantage = avantage,
-    }
+    }, Erreur)
 end
 
 function Races.Add(definition)

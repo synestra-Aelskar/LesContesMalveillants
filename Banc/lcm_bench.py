@@ -88,6 +88,11 @@ local function NouvelleRegion(kind, parent)
     function r:GetHeight() return self.__h or 0 end
     -- Pas de geometrie d'ecran simulee : un bord vaut 0, assez pour les calculs relatifs.
     function r:GetTop() return 0 end
+    function r:GetLeft() return 0 end
+    -- Survol : le scenario pose __survol sur le cadre « sous la souris ».
+    function r:IsMouseOver() return self.__survol == true end
+    function r:GetRight() return 0 end
+    function r:GetBottom() return 0 end
     -- Afficher et masquer declenchent OnShow / OnHide, comme dans le jeu : des
     -- fenetres s'en servent pour se ranger ou revenir au premier plan.
     --
@@ -196,6 +201,9 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:RegisterForClicks() end
     function f:StartMoving() end
     function f:StopMovingOrSizing() end
+    -- Redimensionnement : retenu (bornes, poignee tiree), pas simule.
+    function f:StartSizing(coin) self.__sizing = coin end
+    function f:SetResizeBounds(l, h) self.__resizeBounds = { l, h } end
     function f:SetClampedToScreen() end
     -- Rognage des enfants (zone de texte multiligne) : retenu, pas simule.
     function f:SetClipsChildren(v) self.__clips = v and true or false end
@@ -254,6 +262,8 @@ local function NouveauCadre(kind, nom, parent, template)
         parent.__children[#parent.__children + 1] = f
     end
     tousLesCadres[#tousLesCadres + 1] = f
+    -- Comme dans le jeu, un cadre nomme devient une globale.
+    if type(nom) == "string" and nom ~= "" then _G[nom] = f end
     return f
 end
 
@@ -295,7 +305,20 @@ end
 
 UISpecialFrames = {}
 function InCombatLockdown() return false end
-function IsShiftKeyDown() return false end
+function IsShiftKeyDown() return __touches and __touches.shift == true end
+function IsControlKeyDown() return __touches and __touches.ctrl == true end
+function IsAltKeyDown() return __touches and __touches.alt == true end
+-- Un scenario simule une touche tenue : __touches = { ctrl = true }.
+__touches = {}
+-- Boutons de souris tenus : __souris = { LeftButton = true }.
+__souris = {}
+function IsMouseButtonDown(b) return __souris[b or "LeftButton"] == true end
+
+-- Selecteur de couleur du jeu : le scenario lit ce qui a ete demande et
+-- peut rappeler swatchFunc pour simuler un choix.
+ColorPickerFrame = NouveauCadre("Frame", "ColorPickerFrame", nil, nil)
+function ColorPickerFrame:SetupColorPickerAndShow(info) self.__info = info self:Show() end
+function ColorPickerFrame:GetColorRGB() local i = self.__info or {} return i.r or 1, i.g or 1, i.b or 1 end
 function GetCursorPosition() return 0, 0 end
 
 GameTooltip = NouveauCadre("GameTooltip", "GameTooltip", nil, nil)

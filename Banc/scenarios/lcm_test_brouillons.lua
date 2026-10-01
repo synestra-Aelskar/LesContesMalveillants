@@ -16,13 +16,13 @@ LCM.Brouillons.Set("traits", {
     bonus = { vue = 2, investigation = 1 },
     avantage = { "vue" },
 })
-LCM.Brouillons.Set("races", { id = "orc", label = "Orc", morphology = "humanoide" })
+LCM.Brouillons.Set("races", { id = "gobelin", label = "Gobelin", morphology = "humanoide" })
 
 __declencher("PLAYER_LOGIN")
 
 dire("== les brouillons sont jouables tout de suite")
 attendu("le trait existe", LCM.Traits.Get("oeil_du_faucon") ~= nil, true)
-attendu("la race aussi", LCM.Races.Get("orc") ~= nil, true)
+attendu("la race aussi", LCM.Races.Get("gobelin") ~= nil, true)
 attendu("comptage", LCM.Brouillons.Count(), 2)
 
 local moi = LCM.Entities.Self()

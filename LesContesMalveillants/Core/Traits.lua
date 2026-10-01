@@ -47,14 +47,14 @@ function Traits.Construire(definition)
     end
 
     local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur)
-    return {
+    -- Icone, description, tags, couleurs... : l'onglet General du compendium.
+    return LCM.ChampsCommuns(definition, {
         id = id,
         label = tostring(definition.label or id),
-        description = tostring(definition.description or ""),
         cout = cout,
         bonus = bonus,
         avantage = avantage,
-    }
+    }, Erreur)
 end
 
 function Traits.Add(definition)

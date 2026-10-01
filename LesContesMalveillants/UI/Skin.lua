@@ -118,6 +118,9 @@ function UI.Cadre(cadre)
     end
 
     decor:Disposer()
+    -- Une fenetre redimensionnable (compendium) : l'echelle des ornements suit
+    -- sa nouvelle largeur, comme dans le modele (aelLayout sur OnSizeChanged).
+    decor:SetScript("OnSizeChanged", function(self) self:Disposer() end)
     return decor
 end
 

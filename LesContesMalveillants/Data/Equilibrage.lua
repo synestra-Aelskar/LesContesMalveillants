@@ -100,9 +100,17 @@ E.conteneurs = {
     intangible = 10,      -- Sante › Etats intangibles
     apprentissage = 60,   -- Apprentissage
     traits = 10,          -- Creation › Traits (conteneur « Traits », 10 places)
-    -- Sacs portes : le template n'en fixe pas ; 4, comme les « Emplacements
-    -- 1 a 4 » du menu d'origine de Syn'estra. A confirmer.
-    sacs = 4,
+}
+
+-- ===== Inventaires ==========================================================
+-- Les emplacements de la fenetre Inventaires du template, par onglet : deux
+-- sacs, quatre saccoches, un emplacement de devise (inventoryWindows ›
+-- window_custom_10). Ce qu'un sac contient, lui, vient du sac (ses places).
+
+E.inventaire = {
+    sacs = 2,
+    saccoches = 4,
+    devises = 1,
 }
 
 -- ===== Budgets de creation =================================================

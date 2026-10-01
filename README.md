@@ -100,8 +100,8 @@ Par ordre de ce qui bloque le plus :
 - [ ] **Les fenêtres du menu** (organisation du template). Branchées : Règles,
       Création, Fiche, Santé (Physique, États, Maladies, Intangible),
       Expertises, Pénétration & Résistances, Statistiques (récapitulatif),
-      Apprentissage, Équipements, Inventaires (sacs), Métiers, Déplacement, Compendium / Système d'Aelskar
-      (l'atelier MJ). Restent : Grimoires, Paramètres,
+      Apprentissage, Équipements, Inventaires (Sacs, Saccoches, Devises ; sacs ouverts case par case), Métiers, Déplacement, Compendium / Système d'Aelskar
+      (25 catégories du template, édition MJ en brouillon). Restent : Grimoires, Paramètres,
       Vendeur, Ressources, Panel MJ, Incarner ; la Création suit encore ses
       propres étapes, pas les onglets du template.
 - [x] **Le modèle du compendium.** Traits, races, objets, états, maladies,
@@ -124,8 +124,11 @@ Par ordre de ce qui bloque le plus :
 - [x] **L'onglet Traits de la fiche** : une carte par trait porté (coût,
       description, effets) ; le MJ ajoute et retire, le joueur lit. Un trait
       disparu reste affiché, marqué, sans effet.
-- [ ] **Les races** : humain seulement, sur décision de Syn'estra. Les autres
-      morphologies s'utilisent via le champ `morphologie` d'une entité.
+- [x] **Les races** : celles du compendium du template sont importées
+      (Insgardienne, Projet HTDT-02, ORC, Aelskardien), en plus de l'humain —
+      décision du 1er octobre 2026, qui revient sur « humain seulement ».
+      Toutes sont humanoïdes ; les autres morphologies s'utilisent via le
+      champ `morphologie` d'une entité.
 - [ ] **Les portraits** : aucun livré. Déposer les images et lancer l'outil.
 - [ ] **Les icônes de ligne** (Force, Vitalité…) et la **barre de recherche**
       vues sur l'écran Necronicon : rôle et liste à décider.
@@ -191,6 +194,21 @@ mise à jour. Déposer les images dans `LesContesMalveillants\Portraits`, nommé
 d'après le personnage (`Reika Shira.png`), puis lancer
 `Convertir les portraits.bat`. Une image nommée `_silhouette` devient le repli
 affiché pour les personnages sans artwork.
+
+### Le compendium
+
+La fenêtre « Système d'Aelskar » (menu, à la racine) et le hub
+« Compendium » (menu Outils) reprennent le compendium du template : ses 25
+catégories, avec « PNJ » et « Fiches PNJ » fondus en une seule. Les catégories
+et leurs champs sont dans `Data/Compendium.lua` ; le moteur
+(`Core/Compendium.lua`) ne fait que lire les registres de contenu. Le MJ crée
+et modifie les entrées en brouillon depuis la fenêtre (compagnon MJ,
+`Compendium.lua`).
+
+Le contenu du compendium Necronicon a été importé par
+`Outils/importer_necronicon.py`, qui écrit `Data/Genere/Compendium_*.lua` —
+des fichiers distincts de ceux de l'export des brouillons. Relancer l'outil
+réécrit ces trois fichiers, et seulement eux.
 
 ### Le contenu créé en séance
 

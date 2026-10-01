@@ -16,6 +16,7 @@ Core\Personnages.lua
 Core\Identite.lua
 Core\Portraits.lua
 Core\Effets.lua
+Core\Contenus.lua
 Core\Body.lua
 Core\Traits.lua
 Core\Catalogues.lua
@@ -23,12 +24,14 @@ Core\Objets.lua
 Core\Etats.lua
 Core\Apprentissages.lua
 Core\Sacs.lua
+Core\Inventaire.lua
 Core\Metiers.lua
 Core\Formules.lua
 Core\Roll.lua
 Core\Creation.lua
 Core\Documents.lua
 Core\Vues.lua
+Core\Compendium.lua
 Data\Equilibrage.lua
 Data\Morphologies.lua
 Data\Fiche.lua
@@ -39,11 +42,16 @@ Data\Combat.lua
 Data\Metiers.lua
 Data\Documents.lua
 Data\Vues.lua
+Data\Compendium.lua
+Data\Inventaire.lua
 # Contenu genere par loutil dexport (voir Data\Genere)
 Data\Genere\Races.lua
 Data\Genere\Portraits.lua
 Data\Genere\Traits.lua
 Data\Genere\Objets.lua
+Data\Genere\Compendium_Contenu.lua
+Data\Genere\Compendium_Resolutions.lua
+Data\Genere\Compendium_PNJ.lua
 
 # Interface
 UI\Kit.lua
@@ -55,5 +63,6 @@ UI\Document.lua
 UI\Vues.lua
 UI\Inventaires.lua
 UI\Metiers.lua
+UI\Compendium.lua
 UI\Radial.lua
 UI\Menu.lua

@@ -87,7 +87,7 @@ attendu("Esprit et Ame sur 100", table.concat(noms, ", "), "Esprit 100 / 100, Â
 attendu("et les etats intangibles (10)", intangible.blocs[2].occupation:GetText(), "0 / 10")
 
 dire("== Sante : Etats et Maladies")
-LCM.Brouillons.Enregistrer("etats", { id = "infection_de_sang", label = "Infection de sang", categorie = "etat",
+LCM.Brouillons.Enregistrer("etats", { id = "peste_d_essai", label = "Peste d'essai", categorie = "etat",
     description = "Le sang s'empoisonne.", bonus = { force = -10 } }, true)
 fs.barre.boutons[2]:Click()
 local etats = fs.pages.etats
@@ -97,16 +97,16 @@ attendu("une seule case libre montree", #conteneur.emplacements, 1)
 attendu("case vide", conteneur.emplacements[1].nom:GetText(), "Emplacement")
 conteneur.emplacements[1].action:Click()
 local choix = LCM.UI.Fiche.choixConteneur
-for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "infection_de_sang" then b:Click() end end
-attendu("etat pose", LCM.Etats.Porte(moi, "infection_de_sang"), true)
-attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Infection de sang  |cff99907f·|r")
+for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "peste_d_essai" then b:Click() end end
+attendu("etat pose", LCM.Etats.Porte(moi, "peste_d_essai"), true)
+attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Peste d'essai  |cff99907f·|r")
 attendu("ses effets", conteneur.emplacements[1].effets:GetText(), "Force -10")
 attendu("une nouvelle case libre apparait", conteneur.emplacements[2]:IsShown(), true)
 attendu("vide", conteneur.emplacements[2].nom:GetText(), "Emplacement")
 attendu("pas plus", conteneur.emplacements[3], nil)
 attendu("la Force s'en ressent", LCM.Formules.Primaire(moi, "force"), -10)
 conteneur.emplacements[1].action:Click()
-attendu("retire", LCM.Etats.Porte(moi, "infection_de_sang"), false)
+attendu("retire", LCM.Etats.Porte(moi, "peste_d_essai"), false)
 fs.barre.boutons[3]:Click()
 attendu("Maladies : 10", fs.pages.maladies.blocs[1].occupation:GetText(), "0 / 10")
 

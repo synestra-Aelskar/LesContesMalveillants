@@ -135,7 +135,9 @@ for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
 attendu("outils du joueur", table.concat(ids, ","), "parametres,vendeur,ressources")
 local racine = {}
 for _, n in ipairs(M.Visibles()) do racine[#racine + 1] = n.id end
-attendu("pas de Systeme d'Aelskar", table.concat(racine, ","):find("systeme_aelskar") == nil, true)
+-- Le compendium est consultable par tous, comme dans le template (le
+-- joueur y prend sa race) ; seule l'edition est reservee au MJ.
+attendu("Systeme d'Aelskar consultable", table.concat(racine, ","):find("systeme_aelskar") ~= nil, true)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
