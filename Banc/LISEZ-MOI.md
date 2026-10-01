@@ -62,6 +62,11 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_menu.lua` | le lanceur d'actions (radial) et le menu des fenêtres du template |
 | `lcm_test_document.lua` | la documentation en jeu : liste, page défilante, titres du modèle |
 | `lcm_test_vues.lua` | les fenêtres du menu tirées de la fiche : registre, Santé, Expertise |
+| `lcm_test_grimoires.lua` | les grimoires : le hub, la possession (le sien, ceux qu'on reçoit), les sous-grimoires, les sorts et leur jet |
+| `lcm_test_sorts.lua` | les sorts du personnage : sauvegarde, éditeur, lien de chat, découpage sous 255 octets, partage et adoption |
+| `lcm_test_parametres.lua` | les paramètres : sceau, remise en place des fenêtres, traces, état du réseau |
+| `lcm_test_fiches_mj.lua` | la consultation des fiches par le MJ : paquet, droits, groupe, panneau, sens unique |
+| `lcm_test_incarnation.lua` | incarner un PNJ : instances indépendantes, bascule, droits MJ, fenêtre |
 | `lcm_test_personnages.lua` | profils, carrousel, portraits, suppression |
 | `lcm_test_creation.lua` | **les règles** de création : budgets, plafonds, refus |
 | `lcm_test_creation_ecran.lua` | l'écran de création : compteurs, R / M, récapitulatif |

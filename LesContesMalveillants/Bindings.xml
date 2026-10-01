@@ -1,0 +1,8 @@
+<Bindings>
+    <Binding name="LCM_MENU" header="LESCONTESMALVEILLANTS">
+        LCM_ToggleMenu()
+    </Binding>
+    <Binding name="LCM_FICHE">
+        LCM_ToggleFiche()
+    </Binding>
+</Bindings>

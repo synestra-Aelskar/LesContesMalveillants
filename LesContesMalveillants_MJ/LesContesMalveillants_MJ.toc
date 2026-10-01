@@ -10,3 +10,5 @@ MJ.lua
 Brouillons.lua
 Atelier.lua
 Compendium.lua
+Panneau.lua
+Incarner.lua

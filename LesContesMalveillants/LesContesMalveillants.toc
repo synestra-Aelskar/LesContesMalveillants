@@ -31,6 +31,12 @@ Core\Roll.lua
 Core\Creation.lua
 Core\Documents.lua
 Core\Vues.lua
+Core\Sorts.lua
+Core\Reseau.lua
+Core\Lien.lua
+Core\Fiches.lua
+Core\Incarnation.lua
+Core\Grimoires.lua
 Core\Compendium.lua
 Data\Equilibrage.lua
 Data\Morphologies.lua
@@ -42,6 +48,7 @@ Data\Combat.lua
 Data\Metiers.lua
 Data\Documents.lua
 Data\Vues.lua
+Data\Grimoires.lua
 Data\Compendium.lua
 Data\Inventaire.lua
 # Contenu genere par loutil dexport (voir Data\Genere)
@@ -64,6 +71,9 @@ UI\Document.lua
 UI\Vues.lua
 UI\Inventaires.lua
 UI\Metiers.lua
+UI\Grimoires.lua
+UI\SortEditeur.lua
+UI\Parametres.lua
 UI\Compendium.lua
 UI\Radial.lua
 UI\Menu.lua

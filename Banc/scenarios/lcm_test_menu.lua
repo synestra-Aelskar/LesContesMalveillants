@@ -83,11 +83,11 @@ attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() e
 
 dire("== ce qui est branche")
 for _, id in ipairs({ "regles", "creation", "fiche", "sante", "expertise", "penetrations_resistances",
-                      "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers" }) do
+                      "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
+                      "grimoires", "parametres", "panneau_mj", "incarner" }) do
     attendu("  " .. id, M.EstLiee(id), true)
 end
-for _, id in ipairs({ "grimoires",
-                      "parametres", "panneau_mj", "vendeur", "ressources", "incarner" }) do
+for _, id in ipairs({ "vendeur", "ressources" }) do
     attendu("  " .. id .. " (pas encore)", M.EstLiee(id), false)
 end
 

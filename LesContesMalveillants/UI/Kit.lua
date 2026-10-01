@@ -109,8 +109,10 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     local f = CreateFrame("Frame", "LCM_" .. tostring(cle), UIParent)
     f.cle = cle
     f:SetSize(largeur or 420, hauteur or 520)
-    f:SetPoint("CENTER", UIParent, "CENTER",
-        defaut and defaut.x or 0, defaut and defaut.y or 0)
+    -- La place de naissance est gardee : « remettre les fenetres a leur place »
+    -- doit pouvoir y revenir, meme apres des mois de deplacements.
+    f.defautPosition = { x = (defaut and defaut.x) or 0, y = (defaut and defaut.y) or 0 }
+    f:SetPoint("CENTER", UIParent, "CENTER", f.defautPosition.x, f.defautPosition.y)
     f:SetFrameStrata("MEDIUM")
     f:SetToplevel(true)
     f:SetClampedToScreen(true)
@@ -250,6 +252,20 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
 
     f:Hide()
     return f
+end
+
+-- Ramene toutes les fenetres la ou elles naissent, et oublie les places
+-- retenues. Le filet de secours quand une fenetre est partie hors de l'ecran.
+function UI.ReplacerFenetres()
+    LCM.EnsureDatabase()
+    LCM.db.fenetres = {}
+    local nombre = 0
+    for _, f in ipairs(UI.fenetres) do
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", UIParent, "CENTER", f.defautPosition.x, f.defautPosition.y)
+        nombre = nombre + 1
+    end
+    return nombre
 end
 
 function UI.Bouton(parent, texte, largeur, hauteur, onClick)

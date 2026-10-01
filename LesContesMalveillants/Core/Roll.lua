@@ -18,6 +18,15 @@ local function Alea(minimum, maximum)
     return math.random(minimum, maximum)
 end
 
+-- Un jet brut, entre deux bornes : le grimoire s'en sert pour ses sorts, qui
+-- portent leur propre plage et ne passent pas par un champ de la fiche.
+function Roll.Des(minimum, maximum)
+    minimum = math.floor(tonumber(minimum) or 0)
+    maximum = math.floor(tonumber(maximum) or 0)
+    if maximum < minimum then minimum, maximum = maximum, minimum end
+    return Alea(minimum, maximum), minimum, maximum
+end
+
 -- options : { avantage = true, modificateur = 0 }
 function Roll.Field(entity, fieldId, options)
     options = type(options) == "table" and options or {}

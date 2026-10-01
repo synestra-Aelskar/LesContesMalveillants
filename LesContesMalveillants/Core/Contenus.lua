@@ -344,6 +344,11 @@ LCM.Grimoires = LCM.Registre({
         if definition.onglets ~= nil and type(definition.onglets) ~= "table" then
             Erreur(element.id .. " : onglets illisibles")
         end
+        -- « Ton grimoire » : celui que tout le monde possede d'office, par
+        -- opposition a ceux qu'on recoit (MJ, objet trouve...).
+        element.personnel = Vrai(definition.personnel)
+        -- Combien de sorts le hub montre en apercu (hubSpellCount du template).
+        element.apercu = math.max(0, math.floor(tonumber(definition.apercu) or 2))
         element.onglets = {}
         for index, onglet in ipairs(definition.onglets or {}) do
             if type(onglet) ~= "table" then Erreur(element.id .. " : onglet " .. index .. " illisible") end

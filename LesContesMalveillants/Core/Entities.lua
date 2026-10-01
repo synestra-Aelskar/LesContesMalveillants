@@ -64,6 +64,10 @@ end
 -- L'entite que l'on joue : le personnage choisi dans la selection ; a defaut,
 -- celui qui porte le nom de l'avatar WoW connecte, cree au besoin.
 function Entities.Self()
+    -- Le MJ qui incarne un PNJ : toutes les fenetres doivent le suivre, et
+    -- c'est le SEUL endroit qui le sait.
+    local incarne = LCM.Incarnation and LCM.Incarnation.Actuelle and LCM.Incarnation.Actuelle()
+    if incarne then return incarne end
     local actif = LCM.Personnages and LCM.Personnages.Actif and LCM.Personnages.Actif()
     if actif then return actif end
     local id = LCM.PlayerId()

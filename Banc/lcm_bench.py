@@ -54,7 +54,22 @@ _G.__sorties = sorties
 
 DEFAULT_CHAT_FRAME = { AddMessage = function(self, texte) sorties[#sorties + 1] = tostring(texte) end }
 
-function UnitName(unit) return "Reika" end
+-- Le groupe simule : __groupe({"Nytherah-Apertus", ...}) le compose.
+local groupe = {}
+_G.__groupe = function(membres) groupe = membres or {} end
+function GetNumGroupMembers() return #groupe end
+function IsInRaid() return #groupe > 2 end
+function UnitName(unit)
+    local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
+    if index then
+        local nom = groupe[tonumber(index)]
+        if not nom then return nil end
+        local court, royaume = nom:match("^(.-)%-(.+)$")
+        if court then return court, royaume end
+        return nom, ""
+    end
+    return "Reika"
+end
 function UnitFullName(unit) return "Reika", "Apertus" end
 function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0" end return nil end
 function GetTime() return 1000 end
@@ -302,6 +317,54 @@ function __textes(cadre, sortie)
     for _, enfant in ipairs(cadre.__children or {}) do __textes(enfant, sortie) end
     return sortie
 end
+
+-- ===== Chat et messages d'addon ==========================================
+-- Les envois sont retenus ; __reseauBoucle(true) les rend immediatement au
+-- destinataire, comme s'ils avaient fait l'aller-retour.
+local envois = {}
+_G.__envois = envois
+local boucle = false
+local prefixesEnregistres = {}
+_G.__prefixes = prefixesEnregistres
+
+function __reseauBoucle(actif, expediteur)
+    boucle = actif and true or false
+    _G.__expediteurBoucle = expediteur or "Nytherah-Apertus"
+end
+
+C_ChatInfo = {
+    RegisterAddonMessagePrefix = function(p) prefixesEnregistres[p] = true return true end,
+    IsAddonMessagePrefixRegistered = function(p) return prefixesEnregistres[p] == true end,
+    SendAddonMessage = function(prefixe, message, canal, cible)
+        envois[#envois + 1] = { prefixe = prefixe, message = message, canal = canal, cible = cible,
+                                taille = #message }
+        if boucle then
+            __declencher("CHAT_MSG_ADDON", prefixe, message, canal, _G.__expediteurBoucle)
+        end
+        return true
+    end,
+}
+function SendAddonMessage(p, m, c, t) return C_ChatInfo.SendAddonMessage(p, m, c, t) end
+
+-- Le plus gros message envoye : de quoi verifier qu'on reste sous la limite.
+function __plusGrosEnvoi()
+    local max = 0
+    for _, e in ipairs(envois) do if e.taille > max then max = e.taille end end
+    return max
+end
+
+local lienInsere
+function ChatEdit_GetActiveWindow() return _G.__chatOuvert end
+function ChatEdit_InsertLink(lien) lienInsere = lien return _G.__chatOuvert ~= nil end
+function __dernierLien() return lienInsere end
+
+-- SetItemRef et son crochet : on garde la liste des crochets et on les appelle.
+local crochets = {}
+function SetItemRef(lien, texte, bouton) for _, fn in ipairs(crochets) do fn(lien, texte, bouton) end end
+function hooksecurefunc(nom, fn)
+    if nom == "SetItemRef" then crochets[#crochets + 1] = fn end
+end
+function __cliquerLien(lien) SetItemRef(lien, lien, "LeftButton") end
 
 UISpecialFrames = {}
 function InCombatLockdown() return false end

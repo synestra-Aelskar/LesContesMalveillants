@@ -90,6 +90,14 @@ template), la **sélection de personnage** (carrousel d'artworks), la
 blocs et lignes repris du thème Necronicon avec ses mesures et son atlas
 (`ressources/aelrazkah/widgets-reference.tga`).
 
+**Les sorts du personnage.** Le grimoire personnel se remplit en jeu
+(`Core/Sorts.lua`) : c'est la seule chose de la sauvegarde qui ne soit pas une
+valeur de fiche, et c'est un choix assumé — un sort appris appartient à celui
+qui l'a. Il se **cite dans le chat** comme un objet du jeu (`Core/Lien.lua`,
+lien cliquable qui ouvre une infobulle) et se **partage** à quelqu'un
+(`Core/Reseau.lua`). Un sort reçu reste en mémoire vive tant qu'on ne l'a pas
+pris : rien n'entre dans une sauvegarde sans que son propriétaire le veuille.
+
 **Les chaînes d'outillage** : export du contenu créé en séance, conversion des
 artworks, publication. Voir plus bas.
 
@@ -101,17 +109,24 @@ Par ordre de ce qui bloque le plus :
       Création, Fiche, Santé (Physique, États, Maladies, Intangible),
       Expertises, Pénétration & Résistances, Statistiques (récapitulatif),
       Apprentissage, Équipements, Inventaires (Sacs, Saccoches, Devises ; sacs ouverts case par case), Métiers, Déplacement, Compendium / Système d'Aelskar
-      (25 catégories du template, édition MJ en brouillon). Restent : Grimoires, Paramètres,
-      Vendeur, Ressources, Panel MJ, Incarner ; la Création suit encore ses
-      propres étapes, pas les onglets du template.
+      (25 catégories du template, édition MJ en brouillon), Grimoires (le hub
+      du template : les grimoires qu'on possède — le sien et ceux qu'on reçoit —
+      puis leurs sous-grimoires et leurs sorts, chacun avec son propre jet).
+      Paramètres (affichage, personnage joué, dépannage : remettre les fenêtres
+      à leur place, état du réseau), Panel MJ (le groupe, et la fiche de chaque
+      joueur sur demande), Incarner (le catalogue des PNJ, leurs instances en
+      jeu, et la bascule — toutes les fenêtres suivent). Restent : Vendeur,
+      Ressources.
 - [x] **Le modèle du compendium.** Traits, races, objets, états, maladies,
       apprentissages : icône, description, bonus et avantage (catalogues,
       `Core/Catalogues.lua`), créés dans l'atelier. Les 41 statistiques de
       combat du template (`Data/Combat.lua`) sont des cibles de bonus.
-- [ ] **Le réseau.** Rien n'existe encore : pas de partage MJ ↔ joueurs, pas de
-      bandeau d'initiative, pas de combat. (Dans Necronicon, se souvenir que les
-      messages d'addon sont **limités à 255 octets** — c'est ce qui cassait les
-      invitations de combat.)
+- [ ] **Le réseau.** Le transport existe (`Core/Reseau.lua` : découpage sous
+      les **255 octets**, renumérotation, recollage — c'est la limite qui
+      cassait les invitations de combat dans Necronicon), et il porte le partage
+      de sorts **et la consultation des fiches par le MJ** — à sens unique :
+      un joueur n'a aucun moyen de demander la fiche d'un autre, et celui qu'on
+      consulte en est prévenu. Restent : bandeau d'initiative, combat.
 - [x] **L'objet.** `LCM.Objets` : arme, équipement, accessoire (1 / 5 / 5
       emplacements, `Equilibrage.emplacements`), bonus et avantage comme un
       trait. Créés dans l'atelier, équipés par le MJ dans « Équipement ».
@@ -141,6 +156,12 @@ Par ordre de ce qui bloque le plus :
   apports des primaires aux expertises) suivent le **template Necronicon**
   (voir `CLAUDE.md`). Les écarts voulus sont commentés dans
   `Data/Equilibrage.lua`.
+- **L'initiative est à vérifier en jeu** (décision du 1er octobre 2026 : on
+  verra plus tard, mais ça reste à faire). Le template **divise** —
+  `niveau/2 + esprit/2 + perception/2` — là où l'addon multipliait par 2 au
+  départ. L'écart est important : une initiative quatre fois plus basse change
+  l'ordre des tours. À confronter à une vraie fiche avant d'équilibrer le
+  combat dessus.
 
 ---
 
