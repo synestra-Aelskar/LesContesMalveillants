@@ -15,6 +15,15 @@ import io, os, sys
 
 ADDONS = ['LesContesMalveillants', 'LesContesMalveillants_MJ']
 
+# --sans-mj : charge l'addon de base SEUL, comme chez un joueur. La moitie de
+# l'addon ne se voit que dans ce mode (LCM.IsMaster() faux), et un scenario qui
+# ne tourne qu'avec le compagnon ne prouve rien de ce que voit un joueur.
+def addons(argv=None):
+    argv = argv if argv is not None else sys.argv
+    if '--sans-mj' in argv:
+        return ADDONS[:1]
+    return ADDONS
+
 # Ou trouver les dossiers d'addon. Dans l'ordre :
 #   1. --addons <chemin>, ou la variable d'environnement LCM_ADDONS ;
 #   2. un dossier parent du banc qui contient deja LesContesMalveillants/
@@ -207,7 +216,17 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:RegisterEvent(e) self.__events[e] = true end
     function f:UnregisterEvent(e) self.__events[e] = nil end
     function f:UnregisterAllEvents() self.__events = {} end
-    function f:SetScript(quoi, fn) self.__scripts[quoi] = fn end
+    -- Le jeu n'accepte « OnClick » que sur un bouton : « <unnamed> doesn't have
+    -- a "OnClick" script ». Le banc refusait tout, et laissait donc passer une
+    -- faute qui casse en jeu — c'est arrive le 1er octobre 2026 sur la case de
+    -- race de la creation. Il refuse maintenant comme le jeu.
+    local CLIQUABLES = { Button = true, CheckButton = true, ItemButton = true }
+    function f:SetScript(quoi, fn)
+        if quoi == "OnClick" and not CLIQUABLES[self.__kind] then
+            error(string.format("<%s> doesn't have a \"OnClick\" script", tostring(self.__kind)), 2)
+        end
+        self.__scripts[quoi] = fn
+    end
     function f:GetScript(quoi) return self.__scripts[quoi] end
     function f:HookScript(quoi, fn)
         local avant = self.__scripts[quoi]
@@ -218,7 +237,12 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:EnableMouse() end
     function f:EnableMouseWheel() end
     function f:RegisterForDrag() end
-    function f:RegisterForClicks() end
+    function f:RegisterForClicks()
+        -- Reservee aux boutons, comme dans le jeu.
+        if not CLIQUABLES[self.__kind] then
+            error(string.format("<%s> has no method RegisterForClicks", tostring(self.__kind)), 2)
+        end
+    end
     function f:StartMoving() end
     function f:StopMovingOrSizing() end
     -- Redimensionnement : retenu (bornes, poignee tiree), pas simule.
@@ -439,7 +463,7 @@ def charger(chemin_scenario):
     lua.execute(PRELUDE)
     runner = lua.eval(CHARGEUR)
 
-    for addon in ADDONS:
+    for addon in addons():
         toc = os.path.join(ROOT, addon, addon + '.toc')
         base = os.path.dirname(toc)
         fichiers = []
@@ -462,7 +486,7 @@ def charger(chemin_scenario):
     # Ce que chaque .toc declare : de quoi verifier qu'un contenu reserve au MJ
     # n'est pas livre dans l'addon de base.
     declares = {}
-    for addon in ADDONS:
+    for addon in ADDONS:   # les deux .toc, meme en mode joueur
         toc = os.path.join(ROOT, addon, addon + '.toc')
         lignes = []
         for ligne in io.open(toc, encoding='utf-8-sig'):
@@ -495,5 +519,5 @@ if __name__ == '__main__':
     if not arguments:
         print('usage: lcm_bench.py <scenario.lua> [--addons <dossier AddOns>]')
         sys.exit(2)
-    print('AddOns : ' + ROOT)
+    print('AddOns : ' + ROOT + ('   (sans le compagnon MJ)' if '--sans-mj' in sys.argv else ''))
     sys.exit(0 if charger(arguments[0]) is not None else 1)

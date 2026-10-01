@@ -47,8 +47,11 @@ end
 
 local Surface = Fiche.Surface
 
-function Fiche.Ligne(parent, c)
-    local l = CreateFrame("Frame", nil, parent)
+-- `sorte` : « Button » pour une ligne sur laquelle on clique. Le jeu ne donne
+-- de script OnClick qu'aux boutons — une ligne-cadre a laquelle on en attache
+-- un leve « doesn't have a "OnClick" script » et la fenetre ne s'ouvre plus.
+function Fiche.Ligne(parent, c, sorte)
+    local l = CreateFrame(sorte or "Frame", nil, parent)
     l:SetHeight(c.ligne)
     Surface(l)
     return l

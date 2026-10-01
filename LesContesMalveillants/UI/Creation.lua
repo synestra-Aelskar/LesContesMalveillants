@@ -357,7 +357,9 @@ function Pages.generale(page, f)
     -- sur la case occupee la montre ou la retire.
     local race = Bloc(page, "Race", TEXTES.race)
     local c = UI.AelColonnes(LARGEUR_PAGE - 2 * UI.Fiche.MARGE_BLOC)
-    local slot = UI.Fiche.Ligne(race, c)
+    -- Un bouton, pas un cadre : on clique dessus (gauche pour choisir, droit
+    -- pour voir ou retirer).
+    local slot = UI.Fiche.Ligne(race, c, "Button")
     slot:SetHeight(math.max(48, c.ligne))
     slot:SetPoint("TOPLEFT", race, "TOPLEFT", UI.Fiche.MARGE_BLOC, -Haut(race))
     slot:SetPoint("TOPRIGHT", race, "TOPRIGHT", -UI.Fiche.MARGE_BLOC, -Haut(race))
@@ -401,7 +403,25 @@ function Pages.generale(page, f)
     -- Clic gauche : choisir parmi les races du compendium. Le glisser-deposer
     -- reste, mais il suppose la fenetre du compendium ouverte — ce qui fait de
     -- la race le seul choix de la creation qu'on ne puisse pas faire sur place.
-    slot:SetScript("OnClick", function(self)
+    slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- Les deux clics passent par le meme script : un bouton n'a qu'un OnClick,
+    -- et c'est lui qui recoit le nom du bouton presse.
+    slot:SetScript("OnClick", function(self, bouton)
+        if bouton == "RightButton" then
+            if f.brouillon.race == "" then return end
+            local r = LCM.Races.Get(f.brouillon.race)
+            local options = { { id = "retirer", label = "Retirer" } }
+            if r then table.insert(options, 1, { id = "voir", label = "Voir" }) end
+            self.menu:Proposer(self, options, function(choix)
+                if choix == "voir" and r then
+                    UI.Compendium.Voir(LCM.Compendium.Get("races"), r, f)
+                elseif choix == "retirer" then
+                    f.brouillon.race = ""
+                    f:Actualiser()
+                end
+            end)
+            return
+        end
         local options = {}
         for _, r in ipairs(LCM.Races.list) do
             options[#options + 1] = { id = r.id, label = r.label, icone = r.icone }
@@ -416,21 +436,6 @@ function Pages.generale(page, f)
         self.menu:Proposer(self, options, function(choix)
             f.brouillon.race = choix or ""
             f:Actualiser()
-        end)
-    end)
-    slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    slot:SetScript("OnMouseUp", function(self, bouton)
-        if bouton ~= "RightButton" or f.brouillon.race == "" then return end
-        local r = LCM.Races.Get(f.brouillon.race)
-        local options = { { id = "retirer", label = "Retirer" } }
-        if r then table.insert(options, 1, { id = "voir", label = "Voir" }) end
-        self.menu:Proposer(self, options, function(choix)
-            if choix == "voir" and r then
-                UI.Compendium.Voir(LCM.Compendium.Get("races"), r, f)
-            elseif choix == "retirer" then
-                f.brouillon.race = ""
-                f:Actualiser()
-            end
         end)
     end)
     -- Une race qui n'est pas au compendium : on la saisit. Elle n'apporte aucun

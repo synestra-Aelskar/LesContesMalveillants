@@ -102,13 +102,20 @@ local function Construire()
     app.barre = UI.Onglets(app, { { id = "general", label = "Général" },
                                   { id = "theme",   label = "Thème" } },
         function(id) f:AfficherApparence(id) end, { largeur = 110 })
+    -- Les deux ancrages, pas un seul : UI.Onglets centre ses boutons sur le
+    -- HAUT de la barre. Sans largeur, ce haut est le bord gauche, et les
+    -- onglets partent hors de la fenetre — on ne les voyait plus.
     app.barre:SetPoint("TOPLEFT", app, "TOPLEFT", 0, 0)
+    app.barre:SetPoint("TOPRIGHT", app, "TOPRIGHT", 0, 0)
 
     app.general = CreateFrame("Frame", nil, app)
     app.general:SetPoint("TOPLEFT", app, "TOPLEFT", 0, -32)
     app.general:SetPoint("BOTTOMRIGHT", app, "BOTTOMRIGHT", 0, 0)
 
-    local function Barre(parent, libelle, aide, dy, onChange)
+    -- `depart` : la valeur a l'ouverture. Elle passe par `Regler`, pas par une
+    -- affectation de `max` : c'est `Regler` qui montre la barre (UI.Curseur
+    -- nait cachee, elle sert d'abord d'ascenseur) et qui pose la poignee.
+    local function Barre(parent, libelle, aide, dy, depart, onChange)
         local titre = UI.Texte(parent, libelle, UI.C.texte)
         UI.Police(titre, 12)
         titre:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy)
@@ -118,7 +125,10 @@ local function Construire()
         local curseur = UI.Curseur(parent, onChange)
         curseur:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 20)
         curseur:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -dy - 20)
-        curseur.max = 100
+        -- Un filet autour de la gouttiere : sans lui, une barre presque noire
+        -- sur un fond noir ne se voit pas, et on ne sait pas qu'on peut tirer.
+        UI.Bordure(curseur, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.45 })
+        curseur:Regler(100, depart)
         local note = UI.Texte(parent, aide, UI.C.discret)
         UI.Police(note, 10)
         note:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 36)
@@ -126,10 +136,10 @@ local function Construire()
     end
 
     app.opacite, app.opaciteValeur = Barre(app.general, "Opacité des fenêtres",
-        "0 : presque transparente — 100 : pleine.", 0,
+        "0 : presque transparente — 100 : pleine.", 0, UI.Opacite(),
         function(v) UI.Opacite(v) f:Actualiser() end)
     app.echelle, app.echelleValeur = Barre(app.general, "Taille de l'interface",
-        "50 : taille normale. En dessous ça rétrécit, au-dessus ça grandit.", 64,
+        "50 : taille normale. En dessous ça rétrécit, au-dessus ça grandit.", 64, UI.Echelle(),
         function(v) UI.Echelle(v) f:Actualiser() end)
 
     app.theme = CreateFrame("Frame", nil, app)

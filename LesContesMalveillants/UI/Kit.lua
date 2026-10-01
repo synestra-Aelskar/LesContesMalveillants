@@ -970,12 +970,16 @@ function UI.Curseur(parent, onChange)
         c.poignee:SetPoint("LEFT", c, "LEFT", x, 0)
     end
 
+    -- La poignee se replace a chaque fois, meme quand la valeur ne bouge pas :
+    -- sans ancrage elle ne s'affiche nulle part, et une valeur deja bonne ne
+    -- doit pas laisser la barre vide. `onChange` ne part, lui, que si la
+    -- valeur a change.
     function c:Aller(valeur)
         valeur = math.floor(math.max(0, math.min(tonumber(valeur) or 0, self.max)))
-        if valeur == self.valeur then return end
+        local change = valeur ~= self.valeur
         self.valeur = valeur
         Poser()
-        if onChange then onChange(valeur) end
+        if change and onChange then onChange(valeur) end
     end
 
     function c:Regler(maximum, valeur)

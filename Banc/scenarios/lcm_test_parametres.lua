@@ -71,6 +71,25 @@ attendu("l'onglet existe", f.onglet, "apparences")
 local app = f.pages.apparences
 attendu("deux sous-onglets", #app.barre.boutons, 2)
 attendu("on arrive sur General", f.apparence, "general")
+-- UI.Onglets centre ses boutons sur le HAUT de la barre : sans largeur, ce
+-- haut est le bord gauche et les onglets partent hors de la fenetre. Une barre
+-- n'a de largeur que si elle est ancree des deux cotes (ou dimensionnee).
+local function largeurResolue(cadre)
+    if cadre:GetWidth() > 0 then return true end
+    local gauche, droite = false, false
+    for i = 1, cadre:GetNumPoints() do
+        local point = cadre:GetPoint(i)
+        if tostring(point):find("LEFT") then gauche = true end
+        if tostring(point):find("RIGHT") then droite = true end
+    end
+    return gauche and droite
+end
+attendu("la barre d'onglets a une largeur", largeurResolue(f.barre), true)
+attendu("celle des sous-onglets aussi", largeurResolue(app.barre), true)
+-- UI.Curseur nait cachee (c'est d'abord un ascenseur) : une barre de reglage
+-- qui ne se montre pas est une barre qu'on ne peut pas tirer.
+attendu("la barre d'opacite se voit", app.opacite:IsShown(), true)
+attendu("celle de la taille aussi", app.echelle:IsShown(), true)
 
 dire("   opacite et taille")
 app.opacite:Aller(40)
