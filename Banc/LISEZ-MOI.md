@@ -41,6 +41,32 @@ lcm.cmd scenarios\lcm_test_socle.lua --addons "C:\...\_retail_\Interface\AddOns"
 Il annonce le dossier retenu en première ligne. Si tu vois passer des tests alors
 que tu viens de casser quelque chose, c'est la première chose à vérifier.
 
+### Jouer le rôle d'un joueur
+
+```
+lcm.cmd scenarios\lcm_test_creation_ecran.lua --sans-mj
+```
+
+`--sans-mj` ne charge que l'addon de base : `LCM.IsMaster()` est faux, et on voit
+enfin ce que voit un joueur. Sans ça, le banc chargeait toujours le compagnon et
+**la moitié de l'addon n'était jamais testée**. Les scénarios qui pilotent
+l'atelier MJ échouent dans ce mode, c'est normal — ils ont besoin du compagnon.
+
+### Ce que le banc refuse, parce que le jeu le refuse
+
+Le banc n'est utile que s'il casse là où le jeu casse. Il reproduit donc :
+
+- `SetScript("OnClick", ...)` et `RegisterForClicks` **sur un cadre qui n'est pas
+  un bouton** → erreur, comme en jeu (`<unnamed> doesn't have a "OnClick"
+  script`). C'est exactement ce qui a cassé la création de personnage le
+  1er octobre 2026.
+
+En revanche il ne calcule **aucune géométrie d'écran** : `GetWidth()` ne rend que
+ce qu'on a posé avec `SetWidth`, jamais ce que des ancrages donneraient. Une
+barre ancrée d'un seul côté a donc l'air correcte au banc et part hors de la
+fenêtre en jeu — si tu ancres quelque chose dont la largeur vient des ancrages,
+vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
+
 ## Les scénarios
 
 | Fichier | Ce qu'il couvre |
