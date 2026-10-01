@@ -25,6 +25,7 @@ Core\Etats.lua
 Core\Apprentissages.lua
 Core\Sacs.lua
 Core\Inventaire.lua
+Core\Bourse.lua
 Core\Metiers.lua
 Core\Formules.lua
 Core\Roll.lua
@@ -33,6 +34,8 @@ Core\Documents.lua
 Core\Vues.lua
 Core\Sorts.lua
 Core\Reseau.lua
+Core\Stock.lua
+Core\Points.lua
 Core\Lien.lua
 Core\Fiches.lua
 Core\Incarnation.lua
@@ -59,6 +62,7 @@ Data\Genere\Objets.lua
 Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
 Data\Genere\Compendium_PNJ.lua
+Data\Genere\Points.lua
 Data\Genere\Necronicon_Grimoires.lua
 
 # Interface
@@ -74,6 +78,8 @@ UI\Metiers.lua
 UI\Grimoires.lua
 UI\SortEditeur.lua
 UI\Parametres.lua
+UI\Points.lua
+UI\Bourse.lua
 UI\Compendium.lua
 UI\Radial.lua
 UI\Menu.lua

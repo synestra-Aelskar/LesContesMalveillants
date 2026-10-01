@@ -254,3 +254,27 @@ LCM.WhenReady(function()
         end
     end
 end)
+
+-- Ranger une entree SANS dire ou : la premiere case libre venue, tous sacs
+-- confondus. C'est ce dont ont besoin la recolte et l'achat, qui donnent un
+-- objet sans savoir ce que le joueur a dans ses sacs.
+--
+-- Les cases de devise sont sautees : une devise ne se range pas comme un objet,
+-- et une herbe n'a rien a faire dans un porte-monnaie.
+function Inventaire.Deposer(entity, ref, quantite)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    for _, categorie in ipairs(Inventaire.categories) do
+        for index = 1, Inventaire.Capacite(categorie.id) do
+            local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
+            if emplacement then
+                local total, places = Inventaire.Cases(emplacement)
+                for case = 1, math.min(total, places) do
+                    if not Inventaire.Case(emplacement, case) then
+                        return Inventaire.Ranger(entity, categorie.id, index, case, ref, quantite)
+                    end
+                end
+            end
+        end
+    end
+    return false, "aucune place libre."
+end

@@ -72,7 +72,12 @@ function UnitName(unit)
 end
 function UnitFullName(unit) return "Reika", "Apertus" end
 function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0" end return nil end
-function GetTime() return 1000 end
+-- L'horloge est pilotable : la repousse d'un stock se verifie en avancant le
+-- temps, pas en attendant.
+local horloge = 1000
+function GetTime() return horloge end
+function __temps(secondes) horloge = secondes end
+function __avancerTemps(secondes) horloge = horloge + secondes end
 
 local addonsCharges = {}
 _G.__addonsCharges = addonsCharges

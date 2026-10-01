@@ -76,7 +76,7 @@ dire("   " .. table.concat(noms, " | "))
 -- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont pas repris.
 attendu("sept entrees de premier niveau", #M.STRUCTURE, 7)
 attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
-attendu("Objets : trois fenetres", #M.Trouver("objets").enfants, 3)
+attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 attendu("Outils : six fenetres", #M.Trouver("outils").enfants, 6)
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
@@ -84,11 +84,9 @@ attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() e
 dire("== ce qui est branche")
 for _, id in ipairs({ "regles", "creation", "fiche", "sante", "expertise", "penetrations_resistances",
                       "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
-                      "grimoires", "parametres", "panneau_mj", "incarner" }) do
+                      "grimoires", "parametres", "panneau_mj", "incarner",
+                      "vendeur", "ressources" }) do
     attendu("  " .. id, M.EstLiee(id), true)
-end
-for _, id in ipairs({ "vendeur", "ressources" }) do
-    attendu("  " .. id .. " (pas encore)", M.EstLiee(id), false)
 end
 
 dire("== le bouton et la colonne")

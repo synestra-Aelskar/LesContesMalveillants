@@ -46,6 +46,8 @@ Menu.STRUCTURE = {
       enfants = {
           { id = "equipement",  label = "Équipements", icone = ICONE .. "eps_lol_tft_sentinelemblem" },
           { id = "inventaires", label = "Inventaires", icone = ICONE .. "inv_misc_bag_29" },
+          -- Ajout a la structure du template : chaque joueur voit sa bourse.
+          { id = "bourse",      label = "Bourse",      icone = ICONE .. "INV_Misc_Coin_17" },
           { id = "metiers",     label = "Métiers",     icone = ICONE .. "eps_lol_tft_witchcraftemblem" },
       } },
     { id = "outils", label = "Outils", icone = ICONE .. "eps_lol_yorick_mourningmist2",

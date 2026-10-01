@@ -67,6 +67,9 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_parametres.lua` | les paramètres : sceau, remise en place des fenêtres, traces, état du réseau |
 | `lcm_test_fiches_mj.lua` | la consultation des fiches par le MJ : paquet, droits, groupe, panneau, sens unique |
 | `lcm_test_incarnation.lua` | incarner un PNJ : instances indépendantes, bascule, droits MJ, fenêtre |
+| `lcm_test_stock.lua` | le stock partagé : repousse déterministe, fusion de deux copies, réseau |
+| `lcm_test_points.lua` | vendeurs et points de récolte : offres, stock, récolte, achat, fenêtres |
+| `lcm_test_bourse.lua` | la bourse : devises de base, soldes, crédits et débits, droits MJ |
 | `lcm_test_personnages.lua` | profils, carrousel, portraits, suppression |
 | `lcm_test_creation.lua` | **les règles** de création : budgets, plafonds, refus |
 | `lcm_test_creation_ecran.lua` | l'écran de création : compteurs, R / M, récapitulatif |

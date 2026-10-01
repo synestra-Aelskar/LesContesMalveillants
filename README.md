@@ -115,8 +115,12 @@ Par ordre de ce qui bloque le plus :
       Paramètres (affichage, personnage joué, dépannage : remettre les fenêtres
       à leur place, état du réseau), Panel MJ (le groupe, et la fiche de chaque
       joueur sur demande), Incarner (le catalogue des PNJ, leurs instances en
-      jeu, et la bascule — toutes les fenêtres suivent). Restent : Vendeur,
-      Ressources.
+      jeu, et la bascule — toutes les fenêtres suivent), Vendeur et Ressources
+      (offres, stock partagé qui repousse, récolte et achat).
+      **Bourse** (ajoutée à la structure du template : les devises du
+      personnage, Écus / Crédits / Essences stellaires toujours visibles, les
+      autres dès qu'il en a ; le MJ ajuste, le joueur lit).
+      **Toutes les entrées du menu sont branchées.**
 - [x] **Le modèle du compendium.** Traits, races, objets, états, maladies,
       apprentissages : icône, description, bonus et avantage (catalogues,
       `Core/Catalogues.lua`), créés dans l'atelier. Les 41 statistiques de
@@ -144,6 +148,16 @@ Par ordre de ce qui bloque le plus :
       décision du 1er octobre 2026, qui revient sur « humain seulement ».
       Toutes sont humanoïdes ; les autres morphologies s'utilisent via le
       champ `morphologie` d'une entité.
+- [ ] **Le paiement chez le vendeur.** Le prix s'affiche, le stock se décompte,
+      mais rien n'est prélevé : la table règle. La bourse existe désormais
+      (`Core/Bourse.lua`, `Debiter` / `Peut`) — il reste à décider si l'achat
+      prélève tout seul.
+- [ ] **L'onglet « Devises » de l'inventaire** n'a qu'**un** emplacement dans le
+      template, donc la bourse tient ses propres soldes à côté. À trancher :
+      cet onglet garde-t-il un rôle, ou disparaît-il au profit de la bourse ?
+- [ ] **Les points eux-mêmes** : `Data/Genere/Points.lua` est vide. Les vendeurs
+      et les filons viendront de l'atelier MJ comme le reste du contenu ; la
+      forme d'un point est documentée en tête du fichier.
 - [ ] **Les portraits** : aucun livré. Déposer les images et lancer l'outil.
 - [ ] **Les icônes de ligne** (Force, Vitalité…) et la **barre de recherche**
       vues sur l'écran Necronicon : rôle et liste à décider.
