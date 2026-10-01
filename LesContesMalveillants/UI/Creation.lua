@@ -17,8 +17,10 @@ local C = LCM.Creation
 local Ecran = {}
 UI.Creation = Ecran
 
-local LARGEUR, HAUTEUR = 760, 720
-local LARGEUR_PAGE = LARGEUR - 24
+local LARGEUR, HAUTEUR = 1000, 720
+-- La colonne du recapitulatif, a gauche : ce qu'on a deja pose, par categorie.
+local LARGEUR_RECAP = 224
+local LARGEUR_PAGE = LARGEUR - 24 - LARGEUR_RECAP - 12
 local LIGNE = 24
 local LARGEUR_LABEL = 150
 local ECART_BLOCS = 14
@@ -686,10 +688,31 @@ local function Construire()
     f.brouillon = C.Nouveau()
     local m = f.mesures
 
+    -- ----- le recapitulatif -----------------------------------------------
+    -- Il repond a la question qu'on se pose tout du long : « qu'est-ce que j'ai
+    -- deja mis, et ou ? ». Une categorie repliee ne coute qu'une ligne ;
+    -- depliee, elle montre ce qui est investi — jamais les zeros, a 156 champs
+    -- la liste serait illisible.
+    f.recap = CreateFrame("Frame", nil, f.contenu)
+    f.recap:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    f.recap:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    f.recap:SetWidth(LARGEUR_RECAP)
+    if UI.AelCadre then UI.AelCadre(f.recap, "section") else UI.Bordure(f.recap) end
+
+    f.recap.titre = UI.Texte(f.recap, "Récapitulatif", UI.C.titre)
+    UI.Police(f.recap.titre, 13)
+    f.recap.titre:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -10)
+
+    f.recapZone = UI.Defilement(f.recap)
+    f.recapZone:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 8, -32)
+    f.recapZone:SetPoint("BOTTOMRIGHT", f.recap, "BOTTOMRIGHT", -8, 10)
+    f.recap.entetes, f.recap.lignes = {}, {}
+    f.deplie = { identite = true, primaires = true }
+
     local onglets = {}
     for _, etape in ipairs(C.ETAPES) do onglets[#onglets + 1] = { id = etape.id, label = etape.label } end
     f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
-    f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    f.barre:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, 0)
     f.barre:SetWidth(LARGEUR_PAGE)
     local hauteurBandeau = f.barre:Disposer(LARGEUR_PAGE, m.onglet)
 
@@ -707,7 +730,7 @@ local function Construire()
         end
         UI.Fiche.Fenetre():Montrer(entity)
     end)
-    f.valider:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    f.valider:SetPoint("BOTTOMLEFT", f.recap, "BOTTOMRIGHT", 12, 0)
     -- Abandonner : la fenetre se ferme et le brouillon part.
     f.abandonner = UI.Bouton(f.contenu, "Abandonner", 120, 26, function() f:Hide() end)
     f.abandonner:SetPoint("LEFT", f.valider, "RIGHT", 8, 0)
@@ -729,7 +752,7 @@ local function Construire()
     f.probleme:SetPoint("BOTTOMRIGHT", f.remiseTotale, "TOPRIGHT", 0, 8)
 
     f.zone = UI.Defilement(f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -(hauteurBandeau + 10))
+    f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 10))
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 60)
 
     f.pages = {}
@@ -738,6 +761,117 @@ local function Construire()
         Pages[etape.id](page, f)
         page:Disposer()
         f.pages[etape.id] = page
+    end
+
+    -- Les categories du recapitulatif, dans l'ordre des etapes.
+    local RECAP = {
+        { id = "identite",    label = "Identité" },
+        { id = "primaires",   label = "Statistiques" },
+        { id = "secondaires", label = "Secondaires" },
+        { id = "expertises",  label = "Expertises" },
+        { id = "mecaniques",  label = "Mécaniques" },
+        { id = "penetration", label = "Pénétrations" },
+        { id = "resistance",  label = "Résistances" },
+        { id = "traits",      label = "Traits" },
+    }
+
+    -- Ce qu'une categorie montre quand on la deplie. On ne liste que ce qui est
+    -- investi : les zeros n'apprennent rien.
+    local function LignesRecap(brouillon, categorie)
+        local out = {}
+        if categorie == "identite" then
+            local race = brouillon.race ~= "" and LCM.Races.Get(brouillon.race)
+            out[#out + 1] = { "Nom", brouillon.nom ~= "" and brouillon.nom or "—" }
+            out[#out + 1] = { "Race", (race and race.label) or brouillon.raceLibre or "—" }
+            out[#out + 1] = { "Niveau", tostring(brouillon.niveau) }
+            if brouillon.valeurs.sexe then
+                out[#out + 1] = { "Sexe", tostring(brouillon.sexeAutre or brouillon.valeurs.sexe) }
+            end
+            if brouillon.valeurs.age then out[#out + 1] = { "Âge", tostring(brouillon.valeurs.age) } end
+            if brouillon.valeurs.poids then out[#out + 1] = { "Poids", tostring(brouillon.valeurs.poids) .. " kg" } end
+            return out
+        end
+        if categorie == "traits" then
+            for _, id in ipairs(brouillon.traits) do
+                local trait = LCM.Traits.Get(id)
+                out[#out + 1] = { (trait and trait.label) or id, tostring((trait and trait.cout) or 1) }
+            end
+            return out
+        end
+        for _, ligne in ipairs(C.Lignes(categorie)) do
+            local valeur = C.Valeur(brouillon, ligne.id)
+            if valeur > 0 then out[#out + 1] = { ligne.label, tostring(valeur) } end
+        end
+        return out
+    end
+
+    function f:ActualiserRecap()
+        local y, index, indexLigne = 0, 0, 0
+        for _, categorie in ipairs(RECAP) do
+            index = index + 1
+            local h = self.recap.entetes[index]
+            if not h then
+                -- L'identifiant de l'iteration, pas le compteur : toutes les
+                -- fermetures partageraient le second.
+                local categorieId = categorie.id
+                h = UI.Bouton(self.recapZone.contenu, "", LARGEUR_RECAP - 24, 20, function()
+                    self.deplie[categorieId] = not self.deplie[categorieId]
+                    self:ActualiserRecap()
+                end)
+                h.label:ClearAllPoints()
+                h.label:SetPoint("LEFT", h, "LEFT", 4, 0)
+                h.label:SetJustifyH("LEFT")
+                h.compte = UI.Texte(h, "", UI.C.discret)
+                UI.Police(h.compte, 11)
+                h.compte:SetPoint("RIGHT", h, "RIGHT", -4, 0)
+                self.recap.entetes[index] = h
+            end
+            local ouvert = self.deplie[categorie.id] and true or false
+            h.label:SetText((ouvert and "- " or "+ ") .. categorie.label)
+            h:Selectionner(ouvert)
+            if categorie.id == "identite" then
+                h.compte:SetText("")
+            else
+                local budget = C.Budget(self.brouillon, categorie.id)
+                h.compte:SetText(string.format("%d / %d", budget.reste, budget.total))
+                local teinte = budget.reste < 0 and UI.C.plein
+                    or (budget.reste == 0 and UI.C.discret or UI.C.titre)
+                h.compte:SetTextColor(teinte[1], teinte[2], teinte[3])
+            end
+            h:ClearAllPoints()
+            h:SetPoint("TOPLEFT", self.recapZone.contenu, "TOPLEFT", 0, -y)
+            h:Show()
+            y = y + 22
+
+            if ouvert then
+                for _, paire in ipairs(LignesRecap(self.brouillon, categorie.id)) do
+                    indexLigne = indexLigne + 1
+                    local l = self.recap.lignes[indexLigne]
+                    if not l then
+                        l = CreateFrame("Frame", nil, self.recapZone.contenu)
+                        l:SetSize(LARGEUR_RECAP - 28, 15)
+                        l.nom = UI.Texte(l, "", UI.C.discret)
+                        UI.Police(l.nom, 11)
+                        l.nom:SetPoint("LEFT", l, "LEFT", 10, 0)
+                        l.valeur = UI.Texte(l, "", UI.C.texte)
+                        UI.Police(l.valeur, 11)
+                        l.valeur:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+                        l.valeur:SetJustifyH("RIGHT")
+                        self.recap.lignes[indexLigne] = l
+                    end
+                    l.nom:SetText(paire[1])
+                    l.valeur:SetText(paire[2])
+                    l:ClearAllPoints()
+                    l:SetPoint("TOPLEFT", self.recapZone.contenu, "TOPLEFT", 0, -y)
+                    l:Show()
+                    y = y + 16
+                end
+                y = y + 4
+            end
+        end
+        for i = index + 1, #self.recap.entetes do self.recap.entetes[i]:Hide() end
+        for i = indexLigne + 1, #self.recap.lignes do self.recap.lignes[i]:Hide() end
+        self.recapZone:Regler(y)
     end
 
     function f:Afficher(etapeId)
@@ -749,6 +883,7 @@ local function Construire()
     end
 
     function f:Actualiser()
+        self:ActualiserRecap()
         local page = self.pages[self.etape]
         if not page then return end
         -- Les compteurs relisent tout : un plafond peut avoir bouge a cause

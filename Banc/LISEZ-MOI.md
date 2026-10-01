@@ -70,6 +70,7 @@ que tu viens de casser quelque chose, c'est la première chose à vérifier.
 | `lcm_test_stock.lua` | le stock partagé : repousse déterministe, fusion de deux copies, réseau |
 | `lcm_test_points.lua` | vendeurs et points de récolte : offres, stock, récolte, achat, fenêtres |
 | `lcm_test_bourse.lua` | la bourse : devises de base, soldes, crédits et débits, droits MJ |
+| `lcm_test_canal.lua` | les icônes de fiche, le canal des jets, Adresse et Esprit qui se lancent |
 | `lcm_test_personnages.lua` | profils, carrousel, portraits, suppression |
 | `lcm_test_creation.lua` | **les règles** de création : budgets, plafonds, refus |
 | `lcm_test_creation_ecran.lua` | l'écran de création : compteurs, R / M, récapitulatif |

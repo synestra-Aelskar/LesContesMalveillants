@@ -22,7 +22,7 @@ attendu("et centre sur le haut (en-tete Necronicon)", point, "CENTER")
 
 dire("== l'echelle suit la largeur, entre deux bornes")
 local creation = LCM.UI.Creation.Fenetre()
-attendu("fenetre large : 760", creation:GetWidth(), 760)
+attendu("fenetre large : 1000", creation:GetWidth(), 1000)
 -- 760 / 1340 x 0,75 = 0,425, borne haute a 0,40.
 attendu("echelle bornee en haut", creation.decor.echelle, 0.4)
 local etroite = LCM.UI.Fenetre("banc_etroit", "Etroite", 300, 200)

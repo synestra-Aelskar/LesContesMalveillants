@@ -459,6 +459,19 @@ def charger(chemin_scenario):
                 return None
         lua.execute('__addonsCharges["%s"] = true' % addon)
 
+    # Ce que chaque .toc declare : de quoi verifier qu'un contenu reserve au MJ
+    # n'est pas livre dans l'addon de base.
+    declares = {}
+    for addon in ADDONS:
+        toc = os.path.join(ROOT, addon, addon + '.toc')
+        lignes = []
+        for ligne in io.open(toc, encoding='utf-8-sig'):
+            l = ligne.strip()
+            if l and not l.startswith('#'):
+                lignes.append(l.replace(chr(92), '/'))
+        declares[addon] = lignes
+    lua.globals().__toc = lua.table_from({a: lua.table_from(v) for a, v in declares.items()})
+
     src = io.open(chemin_scenario, encoding='utf-8').read()
     err = lua.eval("""
         function(src, chemin)

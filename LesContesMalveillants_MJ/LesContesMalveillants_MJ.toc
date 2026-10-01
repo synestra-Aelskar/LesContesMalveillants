@@ -8,6 +8,7 @@
 
 MJ.lua
 Brouillons.lua
+Genere\Compendium_PNJ.lua
 Atelier.lua
 Compendium.lua
 Panneau.lua

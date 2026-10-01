@@ -10,7 +10,7 @@
 --  l'exporter comme un brouillon.
 -- ============================================================================
 
-local _, LCM = ...
+local LCM = _G.LCM
 LCM.PNJ.Add({
     id = "assassin_du_culte",
     label = "Assassin du culte",

@@ -139,6 +139,8 @@ local Lignes = {}
 -- colonne (comme dans Deplacement chez Necronicon), bonus portes a la suite.
 function Lignes.stat(parent, field, c)
     local l = Ligne(parent, c)
+    local icone = LCM.IconeChamp(field)
+    if icone then Icone(l, c, icone) end
     Nom(l, c, field.label)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police)
@@ -170,6 +172,8 @@ local COULEURS_JAUGE = {
 
 function Lignes.gauge(parent, field, c)
     local l = Ligne(parent, c)
+    local icone = LCM.IconeChamp(field)
+    if icone then Icone(l, c, icone) end
     Nom(l, c, field.label)
     local function Poser(delta, absolu)
         local e = l.entity
@@ -202,6 +206,8 @@ end
 
 function Lignes.roll(parent, field, c)
     local l = Ligne(parent, c)
+    local icone = LCM.IconeChamp(field)
+    if icone then Icone(l, c, icone) end
     Nom(l, c, field.label)
 
     local dice = type(field.dice) == "table" and field.dice or {}
@@ -244,7 +250,7 @@ function Lignes.roll(parent, field, c)
         local entite = l.entity
         if not entite then return end
         local resultat = LCM.Roll.Field(entite, field.id, { avantage = l.avantage:GetChecked() })
-        if resultat then LCM.Info(LCM.Roll.Describe(resultat)) end
+        if resultat then LCM.Canal.Dire(LCM.Roll.Describe(resultat)) end
     end)
     l.lancer:SetPoint("LEFT", l, "LEFT", c.action, 0)
     UI.Police(l.lancer.label, c.police)
@@ -283,6 +289,9 @@ function Lignes.body(parent, field, c, options)
     l.total = Ligne(l, c)
     l.total:SetPoint("TOPLEFT", l, "TOPLEFT", 0, 0)
     l.total:SetPoint("TOPRIGHT", l, "TOPRIGHT", 0, 0)
+    -- Le coeur du template : c'est sa ligne « Point de vie ».
+    local iconeTotal = LCM.IconeChamp(field)
+    if iconeTotal then Icone(l.total, c, iconeTotal) end
     Nom(l.total, c, "Points de vie")
     Jauge(l.total, c, UI.C.vie, nil)
     Bulle(l.total, "Points de vie",

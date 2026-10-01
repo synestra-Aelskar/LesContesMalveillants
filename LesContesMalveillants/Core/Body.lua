@@ -34,28 +34,33 @@ local ICONE = "Interface\\ICONS\\"
 
 -- Categories connues, dans l'ordre d'affichage. `unique` : toujours exactement
 -- une. `seul` : le libelle quand la morphologie n'en a qu'une (« Jambes » pour
--- la zone qui couvre les deux). Descriptions reprises du template.
+-- la zone qui couvre les deux). Descriptions ET icones reprises du template
+-- (window_custom_12, onglet Physique) ; l'icone retenue est celle de l'entree
+-- posee dans la cellule, la seule que Necronicon affiche.
+--
+-- L'Aile et la Queue n'existent pas dans le template, qui est humanoide :
+-- leurs icones sont des choix de l'addon.
 local CATEGORIES = {
     { id = "tete",     label = "Tête",     seul = "Tête", feminin = true,
-      icone = ICONE .. "INV_Misc_Head_Human_02",
+      icone = ICONE .. "inv_misc_head_human_02",
       description = "Représente l'état du crâne, du visage et des organes sensoriels." },
     { id = "buste",    label = "Torse",    unique = true,
-      icone = ICONE .. "INV_Chest_Cloth_17",
+      icone = ICONE .. "ability_warrior_intensifyrage",
       description = "Représente l'état de la poitrine, de l'abdomen et du dos, qui soutiennent le corps et protègent les organes." },
     { id = "bras",     label = "Bras",     seul = "Bras",
-      icone = ICONE .. "INV_Gauntlets_04",
+      icone = ICONE .. "ability_warrior_strengthofarms",
       description = "Représente l'état des membres supérieurs, des épaules jusqu'aux mains, permettant de saisir et d'agir." },
     { id = "jambe",    label = "Jambe",    seul = "Jambes", feminin = true,
-      icone = ICONE .. "INV_Pants_03",
+      icone = ICONE .. "dos2_rogue8",
       description = "Représente l'état des membres inférieurs, des hanches jusqu'aux pieds, assurant l'appui et les déplacements." },
     { id = "aile",     label = "Aile",     seul = "Ailes", feminin = true,
-      icone = ICONE .. "INV_Misc_Feather_01",
+      icone = ICONE .. "INV_Misc_Feather_01",     -- hors template
       description = "Représente l'état des ailes, de leur attache jusqu'aux rémiges." },
     { id = "queue",    label = "Queue",    seul = "Queue", feminin = true,
-      icone = ICONE .. "INV_Misc_MonsterTail_03",
+      icone = ICONE .. "INV_Misc_MonsterTail_03", -- hors template
       description = "Représente l'état de la queue, de sa base jusqu'à son extrémité." },
     { id = "internes", label = "Internes", unique = true, vital = true,
-      icone = ICONE .. "INV_Misc_Organ_01",
+      icone = ICONE .. "spell_brokenheart",
       description = "Représente l'état des organes internes et des fonctions vitales, au-delà des blessures de surface." },
 }
 Body.CATEGORIES = CATEGORIES

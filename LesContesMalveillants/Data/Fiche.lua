@@ -121,8 +121,13 @@ Schema.AddTab({
                 { id = "force",        kind = "stat", label = "Force",        default = 0 },
                 { id = "mystique",     kind = "stat", label = "Mystique",     default = 0 },
                 { id = "perception",   kind = "stat", label = "Perception",   default = 0 },
-                { id = "adresse",      kind = "stat", label = "Adresse",      default = 0 },
-                { id = "esprit",       kind = "stat", label = "Esprit",       default = 0 },
+                -- Adresse et Esprit se LANCENT (template : « 0-15 ... Rand »).
+                -- Les quatre autres primaires se lisent ; ces deux-la servent
+                -- directement de jet, d'ou leur de propre.
+                { id = "adresse",      kind = "roll", label = "Adresse",      default = 0,
+                  dice = { min = 0, max = 15 } },
+                { id = "esprit",       kind = "roll", label = "Esprit",       default = 0,
+                  dice = { min = 0, max = 15 } },
                 { id = "constitution", kind = "stat", label = "Constitution", default = 0 },
             },
         },

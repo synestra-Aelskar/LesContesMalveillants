@@ -136,7 +136,7 @@ local racine = {}
 for _, n in ipairs(M.Visibles()) do racine[#racine + 1] = n.id end
 -- Le compendium est consultable par tous, comme dans le template (le
 -- joueur y prend sa race) ; seule l'edition est reservee au MJ.
-attendu("Systeme d'Aelskar consultable", table.concat(racine, ","):find("systeme_aelskar") ~= nil, true)
+attendu("Systeme d'Aelskar reserve au MJ", M.Trouver("systeme_aelskar").mjSeulement, true)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 

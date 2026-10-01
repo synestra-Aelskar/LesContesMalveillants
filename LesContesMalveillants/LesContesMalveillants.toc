@@ -29,6 +29,7 @@ Core\Bourse.lua
 Core\Metiers.lua
 Core\Formules.lua
 Core\Roll.lua
+Core\Canal.lua
 Core\Creation.lua
 Core\Documents.lua
 Core\Vues.lua
@@ -42,6 +43,7 @@ Core\Incarnation.lua
 Core\Grimoires.lua
 Core\Compendium.lua
 Data\Equilibrage.lua
+Data\Icones.lua
 Data\Morphologies.lua
 Data\Fiche.lua
 Data\Expertises.lua
@@ -61,7 +63,6 @@ Data\Genere\Traits.lua
 Data\Genere\Objets.lua
 Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
-Data\Genere\Compendium_PNJ.lua
 Data\Genere\Points.lua
 Data\Genere\Necronicon_Grimoires.lua
 

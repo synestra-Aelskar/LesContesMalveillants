@@ -138,6 +138,16 @@ attendu("doublon : explique", (f.message:GetText() or ""):find("déjà publié")
 dire("== Atelier : choisir une icone sans la taper")
 -- Les icones proposees sont celles qui servent deja dans la campagne.
 attendu("le catalogue n'est pas vide", #LCM.UI.CatalogueIcones() > 0, true)
+-- Dont les icones livrees avec l'addon et celles des champs de fiche : sans
+-- elles, le MJ ne peut pas rehabiller une entree comme le reste de la campagne.
+local catalogue = {}
+for _, chemin in ipairs(LCM.UI.CatalogueIcones()) do catalogue[chemin:lower()] = true end
+attendu("les icones de la campagne y sont",
+    catalogue[LCM.IconeCampagne("grimoire"):lower()], true)
+attendu("celles des champs de fiche aussi",
+    catalogue[LCM.IconeChamp(LCM.Schema.Field("adresse")):lower()], true)
+attendu("et celles des zones du corps",
+    catalogue[LCM.Body.CATEGORIES[1].icone:lower()], true)
 attendu("un nom lisible", LCM.UI.NomIcone("Interface\\ICONS\\INV_Sword_05"), "INV_Sword_05")
 f.onglets.boutons[3]:Click()                       -- Objets : le formulaire a une icone
 local po = f.panneaux.objets

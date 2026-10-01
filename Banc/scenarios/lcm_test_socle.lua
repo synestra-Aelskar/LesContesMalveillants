@@ -1,7 +1,9 @@
 -- Socle : schema, entites, valeurs, jauges, commandes.
 local function dire(...) print(table.concat({...}, " ")) end
+local ko = 0
 local function attendu(libelle, obtenu, voulu)
     local ok = tostring(obtenu) == tostring(voulu)
+    if not ok then ko = ko + 1 end
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
     return ok
 end
@@ -79,3 +81,21 @@ local function poids(v, vu)
     return n
 end
 dire("  un PNJ complet pese", poids(golem), "octets")
+
+dire("== ce qui est reserve au MJ n'est pas livre")
+-- Masquer une entree dans l'interface ne protege rien : un addon vit sur la
+-- machine du joueur. La seule protection est de ne pas livrer le fichier.
+local function declare(addon, motif)
+    for _, ligne in ipairs(__toc[addon]) do
+        if tostring(ligne):find(motif, 1, true) then return true end
+    end
+    return false
+end
+attendu("les PNJ ne sont pas dans l'addon de base",
+    declare("LesContesMalveillants", "Compendium_PNJ"), false)
+attendu("ils sont dans le compagnon",
+    declare("LesContesMalveillants_MJ", "Compendium_PNJ"), true)
+attendu("le compendium est reserve au MJ",
+    LCM.UI.Menu.Trouver("systeme_aelskar").mjSeulement, true)
+
+dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

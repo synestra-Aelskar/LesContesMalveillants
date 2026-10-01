@@ -25,14 +25,46 @@ local function Construire(vue, rang)
     f.nom = f.sousTitre
     local largeurContenu = vue.largeur - 24
 
+    -- Le canal des jets, en haut a droite comme dans le modele. Il ne regarde
+    -- que les vues qui montrent un personnage : sur les Regles, il n'y a rien
+    -- a lancer.
     local haut = 0
+    if not vue.sansPersonnage then
+        f.canalLabel = UI.Texte(f.contenu, "Canal :", UI.C.discret)
+        UI.Police(f.canalLabel, 11)
+        f.canal = UI.Bouton(f.contenu, "", 110, 20, function(self)
+            local options = {}
+            for _, canal in ipairs(LCM.Canal.LISTE) do
+                options[#options + 1] = { id = canal.id, label = canal.label }
+            end
+            f.canalMenu:Proposer(self, options, function(choix)
+                LCM.Canal.Choisir(choix)
+                f:ActualiserCanal()
+            end)
+        end)
+        f.canal:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 0)
+        f.canalLabel:SetPoint("RIGHT", f.canal, "LEFT", -6, 0)
+        f.canalMenu = UI.Choix("canal_" .. vue.id, "Canal des jets")
+
+        function f:ActualiserCanal()
+            local canal = LCM.Canal.Actuel()
+            self.canal.label:SetText(canal.label)
+            -- Un canal indisponible (pas de groupe, pas de guilde) se voit :
+            -- sinon on lance dans le vide sans comprendre.
+            local teinte = LCM.Canal.Disponible(canal) and UI.C.titre or UI.C.plein
+            self.canal.label:SetTextColor(teinte[1], teinte[2], teinte[3])
+        end
+        f:ActualiserCanal()
+        haut = 26
+    end
+
     if #vue.onglets > 1 then
         local onglets = {}
         for _, onglet in ipairs(vue.onglets) do onglets[#onglets + 1] = { id = onglet.id, label = onglet.label } end
         f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
-        f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+        f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
         f.barre:SetWidth(largeurContenu)
-        haut = f.barre:Disposer(largeurContenu, f.mesures.onglet) + 10
+        haut = haut + f.barre:Disposer(largeurContenu, f.mesures.onglet) + 10
     end
 
     f.zone = UI.Defilement(f.contenu)
@@ -72,6 +104,7 @@ local function Construire(vue, rang)
             return
         end
         self:SousTitre(self.entity.name or self.entity.id)
+        if self.ActualiserCanal then self:ActualiserCanal() end
         self:Afficher(self.onglet or vue.onglets[1].id)
         self:Show()
     end

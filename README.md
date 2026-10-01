@@ -159,13 +159,16 @@ Par ordre de ce qui bloque le plus :
 - [ ] **Les portraits** : deux livrés (Moon, ReikaShira) plus la silhouette de
       repli. En ajouter : déposer l'image dans `Portraits\`, lancer l'outil,
       publier.
-- [ ] **Les icônes de ligne** (Force, Vitalité…) et la **barre de recherche**
-      vues sur l'écran Necronicon : rôle et liste à décider.
+- [ ] **La barre de recherche** vue sur l'écran Necronicon : rôle à décider.
 
 ### Ce qui est posé mais pas validé en jeu
 
 - Les **effectifs des morphologies non humanoïdes** (quadrupède, ailé,
   aberration) sont des extensions de l'addon, absentes du template : à valider.
+- Les **icônes d'Aile et de Queue** et celle du **Vol** : le template est
+  humanoïde et ne compte que Terrestre et Nage, donc ces trois-là sont des
+  choix de l'addon. Tout le reste vient du template, relevé entrée par entrée
+  (`Data/Icones.lua`, `Core/Body.lua`).
 - L'équilibrage et les formules (PV, fatigue, initiative, PA, déplacement,
   apports des primaires aux expertises) suivent le **template Necronicon**
   (voir `CLAUDE.md`). Les écarts voulus sont commentés dans

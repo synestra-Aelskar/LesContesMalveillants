@@ -1285,6 +1285,12 @@ function UI.CatalogueIcones()
         vues[chemin:lower()] = true
         out[#out + 1] = chemin
     end
+    -- Celles de la campagne, livrees avec l'addon, et celles des champs de
+    -- fiche relevees dans le template : la liste finale est triee par nom, la
+    -- recherche fait le reste.
+    for _, chemin in ipairs(LCM.IconesCampagne()) do poser(chemin) end
+    for _, chemin in pairs(LCM.ICONES_CHAMPS) do poser(chemin) end
+    for _, categorie in ipairs(LCM.Body.CATEGORIES) do poser(categorie.icone) end
     for _, nom in ipairs({ "Objets", "Traits", "Races", "Etats", "Apprentissages", "Sacs",
                            "Devises", "Ressources", "Connaissances", "PNJ", "Grimoires" }) do
         local registre = LCM[nom]
