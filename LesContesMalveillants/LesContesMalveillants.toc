@@ -52,6 +52,7 @@ Data\Genere\Objets.lua
 Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
 Data\Genere\Compendium_PNJ.lua
+Data\Genere\Necronicon_Grimoires.lua
 
 # Interface
 UI\Kit.lua

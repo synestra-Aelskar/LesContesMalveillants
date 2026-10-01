@@ -335,6 +335,33 @@ LCM.PNJ = LCM.Registre({
     end,
 })
 
+-- « Grimoires » : des onglets de sorts (icone, description, deux champs
+-- libres, un jet). Repris de Necronicon en attendant la fenetre Grimoires ;
+-- le grimoire n'est pas une categorie du compendium du template.
+LCM.Grimoires = LCM.Registre({
+    nom = "grimoire", prefixe = "Grimoires",
+    construire = function(definition, element, Erreur)
+        if definition.onglets ~= nil and type(definition.onglets) ~= "table" then
+            Erreur(element.id .. " : onglets illisibles")
+        end
+        element.onglets = {}
+        for index, onglet in ipairs(definition.onglets or {}) do
+            if type(onglet) ~= "table" then Erreur(element.id .. " : onglet " .. index .. " illisible") end
+            local sorts = {}
+            for n, sort in ipairs(onglet.sorts or {}) do
+                if type(sort) ~= "table" or Texte(sort.label) == "" then
+                    Erreur(string.format("%s : sort %d de l'onglet %d sans nom", element.id, n, index))
+                end
+                local copie = Copie(sort)
+                copie.icone = LCM.Icone(sort.icone)
+                sorts[#sorts + 1] = copie
+            end
+            element.onglets[#element.onglets + 1] = { nom = Texte(onglet.nom) ~= "" and Texte(onglet.nom) or "Grimoire",
+                                                     sorts = sorts }
+        end
+    end,
+})
+
 -- Les references (types, metiers, champs de PNJ) visent des choses declarees
 -- plus loin dans le .toc : on les verifie a la connexion, sans rien refuser —
 -- une reference perdue s'affiche marquee dans le compendium.

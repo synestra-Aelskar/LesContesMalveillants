@@ -3,7 +3,7 @@
 -- ============================================================================
 --  Ecrit par Outils/importer_necronicon.py a partir du compendium Necronicon
 --  « Systeme d'Aelskar »
---  (Necronicon_System_Les_contes_Malveillants_MJ/data.lua).
+--  (sauvegarde AKRX/Necronicon_System_Les_contes_Malveillants_MJ.lua).
 --  Toute retouche manuelle sera perdue au prochain import.
 --
 --  Pour changer une entree : la corriger en jeu (Compendium, mode MJ), puis
@@ -284,6 +284,22 @@ LCM.Objets.Add({
         resi_ombre = 1,
         resi_perforant = 1,
         resi_tranchant = 1,
+    },
+})
+LCM.Objets.Add({
+    id = "epee_rouillee",
+    label = "Épée rouillée",
+    categorie = "arme",
+    icone = "Interface\\ICONS\\inv_sword_110",
+    tags = "Commun",
+    couleurTitre = "FF8CB8",
+    bonus = {
+        acrobaties = -1,
+        equilibre = -1,
+        escalade = -1,
+        pen_contondant = 1,
+        pen_perforant = 3,
+        pen_tranchant = 2,
     },
 })
 
@@ -601,6 +617,56 @@ LCM.Apprentissages.Add({
     },
 })
 
+-- ===== Reprises de l'ancien compendium « Aelskar » =====
+LCM.Ressources.Add({
+    id = "lingo_de_bronze",
+    label = "Lingo de Bronze",
+    icone = "Interface\\ICONS\\inv_ingot_03",
+    type = "lingot",
+    metiers = { "forgeron", "mineur" },
+    etat = {
+        courant = 10,
+        max = 10,
+    },
+})
+LCM.Ressources.Add({
+    id = "cuivre",
+    label = "Cuivre",
+    icone = "Interface\\ICONS\\inv_ore_copper_01",
+    description = "Un minerai brun-cuivré aux reflets rougeâtres, souvent veiné de teintes plus sombres. Relativement commun, il est apprécié pour sa facilité de fonte et sert principalement à produire des alliages solides destinés aux outils, armes et pièces métalliques.",
+    type = "minerais",
+    metiers = { "mineur", "forgeron" },
+})
+LCM.Ressources.Add({
+    id = "argent",
+    label = "Argent",
+    icone = "Interface\\ICONS\\inv_ore_adamantite_nugget",
+    description = "Un minerai gris clair aux reflets métalliques très brillants, parfois parcouru de veines sombres. Plus rare que les métaux communs, il est recherché autant pour sa valeur que pour sa conductivité et ses usages en joaillerie, artisanat fin ou préparations ésotériques.",
+    type = "minerais",
+    metiers = { "mineur", "forgeron" },
+})
+LCM.Objets.Add({
+    id = "baton_magique_en_bois_eraenne",
+    label = "Bâton magique en bois éraenne",
+    categorie = "arme",
+    icone = "Interface\\ICONS\\inv_staff_02",
+    description = "Difficile de déterminer ce qu'il en est réellement de cet étrange bâton. Banal, austère, et dépourvue de toute fioriture, c'est un ouvrage à priori médiocre. \n\n\nMais les âmes martiales, les fins connaisseurs des arts étranger, pourraient remarquer que ce bâton semble avoir été façonné sur la base d'une ancien Boken. \n\nSon bois, imprégnée d'une légère aura solaire résiduelle, laisse entendre une seconde nature.. Ou une nature première scellée, liée à sa porteuse, qui ne semble guère vouloir se manifester. \n\nEnfin, ceux dont les sens sont affutés, pourraient déterminer que l'ouvrage, millénaire, suinte l'odeur du sang, du carnage, et de la guerre.",
+    etat = {
+        courant = 10,
+        max = 10,
+    },
+    bonus = {
+        cosmique = 1,
+        elementaire = 1,
+        esprit = 1,
+        fatigue = 2,
+        mystique = 1,
+        pen_contondant = 2,
+        pen_lumiere = 4,
+        pen_vie = 4,
+    },
+})
+
 -- ===== Connaissances =====
 LCM.Connaissances.Add({
     id = "fabrication_de_lingot_de_bronze",
@@ -612,11 +678,11 @@ LCM.Connaissances.Add({
     composants = {
         {
             quantite = 1,
-            ref = "necronicon/compendium_window_custom_2__239",
+            ref = "ressources/cuivre",
         },
         {
             quantite = 1,
-            ref = "necronicon/compendium_window_custom_2__240",
+            ref = "ressources/argent",
         },
         {
             quantite = 1,
@@ -626,6 +692,6 @@ LCM.Connaissances.Add({
     fabrication = true,
     niveau = "1",
     niveauRequis = "Rose",
-    resultat = "necronicon/compendium_window_custom_2__242",
+    resultat = "ressources/lingo_de_bronze",
     xp = 1,
 })

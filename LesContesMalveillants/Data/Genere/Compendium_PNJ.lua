@@ -3,7 +3,7 @@
 -- ============================================================================
 --  Ecrit par Outils/importer_necronicon.py a partir du compendium Necronicon
 --  « Systeme d'Aelskar »
---  (Necronicon_System_Les_contes_Malveillants_MJ/data.lua).
+--  (sauvegarde AKRX/Necronicon_System_Les_contes_Malveillants_MJ.lua).
 --  Toute retouche manuelle sera perdue au prochain import.
 --
 --  Pour changer une entree : la corriger en jeu (Compendium, mode MJ), puis
@@ -67,5 +67,14 @@ LCM.PNJ.Add({
         sec_resistance = 4,
         sec_vitalite = 4,
         vol_a_la_tire = 3,
+    },
+})
+LCM.PNJ.Add({
+    id = "assassin",
+    label = "Assassin",
+    icone = "Interface\\ICONS\\eps_lol_profileicon_shadowassassin",
+    valeurs = {
+        niveau = 5,
+        race = "aelskardien",
     },
 })

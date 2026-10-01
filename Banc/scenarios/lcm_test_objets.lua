@@ -134,8 +134,11 @@ local choix = LCM.UI.Fiche.choixConteneur
 local proposes = {}
 for _, b in ipairs(choix.lignes) do if b:IsShown() then proposes[#proposes + 1] = b.choix end end
 table.sort(proposes)
--- Les armes du compendium importe sont proposees aussi (la dague du culte).
-attendu("seulement les armes", table.concat(proposes, ","), "dague_d_assassin_du_culte,hache,lame_de_givre")
+-- Toutes les armes du registre (compendium importe compris), et elles seules.
+local toutesLesArmes = {}
+for _, o in ipairs(LCM.Objets.list) do if o.categorie == "arme" then toutesLesArmes[#toutesLesArmes + 1] = o.id end end
+table.sort(toutesLesArmes)
+attendu("seulement les armes", table.concat(proposes, ","), table.concat(toutesLesArmes, ","))
 for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "hache" then b:Click() end end
 attendu("hache equipee", O.EstEquipe(moi, "hache"), true)
 attendu("affichage suit", armes.occupation:GetText(), "1 / 1")

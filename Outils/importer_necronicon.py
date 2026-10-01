@@ -7,11 +7,17 @@ des registres de l'addon, et ecrit trois fichiers generes :
     LesContesMalveillants/Data/Genere/Compendium_Contenu.lua
     LesContesMalveillants/Data/Genere/Compendium_Resolutions.lua
     LesContesMalveillants/Data/Genere/Compendium_PNJ.lua
+    LesContesMalveillants/Data/Genere/Necronicon_Grimoires.lua
 
 Ce sont des fichiers distincts de ceux de l'export des brouillons
 (Traits.lua, Races.lua, Objets.lua) : l'un ne reecrit jamais l'autre.
 
-    python3 Outils/importer_necronicon.py [chemin/vers/data.lua]
+    python3 Outils/importer_necronicon.py [--pack data.lua] [--sauvegardes DOSSIER]
+
+Avec --sauvegardes (le dossier SavedVariables d'un compte WoW, lu sans y
+toucher), le compendium vient de la sauvegarde du plugin, plus recente que le
+pack, et l'outil y reprend aussi les PNJ vivants, les grimoires, et les
+entrees d'un ancien compendium qui ne survivent que par leurs copies.
 
 L'outil ne devine rien : une statistique qu'il ne sait pas placer, une
 reference qu'il ne sait pas resoudre, un doublon, tout est annonce a la fin.
@@ -28,6 +34,7 @@ ICI = os.path.dirname(os.path.abspath(__file__))
 DEPOT = os.path.dirname(ICI)
 GENERE = os.path.join(DEPOT, 'LesContesMalveillants', 'Data', 'Genere')
 DEFAUT = '/mnt/e/Games/Epsilon/_retail_/Interface/AddOns/Necronicon_System_Les_contes_Malveillants_MJ/data.lua'
+SAUVEGARDES = '/mnt/e/Games/Epsilon/_retail_/WTF/Account/AKRX/SavedVariables'
 
 RAPPORT = []
 
@@ -85,6 +92,22 @@ def lire_pack(chemin, cle):
             charge = deserialiser(brut)
             return charge['body'] if isinstance(charge, dict) and 'body' in charge else charge
     raise SystemExit('bloc « %s » introuvable dans %s' % (cle, chemin))
+
+
+def lire_sauvegarde(chemin, variable):
+    """Une SavedVariables de WoW, chargee dans un Lua a part et rendue en
+    dictionnaires Python. Lecture seule : le fichier n'est jamais reecrit."""
+    from lupa.lua51 import LuaRuntime
+    lua = LuaRuntime(unpack_returned_tuples=True)
+    lua.execute(open(chemin, encoding='utf-8', errors='replace').read())
+
+    def conv(o):
+        if hasattr(o, 'items') and not isinstance(o, (str, bytes)):
+            return {(str(int(k)) if isinstance(k, float) and k.is_integer() else str(k)): conv(v) for k, v in o.items()}
+        if isinstance(o, float) and o.is_integer():
+            return int(o)
+        return o
+    return conv(lua.globals()[variable])
 
 
 def liste(d):
@@ -359,7 +382,10 @@ def doublon(vus, e, tab_nom):
     """Une entree strictement identique a une entree deja vue (meme nom, memes
     valeurs) : le template contient des copies. On n'importe qu'un exemplaire,
     et on le dit. Renvoie l'identifiant Necronicon de l'original, ou None."""
-    signature = json.dumps({'n': e.get('name'), 'v': e.get('values')}, sort_keys=True, ensure_ascii=False)
+    # L'identifiant technique (uid) change d'une copie a l'autre : il ne
+    # compte pas.
+    valeurs = {k: v for k, v in (e.get('values') or {}).items() if k != 'uid'}
+    signature = json.dumps({'n': e.get('name'), 'v': valeurs}, sort_keys=True, ensure_ascii=False)
     if signature in vus:
         signaler('%s : « %s » (#%s) est une copie exacte de #%s, non importee'
                  % (tab_nom, e.get('name'), e.get('id'), vus[signature]))
@@ -368,11 +394,28 @@ def doublon(vus, e, tab_nom):
     return None
 
 
-def convertir(etat):
+SECONDAIRES = {'vitalite': 'sec_vitalite', 'fatigue': 'sec_fatigue', 'initiative': 'sec_initiative',
+               'pointsdaction': 'sec_pa', 'deplacement': 'sec_deplacement',
+               'penetration': 'sec_penetration', 'resistance': 'sec_resistance',
+               'expertises': 'sec_expertises', 'mecaniquedecompetence': 'sec_mecanique'}
+
+
+def tableau(o):
+    """Les tables a cles 1, 2, 3... deviennent des listes, recursivement."""
+    if isinstance(o, dict):
+        if o and all(str(k).isdigit() for k in o):
+            return [tableau(x) for x in liste(o)]
+        return {k: tableau(x) for k, x in o.items()}
+    if isinstance(o, list):
+        return [tableau(x) for x in o]
+    return o
+
+
+def convertir(etat, extra=None):
+    extra = extra or {}
     tabs = {t['name']: t for t in liste(etat.get('tabs'))}
-    par_code = {t['categoryCode']: t for t in liste(etat.get('tabs'))}
     ids = Ids()
-    contenu, resolutions, pnj = [], [], []
+    contenu, resolutions, pnj, grimoires = [], [], [], []
 
     # Les identifiants Necronicon (« 207 ») des entrees de liste et de metier,
     # traduits une fois pour toutes.
@@ -447,55 +490,72 @@ def convertir(etat):
         ('Maladies', 'LCM.Etats', 'etats', 'maladie'),
         ('Apprentissage', 'LCM.Apprentissages', 'apprentissages', None),
     ]
+    PAR_ONGLET = {g[0]: g for g in GENERIQUES}
     # Le template range une tenue et une capuche dans « Armes » ; la fiche du
     # PNJ qui les porte les place dans « Armures et vetements ». C'est la fiche
     # qui a raison : un objet d'armure doit pouvoir s'equiper comme tel.
     RECLASSES = {"Tenue d'assassin du culte": 'equipement', "Capuche d'assassin du culte": 'equipement'}
+
+    def generique(e, nom_tab, nom):
+        _, registre, famille, categorie = PAR_ONGLET[nom_tab]
+        tab = tabs[nom_tab]
+        v = e.get('values') or {}
+        d = {'id': ids.donner(famille, e['name']), 'label': e['name']}
+        if categorie:
+            d['categorie'] = RECLASSES.get(e['name'], categorie)
+            if e['name'] in RECLASSES:
+                signaler('%s : rangee en armure (le template la met dans Armes, la fiche du PNJ l\'equipe en armure)' % nom)
+        d.update(identite(e, v))
+        t = type_liste(v.get('test02'), nom)
+        if t:
+            d['type'] = t
+        m = metiers(v.get('metier'), nom)
+        if m:
+            d['metiers'] = m
+        j = etat_jauge(v.get('etat'))
+        if j:
+            d['etat'] = j
+        b = effets(tab, v, nom)
+        if b:
+            d['bonus'] = b
+        if registre == 'LCM.Races':
+            d['morphology'] = 'humanoide'
+        if registre == 'LCM.Traits':
+            # Le template n'a pas de cout : le chiffre est dans les tags.
+            cout = nombre(d.get('tags'))
+            if cout and 1 <= cout <= 4:
+                d['cout'] = int(cout)
+                del d['tags']
+            else:
+                signaler('%s : aucun cout dans les tags, cout par defaut du registre (1)' % nom)
+        if e['name'] == 'Nouvelle entree':
+            signaler('%s : entree « Nouvelle entree » importee telle quelle (brouillon du template ?)' % nom)
+        contenu.append(bloc(registre, d))
+        return famille, d['id']
+
     ref_entree = {}
     for nom_tab, registre, famille, categorie in GENERIQUES:
-        tab = tabs[nom_tab]
         contenu.append('\n-- ===== %s =====\n' % nom_tab)
         vus = {}
-        for e in liste(tab.get('entries')):
+        for e in liste(tabs[nom_tab].get('entries')):
             original = doublon(vus, e, nom_tab)
             if original is not None:
                 # Ce qui designait la copie designe l'original.
                 ref_entree[str(e['id'])] = ref_entree.get(str(original))
                 continue
-            v = e.get('values') or {}
-            nom = '%s « %s »' % (nom_tab, e['name'])
-            d = {'id': ids.donner(famille, e['name']), 'label': e['name']}
-            ref_entree[str(e['id'])] = (famille, d['id'])
-            if categorie:
-                d['categorie'] = RECLASSES.get(e['name'], categorie)
-                if e['name'] in RECLASSES:
-                    signaler('%s : rangee en armure (le template la met dans Armes, la fiche du PNJ l\'equipe en armure)' % nom)
-            d.update(identite(e, v))
-            t = type_liste(v.get('test02'), nom)
-            if t:
-                d['type'] = t
-            m = metiers(v.get('metier'), nom)
-            if m:
-                d['metiers'] = m
-            j = etat_jauge(v.get('etat'))
-            if j:
-                d['etat'] = j
-            b = effets(tab, v, nom)
-            if b:
-                d['bonus'] = b
-            if registre == 'LCM.Races':
-                d['morphology'] = 'humanoide'
-            if registre == 'LCM.Traits':
-                # Le template n'a pas de cout : le chiffre est dans les tags.
-                cout = nombre(d.get('tags'))
-                if cout and 1 <= cout <= 4:
-                    d['cout'] = int(cout)
-                    del d['tags']
-                else:
-                    signaler('%s : aucun cout dans les tags, cout par defaut du registre (1)' % nom)
-            if e['name'] == 'Nouvelle entree':
-                signaler('%s : entree « Nouvelle entree » importee telle quelle (brouillon du template ?)' % nom)
-            contenu.append(bloc(registre, d))
+            ref_entree[str(e['id'])] = generique(e, nom_tab, '%s « %s »' % (nom_tab, e['name']))
+
+    # ----- Entrees d'un ancien compendium, sauvees par leurs copies ----------
+    # Le compendium « Aelskar » (window_custom_2) n'existe plus ; certaines de
+    # ses entrees survivent en copie (connaissance apprise, inventaire). On les
+    # reprend telles quelles, et ce qui les designait les retrouve.
+    ref_ancien = {}
+    if extra.get('orphelins'):
+        contenu.append('\n-- ===== Reprises de l\'ancien compendium « Aelskar » =====\n')
+    for o in extra.get('orphelins', []):
+        nom = '%s « %s »' % (o['onglet'], o['entree']['name'])
+        signaler('%s : reprise de l\'ancien compendium, depuis sa copie (%s)' % (nom, o['ou']))
+        ref_ancien[o['id']] = generique(o['entree'], o['onglet'], nom)
 
     # ----- Connaissances -----------------------------------------------------
     contenu.append('\n-- ===== Connaissances =====\n')
@@ -518,7 +578,11 @@ def convertir(etat):
             if m2 and m2.group(1) == 'compendium_window_custom_29' and m2.group(2) in ref_entree:
                 famille, eid = ref_entree[m2.group(2)]
                 return famille + '/' + eid
-            signaler('%s : reference « %s » vers un compendium absent du pack, gardee telle quelle' % (nom, brute))
+            if m2 and m2.group(1) == 'compendium_window_custom_2' and m2.group(2) in ref_ancien:
+                famille, eid = ref_ancien[m2.group(2)]
+                return famille + '/' + eid
+            signaler('%s : reference « %s » introuvable (ni dans le compendium, ni en copie), gardee telle quelle'
+                     % (nom, brute))
             return 'necronicon/' + brute
 
         composants = []
@@ -558,16 +622,6 @@ def convertir(etat):
         contenu.append(bloc('LCM.Connaissances', d))
 
     # ----- Resolutions d'action et calculateurs ------------------------------
-    def tableau(o):
-        """Les tables a cles 1, 2, 3... deviennent des listes, recursivement."""
-        if isinstance(o, dict):
-            if o and all(str(k).isdigit() for k in o):
-                return [tableau(x) for x in liste(o)]
-            return {k: tableau(x) for k, x in o.items()}
-        if isinstance(o, list):
-            return [tableau(x) for x in o]
-        return o
-
     for nom_tab, categorie in (('Systeme-Résolution-Action', 'systeme'), ('Actions-MJ', 'mj')):
         resolutions.append('\n-- ===== %s =====\n' % nom_tab)
         vus = {}
@@ -603,41 +657,30 @@ def convertir(etat):
         resolutions.append(bloc('LCM.Calculateurs', d))
 
     # ----- PNJ ---------------------------------------------------------------
-    # Une entree PNJ du template renvoie a dix fiches (une par fenetre). On les
-    # fond en un seul modele : ce que les fiches REPARTISSENT (niveau, race,
-    # points) et ce qu'elles PORTENT (traits, equipement). Les formules, elles,
-    # sont celles de l'addon.
-    SECONDAIRES = {'vitalite': 'sec_vitalite', 'fatigue': 'sec_fatigue', 'initiative': 'sec_initiative',
-                   'pointsdaction': 'sec_pa', 'deplacement': 'sec_deplacement',
-                   'penetration': 'sec_penetration', 'resistance': 'sec_resistance',
-                   'expertises': 'sec_expertises', 'mecaniquedecompetence': 'sec_mecanique'}
-    fiches = liste(tabs['Fiches PNJ'].get('entries'))
-    par_nom = {}
+    # Un PNJ Necronicon a une fiche par fenetre (Creation, Equipements...). On
+    # les fond en un seul modele : ce que les fiches REPARTISSENT (niveau,
+    # race, points) et ce qu'elles PORTENT (traits, equipement). Les formules,
+    # elles, sont celles de l'addon.
+    races_par_nom = {}
     for e in liste(tabs['Races'].get('entries')):
-        par_nom.setdefault(e['name'], e)
-    for e in liste(tabs['PNJ'].get('entries')):
-        v = e.get('values') or {}
-        nom = 'PNJ « %s »' % e['name']
-        d = {'id': ids.donner('pnj', e['name']), 'label': e['name']}
-        d.update(identite(e, v))
+        races_par_nom.setdefault(e['name'], e)
+
+    def fondre(nom, fiches):
         valeurs, traits, equipement = {}, [], {}
-        prefixe = e['name'] + ' - '
-        for f in fiches:
-            if not str(f['name']).startswith(prefixe):
-                continue
-            fenetre = f['name'][len(prefixe):]
-            st = (f.get('values') or {}).get('ficheSnapshot') or {}
-            st = st.get('state', st)
+        for fenetre, st in fiches:
+            st = st.get('state', st) if isinstance(st, dict) else {}
             for onglet in liste(st.get('tabs')):
                 for en in liste(onglet.get('entries')):
                     if en.get('type') == 'field' and str(en.get('name', '')).startswith('Niveau du personnage'):
                         n = nombre(en.get('value'))
                         if n:
                             valeurs['niveau'] = n
-                    for pool in liste(en.get('allocPools')) + ([{'lines': (en.get('_allocInfoCache') or {}).get('info', {}).get('pools')}] if en.get('_allocInfoCache') else []):
+                    pools = liste(en.get('allocPools'))
+                    cache = (en.get('_allocInfoCache') or {}).get('info', {}).get('pools')
+                    if cache:
+                        pools = pools + [{'lines': {k: l for p in liste(cache) for k, l in (p.get('lines') or {}).items()}}]
+                    for pool in pools:
                         lignes = pool.get('lines') if isinstance(pool, dict) else None
-                        if isinstance(lignes, dict) and lignes and all(isinstance(x, dict) and 'lines' in x for x in lignes.values()):
-                            lignes = {k: l for p in liste(lignes) for k, l in (p.get('lines') or {}).items()}
                         for l in liste(lignes) if isinstance(lignes, dict) else []:
                             tag = identifiant(l.get('tag'))
                             n = nombre(l.get('value'))
@@ -658,11 +701,10 @@ def convertir(etat):
                         source = (objet.get('source') or {})
                         if not objet or n_objet in (None, 'Emplacement'):
                             continue
-                        eid = str(source.get('entryId') or '')
-                        cible = ref_entree.get(eid)
+                        cible = ref_entree.get(str(source.get('entryId') or ''))
                         conteneur = en.get('name')
                         if conteneur == 'RACE':
-                            race = par_nom.get(n_objet)
+                            race = races_par_nom.get(n_objet)
                             cible = race and ref_entree.get(str(race['id']))
                             if cible:
                                 valeurs['race'] = cible[1]
@@ -675,11 +717,20 @@ def convertir(etat):
                                          % (nom, fenetre, n_objet, conteneur))
                             continue
                         famille, ident = cible
-                        if famille == 'traits':
+                        if famille == 'traits' and ident not in traits:
                             traits.append(ident)
                         elif famille == 'objets':
                             cat = {'Armes principales': 'arme', 'Accessoires': 'accessoire'}.get(conteneur, 'equipement')
-                            equipement.setdefault(cat, []).append(ident)
+                            if ident not in equipement.get(cat, []):
+                                equipement.setdefault(cat, []).append(ident)
+        return valeurs, traits, equipement
+
+    def ecrire_pnj(label, icone, valeurs, traits, equipement, e=None):
+        d = {'id': ids.donner('pnj', label), 'label': label}
+        if e is not None:
+            d.update(identite(e, e.get('values') or {}))
+        elif icone:
+            d['icone'] = icone
         if valeurs:
             d['valeurs'] = valeurs
         if traits:
@@ -687,7 +738,73 @@ def convertir(etat):
         if equipement:
             d['equipement'] = equipement
         pnj.append(bloc('LCM.PNJ', d))
-    return contenu, resolutions, pnj
+
+    fiches = liste(tabs['Fiches PNJ'].get('entries'))
+    modeles = {}
+    for e in liste(tabs['PNJ'].get('entries')):
+        nom = 'PNJ « %s »' % e['name']
+        prefixe = e['name'] + ' - '
+        liees = [(f['name'][len(prefixe):], (f.get('values') or {}).get('ficheSnapshot') or {})
+                 for f in fiches if str(f['name']).startswith(prefixe)]
+        fondu = fondre(nom, liees)
+        modeles[e['name']] = fondu
+        ecrire_pnj(e['name'], None, *fondu, e=e)
+
+    # Les PNJ vivants (instances de profil) : un PNJ identique a son modele du
+    # compendium n'est pas recopie ; un autre l'est, sous son nom.
+    for inst in extra.get('pnj', []):
+        nom = 'PNJ vivant « %s »' % inst['nom']
+        fondu = fondre(nom, inst['fiches'])
+        if modeles.get(inst['nom']) == fondu:
+            signaler('%s : identique au modele du compendium, non recopie' % nom)
+            continue
+        label = inst['nom'] if inst['nom'] not in modeles else inst['nom'] + ' (instance)'
+        signaler('%s : repris depuis ses fenetres (%d fiches)' % (nom, len(inst['fiches'])))
+        modeles[label] = fondu
+        ecrire_pnj(label, inst.get('icone'), *fondu)
+
+    # ----- Grimoires ---------------------------------------------------------
+    # Repris en brut, en attendant la fenetre Grimoires : nom, description,
+    # onglets et sorts (icone, description, champs, jet). Les liens vers des
+    # agregateurs ou des macros Necronicon ne sont pas repris (ils visent des
+    # fenetres qui n'existent pas ici) : c'est signale.
+    vus = {}
+    for g in extra.get('grimoires', []):
+        signature = json.dumps(g['onglets'], sort_keys=True, ensure_ascii=False)
+        if signature in vus:
+            signaler('Grimoire « %s » : copie exacte de « %s », non importe' % (g['nom'], vus[signature]))
+            continue
+        vus[signature] = g['nom']
+        d = {'id': ids.donner('grimoires', g['nom']), 'label': g['nom']}
+        if g.get('description'):
+            d['description'] = g['description']
+        d['onglets'] = []
+        for t in g['onglets']:
+            sorts = []
+            for sp in liste(t.get('spells')):
+                nom_sort = str(sp.get('name') or 'Sort').strip()
+                so = {'id': identifiant(nom_sort) or 'sort', 'label': nom_sort}
+                icone = str(sp.get('icon') or '').strip()
+                if icone and icone.lower() != 'interface\\icons\\inv_misc_questionmark':
+                    so['icone'] = icone
+                desc = str(sp.get('descriptionRaw') or sp.get('description') or '').strip()
+                if desc:
+                    so['description'] = desc
+                for cle, cible in (('fieldOne', 'champ1'), ('fieldTwo', 'champ2'), ('shortcutMacroName', 'raccourci')):
+                    if str(sp.get(cle) or '').strip():
+                        so[cible] = str(sp[cle]).strip()
+                if sp.get('actionRollEnabled') is True:
+                    so['jet'] = {k2: sp[k1] for k1, k2 in (('actionRollMin', 'min'), ('actionRollMax', 'max'),
+                                 ('actionRollIcon', 'icone'), ('actionRollFormula', 'formule'),
+                                 ('actionRollBonus', 'bonus'), ('actionRollStatRef', 'stat'))
+                                 if str(sp.get(k1) or '').strip()}
+                if str(sp.get('actionExecAggregatorEntryId') or sp.get('actionRollAggregatorEntryId') or '').strip():
+                    signaler('Grimoire « %s », sort « %s » : lien vers un agregateur Necronicon non repris'
+                             % (g['nom'], nom_sort))
+                sorts.append(so)
+            d['onglets'].append({'nom': t.get('name') or 'Grimoire', 'sorts': sorts})
+        grimoires.append(bloc('LCM.Grimoires', d))
+    return contenu, resolutions, pnj, grimoires
 
 
 def ecrire(nom, morceaux, source):
@@ -699,15 +816,92 @@ def ecrire(nom, morceaux, source):
     return chemin
 
 
+def extra_depuis(necro):
+    """Ce que la sauvegarde de Necronicon apporte en plus du compendium."""
+    extra = {'orphelins': [], 'pnj': [], 'grimoires': []}
+    profil = (necro.get('profiles') or {}).get('Template Fiche LVL 5 - Contes Malveillants V2') or {}
+
+    # Entrees de l'ancien compendium, sauvees par leurs copies.
+    vus = set()
+
+    def orphelin(onglet, eid, entree, ou):
+        if eid in vus:
+            return
+        vus.add(eid)
+        extra['orphelins'].append({'onglet': onglet, 'id': eid, 'entree': entree, 'ou': ou})
+
+    def parcourir(o):
+        if isinstance(o, dict):
+            sn = o.get('snapshot') if isinstance(o.get('snapshot'), dict) else None
+            for cand in [sn, o.get('outputSnapshot') if isinstance(o.get('outputSnapshot'), dict) else None]:
+                if cand and isinstance(cand.get('entry'), dict):
+                    src = cand.get('source') or {}
+                    cat = (cand.get('category') or {}).get('name')
+                    if src.get('windowId') == 'window_custom_2' and cat == 'Ressources':
+                        e = dict(cand['entry'])
+                        orphelin('Ressources', str(e.get('id')), e, 'connaissance apprise')
+            for v in o.values():
+                parcourir(v)
+    parcourir(((profil.get('windowStates') or {}).get('profession_sheet') or {}))
+    for wid, w in (profil.get('inventoryWindows') or {}).items():
+        for c in liste(w.get('categories')):
+            for p in liste(c.get('placements')):
+                e = p.get('entry') or {}
+                src = e.get('source') or {}
+                if src.get('compendiumId') == 'compendium:window_custom_2' and e.get('categoryType') == 'generic':
+                    orphelin('Armes', str(src.get('entryId')), e, 'inventaire « %s »' % c.get('name'))
+
+    # PNJ vivants : leurs fenetres de fiche.
+    etats = (necro.get('sharedWindowStates') or {}).get('fiche') or {}
+    fenetres = necro.get('sharedNpcWindows') or {}
+    for pid, inst in sorted((necro.get('npcProfileInstances') or {}).items()):
+        fiches = []
+        for _, wid in sorted((inst.get('windowMap') or {}).items()):
+            if wid in etats:
+                nom_fenetre = str((fenetres.get(wid) or {}).get('name') or wid)
+                fiches.append((nom_fenetre.split(' - ')[-1], etats[wid]))
+        extra['pnj'].append({'nom': inst.get('name') or pid, 'icone': inst.get('icon'), 'fiches': fiches})
+
+    # Grimoires : ceux du profil, puis ceux des PNJ.
+    noms = {k: w.get('name') for k, w in (profil.get('menuWindows') or {}).items()}
+    noms.update({k: w.get('name') for k, w in fenetres.items()})
+    sources = list(((profil.get('windowStates') or {}).get('grimoire') or {}).items())
+    sources += list(((necro.get('sharedWindowStates') or {}).get('grimoire') or {}).items())
+    for wid, g in sources:
+        nom = noms.get(wid)
+        if not nom:
+            nom = 'Grimoire sans fenetre (%s)' % wid
+            signaler('%s : sa fenetre n\'existe plus dans le profil, nom deduit de son identifiant' % nom)
+        extra['grimoires'].append({'nom': nom, 'description': str(g.get('description') or '').strip(),
+                                   'onglets': liste(g.get('tabs'))})
+    return extra
+
+
 def main():
-    source = sys.argv[1] if len(sys.argv) > 1 else DEFAUT
-    etat = lire_pack(source, 'aelskar')
+    args = sys.argv[1:]
+
+    def option(nom, defaut):
+        return args[args.index(nom) + 1] if nom in args else defaut
+    pack = option('--pack', DEFAUT)
+    dossier = option('--sauvegardes', SAUVEGARDES)
+    systeme = os.path.join(dossier, 'Necronicon_System_Les_contes_Malveillants_MJ.lua')
+    necro = os.path.join(dossier, 'necronicon.lua')
+    extra = {}
+    if os.path.isfile(systeme):
+        db = lire_sauvegarde(systeme, 'NecroniconSystemLescontesMalveillantsMJDB')
+        etat = db['compendiums']['aelskar']
+        nom_source = 'sauvegarde ' + os.path.basename(os.path.dirname(dossier)) + '/' + os.path.basename(systeme)
+    else:
+        etat = lire_pack(pack, 'aelskar')
+        nom_source = os.path.basename(os.path.dirname(pack)) + '/' + os.path.basename(pack)
     etat = etat.get('state', etat)
-    contenu, resolutions, pnj = convertir(etat)
-    nom_source = os.path.basename(os.path.dirname(source)) + '/' + os.path.basename(source)
+    if os.path.isfile(necro):
+        extra = extra_depuis(lire_sauvegarde(necro, 'NecroniconDB'))
+    contenu, resolutions, pnj, grimoires = convertir(etat, extra)
     for nom, morceaux in (('Compendium_Contenu.lua', contenu),
                           ('Compendium_Resolutions.lua', resolutions),
-                          ('Compendium_PNJ.lua', pnj)):
+                          ('Compendium_PNJ.lua', pnj),
+                          ('Necronicon_Grimoires.lua', grimoires)):
         print('ecrit : ' + os.path.relpath(ecrire(nom, morceaux, nom_source), DEPOT))
     if RAPPORT:
         print('\n%d remarque(s) :' % len(RAPPORT))

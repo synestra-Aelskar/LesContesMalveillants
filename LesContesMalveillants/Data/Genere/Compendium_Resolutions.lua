@@ -3,7 +3,7 @@
 -- ============================================================================
 --  Ecrit par Outils/importer_necronicon.py a partir du compendium Necronicon
 --  « Systeme d'Aelskar »
---  (Necronicon_System_Les_contes_Malveillants_MJ/data.lua).
+--  (sauvegarde AKRX/Necronicon_System_Les_contes_Malveillants_MJ.lua).
 --  Toute retouche manuelle sera perdue au prochain import.
 --
 --  Pour changer une entree : la corriger en jeu (Compendium, mode MJ), puis
@@ -664,7 +664,7 @@ LCM.Resolutions.Add({
                     type = "compose",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -699,7 +699,7 @@ LCM.Resolutions.Add({
                     type = "compute",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -826,7 +826,7 @@ LCM.Resolutions.Add({
                     type = "compose",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -861,7 +861,7 @@ LCM.Resolutions.Add({
                     type = "compute",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -988,7 +988,7 @@ LCM.Resolutions.Add({
                     type = "compose",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -1023,7 +1023,7 @@ LCM.Resolutions.Add({
                     type = "compute",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -1194,7 +1194,7 @@ LCM.Resolutions.Add({
                     type = "compose",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -1321,7 +1321,7 @@ LCM.Resolutions.Add({
                     type = "compose",
                 },
                 {
-                    aggregator = "pack_necronicon_aelskar__291",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__291",
                     aggregatorName = "Dégâts Attaque",
                     aggregatorUid = "cuid:105522461:4:950885329744",
                     amount = "",
@@ -1855,7 +1855,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -1899,7 +1899,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2070,7 +2070,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2114,7 +2114,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2309,7 +2309,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2353,7 +2353,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2524,7 +2524,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2568,7 +2568,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2801,7 +2801,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2845,7 +2845,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -2894,7 +2894,7 @@ LCM.Resolutions.Add({
                                                             onSuccess = {
                                                                 steps = {
                                                                     {
-                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                         aggregatorName = "Réduction Défense",
                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                         amount = "",
@@ -2983,7 +2983,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3027,7 +3027,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3076,7 +3076,7 @@ LCM.Resolutions.Add({
                                                             onSuccess = {
                                                                 steps = {
                                                                     {
-                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                         aggregatorName = "Réduction Défense",
                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                         amount = "",
@@ -3201,7 +3201,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3245,7 +3245,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3294,7 +3294,7 @@ LCM.Resolutions.Add({
                                                             onSuccess = {
                                                                 steps = {
                                                                     {
-                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                         aggregatorName = "Réduction Défense",
                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                         amount = "",
@@ -3383,7 +3383,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "if",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3427,7 +3427,7 @@ LCM.Resolutions.Add({
                                                                                 kind = "else",
                                                                                 steps = {
                                                                                     {
-                                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                                         aggregatorName = "Réduction Défense",
                                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                                         amount = "",
@@ -3476,7 +3476,7 @@ LCM.Resolutions.Add({
                                                             onSuccess = {
                                                                 steps = {
                                                                     {
-                                                                        aggregator = "pack_necronicon_aelskar__378",
+                                                                        aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                                                                         aggregatorName = "Réduction Défense",
                                                                         aggregatorUid = "cuid:257816326:4:330466108304",
                                                                         amount = "",
@@ -3565,7 +3565,7 @@ LCM.Resolutions.Add({
         {
             etapes = {
                 {
-                    aggregator = "pack_necronicon_aelskar__378",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                     aggregatorName = "Réduction Défense",
                     aggregatorUid = "cuid:257816326:4:330466108304",
                     amount = "",
@@ -3621,7 +3621,7 @@ LCM.Resolutions.Add({
         {
             etapes = {
                 {
-                    aggregator = "pack_necronicon_aelskar__378",
+                    aggregator = "pack_les_contes_malveillants_mj_aelskar__378",
                     aggregatorName = "Réduction Défense",
                     aggregatorUid = "cuid:257816326:4:330466108304",
                     amount = "",

@@ -36,10 +36,12 @@ attendu("resolutions (copies exactes ecartees)", N("resolutions"), 19)
 attendu("actions MJ", N("actions_mj"), 2)
 attendu("races : humain + 4 importees", N("races"), 5)
 attendu("traits : escalade + 8 importes", N("traits"), 9)
-attendu("armes", N("armes"), 1)
+-- La dague, l'epee rouillee (sauvegarde) et le baton (repris de l'ancien compendium).
+attendu("armes", N("armes"), 3)
 attendu("armures : tenue et capuche reclassees", N("armures"), 3)
 attendu("devises", N("devises"), 4)
-attendu("PNJ", N("pnj"), 1)
+-- L'Assassin du culte du compendium, et « Assassin », un PNJ vivant distinct.
+attendu("PNJ", N("pnj"), 2)
 local trait = LCM.Traits.Get("adepte_de_nocturna")
 attendu("cout lu dans les tags", trait.cout, 2)
 attendu("resistance a l'ombre (cle « ombre » du template)", trait.bonus.resi_ombre, 4)
@@ -72,7 +74,8 @@ attendu("metiers et niveau en meta", recette.meta, "Metier : Mineur, Forgeron  |
 local composants
 for _, s in ipairs(recette.corps) do if s.composants then composants = s.composants end end
 attendu("trois composants", composants and #composants, 3)
-attendu("composant d'un compendium absent", composants and composants[1].nom, "Composant introuvable")
+attendu("composant repris de sa copie", composants and composants[1].nom, "Cuivre")
+attendu("composant perdu (aucune copie)", composants and composants[3].nom, "Composant introuvable")
 local apnj = C.Carte(C.Get("pnj"), pnj)
 attendu("PNJ : race et niveau", apnj.meta, "Race : Aelskardien  |  Niveau : 12")
 attendu("PNJ : statistiques par section", apnj.stats[1].dossier, "Statistiques")
@@ -81,8 +84,9 @@ attendu("table xp : rien sur la carte (champ cache du template)", #xp.corps, 0)
 
 dire("== Sous-categories")
 local groupes = C.SousCategories(C.Get("ressources"))
-attendu("deux types de ressources", #groupes, 2)
-attendu("tri par libelle", groupes[1].label, "Liquide")
+local etiquettes = {}
+for _, g in ipairs(groupes) do etiquettes[#etiquettes + 1] = g.label end
+attendu("types de ressources, tries", table.concat(etiquettes, ","), "Lingot,Liquide,Minerais,poisson")
 attendu("sans sous-categorie", C.SousCategories(C.Get("devises")), nil)
 local sansType = C.SousCategories(C.Get("traits"))
 attendu("traits sans type : Sans valeur", sansType[1].label, "Sans valeur")
@@ -134,15 +138,17 @@ local bRessources
 for _, b in ipairs(f.boutonsCategories) do if b.categorieId == "ressources" then bRessources = b end end
 attendu("prefixe deplie", bRessources.label:GetText(), "- Ressources")
 attendu("deux sous-categories", f.boutonsSous[2] and f.boutonsSous[2]:IsShown(), true)
-f.boutonsSous[1]:Click()
+local sousLiquide
+for _, b in ipairs(f.boutonsSous) do if b:IsShown() and b.label:GetText():find("Liquide") then sousLiquide = b end end
+sousLiquide:Click()
 local lignes = 0
 for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
 attendu("filtre par sous-categorie", lignes, 1)
 attendu("c'est l'eau", f.rangees[1].element.id, "eau")
-f.boutonsSous[1]:Click()           -- reclic : on retire le filtre
+sousLiquide:Click()               -- reclic : on retire le filtre
 lignes = 0
 for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
-attendu("filtre retire", lignes, 2)
+attendu("filtre retire", lignes, #LCM.Compendium.Entrees(LCM.Compendium.Get("ressources")))
 
 -- Pagination : 31 metiers, 20 par page.
 f:ChoisirCategorie("liste_metiers")

@@ -205,10 +205,15 @@ et leurs champs sont dans `Data/Compendium.lua` ; le moteur
 et modifie les entrées en brouillon depuis la fenêtre (compagnon MJ,
 `Compendium.lua`).
 
-Le contenu du compendium Necronicon a été importé par
-`Outils/importer_necronicon.py`, qui écrit `Data/Genere/Compendium_*.lua` —
-des fichiers distincts de ceux de l'export des brouillons. Relancer l'outil
-réécrit ces trois fichiers, et seulement eux.
+Le contenu de Necronicon a été importé « en brut » par
+`Outils/importer_necronicon.py`, qui écrit `Data/Genere/Compendium_*.lua` et
+`Data/Genere/Necronicon_Grimoires.lua` — des fichiers distincts de ceux de
+l'export des brouillons. Il lit, sans jamais y écrire, les sauvegardes d'un
+compte (`--sauvegardes <SavedVariables>`, par défaut le compte AKRX) : le
+compendium tel que modifié en jeu, les PNJ vivants, les grimoires, et les
+entrées d'un ancien compendium qui ne survivaient qu'en copie. Sans
+sauvegarde, il retombe sur le pack (`--pack`). Relancer l'outil réécrit ces
+fichiers, et seulement eux ; un tri et une refonte du contenu sont prévus.
 
 ### Le contenu créé en séance
 
