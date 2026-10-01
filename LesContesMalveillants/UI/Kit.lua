@@ -461,12 +461,63 @@ function UI.Champ(parent, largeur, hauteur, onChange)
     else UI.Bordure(e, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.30 }) end
     e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    -- Tabulation : au champ suivant, Maj au precedent. Sans `suivant`, elle
+    -- rend simplement la main — jamais le curseur coince dans la case.
+    e:SetScript("OnTabPressed", function(self)
+        local cible = (IsShiftKeyDown and IsShiftKeyDown()) and self.precedent or self.suivant
+        self:ClearFocus()
+        if cible and cible:IsShown() then
+            cible:SetFocus()
+            if cible.HighlightText then cible:HighlightText() end
+        end
+    end)
     if onChange then
         e:SetScript("OnTextChanged", function(self, parLUtilisateur)
             if parLUtilisateur ~= false then onChange(self:GetText() or "") end
         end)
     end
     return e
+end
+
+-- Infobulle apres un temps d'arret. Elle ne doit pas sauter au visage des qu'on
+-- traverse un bouton : on la laisse venir, et elle part des qu'on s'en va.
+-- `texte` peut etre une fonction, pour une valeur qui bouge.
+function UI.Bulle(cadre, titre, texte, delai)
+    delai = delai or 1
+    cadre:HookScript("OnEnter", function(self)
+        self.__attente = 0
+        self:SetScript("OnUpdate", function(soi, ecoule)
+            soi.__attente = (soi.__attente or 0) + ecoule
+            if soi.__attente < delai then return end
+            soi:SetScript("OnUpdate", nil)
+            if not GameTooltip then return end
+            GameTooltip:SetOwner(soi, "ANCHOR_RIGHT")
+            GameTooltip:ClearLines()
+            GameTooltip:SetText(type(titre) == "function" and titre(soi) or titre,
+                UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+            local detail = type(texte) == "function" and texte(soi) or texte
+            if detail and detail ~= "" then GameTooltip:AddLine(detail, 0.78, 0.75, 0.68, true) end
+            GameTooltip:Show()
+            soi.__bulle = true
+        end)
+    end)
+    cadre:HookScript("OnLeave", function(self)
+        self:SetScript("OnUpdate", nil)
+        self.__attente = nil
+        if self.__bulle and GameTooltip then GameTooltip:Hide() end
+        self.__bulle = nil
+    end)
+    return cadre
+end
+
+-- Chaine des champs d'un formulaire : la tabulation passe de l'un a l'autre,
+-- Maj + tabulation revient. On donne la liste dans l'ordre de lecture.
+function UI.Enchainer(champs)
+    for index, champ in ipairs(champs) do
+        champ.suivant = champs[index + 1] or champs[1]
+        champ.precedent = champs[index - 1] or champs[#champs]
+    end
+    return champs
 end
 
 -- Ligne de repartition : « libelle .... [R][-] valeur / plafond [+][M] ».
@@ -1213,5 +1264,119 @@ function UI.Demande()
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
     d:Hide()
     UI.demande = d
+    return d
+end
+
+-- ===== Choisir une icone ===================================================
+-- Il y a des milliers d'icones dans le jeu, et une liste de milliers d'icones
+-- n'aide personne. Celles qu'on propose sont celles qui servent DEJA dans la
+-- campagne — le contenu du compendium, les portraits, le menu — plus ce que le
+-- jeu veut bien nous donner (GetMacroIcons). La saisie a la main reste : une
+-- icone qu'on connait se tape plus vite qu'elle ne se cherche.
+
+local catalogueIcones
+
+function UI.CatalogueIcones()
+    if catalogueIcones then return catalogueIcones end
+    local vues, out = {}, {}
+    local function poser(chemin)
+        chemin = tostring(chemin or "")
+        if chemin == "" or vues[chemin:lower()] then return end
+        vues[chemin:lower()] = true
+        out[#out + 1] = chemin
+    end
+    for _, nom in ipairs({ "Objets", "Traits", "Races", "Etats", "Apprentissages", "Sacs",
+                           "Devises", "Ressources", "Connaissances", "PNJ", "Grimoires" }) do
+        local registre = LCM[nom]
+        for _, element in ipairs((registre and registre.list) or {}) do poser(element.icone) end
+    end
+    for _, portrait in ipairs((LCM.Portraits and LCM.Portraits.list) or {}) do poser(portrait.texture) end
+    if GetNumMacroIcons and GetMacroIconInfo then
+        for index = 1, math.min(GetNumMacroIcons(), 600) do poser(GetMacroIconInfo(index)) end
+    end
+    table.sort(out, function(a, b) return a:lower() < b:lower() end)
+    catalogueIcones = out
+    return out
+end
+
+-- Un nom lisible pour une icone : la fin de son chemin.
+function UI.NomIcone(chemin)
+    return (tostring(chemin or ""):match("([^\\/]+)$")) or tostring(chemin or "")
+end
+
+function UI.SelecteurIcone(cle)
+    local d = CreateFrame("Frame", "LCM_Icones_" .. tostring(cle), UIParent)
+    d:SetSize(340, 300)
+    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    d:SetClampedToScreen(true)
+    d:EnableMouse(true)
+    d.fond = UI.Aplat(d, UI.C.fond)
+    d.fond:SetAllPoints(d)
+    if UI.AelCadre then d.cadre = UI.AelCadre(d, "section") else UI.Bordure(d) end
+
+    d.titre = UI.Texte(d, "Icône", UI.C.titre, "GameFontNormalSmall")
+    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -9)
+    d.fermer = UI.Bouton(d, "x", 18, 18, function() d:Hide() end)
+    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -6, -6)
+
+    d.recherche = UI.Champ(d, 300, 22, function(texte) d:Remplir(texte) end)
+    d.recherche:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -28)
+
+    d.zone = UI.Defilement(d)
+    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -56)
+    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -10, 10)
+    d.cases = {}
+
+    local TAILLE, PAR_RANGEE = 30, 9
+
+    function d:Remplir(filtre)
+        filtre = tostring(filtre or ""):lower()
+        local nombre = 0
+        for _, chemin in ipairs(UI.CatalogueIcones()) do
+            if filtre == "" or chemin:lower():find(filtre, 1, true) then
+                nombre = nombre + 1
+                local b = self.cases[nombre]
+                if not b then
+                    b = CreateFrame("Button", nil, self.zone.contenu)
+                    b:SetSize(TAILLE - 2, TAILLE - 2)
+                    b.icone = b:CreateTexture(nil, "ARTWORK")
+                    b.icone:SetAllPoints(b)
+                    b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                    b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
+                    b.survol:SetAllPoints(b)
+                    b:SetScript("OnClick", function(soi)
+                        self:Hide()
+                        if self.onChoix then self.onChoix(soi.chemin) end
+                    end)
+                    UI.Bulle(b, function(soi) return UI.NomIcone(soi.chemin) end, nil, 0.4)
+                    self.cases[nombre] = b
+                end
+                b.chemin = chemin
+                b.icone:SetTexture(chemin)
+                local rangee = math.floor((nombre - 1) / PAR_RANGEE)
+                local colonne = (nombre - 1) % PAR_RANGEE
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", colonne * TAILLE, -rangee * TAILLE)
+                b:Show()
+            end
+            if nombre >= 400 then break end
+        end
+        for index = nombre + 1, #self.cases do self.cases[index]:Hide() end
+        self.zone.decalage = 0
+        self.zone:Regler(math.ceil(nombre / PAR_RANGEE) * TAILLE)
+        self.nombreAffiche = nombre
+    end
+
+    function d:Proposer(ancre, onChoix)
+        self.onChoix = onChoix
+        self.recherche:SetText("")
+        self:Remplir("")
+        self:ClearAllPoints()
+        self:SetPoint("TOPLEFT", ancre, "BOTTOMLEFT", 0, -4)
+        UI.Devant(self)
+        self:Show()
+    end
+
+    d:Hide()
     return d
 end

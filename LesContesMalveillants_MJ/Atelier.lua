@@ -380,11 +380,28 @@ local function PanneauEffets(f, genre)
         end)
         p.icone:SetMaxLetters(120)
         p.icone:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -86)
-        p.apercu = c:CreateTexture(nil, "ARTWORK")
-        p.apercu:SetSize(22, 22)
-        p.apercu:SetPoint("LEFT", p.icone, "RIGHT", 8, 0)
-        p.aideIcone = Libelle(c, "ex. INV_Sword_05")
-        p.aideIcone:SetPoint("LEFT", p.apercu, "RIGHT", 8, 0)
+        -- L'apercu est un bouton : on clique pour choisir dans ce qui sert
+        -- deja dans la campagne, plutot que de taper un nom d'icone de tete.
+        p.apercuBouton = CreateFrame("Button", nil, c)
+        p.apercuBouton:SetSize(24, 24)
+        p.apercuBouton:SetPoint("LEFT", p.icone, "RIGHT", 8, 0)
+        if UI.BordureFine then UI.BordureFine(p.apercuBouton, 0.5) end
+        p.apercu = p.apercuBouton:CreateTexture(nil, "ARTWORK")
+        p.apercu:SetPoint("TOPLEFT", p.apercuBouton, "TOPLEFT", 1, -1)
+        p.apercu:SetPoint("BOTTOMRIGHT", p.apercuBouton, "BOTTOMRIGHT", -1, 1)
+        p.apercu:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        p.apercuBouton.survol = UI.Aplat(p.apercuBouton, UI.C.survol, "HIGHLIGHT")
+        p.apercuBouton.survol:SetAllPoints(p.apercuBouton)
+        p.selecteur = UI.SelecteurIcone("atelier")
+        p.apercuBouton:SetScript("OnClick", function(self)
+            p.selecteur:Proposer(self, function(chemin)
+                f.edition.icone = chemin
+                p.icone:SetText(chemin)
+                p.apercu:SetTexture(LCM.Objets.Icone(chemin))
+            end)
+        end)
+        p.aideIcone = Libelle(c, "clique l'icône pour choisir")
+        p.aideIcone:SetPoint("LEFT", p.apercuBouton, "RIGHT", 8, 0)
     end
     p.decale = decale
 

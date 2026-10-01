@@ -47,7 +47,7 @@ attendu("creation bloquee", f.valider:IsEnabled(), false)
 attendu("et on dit pourquoi", f.probleme:GetText(), "il faut un nom.")
 g.nom:Saisir("Ysolde")
 attendu("nom retenu", f.brouillon.nom, "Ysolde")
-attendu("il manque encore la race", f.probleme:GetText(), "il faut choisir une race.")
+attendu("il manque encore la race", f.probleme:GetText(), "il faut choisir une race, ou la saisir.")
 -- On la glisse depuis le compendium : un trait est refuse, une race acceptee.
 local Comp = LCM.UI.Compendium.Ouvrir("traits")
 local ligne = Comp.rangees[1]
@@ -93,6 +93,79 @@ attendu("budget au niveau 7 (17 + 3 x 7)", g.infos[1].valeur:GetText(), "38")
 g.niveau.saisie:Saisir("5")
 attendu("creation de nouveau possible", f.valider:IsEnabled(), true)
 
+dire("== Generale : la tabulation passe d'un champ a l'autre")
+local g = f.pages.generale
+attendu("Nom mene a Age", g.nom.suivant == g.age, true)
+attendu("Age mene a Poids", g.age.suivant == g.poids, true)
+attendu("et Poids revient en arriere", g.poids.precedent == g.age, true)
+g.nom:Tabuler()
+attendu("le focus a suivi", _G.__focus == g.age, true)
+
+dire("== Generale : « Autre » demande de preciser")
+attendu("cache au depart", g.sexeAutre:IsShown(), false)
+g.sexes[3]:Click()
+attendu("choisi", f.brouillon.valeurs.sexe, "Autre")
+attendu("le champ apparait", g.sexeAutre:IsShown(), true)
+g.sexeAutre:Saisir("Indéterminé")
+attendu("la precision est retenue", f.brouillon.sexeAutre, "Indéterminé")
+g.sexes[1]:Click()
+attendu("un autre choix le referme", g.sexeAutre:IsShown(), false)
+
+dire("== Generale : le niveau est fixe pour les joueurs")
+attendu("le MJ le saisit", g.niveau.saisie:IsShown(), true)
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+f:Actualiser()
+attendu("un joueur ne le saisit pas", g.niveau.saisie:IsShown(), false)
+attendu("il le lit", g.niveau.lecture:IsShown(), true)
+attendu("et c'est cinq", g.niveau.lecture:GetText(), "5")
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+f:Actualiser()
+
+dire("== Generale : une race hors compendium se saisit")
+attendu("le champ est la", g.raceLibre ~= nil, true)
+g.raceLibre:Saisir("Sylvain des cimes")
+attendu("retenue", f.brouillon.raceLibre, "Sylvain des cimes")
+g.raceLibre:Saisir("")
+attendu("effacee", f.brouillon.raceLibre, nil)
+
+dire("== Generale : choisir sa race dans le compendium")
+local slot = f.pages.generale.race
+local raceAvant = f.brouillon.race
+attendu("le compendium a des races", #LCM.Races.list > 1, true)
+slot:Click("LeftButton")
+attendu("le menu s'ouvre", slot.menu:IsShown(), true)
+slot.menu.onChoix(LCM.Races.list[2].id)
+attendu("race choisie", f.brouillon.race, LCM.Races.list[2].id)
+attendu("et la case la nomme", f.pages.generale.race.nom:GetText(), LCM.Races.list[2].label)
+-- Une fois une race posee, on peut n'en vouloir aucune.
+slot:Click("LeftButton")
+slot.menu.onChoix("")
+attendu("retiree", f.brouillon.race, "")
+attendu("la case redevient un emplacement", f.pages.generale.race.nom:GetText(), "Emplacement")
+slot.menu:Hide()
+-- On remet celle que la suite du scenario attend.
+f.brouillon.race = raceAvant
+f:Actualiser()
+
+dire("== Generale : choisir son artwork")
+local portrait = f.pages.generale.portrait
+attendu("la vignette est la", portrait ~= nil, true)
+attendu("aucun au depart", portrait.nom:GetText(), "Aucun")
+attendu("elle invite a choisir", portrait.aide:GetText(), "Cliquer pour choisir")
+-- Sans choix, l'apercu montre le repli : on voit ce qu'on aura.
+attendu("apercu : la silhouette",
+    LCM.Portraits.Appliquer(portrait.art, { values = f.brouillon.valeurs }), "silhouette")
+f.brouillon.valeurs.portrait = LCM.Portraits.list[1].id
+f:Actualiser()
+attendu("l'artwork choisi est nomme", portrait.nom:GetText(), LCM.Portraits.list[1].label)
+attendu("et l'apercu le montre",
+    LCM.Portraits.Appliquer(portrait.art, { values = f.brouillon.valeurs }), "portrait")
+f.brouillon.valeurs.portrait = nil
+f:Actualiser()
+attendu("on peut n'en vouloir aucun", portrait.nom:GetText(), "Aucun")
+
 dire("== Statistiques : primaires")
 f.barre.boutons[3]:Click()
 local st = f.pages.statistiques
@@ -126,6 +199,21 @@ attendu("points de vie", st.pv.valeur:GetText(), "21")
 attendu("fatigue", st.fatigue.valeur:GetText(), "34")
 for _ = 1, 4 do constitution.moins:Click() end
 
+dire("== Statistiques : le total tient compte de la race")
+local page = f.pages.statistiques
+local function compteurDe(champ)
+    for _, c in ipairs(page.compteurs) do if c.champ == champ then return c end end
+end
+-- Une race qui donne un bonus a une primaire : le total le montre, la valeur
+-- investie ne bouge pas.
+local forceC = compteurDe("force")
+attendu("le total existe", forceC.total ~= nil, true)
+local investi = LCM.Creation.Valeur(f.brouillon, "force")
+attendu("sans bonus, total = investi", forceC.total:GetText(), tostring(investi))
+attendu("le cout n'est plus ecrit sur la ligne", forceC.bonus, 0)
+-- Le cout est passe en infobulle sur le « + ».
+attendu("une infobulle sur le +", forceC.plus:GetScript("OnEnter") ~= nil, true)
+
 dire("== Statistiques : secondaires et leur cout")
 local pa = compteur(st, "sec_pa")
 pa.plus:Click()
@@ -135,6 +223,44 @@ attendu("budget secondaire", budget(st, "secondaires").budget:GetText(), "24 / 3
 local sec = compteur(st, "sec_expertises")
 for _ = 1, 3 do sec.plus:Click() end
 attendu("expertises : deux points le cran (template)", LCM.Creation.Depense(f.brouillon, "secondaires"), 14)
+
+dire("== Statistiques : ce qu'un point secondaire rapporte")
+-- A droite d'une ligne secondaire, on ne montre pas les points poses mais ce
+-- qu'ils donnent : des PV, de la fatigue, des points a repartir ailleurs.
+local sec = f.pages.statistiques
+local function secDe(champ)
+    for _, c in ipairs(sec.compteurs) do if c.champ == champ then return c end end
+end
+-- On note ce qui etait pose : la suite du scenario compte dessus.
+local avantSec = {}
+for _, champ in ipairs({ "sec_vitalite", "sec_deplacement", "sec_expertises" }) do
+    avantSec[champ] = LCM.Creation.Valeur(f.brouillon, champ)
+end
+LCM.Creation.Definir(f.brouillon, "secondaires", "sec_vitalite", 3)
+LCM.Creation.Definir(f.brouillon, "secondaires", "sec_deplacement", 2)
+LCM.Creation.Definir(f.brouillon, "secondaires", "sec_expertises", 4)
+f:Actualiser()
+local function lire(champ) return __sansCouleur(secDe(champ).total:GetText()) end
+attendu("vitalite : des PV", lire("sec_vitalite"):find("PV") ~= nil, true)
+attendu("fatigue : de la fatigue", lire("sec_fatigue"):find("fatigue") ~= nil, true)
+attendu("initiative", lire("sec_initiative"):find("init%.") ~= nil, true)
+-- Quatre de base, plus ce qui a ete investi.
+attendu("points d'action : quatre de base plus l'investi", lire("sec_pa"),
+    string.format("%d PA", LCM.Equilibrage.pa.base + LCM.Creation.Valeur(f.brouillon, "sec_pa")))
+-- Terrestre 8 + 2, Nage 5 + 2, Vol 0 + 2.
+attendu("deplacement : les trois modes", lire("sec_deplacement"), "10 / 7 / 2")
+attendu("et chacun dans sa couleur", secDe("sec_deplacement").total:GetText():find("|c") ~= nil, true)
+attendu("expertises : des points a repartir",
+    lire("sec_expertises"), string.format("%d pts", LCM.Creation.Total(f.brouillon, "expertises")))
+attendu("mecanique aussi",
+    lire("sec_mecanique"), string.format("%d pts", LCM.Creation.Total(f.brouillon, "mecaniques")))
+attendu("penetration aussi",
+    lire("sec_penetration"), string.format("%d pts", LCM.Creation.Total(f.brouillon, "penetration")))
+-- On remet ce qu'on a trouve.
+for champ, valeur in pairs(avantSec) do
+    LCM.Creation.Definir(f.brouillon, "secondaires", champ, valeur)
+end
+f:Actualiser()
 
 dire("== Expertises et mecaniques")
 f.barre.boutons[4]:Click()

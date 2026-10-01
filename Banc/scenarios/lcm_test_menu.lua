@@ -82,7 +82,8 @@ attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
 
 dire("== ce qui est branche")
-for _, id in ipairs({ "regles", "creation", "fiche", "sante", "expertise", "penetrations_resistances",
+-- « creation » n'est plus au menu : on cree un personnage depuis la selection.
+for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances",
                       "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
                       "grimoires", "parametres", "panneau_mj", "incarner",
                       "vendeur", "ressources" }) do

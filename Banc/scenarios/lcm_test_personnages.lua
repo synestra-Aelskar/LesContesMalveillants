@@ -111,22 +111,21 @@ attendu("et il n'est plus dans la liste", P.Liste()[1].id ~= condamne.id, true)
 attendu("le carrousel s'est recale", #f.profils, avant - 1)
 
 dire("== portraits")
-attendu("aucun portrait livre", LCM.Portraits.Count(), 0)
-attendu("pas de silhouette non plus", LCM.Portraits.silhouette, nil)
-attendu("repli sur une icone", LCM.Portraits.Appliquer(f.cartes[0].art, f:Courant()), "icone")
--- Ce que l'outil ecrit dans Data/Genere/Portraits.lua.
-LCM.Portraits.SetSilhouette("_silhouette.tga")
-attendu("silhouette declaree", LCM.Portraits.Appliquer(f.cartes[0].art, f:Courant()), "silhouette")
-LCM.Portraits.Add({ id = "reika_shira", label = "Reika Shira" })
-attendu("un portrait livre", LCM.Portraits.Count(), 1)
-attendu("chemin de texture", LCM.Portraits.Get("reika_shira").texture:find("portraits") ~= nil, true)
+-- Le nombre de portraits livres change a chaque conversion : on verifie le
+-- COMPORTEMENT, pas le contenu.
+attendu("une silhouette de repli est livree", LCM.Portraits.silhouette ~= nil, true)
+attendu("sans artwork : la silhouette", LCM.Portraits.Appliquer(f.cartes[0].art, f:Courant()), "silhouette")
+local avant = LCM.Portraits.Count()
+LCM.Portraits.Add({ id = "portrait_d_essai", label = "Essai" })
+attendu("un portrait de plus", LCM.Portraits.Count(), avant + 1)
+attendu("chemin de texture", LCM.Portraits.Get("portrait_d_essai").texture:find("portraits") ~= nil, true)
 local perso = f.profils[1]
-LCM.Entities.Set_Value(perso, "portrait", "reika_shira")
+LCM.Entities.Set_Value(perso, "portrait", "portrait_d_essai")
 attendu("le personnage le porte", LCM.Portraits.Appliquer(f.cartes[0].art, perso), "portrait")
 attendu("cadrage 2:3", LCM.Portraits.Of(perso).coords[4], 0.75)
 -- Un reexport remplace l'entree, il ne la double pas.
-LCM.Portraits.Add({ id = "reika_shira", label = "Reika Shira" })
-attendu("pas de doublon apres reexport", LCM.Portraits.Count(), 1)
+LCM.Portraits.Add({ id = "portrait_d_essai", label = "Essai" })
+attendu("pas de doublon apres reexport", LCM.Portraits.Count(), avant + 1)
 LCM.Entities.Set_Value(perso, "portrait", nil)
 
 dire("== le bouton + ouvre la creation")

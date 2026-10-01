@@ -135,6 +135,30 @@ attendu("doublon : pas d'enregistrement", f.enregistrer:IsShown(), false)
 attendu("doublon : suppression possible", f.supprimer:IsShown(), true)
 attendu("doublon : explique", (f.message:GetText() or ""):find("déjà publié") ~= nil, true)
 
+dire("== Atelier : choisir une icone sans la taper")
+-- Les icones proposees sont celles qui servent deja dans la campagne.
+attendu("le catalogue n'est pas vide", #LCM.UI.CatalogueIcones() > 0, true)
+attendu("un nom lisible", LCM.UI.NomIcone("Interface\\ICONS\\INV_Sword_05"), "INV_Sword_05")
+f.onglets.boutons[3]:Click()                       -- Objets : le formulaire a une icone
+local po = f.panneaux.objets
+attendu("l'apercu est cliquable", po.apercuBouton ~= nil, true)
+po.apercuBouton:Click()
+attendu("le selecteur s'ouvre", po.selecteur:IsShown(), true)
+attendu("il montre des icones", po.selecteur.nombreAffiche > 0, true)
+-- La recherche filtre sur le chemin.
+local avant = po.selecteur.nombreAffiche
+po.selecteur.recherche:Saisir("zzzz_introuvable")
+attendu("une recherche sans resultat", po.selecteur.nombreAffiche, 0)
+po.selecteur.recherche:Saisir("")
+attendu("et on revient a tout", po.selecteur.nombreAffiche, avant)
+-- Choisir pose le chemin dans le champ.
+local choisi = po.selecteur.cases[1].chemin
+po.selecteur.cases[1]:Click()
+attendu("le selecteur se ferme", po.selecteur:IsShown(), false)
+attendu("l'icone est posee", po.icone:GetText(), choisi)
+attendu("et retenue dans l'edition", f.edition.icone, choisi)
+f.onglets.boutons[1]:Click()
+
 dire("== Atelier : creer un trait")
 f.nouveau:Click()
 local p = f.panneaux.traits

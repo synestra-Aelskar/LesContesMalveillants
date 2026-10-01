@@ -28,7 +28,7 @@ attendu("un nombre illisible aussi", ok, false)
 dire("== les onglets du template")
 local ids = {}
 for _, c in ipairs(I.categories) do ids[#ids + 1] = c.label .. ":" .. I.Capacite(c.id) end
-attendu("Sacs 2, Saccoches 4, Devises 1", table.concat(ids, ","), "Sacs:2,Saccoches:4,Devises:1")
+attendu("Sacs 2, Saccoches 4", table.concat(ids, ","), "Sacs:2,Saccoches:4")
 
 dire("== les sacs d'avant sont repris")
 attendu("sac 1", I.Emplacement(moi, "sacs", 1).sac, "gros_sac")
@@ -44,13 +44,11 @@ attendu("emplacement occupe : refus", refus, false)
 refus, raison = I.Poser(moi, "sacs", 3, "gros_sac")
 attendu("pas de troisieme emplacement de sac", refus, false)
 dire("     " .. tostring(raison))
-refus = I.Poser(moi, "devises", 1, "gros_sac")
-attendu("une devise seulement en Devises", refus, false)
-attendu("une devise", I.Poser(moi, "devises", 1, "credits"), true)
-attendu("son solde part de zero", I.Emplacement(moi, "devises", 1).solde, 0)
-refus, raison = I.Solde(moi, "devises", 1, "-3")
-attendu("solde negatif refuse", refus, false)
-attendu("solde pose", I.Solde(moi, "devises", 1, "120"), true)
+-- L'onglet « Devises » a ete retire (1er octobre 2026) : la monnaie vit dans la
+-- Bourse, voir lcm_test_bourse.lua. Les cases de devise DANS un sac restent,
+-- et sont verifiees plus bas.
+refus, raison = I.Poser(moi, "devises", 1, "credits")
+attendu("l'onglet Devises n'existe plus", refus, false)
 local e = I.Emplacement(moi, "sacs", 1)
 attendu("douze cases", I.Cases(e), 12)
 attendu("ranger une dague", I.Ranger(moi, "sacs", 1, 3, "objets/dague_d_assassin_du_culte", 1), true)
@@ -77,7 +75,7 @@ M.Trouver("inventaires").onClick()
 local f = LCM.UI.Inventaires.frame
 attendu("ouverte", f:IsShown(), true)
 attendu("titre", f.titre:GetText(), "INVENTAIRES")
-attendu("trois onglets", #f.onglets, 3)
+attendu("deux onglets", #f.onglets, 2)
 attendu("onglet Sacs", f.onglets[1].label:GetText(), "Sacs")
 attendu("occupation", f.occupation:GetText(), "1 / 2")
 attendu("le sac (nom et remplissage)", f.cartes[1].nom:GetText(), "Gros sac (0/12)")
@@ -146,11 +144,8 @@ menu.sousLignes[1]:Click()
 attendu("deplacee hors du gros sac", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
 attendu("dans le sac d'essai", I.Case(I.Emplacement(moi, "sacs", 2), 1).ref, "ressources/eau")
 
-dire("== Devises")
-f.onglets[3]:Click()
-attendu("en liste (template)", f.vue.label:GetText(), "Grille")
-attendu("la devise", f.cartes[1].nom:GetText(), "Crédits")
-attendu("son solde", f.cartes[1].description:GetText(), "Solde : 120")
+dire("== deux onglets, l'un des trois du template ayant ete retire")
+attendu("Sacs et Saccoches", #f.onglets, 2)
 
 dire("== le joueur voit, n'y touche pas")
 LCM._masterCompanion = false

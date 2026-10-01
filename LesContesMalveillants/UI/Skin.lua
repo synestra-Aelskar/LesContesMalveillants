@@ -19,16 +19,81 @@
 local _, LCM = ...
 local UI = LCM.UI
 
-local ATLAS = "Interface\\AddOns\\LesContesMalveillants\\ressources\\aelrazkah\\frame-panel.tga"
+local DOSSIER = "Interface\\AddOns\\LesContesMalveillants\\ressources\\aelrazkah\\"
 
--- Dimensions de l'atlas et de l'interieur, en pixels de l'image source.
-local V = {
-    tw = 1024, th = 1024,
-    L = 98, T = 95, R = 1438, B = 884,
-    largeur = 1340,
-    facteur = 0.75, min = 0.26, max = 0.40,
-    coupeHaut = 102,  -- le motif du haut est rogne quand un titre est centre
+-- Les habillages disponibles. Chacun donne les dimensions de son atlas et de
+-- son interieur, en pixels de l'image SOURCE (l'atlas livre en est une
+-- reduction), puis ses pieces fixes et ses bandes etirees.
+--
+--   leger  « panel » : le cadre sobre, celui de tous les jours.
+--   lourd  « light » : le cadre a crane, plus charge.
+-- `incritas` n'est pas ici : c'est l'absence d'habillage.
+local VARIANTES = {
+    leger = {
+        fichier = "frame-panel.tga",
+        tw = 1024, th = 1024,
+        L = 98, T = 95, R = 1438, B = 884,
+        largeur = 1340,
+        facteur = 0.75, min = 0.26, max = 0.40,
+        coupeHaut = 102,  -- le motif du haut est rogne quand un titre est centre
+        fixes = {
+            {   0,   0, 230, 330,    0,   0, "TOPLEFT" },
+            { 232,   0, 236, 330, 1300,   0, "TOPRIGHT" },
+            { 470,   0, 230, 284,    0, 740, "BOTTOMLEFT" },
+            { 702,   0, 236, 284, 1300, 740, "BOTTOMRIGHT" },
+            {   0, 340, 340, 200,  600,   0, "TOP" },
+            { 342, 340, 260, 174,  640, 850, "BOTTOM" },
+        },
+        bandes = {
+            { 610, 340, 12, 160, true,  "TOPLEFT",     230,  40, "TOP",          600, 200 },
+            { 632, 340, 12, 160, true,  "TOP",         940,  40, "TOPRIGHT",    1300, 200 },
+            { 654, 340, 12, 110, true,  "BOTTOMLEFT",  230, 850, "BOTTOM",       640, 960 },
+            { 654, 340, 12, 110, true,  "BOTTOM",      900, 850, "BOTTOMRIGHT", 1300, 960 },
+            { 668, 340, 70,  12, false, "TOPLEFT",      40, 330, "BOTTOMLEFT",   110, 740 },
+            { 668, 356, 70,  12, false, "TOPRIGHT",   1426, 330, "BOTTOMRIGHT", 1496, 740 },
+        },
+    },
+    lourd = {
+        fichier = "frame-light.tga",
+        tw = 1024, th = 512,
+        L = 106, T = 150, R = 1227, B = 1032,
+        largeur = 1121,
+        facteur = 0.7, min = 0.22, max = 0.40,
+        coupeHaut = 158,
+        fixes = {
+            {   0,   0, 175, 225,    0,    0, "TOPLEFT" },
+            { 180,   0, 168, 225, 1165,    0, "TOPRIGHT" },
+            { 352,   0, 185, 190,    0,  990, "BOTTOMLEFT" },
+            { 541,   0, 183, 190, 1150,  990, "BOTTOMRIGHT" },
+            { 728,   0, 235, 200,  550,    0, "TOP" },
+            {   0, 256, 385, 200,  475,  980, "BOTTOM" },
+        },
+        bandes = {
+            { 400, 256, 12, 80, true,  "TOPLEFT",     175,   80, "TOP",          550,  160 },
+            { 400, 256, 12, 80, true,  "TOP",         785,   80, "TOPRIGHT",    1165,  160 },
+            { 420, 256, 12, 65, true,  "BOTTOMLEFT",  185, 1025, "BOTTOM",       475, 1090 },
+            { 420, 256, 12, 65, true,  "BOTTOM",      860, 1025, "BOTTOMRIGHT", 1150, 1090 },
+            { 440, 256, 62, 12, false, "TOPLEFT",      50,  225, "BOTTOMLEFT",   112,  990 },
+            { 440, 280, 61, 12, false, "TOPRIGHT",   1222,  225, "BOTTOMRIGHT", 1283,  990 },
+        },
+    },
 }
+
+-- Ce que l'utilisateur peut choisir. « Incritas » est le nom du skin de debug :
+-- aucune ornementation, juste des bordures — on voit la structure.
+UI.THEMES = {
+    { id = "incritas",   label = "Incritas" },
+    { id = "necronicon", label = "Necronicon", indisponible = true },
+    { id = "lourd",      label = "Ael'Raz'kah lourd" },
+    { id = "leger",      label = "Ael'Raz'kah léger" },
+}
+
+function UI.ThemeActuel()
+    LCM.EnsureDatabase()
+    local choisi = LCM.db.settings and LCM.db.settings.theme
+    if choisi == "incritas" or VARIANTES[choisi] then return choisi end
+    return "leger"
+end
 
 -- { atlas x, y, w, h, source x, y, point de la fenetre }
 local FIXES = {
@@ -50,11 +115,9 @@ local BANDES = {
     { 668, 356, 70,  12, false, "TOPRIGHT",   1426, 330, "BOTTOMRIGHT", 1496, 740 },
 }
 
-local CENTRE_X = (V.L + V.R) / 2
-
-local function Texture(decor, r, etireeEnX, sousNiveau)
+local function Texture(decor, V, r, etireeEnX, sousNiveau)
     local t = decor:CreateTexture(nil, "ARTWORK", nil, sousNiveau)
-    t:SetTexture(ATLAS)
+    t:SetTexture(DOSSIER .. V.fichier)
     local x0, x1, y0, y1 = r[1], r[1] + r[3], r[2], r[2] + r[4]
     -- Une bande etiree n'echantillonne que son milieu, sinon ses voisines
     -- bavent dessus au moment de l'etirement.
@@ -69,10 +132,24 @@ end
 
 -- Place une texture d'apres une coordonnee de l'image source : LEFT / RIGHT et
 -- TOP / BOTTOM se rapportent aux bords interieurs du dessin.
-local function Poser(t, point, relatif, sx, sy, cadre, k)
-    local rx = relatif:find("LEFT") and V.L or (relatif:find("RIGHT") and V.R or CENTRE_X)
+local function Poser(t, V, point, relatif, sx, sy, cadre, k)
+    local centreX = (V.L + V.R) / 2
+    local rx = relatif:find("LEFT") and V.L or (relatif:find("RIGHT") and V.R or centreX)
     local ry = relatif:find("TOP") and V.T or V.B
     t:SetPoint(point, cadre, relatif, (sx - rx) * k, -(sy - ry) * k)
+end
+
+-- Les pieces d'un habillage, fabriquees a la demande : on ne paie un atlas que
+-- si on l'affiche.
+local function Jeu(decor, nom)
+    if decor.jeux[nom] then return decor.jeux[nom] end
+    local V = VARIANTES[nom]
+    if not V then return nil end
+    local jeu = { V = V, fixes = {}, bandes = {} }
+    for index, r in ipairs(V.bandes) do jeu.bandes[index] = Texture(decor, V, r, r[5], 0) end
+    for index, r in ipairs(V.fixes) do jeu.fixes[index] = Texture(decor, V, r, nil, 1) end
+    decor.jeux[nom] = jeu
+    return jeu
 end
 
 -- Habille une fenetre. `cadre.titreCentre` rogne le motif du haut : ses
@@ -86,34 +163,47 @@ function UI.Cadre(cadre)
     -- Au niveau de la fenetre elle-meme, donc SOUS tous ses autres enfants :
     -- sinon les ornements des coins recouvrent le bouton de fermeture.
     decor:SetFrameLevel(cadre:GetFrameLevel())
-    decor.fixes, decor.bandes = {}, {}
+    decor.jeux = {}
     cadre.decor = decor
 
-    for index, r in ipairs(BANDES) do decor.bandes[index] = Texture(decor, r, r[5], 0) end
-    for index, r in ipairs(FIXES) do decor.fixes[index] = Texture(decor, r, nil, 1) end
-
     function decor:Disposer()
+        local nom = UI.ThemeActuel()
+        -- On range ce qui ne sert plus avant de poser ce qui sert : deux
+        -- habillages superposes, ca se voit.
+        for autre, jeu in pairs(self.jeux) do
+            if autre ~= nom then
+                for _, t in ipairs(jeu.fixes) do t:Hide() end
+                for _, t in ipairs(jeu.bandes) do t:Hide() end
+            end
+        end
+        self.theme = nom
+        local jeu = Jeu(self, nom)
+        if not jeu then self.echelle = nil return end
+        local V = jeu.V
+
         -- L'echelle suit la largeur de la fenetre, entre deux bornes : en
         -- dessous les ornements deviennent des taches, au-dessus ils mangent
         -- l'ecran.
         local k = math.min(V.max, math.max(V.min, cadre:GetWidth() / V.largeur * V.facteur))
         self.echelle = k
 
-        for index, r in ipairs(FIXES) do
-            local t = self.fixes[index]
+        for index, r in ipairs(V.fixes) do
+            local t = jeu.fixes[index]
             t:ClearAllPoints()
-            Poser(t, "TOPLEFT", r[7], r[5], r[6], cadre, k)
+            Poser(t, V, "TOPLEFT", r[7], r[5], r[6], cadre, k)
             local h = r[4]
             if r[7] == "TOP" and cadre.titreCentre then h = math.min(h, V.coupeHaut) end
             t:SetTexCoord(r[1] / V.tw, (r[1] + r[3]) / V.tw, r[2] / V.th, (r[2] + h) / V.th)
             t:SetSize(r[3] * k, h * k)
+            t:Show()
         end
 
-        for index, r in ipairs(BANDES) do
-            local t = self.bandes[index]
+        for index, r in ipairs(V.bandes) do
+            local t = jeu.bandes[index]
             t:ClearAllPoints()
-            Poser(t, "TOPLEFT", r[6], r[7], r[8], cadre, k)
-            Poser(t, "BOTTOMRIGHT", r[9], r[10], r[11], cadre, k)
+            Poser(t, V, "TOPLEFT", r[6], r[7], r[8], cadre, k)
+            Poser(t, V, "BOTTOMRIGHT", r[9], r[10], r[11], cadre, k)
+            t:Show()
         end
     end
 
@@ -123,6 +213,53 @@ function UI.Cadre(cadre)
     decor:SetScript("OnSizeChanged", function(self) self:Disposer() end)
     return decor
 end
+
+-- ===== Reglages d'apparence ================================================
+-- Theme, opacite et taille s'appliquent a TOUTES les fenetres d'un coup : une
+-- fenetre ouverte doit changer avec les autres, pas a sa prochaine ouverture.
+
+function UI.AppliquerTheme(nom)
+    LCM.EnsureDatabase()
+    if nom then LCM.db.settings.theme = (nom ~= "leger") and nom or nil end
+    local actuel = UI.ThemeActuel()
+    for _, f in ipairs(UI.fenetres) do
+        if f.decor then f.decor:Disposer() end
+        -- Sans habillage, la fenetre garde une bordure : elle doit rester
+        -- lisible, pas disparaitre dans le decor du jeu.
+        if f.bordureSimple then
+            for _, trait in ipairs(f.bordureSimple) do trait:SetShown(actuel == "incritas") end
+        end
+    end
+    return actuel
+end
+
+function UI.Opacite(pourcent)
+    LCM.EnsureDatabase()
+    if pourcent then LCM.db.settings.opacite = (pourcent ~= 100) and pourcent or nil end
+    local v = tonumber(LCM.db.settings.opacite) or 100
+    -- Jamais tout a fait transparente : une fenetre qu'on ne voit plus est une
+    -- fenetre qu'on ne retrouve pas.
+    local alpha = 0.1 + 0.9 * math.max(0, math.min(v, 100)) / 100
+    for _, f in ipairs(UI.fenetres) do f:SetAlpha(alpha) end
+    return v, alpha
+end
+
+-- La barre va de 0 a 100, et 50 vaut la taille normale : en dessous on
+-- retrecit, au-dessus on agrandit, sans jamais disparaitre.
+function UI.Echelle(pourcent)
+    LCM.EnsureDatabase()
+    if pourcent then LCM.db.settings.echelle = (pourcent ~= 50) and pourcent or nil end
+    local v = tonumber(LCM.db.settings.echelle) or 50
+    local facteur = 0.5 + math.max(0, math.min(v, 100)) / 100
+    for _, f in ipairs(UI.fenetres) do f:SetScale(facteur) end
+    return v, facteur
+end
+
+LCM.WhenReady(function()
+    UI.AppliquerTheme()
+    UI.Opacite()
+    UI.Echelle()
+end)
 
 -- ===== Atlas des widgets ===================================================
 -- `widgets-reference.tga` (1024 x 2048) : onglets, blocs, cadres d'icone,

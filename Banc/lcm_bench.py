@@ -249,7 +249,11 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:Enable() self.__enabled = true end
     function f:SetNormalTexture() end
     function f:SetAutoFocus() end
-    function f:SetFocus() end
+    function f:SetFocus() _G.__focus = self end
+    function f:Tabuler()
+        local fn = self.__scripts.OnTabPressed
+        if fn then fn(self) end
+    end
     function f:ClearFocus() end
     function f:HighlightText() end
     function f:SetNumeric() end

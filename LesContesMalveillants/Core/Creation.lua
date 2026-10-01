@@ -333,8 +333,11 @@ function Creation.Problemes(brouillon)
     if tostring(brouillon.nom or ""):gsub("%s+", "") == "" then
         out[#out + 1] = "il faut un nom."
     end
-    if tostring(brouillon.race or "") == "" then
-        out[#out + 1] = "il faut choisir une race."
+    if tostring(brouillon.race or "") == "" and tostring(brouillon.raceLibre or "") == "" then
+        out[#out + 1] = "il faut choisir une race, ou la saisir."
+    elseif tostring(brouillon.race or "") == "" then
+        -- Une race saisie a la main : rien a verifier, c'est un nom. Elle
+        -- n'apporte ni bonus ni morphologie tant que le MJ ne l'a pas creee.
     elseif not LCM.Races.Get(brouillon.race) then
         out[#out + 1] = string.format("la race « %s » n'existe pas dans cette version.", tostring(brouillon.race))
     end
@@ -362,7 +365,16 @@ function Creation.Appliquer(brouillon)
     local problemes = Creation.Problemes(brouillon)
     if #problemes > 0 then return nil, problemes[1] end
 
-    local valeurs = { race = brouillon.race, niveau = brouillon.niveau }
+    -- Une race du compendium est rangee par son identifiant ; une race saisie,
+    -- telle qu'elle a ete ecrite. Le champ `race` de la fiche porte les deux.
+    local valeurs = {
+        race = (tostring(brouillon.race or "") ~= "" and brouillon.race) or brouillon.raceLibre,
+        niveau = brouillon.niveau,
+    }
+    -- « Autre » precise : c'est la precision qu'on garde, pas le mot « Autre ».
+    if brouillon.valeurs.sexe == "Autre" and tostring(brouillon.sexeAutre or "") ~= "" then
+        valeurs.sexe = brouillon.sexeAutre
+    end
     for champ, valeur in pairs(brouillon.valeurs) do valeurs[champ] = valeur end
 
     local entity, erreur = LCM.Personnages.Creer(brouillon.nom, valeurs)

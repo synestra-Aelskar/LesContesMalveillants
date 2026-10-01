@@ -116,7 +116,8 @@ Par ordre de ce qui bloque le plus :
       à leur place, état du réseau), Panel MJ (le groupe, et la fiche de chaque
       joueur sur demande), Incarner (le catalogue des PNJ, leurs instances en
       jeu, et la bascule — toutes les fenêtres suivent), Vendeur et Ressources
-      (offres, stock partagé qui repousse, récolte et achat).
+      (offres, stock partagé qui repousse, récolte, et achat **prélevé dans la
+      bourse**).
       **Bourse** (ajoutée à la structure du template : les devises du
       personnage, Écus / Crédits / Essences stellaires toujours visibles, les
       autres dès qu'il en a ; le MJ ajuste, le joueur lit).
@@ -148,17 +149,16 @@ Par ordre de ce qui bloque le plus :
       décision du 1er octobre 2026, qui revient sur « humain seulement ».
       Toutes sont humanoïdes ; les autres morphologies s'utilisent via le
       champ `morphologie` d'une entité.
-- [ ] **Le paiement chez le vendeur.** Le prix s'affiche, le stock se décompte,
-      mais rien n'est prélevé : la table règle. La bourse existe désormais
-      (`Core/Bourse.lua`, `Debiter` / `Peut`) — il reste à décider si l'achat
-      prélève tout seul.
-- [ ] **L'onglet « Devises » de l'inventaire** n'a qu'**un** emplacement dans le
-      template, donc la bourse tient ses propres soldes à côté. À trancher :
-      cet onglet garde-t-il un rôle, ou disparaît-il au profit de la bourse ?
 - [ ] **Les points eux-mêmes** : `Data/Genere/Points.lua` est vide. Les vendeurs
       et les filons viendront de l'atelier MJ comme le reste du contenu ; la
       forme d'un point est documentée en tête du fichier.
-- [ ] **Les portraits** : aucun livré. Déposer les images et lancer l'outil.
+- [ ] **Un outil MJ pour l'expérience.** Le niveau est fixe à 5 pour les
+      joueurs (seul le compagnon MJ ouvre la saisie) ; monter de niveau doit se
+      gagner en jeu. Reste à écrire : donner de l'XP, et le passage de niveau
+      qui en découle.
+- [ ] **Les portraits** : deux livrés (Moon, ReikaShira) plus la silhouette de
+      repli. En ajouter : déposer l'image dans `Portraits\`, lancer l'outil,
+      publier.
 - [ ] **Les icônes de ligne** (Force, Vitalité…) et la **barre de recherche**
       vues sur l'écran Necronicon : rôle et liste à décider.
 
@@ -169,13 +169,8 @@ Par ordre de ce qui bloque le plus :
 - L'équilibrage et les formules (PV, fatigue, initiative, PA, déplacement,
   apports des primaires aux expertises) suivent le **template Necronicon**
   (voir `CLAUDE.md`). Les écarts voulus sont commentés dans
-  `Data/Equilibrage.lua`.
-- **L'initiative est à vérifier en jeu** (décision du 1er octobre 2026 : on
-  verra plus tard, mais ça reste à faire). Le template **divise** —
-  `niveau/2 + esprit/2 + perception/2` — là où l'addon multipliait par 2 au
-  départ. L'écart est important : une initiative quatre fois plus basse change
-  l'ordre des tours. À confronter à une vraie fiche avant d'équilibrer le
-  combat dessus.
+  `Data/Equilibrage.lua`. **L'initiative a été vérifiée en jeu le 1er octobre
+  2026** : la lecture du template (des divisions) est la bonne.
 
 ---
 

@@ -22,32 +22,44 @@ local function Construire()
     local f = UI.Fenetre("parametres", "Paramètres", LARGEUR, HAUTEUR, { x = -60, y = 40 })
     Ecran.frame = f
 
+    f.barre = UI.Onglets(f.contenu, { { id = "general", label = "Général" },
+                                      { id = "apparences", label = "Apparences" } },
+        function(id) f:Afficher(id) end, { largeur = 120 })
+    f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    f.barre:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 0)
+
+    f.pages = {}
+    f.pages.general = CreateFrame("Frame", nil, f.contenu)
+    f.pages.general:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -30)
+    f.pages.general:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    local page = f.pages.general
+
     local y = 0
     local function Titre(texte)
-        local h = UI.EnTeteGroupe(f.contenu, texte)
-        h:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -y)
-        h:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -y)
+        local h = UI.EnTeteGroupe(page, texte)
+        h:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
+        h:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -y)
         h.budget:SetText("")
         y = y + 24
         return h
     end
     local function Case(libelle, onChange)
-        local c = UI.Case(f.contenu, libelle, onChange)
-        c:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 4, -y)
+        local c = UI.Case(page, libelle, onChange)
+        c:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -y)
         y = y + LIGNE
         return c
     end
     local function Bouton(libelle, largeur, onClick)
-        local b = UI.Bouton(f.contenu, libelle, largeur, 22, onClick)
-        b:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 4, -y)
+        local b = UI.Bouton(page, libelle, largeur, 22, onClick)
+        b:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -y)
         y = y + 28
         return b
     end
     local function Ligne(couleur)
-        local fs = UI.Texte(f.contenu, "", couleur or UI.C.discret)
+        local fs = UI.Texte(page, "", couleur or UI.C.discret)
         UI.Police(fs, 11)
-        fs:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 4, -y)
-        fs:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -y)
+        fs:SetPoint("TOPLEFT", page, "TOPLEFT", 4, -y)
+        fs:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -y)
         y = y + 18
         return fs
     end
@@ -79,6 +91,80 @@ local function Construire()
     f.reseau = Ligne()
     f.attente = Ligne()
 
+    -- ----- Apparences -----------------------------------------------------
+    -- Deux sous-onglets : les reglages continus (opacite, taille) et le choix
+    -- de l'habillage.
+    f.pages.apparences = CreateFrame("Frame", nil, f.contenu)
+    f.pages.apparences:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -30)
+    f.pages.apparences:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    local app = f.pages.apparences
+
+    app.barre = UI.Onglets(app, { { id = "general", label = "Général" },
+                                  { id = "theme",   label = "Thème" } },
+        function(id) f:AfficherApparence(id) end, { largeur = 110 })
+    app.barre:SetPoint("TOPLEFT", app, "TOPLEFT", 0, 0)
+
+    app.general = CreateFrame("Frame", nil, app)
+    app.general:SetPoint("TOPLEFT", app, "TOPLEFT", 0, -32)
+    app.general:SetPoint("BOTTOMRIGHT", app, "BOTTOMRIGHT", 0, 0)
+
+    local function Barre(parent, libelle, aide, dy, onChange)
+        local titre = UI.Texte(parent, libelle, UI.C.texte)
+        UI.Police(titre, 12)
+        titre:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy)
+        local valeur = UI.Texte(parent, "", UI.C.titre)
+        UI.Police(valeur, 12)
+        valeur:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -dy)
+        local curseur = UI.Curseur(parent, onChange)
+        curseur:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 20)
+        curseur:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -dy - 20)
+        curseur.max = 100
+        local note = UI.Texte(parent, aide, UI.C.discret)
+        UI.Police(note, 10)
+        note:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 36)
+        return curseur, valeur
+    end
+
+    app.opacite, app.opaciteValeur = Barre(app.general, "Opacité des fenêtres",
+        "0 : presque transparente — 100 : pleine.", 0,
+        function(v) UI.Opacite(v) f:Actualiser() end)
+    app.echelle, app.echelleValeur = Barre(app.general, "Taille de l'interface",
+        "50 : taille normale. En dessous ça rétrécit, au-dessus ça grandit.", 64,
+        function(v) UI.Echelle(v) f:Actualiser() end)
+
+    app.theme = CreateFrame("Frame", nil, app)
+    app.theme:SetPoint("TOPLEFT", app, "TOPLEFT", 0, -32)
+    app.theme:SetPoint("BOTTOMRIGHT", app, "BOTTOMRIGHT", 0, 0)
+    app.themes = {}
+    for index, theme in ipairs(UI.THEMES) do
+        local b = UI.Bouton(app.theme, theme.label, LARGEUR - 40, 24, function()
+            if theme.indisponible then
+                LCM.Alerte(string.format("l'habillage « %s » n'est pas encore porté.", theme.label))
+                return
+            end
+            UI.AppliquerTheme(theme.id)
+            f:Actualiser()
+        end)
+        b:SetPoint("TOPLEFT", app.theme, "TOPLEFT", 4, -(index - 1) * 28)
+        b.themeId = theme.id
+        b.indisponible = theme.indisponible
+        app.themes[index] = b
+    end
+
+    function f:AfficherApparence(id)
+        self.apparence = id
+        app.barre:Selectionner(id)
+        app.general:SetShown(id == "general")
+        app.theme:SetShown(id ~= "general")
+    end
+
+    function f:Afficher(id)
+        self.onglet = id
+        for cle, p in pairs(self.pages) do p:SetShown(cle == id) end
+        if id == "apparences" then self:AfficherApparence(self.apparence or "general") end
+        self:Actualiser()
+    end
+
     function f:Actualiser()
         local radial = UI.Radial and UI.Radial.frame
         self.sceau:Cocher(not (LCM.db.settings and LCM.db.settings.radialCache))
@@ -101,13 +187,28 @@ local function Construire()
         self.reseau:SetText(string.format("Réseau : préfixe %s %s",
             LCM.Reseau.PREFIXE, enregistre and "enregistré" or "|cffe86b6bnon enregistré|r"))
 
+        -- Apparences : les barres et l'habillage retenu.
+        local opacite = UI.Opacite()
+        local echelle = UI.Echelle()
+        app.opacite:Aller(opacite)
+        app.echelle:Aller(echelle)
+        app.opaciteValeur:SetText(opacite .. " %")
+        app.echelleValeur:SetText(string.format("%d %%", math.floor((0.5 + echelle / 100) * 100)))
+        local actuel = UI.ThemeActuel()
+        for _, b in ipairs(app.themes) do
+            b:Selectionner(b.themeId == actuel)
+            local teinte = b.indisponible and UI.C.discret or UI.C.texte
+            if b.themeId ~= actuel then b.label:SetTextColor(teinte[1], teinte[2], teinte[3]) end
+        end
+
         local attente = LCM.Reseau.EnAttente()
         self.attente:SetText(attente == 0 and "Aucun message en attente."
             or string.format("|cffe8b451%d message(s) incomplet(s)|r — un morceau n'est pas arrivé.", attente))
     end
 
     function f:Montrer()
-        self:Actualiser()
+        self.barre:Selectionner(self.onglet or "general")
+        self:Afficher(self.onglet or "general")
         self:Show()
     end
 

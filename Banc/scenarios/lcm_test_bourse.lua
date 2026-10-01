@@ -35,7 +35,7 @@ attendu("un montant nul : refus", (B.Crediter(moi, "ecus", 0)), false)
 dire("== la bourse tient ses propres soldes")
 -- L'onglet Devises du template n'a qu'UN emplacement : il ne peut pas loger
 -- trois monnaies, donc la bourse ne passe pas par lui.
-attendu("l'onglet Devises n'a qu'une place", LCM.Inventaire.Capacite("devises"), 1)
+attendu("l'onglet Devises a ete retire", LCM.Inventaire.Get("devises"), nil)
 attendu("la bourse est ailleurs", moi.bourse.ecus, 30)
 attendu("et n'a rien pose dans l'inventaire", moi.inventaire, nil)
 

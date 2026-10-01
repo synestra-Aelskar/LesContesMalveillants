@@ -88,14 +88,25 @@ function Points.Offre(pointId, offreId)
 end
 
 -- ===== Prendre une offre ===================================================
--- Recolter et acheter font la meme chose : prendre au stock, puis ranger. Le
--- PAIEMENT n'est pas automatique — le prix est affiche, la table le regle.
--- C'est volontaire tant qu'on n'a pas tranche comment vit une bourse.
+-- Recolter et acheter font la meme chose : prendre au stock, puis ranger. Chez
+-- un vendeur, le prix est PRELEVE dans la bourse.
+--
+-- L'ordre compte : on verifie d'abord qu'il peut payer, ensuite seulement on
+-- entame le stock. Un filon entame pour un achat qui echoue est une ressource
+-- perdue pour tout le monde.
 
 function Points.Prendre(entity, pointId, offreId)
     local offre, point = Points.Offre(pointId, offreId)
     if not offre then return false, "offre inconnue." end
     if type(entity) ~= "table" then return false, "aucun personnage." end
+
+    if offre.prix and offre.devise then
+        if not LCM.Bourse.Peut(entity, offre.devise, offre.prix) then
+            local devise = LCM.Devises.Get(offre.devise)
+            return false, string.format("il te faut %d %s.", offre.prix,
+                (devise and devise.label) or offre.devise)
+        end
+    end
 
     local limite = LCM.Stock.Limite(offre.cle)
     if limite > 0 then
@@ -114,16 +125,30 @@ function Points.Prendre(entity, pointId, offreId)
         if limite > 0 then LCM.Stock.Rendre(offre.cle, 1) end
         return false, raison or "impossible de ranger."
     end
+
+    -- Le paiement vient en dernier : a ce stade, plus rien ne peut echouer, et
+    -- le joueur a bien ce pour quoi il paie.
+    if offre.prix and offre.devise then
+        LCM.Bourse.Debiter(entity, offre.devise, offre.prix)
+    end
     return true, offre
 end
 
 -- Declarer les regles de stock a la connexion : elles vivent dans le contenu,
 -- pas dans la sauvegarde, donc elles se reposent a chaque session.
+--
+-- C'est aussi le moment de verifier les devises : le compendium n'est complet
+-- qu'une fois tout charge, et une faute de frappe dans un prix doit se voir au
+-- demarrage, pas a la premiere tentative d'achat en seance.
 LCM.WhenReady(function()
     for _, point in ipairs(Points.list) do
         for _, offre in ipairs(point.offres) do
             if offre.stock.limite > 0 then
                 LCM.Stock.Declarer(offre.cle, offre.stock)
+            end
+            if offre.prix and offre.devise and not LCM.Devises.Get(offre.devise) then
+                LCM.Erreur(string.format("%s : « %s » se paie en « %s », qui n'existe pas.",
+                    point.label, Points.Libelle(offre), offre.devise))
             end
         end
     end

@@ -12,5 +12,8 @@
 local _, LCM = ...
 local Portraits = LCM.Portraits
 
--- Aucun portrait livre pour l'instant.
-local _ = Portraits
+Portraits.Add({ id = "moon", label = "Moon" })
+Portraits.Add({ id = "reikashira", label = "ReikaShira" })
+
+-- Repli : affichee quand un personnage n'a pas encore son artwork.
+Portraits.SetSilhouette("silhouette.tga")

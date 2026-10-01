@@ -174,12 +174,28 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
         compteur:SetWidth(largeurColonne - 12)
         compteur.champ, compteur.categorie = ligne.id, categorie
-        -- Le cout n'est pas le meme pour tout le monde : il est ecrit a cote.
+
+        -- A droite de la ligne : le TOTAL que donnera la fiche, race comprise.
+        -- C'est ce que le joueur veut savoir en repartissant ; le cout, lui, ne
+        -- l'interesse qu'au moment d'appuyer — il est donc passe en infobulle
+        -- sur le « + », apres une seconde d'arret.
+        compteur.total = UI.Texte(compteur, "", UI.C.accent, "GameFontNormalSmall")
+        compteur.total:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
+        compteur.total:SetWidth(96)
+        compteur.total:SetJustifyH("LEFT")
+
         local cout = C.Cout(categorie, ligne.id)
-        if cout > 1 then
-            local note = UI.Texte(compteur, string.format("%d pts", cout), UI.C.discret, "GameFontNormalSmall")
-            note:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
-        end
+        UI.Bulle(compteur.plus,
+            function() return ligne.label end,
+            function()
+                local morceaux = { cout > 1 and string.format("Coûte %d points.", cout)
+                                           or "Coûte 1 point." }
+                local bonus = compteur.bonus or 0
+                if bonus ~= 0 then
+                    morceaux[#morceaux + 1] = string.format("Ta race y ajoute %+d.", bonus)
+                end
+                return table.concat(morceaux, "\n")
+            end)
         page.compteurs[#page.compteurs + 1] = compteur
         y = y + LIGNE
         index = index + 1
@@ -213,6 +229,44 @@ local function Lecture(bloc, libelle, y)
     l.valeur:SetJustifyH("RIGHT")
     return l
 end
+
+-- Ce que vaut vraiment un point secondaire, une fois investi. Le joueur ne
+-- repartit pas des points : il achete des PV, de la fatigue, de l'initiative.
+-- C'est donc le RESULTAT qu'on lui montre a droite de la ligne, pas le nombre
+-- de points qu'il vient de poser.
+local MARRON, BLEU, BLANC = "ffa0703c", "ff5a9bd8", "ffdedede"
+
+local RENDEMENTS = {
+    sec_vitalite = function(e)
+        return string.format("%d PV", tonumber(LCM.Entities.Get_Value(e, "pv_max")) or 0)
+    end,
+    sec_fatigue = function(e)
+        local jauge = LCM.Entities.Gauge(e, "fatigue")
+        return string.format("%d fatigue", (jauge and jauge.max) or 0)
+    end,
+    sec_initiative = function(e)
+        return string.format("%d init.", tonumber(LCM.Entities.Get_Value(e, "initiative")) or 0)
+    end,
+    sec_pa = function(e)
+        local jauge = LCM.Entities.Gauge(e, "pa")
+        return string.format("%d PA", (jauge and jauge.max) or 0)
+    end,
+    -- Les trois modes d'un coup, chacun dans sa couleur : terre, eau, air.
+    sec_deplacement = function(e)
+        local function m(champ) return tonumber(LCM.Entities.Get_Value(e, champ)) or 0 end
+        return string.format("|c%s%d|r / |c%s%d|r / |c%s%d|r",
+            MARRON, m("depl_terrestre"), BLEU, m("depl_nage"), BLANC, m("depl_vol"))
+    end,
+}
+
+-- Ceux qui ouvrent un budget : ce qu'ils rapportent, ce sont des points a
+-- repartir ailleurs.
+local BUDGETS_SECONDAIRES = {
+    sec_penetration = "penetration",
+    sec_resistance  = "resistance",
+    sec_expertises  = "expertises",
+    sec_mecanique   = "mecaniques",
+}
 
 -- Une entite de passage, faite du brouillon : les formules de la fiche (PV,
 -- fatigue) s'y appliquent telles quelles, race et traits compris.
@@ -281,7 +335,19 @@ function Pages.generale(page, f)
         precedent = b
         page.sexes[#page.sexes + 1] = b
     end
-    identite.hauteurContenu = y + 26 - Haut(identite)
+    -- « Autre » demande de preciser : un bouton qui ne dit rien de plus qu'il
+    -- n'est ni l'un ni l'autre n'apprend rien a la table.
+    page.sexeAutre = UI.Champ(identite, 150, 22, function(texte)
+        f.brouillon.sexeAutre = texte ~= "" and texte or nil
+        f:Actualiser()
+    end)
+    page.sexeAutre:SetPoint("TOPLEFT", identite, "TOPLEFT", LARGEUR_LABEL, -(y + 26))
+    page.sexeAutre:Hide()
+
+    -- La tabulation passe d'un champ a l'autre, dans l'ordre de lecture.
+    UI.Enchainer({ page.nom, page.age, page.poids, page.sexeAutre })
+
+    identite.hauteurContenu = y + 26 - Haut(identite) + 26
 
     -- Race : un CONTENEUR d'un emplacement dans le template (Creation ›
     -- Generale, « RACE », ajout limite a la categorie Races du compendium).
@@ -330,6 +396,27 @@ function Pages.generale(page, f)
     end)
     slot:SetScript("OnLeave", function() GameTooltip:Hide() end)
     slot.menu = UI.Choix("creation_race", "Race")
+    -- Clic gauche : choisir parmi les races du compendium. Le glisser-deposer
+    -- reste, mais il suppose la fenetre du compendium ouverte — ce qui fait de
+    -- la race le seul choix de la creation qu'on ne puisse pas faire sur place.
+    slot:SetScript("OnClick", function(self)
+        local options = {}
+        for _, r in ipairs(LCM.Races.list) do
+            options[#options + 1] = { id = r.id, label = r.label, icone = r.icone }
+        end
+        if #options == 0 then
+            LCM.Alerte("aucune race au compendium.")
+            return
+        end
+        if f.brouillon.race ~= "" then
+            table.insert(options, 1, { id = "", label = "Aucune" })
+        end
+        self.menu:Proposer(self, options, function(choix)
+            f.brouillon.race = choix or ""
+            f:Actualiser()
+        end)
+    end)
+    slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     slot:SetScript("OnMouseUp", function(self, bouton)
         if bouton ~= "RightButton" or f.brouillon.race == "" then return end
         local r = LCM.Races.Get(f.brouillon.race)
@@ -344,7 +431,59 @@ function Pages.generale(page, f)
             end
         end)
     end)
-    race.hauteurContenu = slot:GetHeight()
+    -- Une race qui n'est pas au compendium : on la saisit. Elle n'apporte aucun
+    -- bonus et aucune morphologie (repli sur humanoide) — c'est un nom, et
+    -- c'est dit. Le MJ la cree ensuite dans l'atelier s'il veut qu'elle compte.
+    race.libreLabel = UI.Texte(race, "ou saisis-la", UI.C.discret)
+    UI.Police(race.libreLabel, 11)
+    race.libreLabel:SetPoint("TOPLEFT", race, "TOPLEFT", UI.Fiche.MARGE_BLOC, -Haut(race) - 56)
+    race.libre = UI.Champ(race, 200, 22, function(texte)
+        f.brouillon.raceLibre = texte ~= "" and texte or nil
+        f:Actualiser()
+    end)
+    race.libre:SetPoint("LEFT", race.libreLabel, "RIGHT", 10, 0)
+    page.raceLibre = race.libre
+
+    race.hauteurContenu = slot:GetHeight() + 32
+
+    -- Portrait : l'artwork livre avec l'addon. Sans choix, un personnage n'a
+    -- jamais son image — l'identifiant d'un portrait ne tombe pas tout seul sur
+    -- celui du personnage (« reikashira » n'est pas « reika-shira »).
+    local portrait = Bloc(page, "Portrait", "Choisis l'artwork de ton personnage parmi ceux livrés avec l'addon.")
+    local vignette = CreateFrame("Button", nil, portrait)
+    vignette:SetSize(40, 60)
+    vignette:SetPoint("TOPLEFT", portrait, "TOPLEFT", UI.Fiche.MARGE_BLOC, -Haut(portrait))
+    if UI.BordureFine then UI.BordureFine(vignette, 0.4) end
+    vignette.art = vignette:CreateTexture(nil, "ARTWORK")
+    vignette.art:SetPoint("TOPLEFT", vignette, "TOPLEFT", 1, -1)
+    vignette.art:SetPoint("BOTTOMRIGHT", vignette, "BOTTOMRIGHT", -1, 1)
+    vignette.survol = UI.Aplat(vignette, UI.C.survol, "HIGHLIGHT")
+    vignette.survol:SetAllPoints(vignette)
+
+    vignette.nom = UI.Texte(portrait, "", UI.C.texte)
+    UI.Police(vignette.nom, 13)
+    vignette.nom:SetPoint("LEFT", vignette, "RIGHT", 10, 8)
+    vignette.aide = UI.Texte(portrait, "", UI.C.discret)
+    UI.Police(vignette.aide, 11)
+    vignette.aide:SetPoint("LEFT", vignette, "RIGHT", 10, -8)
+
+    vignette.menu = UI.Choix("creation_portrait", "Portrait")
+    vignette:SetScript("OnClick", function(self)
+        local options = { { id = "", label = "Aucun" } }
+        for _, p in ipairs(LCM.Portraits.list) do
+            options[#options + 1] = { id = p.id, label = p.label }
+        end
+        if #options == 1 then
+            LCM.Alerte("aucun artwork n'est livre pour l'instant.")
+            return
+        end
+        self.menu:Proposer(self, options, function(choix)
+            f.brouillon.valeurs.portrait = (choix ~= "" and choix) or nil
+            f:Actualiser()
+        end)
+    end)
+    page.portrait = vignette
+    portrait.hauteurContenu = 60
 
     -- Niveau d'aventure : un champ de la fiche (« Niveau du personnage »,
     -- modifiable en vue), comme les lignes d'informations qui suivent. La
@@ -352,7 +491,14 @@ function Pages.generale(page, f)
     -- rouge et bloque la creation, rien n'est corrige en douce.
     local niveau = Bloc(page, "Niveau d'aventure", TEXTES.niveau)
     local ligneNiveau = Lecture(niveau, "Niveau du personnage (5 par défaut)", Haut(niveau))
-    ligneNiveau.valeur:Hide()
+    -- Le niveau est fixe pour les joueurs : tout le monde commence a 5. Seul le
+    -- compagnon MJ ouvre la saisie — monter de niveau se gagne en jeu, ca ne se
+    -- tape pas dans une case.
+    --
+    -- `ligneNiveau.valeur` sert deja a porter le nombre (il est ecrase a chaque
+    -- rafraichissement) : on garde une reference a part pour le texte.
+    ligneNiveau.lecture = ligneNiveau.valeur
+    ligneNiveau.lecture:Hide()
     ligneNiveau.saisie = UI.Champ(ligneNiveau, 56, LIGNE - 6, function(texte)
         local n = tonumber(texte)
         if n and n == math.floor(n) and n >= 1 then
@@ -390,6 +536,15 @@ function Pages.generale(page, f)
         if self.age:GetText() ~= age then self.age:SetText(age) end
         local poids = tostring(b.valeurs.poids or "")
         if self.poids:GetText() ~= poids then self.poids:SetText(poids) end
+        -- Le niveau ne se saisit qu'avec le compagnon MJ ; sinon il se lit.
+        local mj = LCM.IsMaster()
+        self.niveau.saisie:SetShown(mj)
+        self.niveau.lecture:SetShown(not mj)
+        if not mj then
+            self.niveau.lecture:SetText(tostring(b.niveau))
+            Teinte(self.niveau.lecture, UI.C.titre)
+        end
+
         -- Une saisie en cours (meme illisible) n'est pas remplacee.
         local saisie = self.niveau.saisie
         if b.niveauSaisie == nil and saisie:GetText() ~= tostring(b.niveau) then saisie:SetText(tostring(b.niveau)) end
@@ -397,6 +552,23 @@ function Pages.generale(page, f)
         saisie:SetTextColor(teinte[1], teinte[2], teinte[3])
         self.niveau.valeur = b.niveau
         for _, bouton in ipairs(self.sexes) do bouton:Selectionner(bouton.sexe == b.valeurs.sexe) end
+        -- Le champ libre n'apparait que si « Autre » est choisi.
+        local autre = b.valeurs.sexe == "Autre"
+        self.sexeAutre:SetShown(autre)
+        if autre and self.sexeAutre:GetText() ~= (b.sexeAutre or "") then
+            self.sexeAutre:SetText(b.sexeAutre or "")
+        end
+        local libre = b.raceLibre or ""
+        if self.raceLibre:GetText() ~= libre then self.raceLibre:SetText(libre) end
+
+        -- L'apercu de l'artwork. Sans choix, la silhouette de repli : on voit
+        -- ce qu'on aura, pas une case vide.
+        local choisi = b.valeurs.portrait and LCM.Portraits.Get(b.valeurs.portrait)
+        LCM.Portraits.Appliquer(self.portrait.art, { values = b.valeurs })
+        self.portrait.nom:SetText(choisi and choisi.label or "Aucun")
+        Teinte(self.portrait.nom, choisi and UI.C.titre or UI.C.discret)
+        self.portrait.aide:SetText(#LCM.Portraits.list > 0 and "Cliquer pour choisir"
+            or "Aucun artwork livré")
         -- La case de race : la race deposee, ou « Emplacement ». Une race
         -- disparue reste visible, marquee, et bloque la creation.
         local slot, r = self.race, b.race ~= "" and LCM.Races.Get(b.race)
@@ -581,9 +753,31 @@ local function Construire()
         if not page then return end
         -- Les compteurs relisent tout : un plafond peut avoir bouge a cause
         -- d'une modification faite dans un autre onglet.
+        local apercu = Apercu(self.brouillon)
         for _, compteur in ipairs(page.compteurs) do
-            compteur:Regler(C.Valeur(self.brouillon, compteur.champ),
-                C.Plafond(self.brouillon, compteur.categorie, compteur.champ))
+            local investi = C.Valeur(self.brouillon, compteur.champ)
+            compteur:Regler(investi, C.Plafond(self.brouillon, compteur.categorie, compteur.champ))
+            -- Le total : ce qu'on a mis, plus ce que la race (ou un trait)
+            -- apporte. Le bonus est dit a part pour qu'on sache d'ou il vient.
+            local bonus = LCM.Effets.Bonus(apercu, compteur.champ)
+            compteur.bonus = bonus
+            if compteur.total then
+                local rendement = RENDEMENTS[compteur.champ]
+                local budget = BUDGETS_SECONDAIRES[compteur.champ]
+                local texte
+                if rendement then
+                    texte = rendement(apercu)
+                elseif budget then
+                    texte = string.format("%d pts", C.Total(self.brouillon, budget))
+                elseif bonus ~= 0 then
+                    texte = string.format("%d  |cff8a8a8a%+d|r", investi + bonus, bonus)
+                else
+                    texte = tostring(investi)
+                end
+                compteur.total:SetText(texte)
+                local teinte = (rendement or budget or bonus ~= 0) and UI.C.accent or UI.C.discret
+                compteur.total:SetTextColor(teinte[1], teinte[2], teinte[3])
+            end
         end
         for _, bloc in ipairs(page.budgets) do
             local budget = C.Budget(self.brouillon, bloc.categorie)

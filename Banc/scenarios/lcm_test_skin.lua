@@ -12,8 +12,10 @@ __declencher("PLAYER_LOGIN")
 dire("== toute fenetre recoit le cadre")
 local fiche = LCM.UI.Fiche.Fenetre()
 attendu("la fiche a son decor", fiche.decor ~= nil, true)
-attendu("six pieces fixes", #fiche.decor.fixes, 6)
-attendu("six bandes etirees", #fiche.decor.bandes, 6)
+-- Les pieces sont fabriquees par habillage, a la demande.
+attendu("l'habillage en cours", fiche.decor.theme, "leger")
+attendu("six pieces fixes", #fiche.decor.jeux.leger.fixes, 6)
+attendu("six bandes etirees", #fiche.decor.jeux.leger.bandes, 6)
 attendu("titre centre", fiche.titreCentre, true)
 local point = fiche.titre:GetPoint(1)
 attendu("et centre sur le haut (en-tete Necronicon)", point, "CENTER")
@@ -30,7 +32,7 @@ attendu("echelle bornee en bas", etroite.decor.echelle, 0.26)
 
 dire("== le motif du haut est rogne pour le titre")
 local haut
-for index, piece in ipairs(fiche.decor.fixes) do
+for index, piece in ipairs(fiche.decor.jeux.leger.fixes) do
     if index == 5 then haut = piece end
 end
 local _, _, y0, y1 = unpack(haut.__texCoord)
@@ -38,7 +40,7 @@ local _, _, y0, y1 = unpack(haut.__texCoord)
 attendu("hauteur rognee", string.format("%.4f", y1 - y0), string.format("%.4f", 102 / 1024))
 
 dire("== les bandes n'echantillonnent que leur milieu")
-local bande = fiche.decor.bandes[1]
+local bande = fiche.decor.jeux.leger.bandes[1]
 local bx0, bx1 = unpack(bande.__texCoord)
 attendu("trois pixels ronges de chaque cote",
     string.format("%.4f", bx1 - bx0), string.format("%.4f", (12 - 6) / 1024))

@@ -104,7 +104,9 @@ end
 -- sa valeur totale : le template lit la repartition) + points secondaires.
 function LCM.Deplacement(entity, mode, expertise)
     local e = LCM.Equilibrage.deplacement
-    local v = function(id) return tonumber(LCM.Entities.Get_Value(entity, id)) or 0 end
+    local v = function(id) return (id and tonumber(LCM.Entities.Get_Value(entity, id))) or 0 end
+    -- Le vol n'a pas d'expertise : il ne depend que de sa base et des points
+    -- secondaires. `expertise` peut donc etre nil.
     return math.floor((e[mode] or 0) + v(expertise) + e.parSecondaire * v("sec_deplacement")
         + LCM.Effets.Bonus(entity, "depl_" .. mode))
 end
@@ -170,6 +172,10 @@ Schema.AddTab({
                   formula = function(entity) return LCM.Deplacement(entity, "terrestre", "course") end },
                 { id = "depl_nage",      kind = "calc", label = "Nage",      recoitBonus = true,
                   formula = function(entity) return LCM.Deplacement(entity, "nage", "nage") end },
+                -- Le vol : base zero dans le template, il ne vient donc que des
+                -- points secondaires et de ce qu'on porte.
+                { id = "depl_vol",       kind = "calc", label = "Vol",       recoitBonus = true,
+                  formula = function(entity) return LCM.Deplacement(entity, "vol") end },
             },
         },
     },

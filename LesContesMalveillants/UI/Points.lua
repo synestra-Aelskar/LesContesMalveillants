@@ -138,8 +138,11 @@ local function Construire(nature)
             local nom = Points.Libelle(offre)
             if offre.quantite > 1 then nom = nom .. "  x" .. offre.quantite end
             if offre.prix then
+                -- Le libelle de la devise, pas son identifiant : « 5 Écus »,
+                -- pas « 5 ecus ».
+                local devise = offre.devise and LCM.Devises.Get(offre.devise)
                 nom = string.format("%s   |cffffd36b%s %s|r", nom, tostring(offre.prix),
-                    tostring(offre.devise or ""))
+                    (devise and devise.label) or tostring(offre.devise or ""))
             end
             l.nom:SetText(nom)
 

@@ -27,10 +27,13 @@ local DUREE = 0.18
 -- defaut, celles que Necronicon donne au type de fenetre.
 
 Menu.STRUCTURE = {
+    -- « Création » a quitte le menu le 1er octobre 2026 : on cree un personnage
+    -- depuis la selection (clic droit sur le sceau, « + Créer un personnage »),
+    -- la ou l'on choisit deja qui l'on joue. L'avoir aux deux endroits ne
+    -- servait qu'a se demander lequel fait foi.
     { id = "creation_personnage", label = "Création Personnage", icone = ICONE .. "eps_buildershaven_gobinfo",
       enfants = {
           { id = "regles",   label = "Règles",   icone = ICONE .. "eps_arc_book_bluedragon2" },
-          { id = "creation", label = "Création", icone = ICONE .. "achievement_explore_argus" },
       } },
     { id = "fiches_personnages", label = "Fiches personnages", icone = ICONE .. "eps_lol_tft_infiltratoremblem",
       enfants = {
@@ -387,11 +390,7 @@ LCM.Identite.AuChangement(Menu.ActualiserIcone)
 
 LCM.AddCommand("fenetres", "ouvre le menu des fenetres", function() Menu.Basculer() end)
 
--- La Creation n'est pas une vue. Les vues (Regles comprises) se lient
--- elles-memes (UI/Vues.lua).
+-- Les vues (Regles comprise) se lient elles-memes (UI/Vues.lua).
 LCM.WhenReady(function()
-    Menu.Lier("creation", function()
-        if UI.Creation and UI.Creation.Ouvrir then UI.Creation.Ouvrir() end
-    end)
     Menu.Bouton():Show()
 end)

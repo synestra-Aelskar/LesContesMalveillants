@@ -40,7 +40,7 @@ attendu("une nature inconnue aussi",
 
 local marchand = P.Add({
     id = "herboriste", label = "Herboriste", nature = "vendeur",
-    offres = { { id = "herbe", label = "Herbe de lune", prix = 5, devise = "écus",
+    offres = { { id = "herbe", label = "Herbe de lune", prix = 5, devise = "ecus",
                  stock = { limite = 2, unites = 0, minutes = 0 } } },
 })
 attendu("le vendeur passe", marchand.offres[1].prix, 5)
@@ -86,6 +86,30 @@ dire("== une offre sans stock ne s'epuise pas")
 for _ = 1, 5 do P.Prendre(moi, "filon_cuivre", "poussiere") end
 attendu("toujours disponible", (P.Prendre(moi, "filon_cuivre", "poussiere")), true)
 
+dire("== acheter preleve dans la bourse")
+-- Le vendeur demande 5 ecus ; le personnage n'en a pas encore.
+local sansSou, pourquoiPas = P.Prendre(moi, "herboriste", "herbe")
+attendu("sans argent : refus", sansSou, false)
+attendu("et on dit le prix", pourquoiPas:find("5") ~= nil, true)
+attendu("le stock n'a pas ete entame", LCM.Stock.Restant("herboriste/herbe"), 2)
+
+LCM.Bourse.Crediter(moi, "ecus", 12)
+local achat = P.Prendre(moi, "herboriste", "herbe")
+attendu("avec de quoi payer : achete", achat, true)
+attendu("preleve", LCM.Bourse.Solde(moi, "ecus"), 7)
+attendu("et le stock baisse", LCM.Stock.Restant("herboriste/herbe"), 1)
+P.Prendre(moi, "herboriste", "herbe")
+attendu("un second achat", LCM.Bourse.Solde(moi, "ecus"), 2)
+local trop = P.Prendre(moi, "herboriste", "herbe")
+attendu("plus de stock : refus", trop, false)
+attendu("et rien n'a ete preleve", LCM.Bourse.Solde(moi, "ecus"), 2)
+LCM.Stock.Rendre("herboriste/herbe", 2, true)
+
+dire("== recolter ne coute rien")
+local avantSolde = LCM.Bourse.Solde(moi, "ecus")
+P.Prendre(moi, "filon_cuivre", "poussiere")
+attendu("la bourse n'a pas bouge", LCM.Bourse.Solde(moi, "ecus"), avantSolde)
+
 dire("== la fenetre des ressources")
 local f = LCM.UI.Points.Basculer("ressource")
 attendu("ouverte", f:IsShown(), true)
@@ -101,7 +125,8 @@ dire("== la fenetre du vendeur")
 local v = LCM.UI.Points.Basculer("vendeur")
 attendu("ouverte", v:IsShown(), true)
 attendu("le bouton dit Acheter", v.offres[1].prendre.label:GetText(), "Acheter")
-attendu("le prix est affiche", __sansCouleur(v.offres[1].nom:GetText()):find("5 écus") ~= nil, true)
+attendu("le prix est affiche avec le nom de la devise",
+    __sansCouleur(v.offres[1].nom:GetText()):find("5 Écus") ~= nil, true)
 
 dire("== un stock qui bouge ailleurs se voit ici")
 LCM.Reseau.Recevoir("Autre-Royaume", "88:1:1:stock|cle=herboriste/herbe;r=0;t=50000;u=99999")

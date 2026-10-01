@@ -110,7 +110,7 @@ E.conteneurs = {
 E.inventaire = {
     sacs = 2,
     saccoches = 4,
-    devises = 1,
+    -- `devises` retire avec son onglet : voir Data/Inventaire.lua.
 }
 
 -- ===== Budgets de creation =================================================
