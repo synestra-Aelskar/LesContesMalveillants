@@ -951,7 +951,15 @@ end
 -- Curseur horizontal (le defilement lateral d'un tableau trop large) :
 -- gouttiere sombre et poignee doree, comme la barre de UI.Defilement.
 -- `curseur:Regler(max, valeur)` ; `onChange(valeur)` au deplacement.
-function UI.Curseur(parent, onChange)
+--
+-- `options.auRelachement` : n'appelle `onChange` qu'au LACHER. Indispensable
+-- quand ce qu'on regle change la taille de la fenetre — sinon la gouttiere
+-- grandit sous la poignee pendant qu'on tire, la course change a chaque image
+-- et le curseur part tout seul. (Le meme defaut existait dans Necronicon.)
+-- `options.onApercu(valeur)` est appele, lui, a chaque deplacement : de quoi
+-- afficher le pourcentage sans rien appliquer.
+function UI.Curseur(parent, onChange, options)
+    options = options or {}
     local c = CreateFrame("Button", nil, parent)
     c:SetHeight(12)
     c.valeur, c.max = 0, 0
@@ -979,7 +987,18 @@ function UI.Curseur(parent, onChange)
         local change = valeur ~= self.valeur
         self.valeur = valeur
         Poser()
-        if change and onChange then onChange(valeur) end
+        if not change then return end
+        if options.onApercu then options.onApercu(valeur) end
+        -- Tant qu'on tire, on ne fait qu'annoncer ; c'est le lacher qui agit.
+        if options.auRelachement and self.enGlissement then return end
+        if onChange then onChange(valeur) end
+    end
+
+    -- Poser la valeur sans rien declencher : pour rafraichir la barre depuis
+    -- l'exterieur sans rejouer l'action qu'elle commande.
+    function c:Poser(valeur)
+        self.valeur = math.floor(math.max(0, math.min(tonumber(valeur) or 0, self.max)))
+        Poser()
     end
 
     function c:Regler(maximum, valeur)
@@ -999,9 +1018,15 @@ function UI.Curseur(parent, onChange)
     end)
     c.poignee:SetScript("OnMouseDown", function(self)
         local x = GetCursorPosition()
-        self.depart = { x = x / (self:GetEffectiveScale() or 1), valeur = c.valeur }
+        c.enGlissement = true
+        -- La course est relevee au DEPART et ne bouge plus : si ce qu'on regle
+        -- redimensionne la fenetre, la gouttiere change de taille sous la
+        -- poignee, et une course recalculee a chaque image fait fuir le
+        -- curseur. C'est le bug qu'on avait dans Necronicon.
+        self.depart = { x = x / (self:GetEffectiveScale() or 1), valeur = c.valeur,
+                        course = c:GetWidth() - self:GetWidth() }
         self:SetScript("OnUpdate", function(poignee)
-            local course = c:GetWidth() - poignee:GetWidth()
+            local course = poignee.depart and poignee.depart.course or 0
             if not poignee.depart or course <= 0 then return end
             local cx = GetCursorPosition()
             cx = cx / (poignee:GetEffectiveScale() or 1)
@@ -1011,6 +1036,10 @@ function UI.Curseur(parent, onChange)
     c.poignee:SetScript("OnMouseUp", function(self)
         self.depart = nil
         self:SetScript("OnUpdate", nil)
+        if not c.enGlissement then return end
+        c.enGlissement = false
+        -- Le lacher applique ce qu'on a choisi.
+        if options.auRelachement and onChange then onChange(c.valeur) end
     end)
     c:SetScript("OnSizeChanged", Poser)
     c:Hide()

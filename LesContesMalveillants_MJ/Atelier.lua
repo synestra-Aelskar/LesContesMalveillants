@@ -23,7 +23,7 @@ local Atelier = {}
 MJ.Atelier = Atelier
 UI.Atelier = Atelier
 
-local LARGEUR, HAUTEUR = 760, 540
+local LARGEUR, HAUTEUR = 700, 500
 local LARGEUR_LISTE = 210
 local LARGEUR_FORMULAIRE = LARGEUR - 24 - LARGEUR_LISTE - 12
 local COLONNE = 100      -- largeur des libelles du formulaire

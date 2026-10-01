@@ -28,7 +28,7 @@ UI.Compendium = Fenetre
 
 -- ===== Mesures de Necronicon ===============================================
 
-local LARGEUR, HAUTEUR, MIN_L, MIN_H = 860, 520, 720, 420
+local LARGEUR, HAUTEUR, MIN_L, MIN_H = 760, 500, 620, 400
 local PANEL_TOP, PANEL_BOTTOM, PANEL_GAP, INSET = -38, 16, 12, 8
 local LARGEUR_TYPES = 140
 local LARGEUR_CATEGORIES = 184

@@ -14,7 +14,7 @@ local Points = LCM.Points
 local Ecran = { frames = {} }
 UI.Points = Ecran
 
-local LARGEUR, HAUTEUR = 640, 460
+local LARGEUR, HAUTEUR = 560, 420
 local COLONNE = 200
 local LIGNE = 28
 

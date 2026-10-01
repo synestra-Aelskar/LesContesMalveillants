@@ -15,7 +15,9 @@ local UI = LCM.UI
 local Ecran = {}
 UI.Parametres = Ecran
 
-local LARGEUR, HAUTEUR = 460, 420
+-- Mesures de la fenetre de parametres de Necronicon (388 x 600) : etroite
+-- et haute. Une fenetre large etale trois reglages sur un demi-ecran.
+local LARGEUR, HAUTEUR = 400, 560
 local LIGNE = 26
 
 local function Construire()
@@ -115,20 +117,31 @@ local function Construire()
     -- `depart` : la valeur a l'ouverture. Elle passe par `Regler`, pas par une
     -- affectation de `max` : c'est `Regler` qui montre la barre (UI.Curseur
     -- nait cachee, elle sert d'abord d'ascenseur) et qui pose la poignee.
-    local function Barre(parent, libelle, aide, dy, depart, onChange)
+    -- `lire(valeur)` rend le texte affiche a droite. `auRelachement` : la
+    -- taille de l'interface ne s'applique qu'au lacher — elle redimensionne la
+    -- fenetre qui porte la barre, et une barre qui grandit sous la poignee
+    -- pendant qu'on tire devient impilotable.
+    local function Barre(parent, libelle, aide, dy, depart, lire, onChange, auRelachement)
         local titre = UI.Texte(parent, libelle, UI.C.texte)
         UI.Police(titre, 12)
         titre:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy)
         local valeur = UI.Texte(parent, "", UI.C.titre)
         UI.Police(valeur, 12)
         valeur:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -dy)
-        local curseur = UI.Curseur(parent, onChange)
+        local curseur = UI.Curseur(parent, onChange, {
+            auRelachement = auRelachement,
+            -- Pendant le glissement, le chiffre suit meme si rien n'est encore
+            -- applique : sans lui on tire a l'aveugle.
+            onApercu = function(v) valeur:SetText(lire(v)) end,
+        })
         curseur:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 20)
         curseur:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -4, -dy - 20)
         -- Un filet autour de la gouttiere : sans lui, une barre presque noire
         -- sur un fond noir ne se voit pas, et on ne sait pas qu'on peut tirer.
         UI.Bordure(curseur, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.45 })
         curseur:Regler(100, depart)
+        curseur.lire = lire
+        valeur:SetText(lire(depart))
         local note = UI.Texte(parent, aide, UI.C.discret)
         UI.Police(note, 10)
         note:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, -dy - 36)
@@ -137,10 +150,12 @@ local function Construire()
 
     app.opacite, app.opaciteValeur = Barre(app.general, "Opacité des fenêtres",
         "0 : presque transparente — 100 : pleine.", 0, UI.Opacite(),
+        function(v) return v .. " %" end,
         function(v) UI.Opacite(v) f:Actualiser() end)
     app.echelle, app.echelleValeur = Barre(app.general, "Taille de l'interface",
         "50 : taille normale. En dessous ça rétrécit, au-dessus ça grandit.", 64, UI.Echelle(),
-        function(v) UI.Echelle(v) f:Actualiser() end)
+        function(v) return string.format("%d %%", math.floor((0.5 + v / 100) * 100)) end,
+        function(v) UI.Echelle(v) f:Actualiser() end, true)
 
     app.theme = CreateFrame("Frame", nil, app)
     app.theme:SetPoint("TOPLEFT", app, "TOPLEFT", 0, -32)
@@ -198,12 +213,14 @@ local function Construire()
             LCM.Reseau.PREFIXE, enregistre and "enregistré" or "|cffe86b6bnon enregistré|r"))
 
         -- Apparences : les barres et l'habillage retenu.
+        -- `Poser` et pas `Aller` : on remet la poignee en face de la valeur
+        -- retenue, sans rejouer le reglage qu'on vient d'appliquer.
         local opacite = UI.Opacite()
         local echelle = UI.Echelle()
-        app.opacite:Aller(opacite)
-        app.echelle:Aller(echelle)
-        app.opaciteValeur:SetText(opacite .. " %")
-        app.echelleValeur:SetText(string.format("%d %%", math.floor((0.5 + echelle / 100) * 100)))
+        app.opacite:Poser(opacite)
+        app.echelle:Poser(echelle)
+        app.opaciteValeur:SetText(app.opacite.lire(opacite))
+        app.echelleValeur:SetText(app.echelle.lire(echelle))
         local actuel = UI.ThemeActuel()
         for _, b in ipairs(app.themes) do
             b:Selectionner(b.themeId == actuel)

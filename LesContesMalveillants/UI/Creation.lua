@@ -17,7 +17,9 @@ local C = LCM.Creation
 local Ecran = {}
 UI.Creation = Ecran
 
-local LARGEUR, HAUTEUR = 1000, 720
+-- 820 de large : le recapitulatif a gauche, la page a droite, et on reste
+-- sous la plus large fenetre de Necronicon (780) une fois le recap deduit.
+local LARGEUR, HAUTEUR = 820, 620
 -- La colonne du recapitulatif, a gauche : ce qu'on a deja pose, par categorie.
 local LARGEUR_RECAP = 224
 local LARGEUR_PAGE = LARGEUR - 24 - LARGEUR_RECAP - 12

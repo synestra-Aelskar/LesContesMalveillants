@@ -16,7 +16,7 @@ local Metiers = LCM.Metiers
 local Ecran = {}
 UI.Metiers = Ecran
 
-local LARGEUR, HAUTEUR = 720, 600
+local LARGEUR, HAUTEUR = 620, 540
 local COLONNE = 220
 local LIGNE = 34
 

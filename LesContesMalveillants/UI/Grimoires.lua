@@ -21,7 +21,7 @@ UI.Grimoires = Hub
 UI.Grimoire = Livre
 
 local HUB_L, HUB_H = 430, 520
-local LIVRE_L, LIVRE_H = 790, 470
+local LIVRE_L, LIVRE_H = 700, 460
 local ICONE = 36
 local CARTE = 60
 

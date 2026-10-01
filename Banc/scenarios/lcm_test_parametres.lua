@@ -104,6 +104,26 @@ app.echelle:Aller(50)
 attendu("50 = taille normale", f:GetScale(), 1)
 attendu("et rien n'est retenu", LCM.db.settings.echelle, nil)
 
+dire("   la taille ne s'applique qu'au lacher")
+-- Appliquer l'echelle pendant qu'on tire redimensionne la fenetre qui porte la
+-- barre : la gouttiere grandit sous la poignee et le curseur part tout seul.
+local avant = f:GetScale()
+app.echelle.enGlissement = true
+app.echelle:Aller(90)
+attendu("pendant le glissement, rien n'est applique", f:GetScale(), avant)
+attendu("mais le chiffre suit", app.echelleValeur:GetText(), "140 %")
+attendu("et rien n'est encore retenu", LCM.db.settings.echelle, nil)
+app.echelle.poignee:GetScript("OnMouseUp")(app.echelle.poignee)
+attendu("au lacher, c'est applique", f:GetScale(), 1.4)
+attendu("et retenu", LCM.db.settings.echelle, 90)
+-- L'opacite, elle, ne change aucune taille : elle reste immediate.
+app.opacite.enGlissement = true
+app.opacite:Aller(60)
+attendu("l'opacite suit le doigt", math.abs(f:GetAlpha() - (0.1 + 0.9 * 0.6)) < 0.001, true)
+app.opacite.enGlissement = false
+app.opacite:Aller(100)
+app.echelle:Aller(50)
+
 dire("   themes")
 f:AfficherApparence("theme")
 attendu("quatre habillages", #app.themes, 4)

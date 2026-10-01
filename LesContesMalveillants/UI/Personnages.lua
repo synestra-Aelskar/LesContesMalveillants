@@ -97,7 +97,7 @@ end
 -- ===== La fenetre ==========================================================
 
 local function Construire()
-    local f = UI.Fenetre("personnages", "Selection du personnage", 860, 540)
+    local f = UI.Fenetre("personnages", "Selection du personnage", 720, 470)
     Ecran.frame = f
     f.index = 1
 
