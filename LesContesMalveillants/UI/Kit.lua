@@ -378,8 +378,41 @@ function UI.BandeauOnglets(parent, onglets, onChange)
         end
     end
 
-    function bandeau:Disposer(largeur, hauteurRangee)
+    -- `options.uneRangee` : tout tient sur une seule ligne, quitte a reduire le
+    -- texte. Chaque onglet recoit la meme part de la largeur, et la police
+    -- descend jusqu'a ce que le plus long libelle y tienne (jamais sous 9 : en
+    -- dessous ca ne se lit plus, mieux vaut alors une fenetre plus large).
+    function bandeau:Disposer(largeur, hauteurRangee, options)
+        options = options or {}
         local police = 24 * ((hauteurRangee - 2) / 55)
+
+        if options.uneRangee and #self.boutons > 0 then
+            local n = #self.boutons
+            local part = math.max(40, (largeur - (n - 1) * 6) / n)
+            UI.Police(self.mesure, police)
+            local pire = 0
+            for _, b in ipairs(self.boutons) do
+                self.mesure:SetText(b.label:GetText() or "")
+                pire = math.max(pire, self.mesure:GetStringWidth() or 0)
+            end
+            -- La largeur d'un texte suit sa police : on en deduit le rapport.
+            if pire > 0 and pire + 14 > part then
+                police = math.max(9, math.floor(police * (part - 14) / pire))
+            end
+            local x = 0
+            for index, b in ipairs(self.boutons) do
+                UI.Police(b.label, police)
+                b:SetSize(part, hauteurRangee - 2)
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", self, "TOPLEFT", x, 0)
+                x = x + part + (index < n and 6 or 0)
+            end
+            self:SetHeight(hauteurRangee)
+            self.rangees = 1
+            self:Selectionner(self.actif or self.boutons[1].ongletId)
+            return hauteurRangee
+        end
+
         UI.Police(self.mesure, police)
         local rangees, courante, x = {}, nil, 0
         for _, b in ipairs(self.boutons) do
@@ -412,6 +445,7 @@ function UI.BandeauOnglets(parent, onglets, onChange)
         end
         local hauteur = math.max(1, #rangees) * hauteurRangee
         self:SetHeight(hauteur)
+        self.rangees = math.max(1, #rangees)
         self:Selectionner(self.actif or (self.boutons[1] and self.boutons[1].ongletId))
         return hauteur
     end
@@ -539,6 +573,13 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     UI.Police(l.label, 12)
     l.label:SetPoint("LEFT", l, "LEFT", 6, 0)
     l.label:SetWidth(largeurLibelle or 120)
+    -- Un libelle trop long se coupe ; il ne passe pas a la ligne, sinon la
+    -- ligne double de hauteur et la colonne se desaligne.
+    l.label:SetWordWrap(false)
+
+    -- Ce que la ligne occupe apres le libelle : R, -, le chiffre, +, M.
+    -- Utile pour decider ce qui tient encore a droite dans une colonne etroite.
+    l.largeurBoutons = 136
 
     local function Poser(valeur)
         if valeur < 0 then return end

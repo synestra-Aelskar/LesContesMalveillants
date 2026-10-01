@@ -152,6 +152,19 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
     local marge = UI.Fiche.MARGE_BLOC + 6
     local largeurColonne = (LARGEUR_PAGE - 2 * marge) / colonnes
     local parColonne = math.ceil(#lignes / colonnes)
+    -- Ce qui tient dans une colonne : le libelle, les boutons (136), puis le
+    -- total. En deux colonnes il n'y a plus la place du total — il est de
+    -- toute facon dans le recapitulatif, a gauche — alors on rend au libelle
+    -- ce qu'on lui prenait, plutot que de laisser la colonne deborder sur sa
+    -- voisine.
+    -- 6 : la marge avant le libelle. 136 : R, -, le chiffre, + et M.
+    local dispo = (largeurColonne - 12) - 6 - 136
+    local largeurLabel = math.min(LARGEUR_LABEL, math.max(76, dispo - 8 - 96))
+    local largeurTotal = math.min(96, math.max(0, dispo - largeurLabel - 8))
+    if largeurTotal < 30 then
+        largeurLabel = math.max(76, dispo)
+        largeurTotal = 0
+    end
     local haut = Haut(bloc)
     local y, colonne, index, groupeCourant, hauteurMax = haut, 0, 0, nil, 0
 
@@ -163,7 +176,7 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
             t:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
             y = y + 20
         end
-        local compteur = UI.Compteur(bloc, ligne.label, LARGEUR_LABEL, {
+        local compteur = UI.Compteur(bloc, ligne.label, largeurLabel, {
             change = function(valeur)
                 local ok, raison = C.Definir(f.brouillon, categorie, ligne.id, valeur)
                 if not ok then
@@ -185,8 +198,9 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         -- sur le « + », apres une seconde d'arret.
         compteur.total = UI.Texte(compteur, "", UI.C.accent, "GameFontNormalSmall")
         compteur.total:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
-        compteur.total:SetWidth(96)
+        compteur.total:SetWidth(math.max(1, largeurTotal))
         compteur.total:SetJustifyH("LEFT")
+        compteur.total:SetShown(largeurTotal > 0)
 
         local cout = C.Cout(categorie, ligne.id)
         UI.Bulle(compteur.plus,
@@ -721,7 +735,9 @@ local function Construire()
     f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
     f.barre:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, 0)
     f.barre:SetWidth(LARGEUR_PAGE)
-    local hauteurBandeau = f.barre:Disposer(LARGEUR_PAGE, m.onglet)
+    -- Les sept etapes sur une seule ligne : empilees sur trois rangees, elles
+    -- mangeaient le tiers de la fenetre et noyaient l'etape ou l'on est.
+    local hauteurBandeau = f.barre:Disposer(LARGEUR_PAGE, m.onglet, { uneRangee = true })
 
     -- En bas : ce qui bloque, et les trois gestes.
     f.valider = UI.Bouton(f.contenu, "Créer le personnage", 190, 26, function()

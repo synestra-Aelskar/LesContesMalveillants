@@ -35,6 +35,19 @@ for _, b in ipairs(f.barre.boutons) do
     finRangee = math.max(finRangee, (x or 0) + b:GetWidth())
 end
 attendu("aucun onglet ne deborde", finRangee <= f.barre:GetWidth() + 0.5, true)
+attendu("les sept etapes sur une seule ligne", f.barre.rangees, 1)
+
+dire("== une ligne de repartition tient dans sa colonne")
+-- Le libelle, les boutons (R - chiffre + M) et le total doivent tenir dans la
+-- largeur du compteur. Sinon le total deborde sur la colonne voisine et les
+-- deux se chevauchent — c'est ce qui est arrive en resserrant la fenetre.
+local function tientDansSaColonne(compteur)
+    local pris = 6 + (compteur.label:GetWidth() or 0) + compteur.largeurBoutons
+    if compteur.total and compteur.total:IsShown() then
+        pris = pris + 8 + (compteur.total:GetWidth() or 0)
+    end
+    return pris <= (compteur:GetWidth() or 0) + 0.5
+end
 
 dire("== Generale : identite, race, niveau, points")
 f.barre.boutons[2]:Click()
@@ -275,6 +288,12 @@ attendu("les mecaniques dans le meme onglet", soin ~= nil, true)
 attendu("plafond d'une mecanique", soin.plafond, 10)
 for _ = 1, 4 do soin.plus:Click() end
 attendu("quatre points de soin", f.brouillon.valeurs.meca_soin, 4)
+-- Deux colonnes : c'est la page la plus serree de la creation.
+local deborde = 0
+for _, c in ipairs(ex.compteurs) do
+    if not tientDansSaColonne(c) then deborde = deborde + 1 end
+end
+attendu("aucune ligne ne deborde de sa colonne", deborde, 0)
 
 dire("== Penetrations")
 f.barre.boutons[5]:Click()
