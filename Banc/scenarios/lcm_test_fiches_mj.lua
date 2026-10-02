@@ -51,6 +51,11 @@ attendu("ouvert", p:IsShown(), true)
 attendu("le groupe sans moi", p.nombreAffiche, 1)
 attendu("le membre", p.lignes[1].nom:GetText(), "Nytherah-Apertus")
 attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("panneau_mj"), true)
+-- Le combat ne s'ouvrait que par « /lcm combat » : le panneau y mene.
+p.combat:Click()
+attendu("le bouton Combat ouvre la fenetre de combat", LCM.UI.CombatMJ.frame:IsShown(), true)
+p.combat:Click()
+attendu("et la referme", LCM.UI.CombatMJ.frame:IsShown(), false)
 
 dire("== demander, recevoir")
 -- La boucle rend l'envoi a son expediteur : on joue les deux bouts.

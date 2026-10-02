@@ -31,11 +31,11 @@ UI.Radial = Radial
 local ART = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\"
 local SCEAU = ART .. "sceau.tga"
 local SIGIL = ART .. "sigil.tga"
-local ICONE = "Interface\\ICONS\\"
+local ICONE = ART .. "icones\\"
 
 Radial.SCEAU = 58
 Radial.CATEGORIE = 40
-Radial.ACTION = 34
+Radial.ACTION = 52 -- actions lisibles ; 61 unites entre deux centres voisins
 Radial.RAYON_CATEGORIE = 94
 Radial.RAYON_ACTION = 172
 Radial.FOND = 436
@@ -47,28 +47,28 @@ Radial.MAX_ENTREES = 8 -- au-dela, l'eventail n'a plus de dessin (fan-1..8)
 
 Radial.STRUCTURE = {
     {
-        id = "offensives", label = "Offensives", icone = ICONE .. "eps_lol_item_executionerscalling",
+        id = "offensives", label = "Offensives", icone = ICONE .. "offensives.tga",
         entrees = {
-            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "ability_warrior_savageblow",
+            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "attaque_simple.tga",
               resolution = "attaque_composeur" },
-            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "ability_rogue_findweakness",
+            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "perce_armure.tga",
               resolution = "perce_armure_composeur" },
-            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "ability_warrior_shieldbreak",
+            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "brise_armure.tga",
               resolution = "brise_armure_composeur" },
-            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "spell_shadow_curseofsargeras",
+            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "generation_debuff.tga",
               resolution = "generation_de_debuff_composeur" },
         },
     },
     {
-        id = "supports", label = "Supports", icone = ICONE .. "eps_lol_jarvaniv_demacianstandard",
+        id = "supports", label = "Supports", icone = ICONE .. "supports.tga",
         entrees = {
-            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "spell_holy_powerwordshield",
+            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "generation_bouclier.tga",
               resolution = "generation_de_bouclier" },
-            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "hots_ltmorales_healingbeam",
+            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "generation_soin.tga",
               resolution = "generation_de_soin" },
-            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "ability_warrior_rallyingcry",
+            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "generation_buff.tga",
               resolution = "generation_de_buff_composeur" },
-            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "spell_holy_dispelmagic",
+            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "dissipation.tga",
               resolution = "dissipation" },
         },
     },
@@ -78,7 +78,7 @@ Radial.STRUCTURE = {
     -- (RunGrimoireShortcutExec). Huit au plus : un eventail ne sait pas
     -- dessiner davantage de branches, et au-dela on ne choisit plus, on
     -- cherche.
-    { id = "competences", label = "Compétences", icone = ICONE .. "eps_lol_spell_ignite",
+    { id = "competences", label = "Compétences", icone = ICONE .. "competences.tga",
       contenu = function()
           local moi = LCM.Entities.Self()
           if not moi then return {} end
@@ -103,35 +103,35 @@ Radial.STRUCTURE = {
           return out
       end },
     {
-        id = "controles", label = "Contrôles", icone = ICONE .. "w3reforgedensnare",
+        id = "controles", label = "Contrôles", icone = ICONE .. "controles.tga",
         entrees = {
-            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "d3_waveofforce",
+            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "repulsion.tga",
               resolution = "repulsion" },
-            { id = "attraction",     label = "Attraction",     icone = ICONE .. "ability_hunter_harpoon",
+            { id = "attraction",     label = "Attraction",     icone = ICONE .. "attraction.tga",
               resolution = "attraction" },
-            { id = "permutation",    label = "Permutation",    icone = ICONE .. "ability_bastion_druid",
+            { id = "permutation",    label = "Permutation",    icone = ICONE .. "permutation.tga",
               resolution = "permutation" },
-            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "spell_frost_frostnova",
+            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "immobilisation.tga",
               resolution = "immobilisation" },
-            { id = "entrave",        label = "Entrave",        icone = ICONE .. "spell_nature_web",
+            { id = "entrave",        label = "Entrave",        icone = ICONE .. "entrave.tga",
               resolution = "entrave" },
-            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "spell_magic_featherfall",
+            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "levitation.tga",
               resolution = "levitation" },
         },
     },
     -- Le second lanceur du template (« Action mj ») : une categorie reservee.
     {
-        id = "animation", label = "Animation", icone = ICONE .. "ability_crown_of_the_heavens_icon", mjSeulement = true,
+        id = "animation", label = "Animation", icone = ICONE .. "animation.tga", mjSeulement = true,
         entrees = {
             -- « Résolution Test MJ » a quitté cette place le 2 octobre 2026.
             -- Elle etait fidele au template et ne servait a rien : elle se
             -- proposait l'epreuve a soi-meme, avec un paquet vide. Le vrai
             -- emetteur d'une epreuve de MJ, c'est « Dégât MJ ».
-            { id = "degat_mj",           label = "Dégât MJ",           icone = ICONE .. "ability_warrior_decisivestrike",
+            { id = "degat_mj",           label = "Dégât MJ",           icone = ICONE .. "resolution_test_mj.tga",
               resolution = "degat_mj" },
-            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "eps_lol_aphelios_moonlightvigil",
+            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "buff_debuff_mj.tga",
               resolution = "buff_debuff_mj" },
-            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "eps_lol_aatrox_darkflight",
+            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "attaque_mj.tga",
               resolution = "attaque_mj" },
         },
     },
@@ -297,6 +297,175 @@ local function Surface(parent, nom, taille, couche)
     return t
 end
 
+-- Une ambiance permanente, independante des transitions d'ouverture.
+-- Les textures sont creees une seule fois ; OnUpdate dort quand le sceau
+-- (ou son parent) est masque. Aucun cadre supplementaire ne capte la souris.
+local function ConstruireLivre(f)
+    local livre = { ouverture = 0, temps = 0, images = {}, sceaux = {} }
+    f.livre = livre
+    -- Poses successives de la couverture puis d'une feuille autour du dos.
+    -- Images prechargees, dimensions fixes : aucune deformation des pages.
+    for i = 1, 7 do
+        local pose = f.sceau:CreateTexture(nil, "ARTWORK", nil, 1)
+        pose:SetTexture(ART .. (i == 7 and "grimoire-ouvert-v2.tga" or
+            "grimoire-animation-" .. i .. ".tga"))
+        pose:SetPoint("CENTER", f.sceau, "CENTER")
+        pose:SetSize(76, 64)
+        pose:SetAlpha(0)
+        livre.images[i] = pose
+    end
+    -- Seul le sceau gauche scintille ; la rune droite est en encre noire.
+    do
+        local sceau = f.sceau:CreateTexture(nil, "ARTWORK", nil, 2)
+        sceau:SetTexture(SIGIL)
+        sceau:SetBlendMode("ADD")
+        sceau:SetVertexColor(0.72, 0.24, 1)
+        sceau:SetAlpha(0)
+        livre.sceaux[1] = sceau
+    end
+    livre.etincelles = {}
+    for i = 1, 3 do
+        local point = f.sceau:CreateTexture(nil, "OVERLAY")
+        point:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+        point:SetBlendMode("ADD")
+        point:SetVertexColor(0.85, 0.48, 1)
+        point:SetSize(1.2, 1.2)
+        point:SetAlpha(0)
+        livre.etincelles[i] = point
+    end
+    f.sceau.icone:ClearAllPoints()
+    f.sceau.icone:SetPoint("CENTER", f.sceau, "CENTER")
+    f.sceau.icone:SetSize(Radial.SCEAU - 6, Radial.SCEAU - 6)
+end
+
+local function ActualiserLivre(f, ecoule)
+    local livre = f.livre
+    -- La cible suffit : un clic rapide inverse le mouvement en cours sans saut.
+    local cible = f.ouvert and 1 or 0
+    local pas = ecoule / 0.85
+    if livre.ouverture < cible then
+        livre.ouverture = math.min(cible, livre.ouverture + pas)
+    elseif livre.ouverture > cible then
+        livre.ouverture = math.max(cible, livre.ouverture - pas)
+    end
+    local t = livre.ouverture
+    livre.temps = (livre.temps + ecoule) % (20 * math.pi)
+    local temps = livre.temps
+    local index = math.min(7, math.floor(t * 8))
+    if index ~= livre.index then
+        f.sceau.icone:SetAlpha(index == 0 and 0.9 or 0)
+        for i, pose in ipairs(livre.images) do pose:SetAlpha(i == index and 1 or 0) end
+        livre.index = index
+    end
+    local magie = math.max(0, (t - 0.9) / 0.1)
+    for i, sceau in ipairs(livre.sceaux) do
+        local pulse = 0.5 + 0.5 * math.sin(temps * 2 + (i - 1) * math.pi)
+        sceau:SetPoint("CENTER", f.sceau, "CENTER", -15.2, -7)
+        sceau:SetSize(12 + pulse, 12 + pulse)
+        sceau:SetAlpha(magie * (0.3 + 0.3 * pulse))
+    end
+    for i, point in ipairs(livre.etincelles) do
+        local a = i * 2.399963 + temps * 0.5
+        point:SetPoint("CENTER", f.sceau, "CENTER",
+            -15.2 + math.cos(a) * 5, -7 + math.sin(a) * 5)
+        point:SetAlpha(magie * 0.8 * math.max(0, math.sin(temps * 3 + i * 2)) ^ 6)
+    end
+end
+
+local nombreMagies = 0
+local function HabillerMagie(b, taille)
+    nombreMagies = nombreMagies + 1
+    local magie = { phase = nombreMagies * 1.7, points = {} }
+    b.magie = magie
+    -- Les icones ont un fond opaque : une teinte additive tres faible colore
+    -- surtout leurs noirs, sans masquer le dessin ni les details dores.
+    magie.fond = b:CreateTexture(nil, "ARTWORK", nil, 1)
+    magie.fond:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+    magie.fond:SetPoint("CENTER", b, "CENTER")
+    magie.fond:SetSize(taille - 6, taille - 6)
+    magie.fond:SetVertexColor(0.34, 0.07, 0.52)
+    magie.fond:SetBlendMode("ADD")
+    magie.fond:SetAlpha(0.12)
+
+    magie.runes = Surface(b, "sigil", taille * 1.13, "OVERLAY")
+    magie.runes:SetVertexColor(0.85, 0.55, 1)
+    magie.runes:SetBlendMode("ADD")
+    magie.runes:SetAlpha(0.22)
+    for i = 1, 3 do
+        local point = b:CreateTexture(nil, "OVERLAY")
+        point:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+        point:SetBlendMode("ADD")
+        point:SetVertexColor(1, 0.78, 0.48)
+        point:SetSize(1.5, 1.5)
+        local angle = (i - 1) * math.pi * 2 / 3 + magie.phase
+        point:SetPoint("CENTER", b, "CENTER",
+            math.cos(angle) * taille * 0.47, math.sin(angle) * taille * 0.47)
+        point:SetAlpha(0)
+        magie.points[i] = point
+    end
+end
+
+local function ActualiserMagie(b, temps)
+    local magie = b.magie
+    if not magie or not b:IsShown() then return end
+    local phase = temps + magie.phase
+    local pulse = 0.5 + 0.5 * math.sin(phase)
+    local intensite = b.disponible == false and 0.22 or (b.survole and 1.5 or (b.choisi and 1.25 or 1))
+    magie.fond:SetAlpha((0.10 + 0.035 * pulse) * intensite)
+    magie.runes:SetAlpha((0.16 + 0.10 * pulse) * intensite)
+    -- Un tour en 48 secondes ; les points restent fixes sur le pourtour.
+    magie.runes:SetRotation(temps * 0.1 + magie.phase)
+    for i, point in ipairs(magie.points) do
+        point:SetAlpha(math.max(0, math.sin(phase + i * 2)) ^ 10 * 0.65 * intensite)
+    end
+end
+
+local function AnimerSceau(f)
+    local tour = 2 * math.pi
+    local angle = 0
+    local tempsMagie = 0
+    local particules = {}
+    for i = 1, 14 do
+        local texture = f.sceau:CreateTexture(nil, "OVERLAY")
+        texture:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
+        texture:SetBlendMode("ADD")
+        texture:SetVertexColor(0.72, 0.25, 1)
+        local taille = 0.8 + (i % 4) * 0.3
+        texture:SetSize(taille, taille)
+        texture:SetAlpha(0)
+        particules[i] = {
+            texture = texture,
+            phase = (i - 1) / 14,
+            duree = 2.8 + (i % 5) * 0.43,
+            angle = i * 2.399963,
+            rayon = Radial.SCEAU * (0.60 + (i % 4) * 0.035),
+        }
+    end
+
+    local function Actualiser(_, ecoule)
+        ActualiserLivre(f, ecoule)
+        tempsMagie = (tempsMagie + ecoule * (2 * math.pi / 4.8)) % (20 * math.pi)
+        if f.orbite and f.orbite:IsShown() then
+            for _, b in ipairs(f.boutonsCategorie) do ActualiserMagie(b, tempsMagie) end
+            for _, b in ipairs(f.boutonsEntree) do ActualiserMagie(b, tempsMagie) end
+        end
+        -- SetRotation utilise les radians positifs dans le sens antihoraire.
+        angle = (angle + ecoule * tour / 48) % tour
+        f.sigil:SetRotation(angle)
+        for _, p in ipairs(particules) do
+            p.phase = (p.phase + ecoule / p.duree) % 1
+            local vie = p.phase
+            local a = p.angle + angle + vie * 0.48
+            local rayon = p.rayon + vie * 7
+            p.texture:SetPoint("CENTER", f.sceau, "CENTER",
+                math.cos(a) * rayon, math.sin(a) * rayon + vie * 4)
+            p.texture:SetAlpha(0.55 * math.sin(math.pi * vie) ^ 2)
+        end
+    end
+    Actualiser(f.sceau, 0)
+    f.sceau:SetScript("OnUpdate", Actualiser)
+end
+
 local function Rond(bouton, taille)
     -- Le masque arrondit l'icone carree ; sans lui, des vignettes carrees dans
     -- un menu circulaire, ca se voit tout de suite.
@@ -353,7 +522,7 @@ local function Bulle(bouton, titre, detail)
     end)
 end
 
-local function Vignette(parent, taille, legendeAuSurvol)
+local function Vignette(parent, taille, legendeAuSurvol, magique)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(taille, taille)
     Surface(b, "button", taille * 64 / 48)
@@ -361,6 +530,7 @@ local function Vignette(parent, taille, legendeAuSurvol)
     b.icone:SetPoint("TOPLEFT", 3, -3)
     b.icone:SetPoint("BOTTOMRIGHT", -3, 3)
     Rond(b, taille)
+    if magique then HabillerMagie(b, taille) end
     b.legende = UI.Texte(b, "", UI.C.discret, "GameFontNormalSmall")
     b.legende:SetPoint("TOP", b, "BOTTOM", 0, -4)
     b.legende:SetJustifyH("CENTER")
@@ -379,7 +549,6 @@ local function Fond(f, t)
         f.fond.surface:SetSize(Radial.FOND * echelle, Radial.FOND * echelle)
     end
     if f.fond.surface.SetRotation then f.fond.surface:SetRotation(phase) end
-    if f.sigil.SetRotation then f.sigil:SetRotation(-phase * 0.3) end
 end
 
 local function Eventail(f, angle, nombre, avancement)
@@ -482,7 +651,7 @@ Dessiner = function(f, animeCategories, animeEntrees)
     for i, categorie in ipairs(categories) do
         local b = f.boutonsCategorie[i]
         if not b then
-            b = Vignette(f.orbite, Radial.CATEGORIE, false)
+            b = Vignette(f.orbite, Radial.CATEGORIE, false, true)
             f.boutonsCategorie[i] = b
         end
         -- Premiere categorie en haut, puis dans le sens horaire.
@@ -494,7 +663,7 @@ Dessiner = function(f, animeCategories, animeEntrees)
         b.icone:SetTexture(categorie.icone)
         b.legende:SetText(categorie.label)
         b.choisi = (f.choisi == categorie.id)
-        local teinte = b.choisi and 1 or 0.78
+        local teinte = b.choisi and 1 or 0.95
         b.icone:SetVertexColor(teinte, teinte, teinte)
         Bulle(b, categorie.label, categorie.direct and "Clic : ouvrir." or "Clic : deployer.")
         Eclairer(b, b.choisi, false)
@@ -540,7 +709,7 @@ Dessiner = function(f, animeCategories, animeEntrees)
     for i, entree in ipairs(entrees) do
         local b = f.boutonsEntree[i]
         if not b then
-            b = Vignette(f.orbite, Radial.ACTION, true)
+            b = Vignette(f.orbite, Radial.ACTION, true, true)
             f.boutonsEntree[i] = b
         end
         -- Sens horaire : la premiere entree a gauche, la derniere a droite,
@@ -556,7 +725,8 @@ Dessiner = function(f, animeCategories, animeEntrees)
         -- Une entree sans fenetre derriere elle reste visible mais eteinte : le
         -- menu ne ment pas sur ce qui existe.
         local prete = type(entree.onClick) == "function"
-        local teinte = prete and 0.95 or 0.42
+        b.disponible = prete
+        local teinte = prete and 1 or 0.42
         b.icone:SetVertexColor(teinte, teinte, teinte)
         Bulle(b, entree.label, prete and "Clic : ouvrir." or "Pas encore disponible.")
         b:RegisterForClicks("LeftButtonUp")
@@ -588,6 +758,8 @@ local function Construire()
     f.sigil:SetPoint("CENTER", f.sceau, "CENTER")
     f.sigil:SetSize(Radial.SCEAU * 1.55, Radial.SCEAU * 1.55)
     f.sigil:SetAlpha(0.62)
+    ConstruireLivre(f)
+    AnimerSceau(f)
 
     f.orbite = CreateFrame("Frame", "LCM_RadialOrbite", f)
     f.orbite:SetAllPoints()
@@ -629,7 +801,6 @@ local function Construire()
     f.sceau:SetScript("OnMouseDown", function() f.glisse = false end)
     f.sceau:SetScript("OnDragStart", function()
         f.glisse = true
-        Fermer(f)
         f:StartMoving()
     end)
     f.sceau:SetScript("OnDragStop", function()

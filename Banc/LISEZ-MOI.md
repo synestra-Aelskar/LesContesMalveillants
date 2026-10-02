@@ -91,16 +91,29 @@ vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
 | `lcm_test_grimoires.lua` | les grimoires : le hub, la possession (le sien, ceux qu'on reçoit), les sous-grimoires, les sorts et leur jet |
 | `lcm_test_sorts.lua` | les sorts du personnage : sauvegarde, éditeur, lien de chat, découpage sous 255 octets, partage et adoption |
 | `lcm_test_parametres.lua` | les paramètres : sceau, remise en place des fenêtres, traces, état du réseau |
-| `lcm_test_fiches_mj.lua` | la consultation des fiches par le MJ : paquet, droits, groupe, panneau, sens unique |
+| `lcm_test_fiches_mj.lua` | la consultation des fiches par le MJ : paquet, droits, groupe, panneau (et son bouton Combat), sens unique |
 | `lcm_test_incarnation.lua` | incarner un PNJ : instances indépendantes, bascule, droits MJ, fenêtre |
 | `lcm_test_stock.lua` | le stock partagé : repousse déterministe, fusion de deux copies, réseau |
 | `lcm_test_points.lua` | vendeurs et points de récolte : offres, stock, récolte, achat, fenêtres |
 | `lcm_test_bourse.lua` | la bourse : devises de base, soldes, crédits et débits, droits MJ |
 | `lcm_test_canal.lua` | les icônes de fiche, le canal des jets, Adresse et Esprit qui se lancent |
-| `lcm_test_personnages.lua` | profils, carrousel, portraits, suppression |
+| `lcm_test_personnages.lua` | profils, liste et carrousel (sans boucle, arrêté aux bouts), portraits, suppression |
 | `lcm_test_creation.lua` | **les règles** de création : budgets, plafonds, refus |
 | `lcm_test_creation_ecran.lua` | l'écran de création : compteurs, R / M, récapitulatif |
 | `lcm_test_skin.lua` | le cadre Ael'Raz'kah, l'empilement des fenêtres |
+| `lcm_test_radial_competences.lua` | la catégorie « Compétences » du lanceur : les sorts du personnage, huit au plus ; « Dégât MJ » dans Animation |
+| `lcm_test_actions.lua` | les actions du radial : table de correspondance, formules, composeur, jeux de choix, si / sinon, refus d'une action MJ à un joueur |
+| `lcm_test_defense.lua` | recevoir une action : « Vous êtes la cible de », encaisser, parer, file d'attente, bouclier reçu, PNJ résolu par le MJ |
+| `lcm_test_reactions.lua` | réagir : dévier, proposer d'intervenir, intervenir, refuser |
+| `lcm_test_soin.lua` | le soin : composer, répartir par zone, déclarer, recevoir |
+| `lcm_test_buff.lua` | le constructeur de buff / débuff, la dissipation (les siens, ceux d'un autre) |
+| `lcm_test_controles.lua` | les contrôles : effets narratifs, états temporaires, résistance, rounds, guérison par un jet |
+| `lcm_test_deplacement_force.lua` | le déplacement forcé : la jauge qui compte les mètres d'une poussée |
+| `lcm_test_combat.lua` | le combat : invitation, initiative, tours et rounds, bandeau, réseau |
+| `lcm_test_combat_joueur.lua` | le combat vu d'un joueur, sans le compagnon MJ (à jouer aussi avec `--sans-mj`) |
+| `lcm_test_scene.lua` | les PNJ en scène : le MJ les met en jeu, les joueurs les ciblent |
+| `lcm_test_presence.lua` | le ping de présence : qui a l'addon, sur tout le serveur |
+| `lcm_test_joueur.lua` | **le parcours d'un joueur** : chaque entrée visible du menu et du lanceur s'ouvre sans erreur, rien du MJ n'apparaît. À jouer surtout avec `--sans-mj` |
 
 **Tous doivent être au vert avant de publier.** Pour les lancer d'affilée :
 

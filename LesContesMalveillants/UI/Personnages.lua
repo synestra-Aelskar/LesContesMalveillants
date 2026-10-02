@@ -15,10 +15,10 @@ local Portraits = LCM.Portraits
 local Ecran = {}
 UI.Personnages = Ecran
 
-local LARGEUR_LISTE = 196
+local LARGEUR_LISTE = 210
 local CARTE = { largeur = 208, hauteur = 318 }
-local VOISINE = { largeur = 158, hauteur = 242 }
-local ECART = 190      -- distance du centre a une carte voisine
+local VOISINE = { largeur = 128, hauteur = 204 }
+local ECART = 184      -- 496 unites au total, dans une scene de 566
 local PIED = 32        -- hauteur du bandeau du nom
 
 -- ===== Une carte ===========================================================
@@ -44,10 +44,12 @@ local function Carte(parent)
     c.nom:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 6, 8)
     c.nom:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -6, 8)
     c.nom:SetJustifyH("CENTER")
+    c.nom:SetHeight(16)
+    c.nom:SetWordWrap(false)
 
     -- Le niveau, en haut a gauche, dans son propre cadre.
     c.niveau = CreateFrame("Frame", nil, c)
-    c.niveau:SetSize(34, 24)
+    c.niveau:SetSize(52, 24)
     c.niveau:SetPoint("TOPLEFT", c, "TOPLEFT", 6, -6)
     c.niveau.fond = UI.Aplat(c.niveau, { 0.04, 0.03, 0.03, 0.92 })
     c.niveau.fond:SetAllPoints(c.niveau)
@@ -57,9 +59,14 @@ local function Carte(parent)
     c.niveau.label:SetJustifyH("CENTER")
     c.niveau.label:SetJustifyV("MIDDLE")
 
+    c.statutFond = UI.Aplat(c, { 0.04, 0.03, 0.03, 0.92 }, "ARTWORK")
+    c.statutFond:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -6)
+    c.statutFond:SetSize(62, 24)
     c.marque = UI.Texte(c, "", UI.C.accent, "GameFontNormalSmall")
-    c.marque:SetPoint("TOP", c, "TOP", 0, -10)
-    c.marque:SetJustifyH("CENTER")
+    c.marque:SetPoint("TOPRIGHT", c, "TOPRIGHT", -10, -12)
+    c.marque:SetJustifyH("RIGHT")
+    c.marque:SetShadowColor(0, 0, 0, 1)
+    c.marque:SetShadowOffset(1, -1)
 
     c.survol = UI.Aplat(c, UI.C.survol, "HIGHLIGHT")
     c.survol:SetAllPoints(c)
@@ -68,7 +75,7 @@ local function Carte(parent)
         self.entity = entity
         self:SetSize(centrale and CARTE.largeur or VOISINE.largeur,
                      centrale and CARTE.hauteur or VOISINE.hauteur)
-        self:SetAlpha(centrale and 1 or 0.55)
+        self:SetAlpha(centrale and 1 or 0.72)
         if not entity then self:Hide() return end
 
         local mode = Portraits.Appliquer(self.art, entity)
@@ -85,9 +92,10 @@ local function Carte(parent)
 
         self.nom:SetText(tostring(entity.name))
         self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
-        self.niveau.label:SetText(tostring(LCM.Entities.Get_Value(entity, "niveau") or ""))
+        self.niveau.label:SetText("Niv. " .. tostring(LCM.Entities.Get_Value(entity, "niveau") or "?"))
         self.niveau:SetShown(centrale or false)
-        self.marque:SetText(entity.id == Personnages.ActifId() and "· en jeu ·" or "")
+        self.marque:SetText(centrale and entity.id == Personnages.ActifId() and "EN JEU" or "")
+        self.statutFond:SetShown(centrale and entity.id == Personnages.ActifId())
         self:Show()
     end
 
@@ -97,7 +105,7 @@ end
 -- ===== La fenetre ==========================================================
 
 local function Construire()
-    local f = UI.Fenetre("personnages", "Selection du personnage", 720, 470)
+    local f = UI.Fenetre("personnages", "Sélection du personnage", 820, 520)
     Ecran.frame = f
     f.index = 1
 
@@ -111,30 +119,46 @@ local function Construire()
     UI.Bordure(f.liste)
     f.liste.boutons = {}
 
-    f.liste.titre = UI.Texte(f.liste, "Liste des personnages", UI.C.texte, "GameFontNormalSmall")
-    f.liste.titre:SetPoint("TOPLEFT", f.liste, "TOPLEFT", 12, -12)
+    f.liste.titre = UI.Texte(f.liste, "Vos personnages", UI.C.titre, "GameFontNormal")
+    f.liste.titre:SetPoint("TOPLEFT", f.liste, "TOPLEFT", 14, -16)
+    f.liste.compteur = UI.Texte(f.liste, "", UI.C.discret, "GameFontNormalSmall")
+    f.liste.compteur:SetPoint("TOPLEFT", f.liste.titre, "BOTTOMLEFT", 0, -7)
+    f.liste.defilement = UI.Defilement(f.liste)
+    f.liste.defilement:SetPoint("TOPLEFT", f.liste, "TOPLEFT", 12, -58)
+    f.liste.defilement:SetPoint("BOTTOMRIGHT", f.liste, "BOTTOMRIGHT", -16, 58)
 
-    f.creer = UI.Bouton(f.liste, "+  Créer un personnage", LARGEUR_LISTE - 24, 24, function()
+    f.creer = UI.Bouton(f.liste, "+  Créer un personnage", LARGEUR_LISTE - 24, 30, function()
         Ecran.Creer()
     end)
     f.creer:SetPoint("BOTTOMLEFT", f.liste, "BOTTOMLEFT", 12, 12)
 
     -- ----- la scene -------------------------------------------------------
     f.scene = CreateFrame("Frame", nil, f.contenu)
-    f.scene:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 12, 0)
+    f.scene:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 20, 0)
     f.scene:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
     f.vide = UI.Texte(f.scene, "", UI.C.discret, "GameFontNormal")
     f.vide:SetPoint("CENTER", f.scene, "CENTER", 0, 0)
     f.vide:SetJustifyH("CENTER")
+    f.vide:SetWidth(340)
 
-    -- Trois cartes, pas une de plus : au-dela, la quatrieme sort de la fenetre
-    -- et on ne fait que payer des cadres invisibles.
+    f.galerie = CreateFrame("Frame", nil, f.scene)
+    f.galerie:SetPoint("TOPLEFT", f.scene, "TOPLEFT", 0, -38)
+    f.galerie:SetPoint("BOTTOMRIGHT", f.scene, "BOTTOMRIGHT", 0, 58)
+    f.galerie:SetClipsChildren(true)
+    f.position = UI.Texte(f.scene, "", UI.C.discret, "GameFontNormalSmall")
+    f.position:SetPoint("TOP", f.scene, "TOP", 0, -13)
+    f.precedent = UI.Bouton(f.scene, "<", 30, 26, function() f:Decaler(-1) end)
+    f.precedent:SetPoint("TOPLEFT", f.scene, "TOPLEFT", 8, -4)
+    f.suivant = UI.Bouton(f.scene, ">", 30, 26, function() f:Decaler(1) end)
+    f.suivant:SetPoint("TOPRIGHT", f.scene, "TOPRIGHT", -8, -4)
+
+    -- Deux cartes de reserve permettent l'entree et la sortie du slider.
     f.cartes = {}
-    for place = -1, 1 do
-        local c = Carte(f.scene)
+    for place = -2, 2 do
+        local c = Carte(f.galerie)
         c.place = place
-        c:SetPoint("CENTER", f.scene, "CENTER", place * ECART, 16)
+        c:SetPoint("CENTER", f.galerie, "CENTER", place * ECART, 0)
         c:SetScript("OnClick", function(bouton)
             if bouton.place == 0 then
                 if bouton.entity then f:Jouer(bouton.entity) end
@@ -145,18 +169,19 @@ local function Construire()
         f.cartes[place] = c
     end
     -- La carte du milieu passe devant ses voisines.
-    f.cartes[0]:SetFrameLevel(f.scene:GetFrameLevel() + 4)
+    f.cartes[0]:SetFrameLevel(f.galerie:GetFrameLevel() + 4)
 
-    f.jouer = UI.Bouton(f.scene, "Jouer ce personnage", 180, 24, function()
+    f.jouer = UI.Bouton(f.scene, "Jouer ce personnage", 196, 32, function()
         local entity = f:Courant()
         if entity then f:Jouer(entity) end
     end)
-    f.jouer:SetPoint("BOTTOM", f.scene, "BOTTOM", -60, 6)
+    f.jouer:SetPoint("BOTTOM", f.scene, "BOTTOM", -56, 12)
+    f.jouer:Selectionner(true)
 
     -- Effacer un personnage ne se rattrape pas : on demande confirmation, et le
     -- nom est dans la question — pour ne pas supprimer le mauvais.
     f.confirmation = UI.Confirmer(f, "", "Supprimer")
-    f.supprimer = UI.Bouton(f.scene, "Supprimer", 100, 24, function()
+    f.supprimer = UI.Bouton(f.scene, "Supprimer", 100, 32, function()
         local entity = f:Courant()
         if not entity then return end
         f.confirmation:Demander(
@@ -169,10 +194,10 @@ local function Construire()
                 f:Rafraichir()
             end)
     end)
-    f.supprimer:SetPoint("LEFT", f.jouer, "RIGHT", 8, 0)
+    f.supprimer:SetPoint("LEFT", f.jouer, "RIGHT", 12, 0)
 
-    f:EnableMouseWheel(true)
-    f:SetScript("OnMouseWheel", function(_, delta) f:Decaler(delta > 0 and -1 or 1) end)
+    f.scene:EnableMouseWheel(true)
+    f.scene:SetScript("OnMouseWheel", function(_, delta) f:Decaler(delta > 0 and -1 or 1) end)
 
     -- ----- comportement ---------------------------------------------------
 
@@ -180,24 +205,60 @@ local function Construire()
         return self.profils and self.profils[self.index] or nil
     end
 
-    -- Le voisin a `pas` crans. Il boucle a partir de trois personnages : a deux,
-    -- afficher le meme des deux cotes donnerait un carrousel menteur.
+    -- Les voisins suivent strictement la liste : aucune boucle aux extremites.
     function f:Voisin(pas)
+        return self.profils and self.profils[self.index + pas] or nil
+    end
+
+    function f:Selectionner(index)
         local nombre = #(self.profils or {})
-        if nombre == 0 then return nil end
-        if nombre == 1 then return pas == 0 and self.profils[1] or nil end
-        if nombre == 2 and pas ~= 0 then
-            local autre = (self.index == 1) and 2 or 1
-            return pas == 1 and self.profils[autre] or nil
+        if nombre == 0 then return end
+        index = math.max(1, math.min(nombre, index))
+        self.destination = index
+        if self.glissement or index == self.index then return end
+        local direction = index > self.index and 1 or -1
+        self.index = self.index + direction
+        self:Afficher()
+        self.destination = index
+        self.glissement = true
+        self.jouer:Disable()
+        self.supprimer:Disable()
+        local temps = 0
+        local function Pas(_, ecoule)
+            temps = temps + ecoule
+            local t = math.min(1, temps / 0.26)
+            local u = t * t * (3 - 2 * t)
+            for place = -2, 2 do
+                local c = self.cartes[place]
+                local depart = place + direction
+                local existe = c.entity and (math.abs(place) <= 1 or math.abs(depart) <= 1)
+                c:SetShown(existe and true or false)
+                if existe then
+                    local central = (depart == 0 and (1 - u) or 0) + (place == 0 and u or 0)
+                    c:SetSize(VOISINE.largeur + (CARTE.largeur - VOISINE.largeur) * central,
+                        VOISINE.hauteur + (CARTE.hauteur - VOISINE.hauteur) * central)
+                    local alphaDepart = math.abs(depart) > 1 and 0 or (depart == 0 and 1 or 0.72)
+                    local alphaFin = math.abs(place) > 1 and 0 or (place == 0 and 1 or 0.72)
+                    c:SetAlpha(alphaDepart + (alphaFin - alphaDepart) * u)
+                    c:ClearAllPoints()
+                    c:SetPoint("CENTER", self.galerie, "CENTER", (depart - direction * u) * ECART, 0)
+                    c:EnableMouse(false)
+                end
+            end
+            if t == 1 then
+                local destination = self.destination
+                self:Afficher()
+                if destination and destination ~= self.index then self:Selectionner(destination) end
+            end
         end
-        return self.profils[((self.index - 1 + pas) % nombre) + 1]
+        self.galerie:SetScript("OnUpdate", Pas)
+        Pas(nil, 0)
     end
 
     function f:Decaler(pas)
         local nombre = #(self.profils or {})
         if nombre < 2 then return end
-        self.index = ((self.index - 1 + pas) % nombre) + 1
-        self:Afficher()
+        self:Selectionner((self.destination or self.index) + pas)
     end
 
     function f:Jouer(entity)
@@ -207,9 +268,26 @@ local function Construire()
     end
 
     function f:Afficher()
+        self.galerie:SetScript("OnUpdate", nil)
+        self.glissement, self.destination = nil, nil
+        self.jouer:Enable()
+        self.supprimer:Enable()
         local nombre = #(self.profils or {})
-        for place = -1, 1 do
-            self.cartes[place]:Habiller(self:Voisin(place), place == 0)
+        self.liste.compteur:SetText(string.format("%d personnage%s", nombre, nombre == 1 and "" or "s"))
+        self.position:SetText(nombre > 0 and string.format("Personnage %d / %d", self.index, nombre) or "")
+        self.precedent:SetShown(nombre > 1)
+        self.suivant:SetShown(nombre > 1)
+        self.precedent:SetEnabled(self.index > 1)
+        self.suivant:SetEnabled(self.index < nombre)
+        self.precedent:SetAlpha(self.index > 1 and 1 or 0.3)
+        self.suivant:SetAlpha(self.index < nombre and 1 or 0.3)
+        for place = -2, 2 do
+            local c = self.cartes[place]
+            c:Habiller(self:Voisin(place), place == 0)
+            c:ClearAllPoints()
+            c:SetPoint("CENTER", self.galerie, "CENTER", place * ECART, 0)
+            c:EnableMouse(true)
+            if math.abs(place) > 1 then c:Hide() end
         end
         self.jouer:SetShown(nombre > 0)
         self.supprimer:SetShown(nombre > 0)
@@ -219,22 +297,40 @@ local function Construire()
         for index, profil in ipairs(self.profils or {}) do
             local b = self.liste.boutons[index]
             if not b then
-                b = UI.Bouton(self.liste, "", LARGEUR_LISTE - 24, 20, function()
-                    self.index = index
-                    self:Afficher()
+                b = UI.Bouton(self.liste.defilement.contenu, "", LARGEUR_LISTE - 28, 44, function()
+                    self:Selectionner(index)
                 end)
-                b:SetPoint("TOPLEFT", self.liste, "TOPLEFT", 12, -34 - (index - 1) * 22)
+                b:SetPoint("TOPLEFT", self.liste.defilement.contenu, "TOPLEFT", 0, -(index - 1) * 50)
                 b.label:SetJustifyH("LEFT")
                 b.label:ClearAllPoints()
-                b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
+                b.label:SetPoint("TOPLEFT", b, "TOPLEFT", 10, -8)
+                b.label:SetPoint("TOPRIGHT", b, "TOPRIGHT", -8, -8)
+                b.label:SetHeight(14)
+                b.label:SetWordWrap(false)
+                b.detail = UI.Texte(b, "", UI.C.discret, "GameFontNormalSmall")
+                b.detail:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 10, 8)
+                b.selection = UI.Aplat(b, UI.C.accent, "OVERLAY")
+                b.selection:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -3)
+                b.selection:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 3)
+                b.selection:SetWidth(2)
                 self.liste.boutons[index] = b
             end
-            b.label:SetText(string.format("%s  -  %s",
-                tostring(LCM.Entities.Get_Value(profil, "niveau") or "?"), tostring(profil.name)))
+            b.label:SetText(tostring(profil.name))
+            b.detail:SetText(string.format("Niveau %s%s",
+                tostring(LCM.Entities.Get_Value(profil, "niveau") or "?"),
+                profil.id == Personnages.ActifId() and "  ·  En jeu" or ""))
             b:Selectionner(index == self.index)
+            b.selection:SetShown(index == self.index)
             b:Show()
         end
         for index = nombre + 1, #self.liste.boutons do self.liste.boutons[index]:Hide() end
+        self.liste.defilement:Regler(math.max(1, nombre * 50 - 6))
+        local zone = self.liste.defilement
+        local haut = (self.index - 1) * 50
+        if haut < zone.decalage then zone:Aller(haut)
+        elseif haut + 44 > zone.decalage + zone:GetHeight() then
+            zone:Aller(haut + 44 - zone:GetHeight())
+        end
     end
 
     function f:Rafraichir()
@@ -254,6 +350,11 @@ local function Construire()
         self:Afficher()
         self:Show()
     end
+
+    f:HookScript("OnHide", function(self)
+        self.galerie:SetScript("OnUpdate", nil)
+        self.glissement, self.destination = nil, nil
+    end)
 
     return f
 end

@@ -157,6 +157,29 @@ function Inventaire.Retirer(entity, categorieId, index)
     return true
 end
 
+-- Deplace ce que tient un emplacement vers un emplacement libre, contenu
+-- compris : un sac garde ses cases. L'arrivee doit accepter la meme chose que
+-- le depart (un sac ne part pas dans l'onglet des devises).
+function Inventaire.Deplacer(entity, categorieId, index, versCategorieId, versIndex)
+    local depart, i = Verifier(entity, categorieId, index)
+    if not depart then return false, i end
+    local arrivee, j = Verifier(entity, versCategorieId, versIndex)
+    if not arrivee then return false, j end
+    local e = Inventaire.Emplacement(entity, categorieId, i)
+    if not e then return false, "cet emplacement est vide." end
+    if depart.id == arrivee.id and i == j then return false, "c'est déjà là." end
+    if Inventaire.Emplacement(entity, versCategorieId, j) then
+        return false, "l'emplacement d'arrivée est déjà occupé."
+    end
+    if arrivee.contient ~= depart.contient then
+        return false, string.format("l'onglet %s n'accepte pas ça.", arrivee.label)
+    end
+    RangeePourEcrire(entity, arrivee.id)[j] = e
+    entity.inventaire[depart.id][i] = nil
+    Nettoyer(entity, depart.id)
+    return true
+end
+
 -- Le solde d'une devise (nombre entier, zero au moins).
 function Inventaire.Solde(entity, categorieId, index, solde)
     local e = Inventaire.Emplacement(entity, categorieId, index)

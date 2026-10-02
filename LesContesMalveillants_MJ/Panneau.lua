@@ -4,7 +4,8 @@
 -- protection qui vaille. Un joueur n'a pas ce dossier, donc il n'a pas ce
 -- code — le reste (verifications, droits) n'arrete que les curieux.
 --
--- Pour l'instant : la liste du groupe, et la fiche de chacun sur demande. La
+-- Pour l'instant : la liste du groupe, la fiche de chacun sur demande, et
+-- l'acces a la fenetre de combat. La
 -- consultation est a sens unique, et le joueur consulte en est prevenu
 -- (Core/Fiches.lua) : on regarde par-dessus l'epaule, pas dans le dos.
 
@@ -51,6 +52,14 @@ local function Construire()
     f.etat = UI.Texte(f.contenu, "", UI.C.discret)
     UI.Police(f.etat, 11)
     f.etat:SetPoint("LEFT", f.rafraichir, "RIGHT", 10, 0)
+
+    -- Le combat se mene depuis ici, comme l'initiative dans la fenetre du MJ
+    -- de Necronicon : le menu suit le template, qui n'a pas de fenetre de
+    -- combat. Resolu au clic : Combat.lua se charge apres ce fichier.
+    f.combat = UI.Bouton(f.contenu, "Combat", 100, 22, function()
+        if UI.CombatMJ then UI.CombatMJ.Basculer() end
+    end)
+    f.combat:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 0)
 
     f.zone = UI.Defilement(f.contenu)
     f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -30)

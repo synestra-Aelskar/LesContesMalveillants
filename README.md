@@ -309,6 +309,28 @@ six avaient une forme différente des autres. C'est fait dans le schéma, donc l
 carte de PNJ et la consultation MJ suivent ; la création garde les six
 ensemble, son budget est commun.
 
+### Le lanceur et la sélection redessinés (2 octobre)
+
+**Le lanceur d'actions** a ses propres icônes, peintes dans le style du
+grimoire (`ressources/radial/icones/*.tga`, 128 × 128). Elles remplacent les
+icônes du jeu ; les images de départ, les prompts (`sources.json`) et le script
+de conversion (`preparer.py`) sont à côté. Le sceau s'anime en **livre qui
+s'ouvre** (six poses, `grimoire-animation-1..6.tga`, puis
+`grimoire-ouvert-v2.tga`), avec un sceau qui scintille et des particules ; les
+boutons ont une lueur, des runes qui tournent et des étincelles. Les actions
+passent de 34 à 52 px. **Glisser le sceau ne referme plus le menu.**
+« Dégât MJ » n'a pas d'icône à lui : il porte le d20 peint pour « Résolution
+Test MJ », qu'il a remplacé.
+
+**La sélection de personnage** passe à 820 × 520. La liste de gauche défile
+et montre, sous chaque nom, « Niveau N · En jeu ». Les cartes portent
+« Niv. N » et « EN JEU » ; elles **glissent** d'un personnage à l'autre
+(0,26 s), avec des boutons ‹ › et « Personnage x / n ». Le carrousel **ne
+boucle plus** : il s'arrête au premier et au dernier.
+
+À trancher : les images sources (environ 35 Mo) sont dans le dossier de
+l'addon, donc livrées aux joueurs à chaque publication.
+
 ### Ce qui reste à faire
 
 Par ordre de ce qui bloque le plus :
@@ -357,10 +379,18 @@ Par ordre de ce qui bloque le plus :
 - [x] **« Résolution Test MJ »** a laissé sa place à « Dégât MJ » dans
       Animation, sur décision de l'utilisateur.
 - [ ] **La jauge `#armure`** : les attaques citent une zone « armure » que la
-      fiche n'a pas (le template en avait une par pièce d'armure). Aujourd'hui
-      la répartition le signale et se fait en santé et Boucliers.
-- [ ] **La fenêtre Combat dans le Panel MJ ou le menu** : elle ne s'ouvre que
-      par `/lcm combat`.
+      fiche n'a pas. Aujourd'hui la répartition le signale et se fait en santé
+      et Boucliers. **Relevé du template le 2 octobre 2026** : aucune jauge n'y
+      porte le tag `#armure`. Les jauges taguées sont « Boucliers »
+      (`#bouclier`) et les cinq zones (`#sante #tete`…). Chaque pièce de la
+      catégorie « Armures » a bien une jauge « Etat » (0 à 100), mais **sans
+      tag** : dans Necronicon, `#armure` ne visait rien. Le brancher sur l'état
+      des armures portées serait une règle nouvelle. **À décider.**
+- [x] **La fenêtre Combat dans le Panel MJ** : un bouton « Combat » en haut à
+      droite du Panel MJ l'ouvre (2 octobre 2026). Pas d'entrée de menu : le
+      menu suit le template, qui n'a pas de fenêtre de combat, et Necronicon
+      menait l'initiative depuis sa fenêtre du MJ. `/lcm combat` marche
+      toujours.
 - [ ] **Les actions MJ livrées aux joueurs** : `Compendium_Resolutions.lua` est
       dans l'addon de base, donc « Attaque MJ » & co sont chez les joueurs
       (ils ne peuvent pas les lancer, mais les ont). À ranger dans le
@@ -410,7 +440,10 @@ Par ordre de ce qui bloque le plus :
       six primaires dans un seul dossier. À uniformiser ou non, au choix.
 - [ ] **Le mode joueur, en jeu.** Le banc sait enfin le jouer (`--sans-mj`),
       mais personne n'a encore ouvert l'addon **sans** le compagnon MJ dans le
-      vrai jeu. C'est la moitié du produit.
+      vrai jeu. C'est la moitié du produit. Depuis le 2 octobre 2026,
+      `lcm_test_joueur.lua --sans-mj` ouvre au banc chaque entrée visible du
+      menu et du lanceur sans relever d'erreur, et ne montre rien du MJ :
+      reste à le voir à l'écran.
 
 ### Ce qui est posé mais pas validé en jeu
 
@@ -458,11 +491,12 @@ Il trouve les dossiers d'addon tout seul — le dépôt lui-même si tu le lance
 depuis un clone, ou le dossier que tu lui donnes avec `--addons`. Voir
 `Banc/LISEZ-MOI.md`.
 
-Les **30 scénarios** de `Banc/scenarios/` (liste dans `Banc/LISEZ-MOI.md`)
+Les **43 scénarios** de `Banc/scenarios/` (liste dans `Banc/LISEZ-MOI.md`)
 couvrent le socle, les règles du template, le corps, les PV, les traits, les
 objets, l'atelier, la fiche, les fenêtres du menu, les personnages, la
 création, les grimoires et les sorts, la bourse, le stock, les points, le
-canal, l'incarnation, les paramètres et le skin. **Ils doivent tous être au
+canal, l'incarnation, les paramètres et le skin, et depuis le 2 octobre 2026
+le combat, les actions du radial et leurs réactions, la scène et la présence. **Ils doivent tous être au
 vert avant de publier.**
 
 `--sans-mj` ne charge que l'addon de base : `LCM.IsMaster()` est faux, et on

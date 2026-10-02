@@ -322,10 +322,8 @@ local function Construire()
                                     local cibleOnglet, cibleIndex = autre.id, i
                                     cibles[#cibles + 1] = { label = string.format("%s · emplacement %d", autre.label, i),
                                         action = function()
-                                            entity.inventaire[cibleOnglet] = entity.inventaire[cibleOnglet] or {}
-                                            entity.inventaire[cibleOnglet][cibleIndex] = e
-                                            entity.inventaire[onglet][index] = nil
-                                            if next(entity.inventaire[onglet]) == nil then entity.inventaire[onglet] = nil end
+                                            local ok, raison = Inv.Deplacer(entity, onglet, index, cibleOnglet, cibleIndex)
+                                            if not ok then Refuser(raison) return end
                                             Ecran.FermerSac(onglet, index)
                                             self:Rafraichir()
                                         end }

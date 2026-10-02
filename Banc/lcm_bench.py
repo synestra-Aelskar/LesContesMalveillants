@@ -186,6 +186,10 @@ local function NouvelleRegion(kind, parent)
     function r:SetFontObject() end
     function r:SetFont(chemin, taille, contour) self.__font = { chemin, taille, contour } end
     function r:GetFont() local f = self.__font or {} return f[1], f[2], f[3] end
+    function r:SetShadowColor(...) self.__shadowColor = {...} end
+    function r:SetShadowOffset(x, y) self.__shadowOffset = { x, y } end
+    function r:SetBlendMode(mode) self.__blend = mode end
+    function r:GetBlendMode() return self.__blend or "BLEND" end
     function r:SetAllPoints(other) self.__allPoints = other or self.parent end
     function r:SetTexCoord(...) self.__texCoord = {...} end
     function r:SetRotation(a) self.__rotation = a end
