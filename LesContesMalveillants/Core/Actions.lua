@@ -1754,6 +1754,7 @@ function Constructeur:Valider(nom, description, icone)
         icone = Trim(icone) ~= "" and icone or self.ctx.icone, description = Trim(description),
         donnees = donnees, rounds = self:Duree(), resistance = table.concat(self.regles.resistSkills, ", "),
         critEcart = 0, critFacteur = 1, narratif = false, texte = "", montant = 0, unite = "",
+        deplacementForce = false,
         bonusJet = 0, multJet = 1,
         dissipation = Trim(self.regles.dispellTag) ~= "" and self.regles.dispellTag or Cle(nom),
         cumul = cumul and { n = cumul.n, jauge = cumul.jauge, pct = self.regles.stackDrainPct } or nil,
@@ -2051,6 +2052,9 @@ function Pas.effect(etape, ctx, suite)
         narratif = oui(etape.effectNarrative), texte = Trim(etape.effectText or ""),
         montant = math.floor((tonumber(Montant(etape.effectAmount, ctx)) or 0) + 0.5),
         unite = Sub(etape.effectUnit),
+        -- Necronicon : `effectForcedMove` sur un effet narratif, dont `amount`
+        -- donne les metres (ActionResolution.lua, `_buffForcedMove`).
+        deplacementForce = oui(etape.effectForcedMove),
         bonusJet = tonumber(bonus) or 0, multJet = (tonumber(mult) or 1) > 0 and tonumber(mult) or 1,
         dissipation = Sub(etape.effectDispellTag),
     }
@@ -2088,6 +2092,9 @@ local function DeclarerEffet(etape, ctx, suite)
             return t
         end)(), ", "),
         kp = tonumber(V.kPen) or tonumber(V.penCoef) or 0, d = e.donnees,
+        -- `fm` : cet effet POUSSE. Le montant (`mt`) devient alors des metres a
+        -- franchir, et la cible ouvre sa jauge de deplacement force.
+        fm = e.deplacementForce and 1 or nil,
         cu = e.cumul and { n = e.cumul.n, j = e.cumul.jauge, p = e.cumul.pct } or nil,
         gu = e.guerison and { m = e.guerison.mode, c = e.guerison.competence, d = e.guerison.dc } or nil,
     }
@@ -2252,6 +2259,12 @@ function Actions.Subir(recu, ecart)
                      :gsub("{unit}", tostring(p.u or ""))
         if facteur > 1 then texte = texte .. " (critique)" end
         Actions.Annoncer(texte)
+        -- Un effet qui pousse : la jauge s'ouvre chez celui qui encaisse, et
+        -- compte les metres a sa place. Pas pour un PNJ : c'est le MJ qui le
+        -- deplace, il n'a pas de personnage a bouger.
+        if p.fm and montant > 0 and not p.p and LCM.DeplacementForce then
+            LCM.DeplacementForce.Demarrer(montant, tostring(p.nom or "Déplacement forcé"))
+        end
     else
         local bonus, inconnus = Bonus(p.d, recu.entity, facteur)
         local rounds = tonumber(p.r) and math.floor(tonumber(p.r) * facteur + 0.5) or nil

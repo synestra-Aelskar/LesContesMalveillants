@@ -58,7 +58,11 @@ Organisation reprise de Necronicon et de son template :
   personnage ;
 - le **sceau** : le lanceur radial des **actions** (Offensives, Supports,
   Compétences, Contrôles ; Animation pour le MJ). Chaque bouton joue sa
-  résolution du compendium. Glisser (clic gauche) : le déplacer — le relâcher
+  résolution du compendium. **Compétences** est la seule catégorie dont le
+  contenu se calcule : ce sont les sorts du personnage joué (`Core/Sorts.lua`),
+  huit au plus — un éventail n'a pas neuf branches, et au-delà on ne choisit
+  plus, on cherche. Un sort qui se lance se lance, les autres se citent dans le
+  chat. Glisser (clic gauche) : le déplacer — le relâcher
   n'ouvre pas le menu.
 
 ---
@@ -183,6 +187,20 @@ l'addon, sur tout le serveur (un canal dédié, caché) ; on le note sans
 péremption. Le choix des cibles reste limité au groupe. Les **PNJ en scène**
 (`Core/Scene.lua`) : ceux que le MJ a mis en jeu dans Incarner, diffusés au
 groupe — on cible un PNJ sans parcourir tout le catalogue.
+
+**Le déplacement forcé.** Quelqu'un te repousse de six mètres : personne ne
+compte six mètres à l'œil, et la bonne foi n'y change rien. `Demarrer(mètres,
+raison)` ouvre une jauge chez celui qui encaisse et mesure à sa place
+(`Core/DeplacementForce.lua`, `UI/DeplacementForce.lua`). Mécanique reprise de
+Necronicon : la distance est celle qui te sépare de ton **point de départ**, à
+vol d'oiseau — tourner en rond n'avance à rien — le relief sous une unité est
+ignoré, et fermer la fenêtre interrompt la course. Un effet narratif la
+déclenche quand il porte `effectForcedMove` ; le paquet le transporte sous
+`fm`, et son montant devient les mètres.
+
+Ce qu'on n'a **pas** repris : Necronicon finit par des commandes serveur
+(`.mod speed`, `.aura`) pour clouer le personnage. Cela tient à leur serveur et
+à leurs droits ; ici on annonce la fin, le joueur s'arrête.
 
 ### Ce que la première séance en jeu a corrigé
 
@@ -332,15 +350,12 @@ Par ordre de ce qui bloque le plus :
       résolution de bout en bout au banc. Voir « Ce qui marche ».
 - [ ] **Une séance de test à deux, en jeu**, sur tout ce qui précède : le banc
       vérifie la logique et les clics, pas l'écran ni le vrai réseau.
-- [ ] **Le déplacement forcé** (Répulsion, Attraction, intervention avec
-      déplacement) : Necronicon ouvrait une jauge qui décompte les mètres.
-      L'effet narratif est là ; la jauge, pas encore.
-- [ ] **La catégorie « Compétences » du radial** est vide : dans Necronicon,
-      elle portait les sorts du personnage (son grimoire). À brancher sur
-      `Core/Sorts.lua`.
-- [ ] **« Résolution Test MJ »** : le bouton se propose l'épreuve à soi-même,
-      paquet vide, comme Necronicon — ce qui ne sert à rien. Le vrai émetteur
-      est « Dégat MJ. » : **à décider**, le mettre au radial (Animation).
+- [x] **Le déplacement forcé** (Répulsion, Attraction, intervention avec
+      déplacement). Fait le 2 octobre 2026 — voir plus haut.
+- [x] **La catégorie « Compétences » du radial** porte les sorts du personnage
+      joué, huit au plus.
+- [x] **« Résolution Test MJ »** a laissé sa place à « Dégât MJ » dans
+      Animation, sur décision de l'utilisateur.
 - [ ] **La jauge `#armure`** : les attaques citent une zone « armure » que la
       fiche n'a pas (le template en avait une par pièce d'armure). Aujourd'hui
       la répartition le signale et se fait en santé et Boucliers.

@@ -96,6 +96,15 @@ function GetTime() return horloge end
 function __temps(secondes) horloge = secondes end
 function __avancerTemps(secondes) horloge = horloge + secondes end
 
+-- Ou se tient le personnage. `__position(x, y, z)` le deplace : de quoi
+-- verifier une jauge qui compte des metres sans courir dans le jeu.
+local posX, posY, posZ = 0, 0, 0
+function _G.__position(x, y, z) posX, posY, posZ = x or 0, y or 0, z or 0 end
+function UnitPosition(unite)
+    if unite ~= "player" then return nil end
+    return posX, posY, posZ
+end
+
 local addonsCharges = {}
 _G.__addonsCharges = addonsCharges
 C_AddOns = { IsAddOnLoaded = function(nom) return addonsCharges[nom] == true end }

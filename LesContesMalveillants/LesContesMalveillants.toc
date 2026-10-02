@@ -1,4 +1,4 @@
-﻿## Interface: 100207
+## Interface: 100207
 ## Title: Les Contes Malveillants
 ## Notes: Systeme de jeu des Contes Malveillants
 ## Author: Syn'estra
@@ -45,6 +45,7 @@ Core\Incarnation.lua
 Core\Combat.lua
 Core\Scene.lua
 Core\Actions.lua
+Core\DeplacementForce.lua
 Core\Reactions.lua
 Core\Grimoires.lua
 Core\Compendium.lua
@@ -88,6 +89,7 @@ UI\Parametres.lua
 UI\Points.lua
 UI\Bourse.lua
 UI\Compendium.lua
+UI\DeplacementForce.lua
 UI\Combat.lua
 UI\Composeur.lua
 UI\Resolution.lua

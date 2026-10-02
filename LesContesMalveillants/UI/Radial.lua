@@ -72,8 +72,36 @@ Radial.STRUCTURE = {
               resolution = "dissipation" },
         },
     },
-    -- Les competences propres au personnage : vide tant qu'elles n'existent pas.
-    { id = "competences", label = "Compétences", icone = ICONE .. "eps_lol_spell_ignite", entrees = {} },
+    -- La seule categorie dont le contenu n'est pas ecrit ici : ce sont les
+    -- sorts du personnage joue, qui changent de personnage en personnage.
+    -- Dans Necronicon, la barre « Compétences » portait la meme chose
+    -- (RunGrimoireShortcutExec). Huit au plus : un eventail ne sait pas
+    -- dessiner davantage de branches, et au-dela on ne choisit plus, on
+    -- cherche.
+    { id = "competences", label = "Compétences", icone = ICONE .. "eps_lol_spell_ignite",
+      contenu = function()
+          local moi = LCM.Entities.Self()
+          if not moi then return {} end
+          local out = {}
+          for _, sort in ipairs(LCM.Sorts.Liste(moi)) do
+              out[#out + 1] = {
+                  id = "sort_" .. tostring(sort.id), label = sort.label, icone = sort.icone,
+                  onClick = function()
+                      -- Un sort qui se lance se lance ; les autres se citent
+                      -- dans le chat, ce qui est leur seule action utile.
+                      if sort.jet then
+                          local resultat, mini, maxi = LCM.Roll.Des(sort.jet.min, sort.jet.max)
+                          LCM.Canal.Dire(string.format("%s : |cffffd36b%d|r  (%d-%d)",
+                              tostring(sort.label), resultat, mini, maxi))
+                      else
+                          LCM.Lien.Inserer(LCM.Lien.Sort(moi, sort))
+                      end
+                  end,
+              }
+              if #out >= 8 then break end
+          end
+          return out
+      end },
     {
         id = "controles", label = "Contrôles", icone = ICONE .. "w3reforgedensnare",
         entrees = {
@@ -95,8 +123,12 @@ Radial.STRUCTURE = {
     {
         id = "animation", label = "Animation", icone = ICONE .. "ability_crown_of_the_heavens_icon", mjSeulement = true,
         entrees = {
-            { id = "resolution_test_mj", label = "Résolution Test MJ", icone = ICONE .. "inv_misc_gear_02",
-              resolution = "resolution_test_mj" },
+            -- « Résolution Test MJ » a quitté cette place le 2 octobre 2026.
+            -- Elle etait fidele au template et ne servait a rien : elle se
+            -- proposait l'epreuve a soi-meme, avec un paquet vide. Le vrai
+            -- emetteur d'une epreuve de MJ, c'est « Dégât MJ ».
+            { id = "degat_mj",           label = "Dégât MJ",           icone = ICONE .. "ability_warrior_decisivestrike",
+              resolution = "degat_mj" },
             { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "eps_lol_aphelios_moonlightvigil",
               resolution = "buff_debuff_mj" },
             { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "eps_lol_aatrox_darkflight",
@@ -159,6 +191,24 @@ function Radial.Entrees(categorieId)
     if not categorie then return out end
     -- Une categorie reservee au MJ ne laisse rien filtrer de son contenu.
     if categorie.mjSeulement and not LCM.IsMaster() then return out end
+    -- Une categorie peut calculer son contenu (les sorts du personnage) plutot
+    -- que le declarer. La structure du lanceur reste figee : c'est le contenu
+    -- d'UNE case qui suit le personnage, pas le lanceur qui se reorganise.
+    if type(categorie.contenu) == "function" then
+        local ok, calcule = pcall(categorie.contenu)
+        if not ok then
+            LCM.Erreur(string.format("radial : « %s » : %s", tostring(categorie.label), tostring(calcule)))
+            return out
+        end
+        -- Le plafond se tient ICI, pas dans chaque calcul : la verification au
+        -- chargement ne voit que les entrees declarees, et un eventail de neuf
+        -- branches n'existe pas.
+        for i, entree in ipairs(calcule or {}) do
+            if i > Radial.MAX_ENTREES then break end
+            out[i] = entree
+        end
+        return out
+    end
     for _, entree in ipairs(categorie.entrees or {}) do
         if (not entree.mjSeulement) or LCM.IsMaster() then out[#out + 1] = entree end
     end
