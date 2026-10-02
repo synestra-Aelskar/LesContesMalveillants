@@ -166,6 +166,12 @@ n'était visible au banc** — ce qui en dit plus long que les pannes elles-mêm
   maintenant à partir de la colonne, et le total par ligne s'efface quand il
   n'y a plus la place — il est de toute façon dans le récapitulatif.
 
+- **Les icônes s'écrivaient par-dessus leur libellé** sur la fiche.
+  `Fiche.Nom` a deux colonnes, avec icône et sans, et les trois constructeurs
+  de ligne (stat, jauge, jet) posaient l'icône puis demandaient la colonne
+  « sans icône ». Le banc le vérifie maintenant sur toutes les lignes de la
+  fiche : remis en panne, il en comptait douze.
+
 Et une remarque de forme qui valait une passe entière : **les fenêtres étaient
 trop grandes.** Mesures de Necronicon pour comparer — paramètres en 388 × 600,
 et aucune fenêtre au-delà de 780 de large. Resserrées : Paramètres 460 × 420 →
@@ -173,6 +179,16 @@ et aucune fenêtre au-delà de 780 de large. Resserrées : Paramètres 460 × 42
 Système d'Aelskar 860 × 520 → 760 × 500, Métiers 720 × 600 → 620 × 540,
 Vendeur / Ressources 640 × 460 → 560 × 420, Grimoire 790 × 470 → 700 × 460,
 Atelier MJ 760 × 540 → 700 × 500.
+
+Puis, le 2 octobre, la même remarque sur la **fiche** — alors que l'échelle
+était déjà descendue à 76 %. Ce n'était donc pas le réglage mais la base :
+`UI.AelColonnes` faisait tout suivre la largeur, y compris la hauteur de ligne
+et la taille du texte. Une fiche de 600 de large donnait des lignes de 46 et du
+texte de 18. **Les colonnes suivent la largeur, le rythme vertical et le texte
+ne la suivent plus** : ligne plafonnée à 34, texte à 14, icône à 28 — la règle
+que Necronicon applique sans la dire (ses fenêtres hors atlas écrivent en 12,
+ses lignes font 26). Les vues de fiche suivent : 600 × 720 → 520 × 600, et les
+autres à l'avenant.
 
 ### Ce qui reste à faire
 
@@ -238,10 +254,9 @@ Par ordre de ce qui bloque le plus :
       repli. En ajouter : déposer l'image dans `Portraits\`, lancer l'outil,
       publier.
 - [ ] **La barre de recherche** vue sur l'écran Necronicon : rôle à décider.
-- [ ] **La densité des vues de fiche.** Fiche, Santé, Expertises… sont en
-      600 × 720 : la largeur est celle de la fiche de Necronicon (600), mais
-      elles sont plus hautes. À reprendre avec un œil sur l'écran du jeu, pas
-      sur un tableau de mesures.
+- [x] **La densité des vues de fiche.** Reprise le 2 octobre 2026 : plafonds
+      de ligne, de texte et d'icône dans `UI.AelColonnes`, et vues ramenées
+      autour de 520 × 600. À revoir en jeu si c'est encore trop.
 - [ ] **Le mode joueur, en jeu.** Le banc sait enfin le jouer (`--sans-mj`),
       mais personne n'a encore ouvert l'addon **sans** le compagnon MJ dans le
       vrai jeu. C'est la moitié du produit.

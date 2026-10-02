@@ -385,18 +385,31 @@ function UI.AelMesures(largeur)
              regle = 63 * s, bandeau = 70 * s }
 end
 
+-- Les colonnes d'une ligne suivent la largeur ; le rythme vertical et la taille
+-- du texte, non. C'est la regle que Necronicon applique sans la dire : ses
+-- fenetres qui ne portent pas l'atlas (les parametres) ecrivent en 12, quelle
+-- que soit leur largeur, et ses lignes font 26 de haut.
+--
+-- Sans ces plafonds, une fiche de 600 de large donne des lignes de 46 et du
+-- texte de 18 : trois fois l'air qu'il faut autour d'une ligne de chiffres, et
+-- une fenetre qu'on trouve enorme meme a 76 % d'echelle.
+local LIGNE_MAX, POLICE_MAX, ICONE_MAX = 34, 14, 28
+
 function UI.AelColonnes(largeur)
     local s = (tonumber(largeur) or 786) / 786
     return {
-        echelle = s, ligne = 62 * s, police = 24 * s,
-        icone = 8 * s, iconeTaille = 50 * s, separateur = 72 * s,
+        echelle = s,
+        ligne = math.min(LIGNE_MAX, 62 * s),
+        police = math.min(POLICE_MAX, 24 * s),
+        icone = 8 * s, iconeTaille = math.min(ICONE_MAX, 50 * s), separateur = 72 * s,
         nom = 96 * s, nomSansIcone = 24 * s, nomLargeur = 205 * s,
         plage = 310 * s, plageLargeur = 95 * s,
         valeur = 418 * s, valeurLargeur = 90 * s,
         modificateur = 535 * s, modificateurLargeur = 85 * s,
         action = 652 * s, actionLargeur = 110 * s,
-        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = 30 * s,
-        boutons = { 561 * s, 607 * s, 653 * s }, boutonL = 37 * s, boutonH = 38 * s,
+        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = math.min(22, 30 * s),
+        boutons = { 561 * s, 607 * s, 653 * s },
+        boutonL = math.min(28, 37 * s), boutonH = math.min(26, 38 * s),
     }
 end
 

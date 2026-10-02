@@ -144,7 +144,9 @@ function Lignes.stat(parent, field, c)
     local l = Ligne(parent, c)
     local icone = LCM.IconeChamp(field)
     if icone then Icone(l, c, icone) end
-    Nom(l, c, field.label)
+    -- Le quatrieme argument n'est pas decoratif : sans lui le nom se pose a la
+    -- colonne « sans icone » et vient s'ecrire par-dessus l'icone.
+    Nom(l, c, field.label, icone ~= nil)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police)
     l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur, 0)
@@ -177,7 +179,7 @@ function Lignes.gauge(parent, field, c)
     local l = Ligne(parent, c)
     local icone = LCM.IconeChamp(field)
     if icone then Icone(l, c, icone) end
-    Nom(l, c, field.label)
+    Nom(l, c, field.label, icone ~= nil)
     local function Poser(delta, absolu)
         local e = l.entity
         if not e then return end
@@ -211,7 +213,7 @@ function Lignes.roll(parent, field, c)
     local l = Ligne(parent, c)
     local icone = LCM.IconeChamp(field)
     if icone then Icone(l, c, icone) end
-    Nom(l, c, field.label)
+    Nom(l, c, field.label, icone ~= nil)
 
     local dice = type(field.dice) == "table" and field.dice or {}
     l.plage = UI.Texte(l, string.format("%d-%d", tonumber(dice.min) or 0, tonumber(dice.max) or 0), UI.C.discret)

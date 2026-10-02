@@ -15,7 +15,7 @@ local Vues = LCM.Vues
 local TAILLE_REGLES = 14
 Vues.Add({
     id = "regles", titre = "Règles",
-    largeur = 600, hauteur = 720,
+    largeur = 520, hauteur = 600,
     sansPersonnage = true,
     onglets = {
         { id = "fondamentaux", label = "Fondamentaux", blocs = {
@@ -65,7 +65,7 @@ Vues.Add({
 -- Deplacement), FACULTES (Physiques), TRAITS.
 Vues.Add({
     id = "fiche", titre = "Fiche",
-    largeur = 600, hauteur = 720,
+    largeur = 520, hauteur = 600,
     onglets = {
         { id = "statistiques", label = "Statistiques", blocs = {
             -- La jauge des PV seule : les zones sont dans Sante. La surcharge
@@ -88,7 +88,7 @@ Vues.Add({
 -- Ame et les etats intangibles) — les quatre onglets du template.
 Vues.Add({
     id = "sante", titre = "Santé",
-    largeur = 560, hauteur = 640,
+    largeur = 500, hauteur = 560,
     onglets = {
         { id = "physique", label = "Physique", blocs = {
             { label = "Parties corporelles", champs = { { id = "corps", total = false } } },
@@ -105,7 +105,7 @@ Vues.Add({
 -- Equipements : Armes, Armures, Accessoires (1 / 5 / 5 emplacements).
 Vues.Add({
     id = "equipement", titre = "Équipements",
-    largeur = 600, hauteur = 640,
+    largeur = 520, hauteur = 560,
     onglets = {
         { id = "arme",       label = "Armes",       blocs = { { conteneur = { "objets", "arme" } } } },
         { id = "equipement", label = "Armures",     blocs = { { conteneur = { "objets", "equipement" } } } },
@@ -116,14 +116,14 @@ Vues.Add({
 -- Apprentissage : un conteneur de 60 emplacements.
 Vues.Add({
     id = "apprentissage", titre = "Apprentissage",
-    largeur = 600, hauteur = 700,
+    largeur = 520, hauteur = 580,
     blocs = { { conteneur = { "apprentissages", "apprentissage" }, label = "Apprentissages" } },
 })
 
 -- Expertises : un onglet par domaine.
 Vues.Add({
     id = "expertise", titre = "Expertises",
-    largeur = 600, hauteur = 700,
+    largeur = 520, hauteur = 580,
     onglets = {
         { id = "observations", label = "Observations", blocs = { { section = { "expertises", "observations" } } } },
         { id = "athletisme",   label = "Athlétisme",   blocs = { { section = { "expertises", "athletisme" } } } },
@@ -134,7 +134,7 @@ Vues.Add({
 -- Penetration & Resistances : les resistances d'abord, comme le template.
 Vues.Add({
     id = "penetrations_resistances", titre = "Pénétration & Résistances",
-    largeur = 600, hauteur = 700,
+    largeur = 520, hauteur = 580,
     onglets = {
         { id = "resistances",  label = "Résistances",  blocs = { { onglet = "resistances" } } },
         { id = "penetrations", label = "Pénétrations", blocs = { { onglet = "penetrations" } } },
@@ -145,7 +145,7 @@ Vues.Add({
 -- Necronicon, Deplacement.lua) ; ici, ses deux valeurs en attendant.
 Vues.Add({
     id = "deplacement", titre = "Déplacement",
-    largeur = 480, hauteur = 300,
+    largeur = 440, hauteur = 280,
     blocs = {
         { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
     },
@@ -167,7 +167,7 @@ do
 
     Vues.Add({
         id = "statistiques", titre = "Statistiques",
-        largeur = 560, hauteur = 700,
+        largeur = 500, hauteur = 580,
         blocs = {
             { texte = "Ci-dessous, vous retrouverez le total de l'ensemble des statistiques de votre personnage." },
             { label = "Statistiques", recap = "total", replie = true,

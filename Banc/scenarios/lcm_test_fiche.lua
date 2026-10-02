@@ -60,6 +60,28 @@ local corps = page.blocs[1].lignes[1]
 attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")
 attendu("six statistiques", #page.blocs[2].lignes, 6)
+
+dire("== une icone n'ecrase pas son libelle")
+-- `Fiche.Nom` a deux colonnes : avec icone et sans. Oublier de dire laquelle
+-- pose le texte a l'interieur de l'icone — c'est arrive sur les trois types de
+-- ligne a la fois le 1er octobre 2026.
+local function nomApresIcone(ligne)
+    if not ligne.icone then return true end
+    local _, _, _, xIcone = ligne.icone:GetPoint(1)
+    local _, _, _, xNom = ligne.nom:GetPoint(1)
+    return (xNom or 0) >= (xIcone or 0) + (ligne.icone:GetWidth() or 0)
+end
+local chevauche, avecIcone = 0, 0
+for _, bloc in ipairs(page.blocs) do
+    for _, ligne in ipairs(bloc.lignes) do
+        if ligne.icone and ligne.nom then
+            avecIcone = avecIcone + 1
+            if not nomApresIcone(ligne) then chevauche = chevauche + 1 end
+        end
+    end
+end
+attendu("des lignes portent une icone", avecIcone > 0, true)
+attendu("aucun libelle sous son icone", chevauche, 0)
 attendu("initiative", page.blocs[3].lignes[1].field.id, "initiative")
 attendu("deplacement", #page.blocs[4].lignes, 2)
 
