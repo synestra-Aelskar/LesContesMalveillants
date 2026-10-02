@@ -61,7 +61,7 @@ Organisation reprise de Necronicon et de son template :
 
 ### Ce qui marche
 
-**Le socle.** Schéma figé (`Core/Schema.lua` + `Data/Fiche.lua`), 156 champs,
+**Le socle.** Schéma figé (`Core/Schema.lua` + `Data/Fiche.lua`), 155 champs,
 8 onglets. Les entités — joueurs **et** PNJ, même modèle — ne stockent que leurs
 valeurs : `{ id, name, icon, kind, values }`. Une valeur égale au défaut n'est
 pas écrite. Un PNJ complet pèse une centaine d'octets, contre 8,6 Mo dans
@@ -181,14 +181,63 @@ Vendeur / Ressources 640 × 460 → 560 × 420, Grimoire 790 × 470 → 700 × 4
 Atelier MJ 760 × 540 → 700 × 500.
 
 Puis, le 2 octobre, la même remarque sur la **fiche** — alors que l'échelle
-était déjà descendue à 76 %. Ce n'était donc pas le réglage mais la base :
-`UI.AelColonnes` faisait tout suivre la largeur, y compris la hauteur de ligne
-et la taille du texte. Une fiche de 600 de large donnait des lignes de 46 et du
-texte de 18. **Les colonnes suivent la largeur, le rythme vertical et le texte
-ne la suivent plus** : ligne plafonnée à 34, texte à 14, icône à 28 — la règle
-que Necronicon applique sans la dire (ses fenêtres hors atlas écrivent en 12,
-ses lignes font 26). Les vues de fiche suivent : 600 × 720 → 520 × 600, et les
-autres à l'avenant.
+était déjà descendue à 76 % dans la sauvegarde. Ce n'était donc pas le réglage
+mais la base : `UI.AelColonnes` faisait tout suivre la largeur, y compris la
+hauteur de ligne et la taille du texte. Une fiche de 600 de large donnait des
+lignes de 46 et du texte de 18.
+
+**Les colonnes suivent la largeur ; le rythme vertical et le texte, non.**
+C'est la règle que Necronicon applique sans la dire : ses fenêtres hors atlas
+écrivent en 12 quelle que soit leur largeur, et ses lignes font 26. Plafonds
+posés en conséquence — ligne 26, texte 12, icône 20, croix 24, titre 17 — et
+les vues de fiche ramenées de 600 × 720 à **380 × 500**.
+
+Deux pièges de mise en page sont tombés dans la foulée, tous deux invisibles
+tant qu'on ne regarde pas l'écran :
+
+- **Un libellé sans largeur ne s'arrête jamais.** « Points d'action » passait
+  sous sa propre jauge. Les libellés sont maintenant bornés par la colonne qui
+  suit, coupés plutôt que débordants — et la ligne porte le nom du template,
+  **PA**, qui tient de toute façon. Idem pour « Point de vie », au singulier.
+- **Les 24 unités de marge du gabarit ne sont pas du contenu.** Le gabarit
+  arrête sa dernière colonne à 762 sur 786 ; reportées telles quelles, ces 24
+  unités laissaient une bande vide entre le dernier bouton et le bord du cadre.
+  Les colonnes de droite se calent désormais sur le **bord droit de la ligne**,
+  largeurs toujours proportionnelles, seules les origines changent. Le banc
+  vérifie l'égalité : dernier bouton + sa largeur = largeur de la ligne.
+
+Au passage, la jauge des points de vie n'a pas de boutons : elle court jusqu'au
+bord gauche du « R » des jauges d'en dessous, au lieu de laisser leur place
+vide. Et **« PV max imposé » a été supprimé** : une surcharge MJ qui traînait
+sur la fiche de tout le monde, alors qu'un PNJ dont les PV ne collent pas se
+règle en changeant sa constitution. Le schéma passe de 156 à 155 champs ; trois
+scénarios qui s'en servaient comme raccourci passent maintenant par la vraie
+formule.
+
+### Deux fenêtres retravaillées le 2 octobre
+
+**Les Règles** ne se lisent plus derrière une bande de huit onglets sur trois
+rangées. Leurs chapitres sont dans un **sommaire à gauche**, et sous le
+chapitre ouvert, ses titres de blocs en sous-chapitres : cliquer un
+sous-chapitre fait défiler jusqu'à son bloc. Seul le chapitre ouvert se déplie
+— huit chapitres de cinq blocs feraient quarante lignes, et une table des
+matières qu'on doit faire défiler ne sert plus à rien. La puce qui marque
+l'endroit où l'on se trouve est **la gemme de l'atlas** et pas un losange tapé
+au clavier : la police du jeu n'a pas ce signe et l'affichait en carré vide
+(repli sur un chevron quand l'habillage n'a pas d'atlas). Elle suit le
+**défilement**, pas seulement le clic : `UI.Defilement` prévient qui veut le
+savoir à chaque mouvement. Et la fenêtre **se tire** (minimum 420 × 320) ;
+c'est réservé aux vues en sommaire, parce qu'une page de fiche garde les
+mesures de colonnes de son ouverture et que l'étirer ferait mentir ses
+alignements — c'est écrit à côté de `page:Largeur`.
+
+**Les primaires de la fiche** sont en deux blocs : **Habilités** (Adresse,
+Esprit) et **Statistiques** (Force, Mystique, Perception, Constitution). La
+coupure suit la mécanique : Adresse et Esprit sont les deux seules primaires
+qui se lancent, leur ligne porte un dé et un bouton. Mélangées, deux lignes sur
+six avaient une forme différente des autres. C'est fait dans le schéma, donc la
+carte de PNJ et la consultation MJ suivent ; la création garde les six
+ensemble, son budget est commun.
 
 ### Ce qui reste à faire
 
@@ -254,9 +303,21 @@ Par ordre de ce qui bloque le plus :
       repli. En ajouter : déposer l'image dans `Portraits\`, lancer l'outil,
       publier.
 - [ ] **La barre de recherche** vue sur l'écran Necronicon : rôle à décider.
-- [x] **La densité des vues de fiche.** Reprise le 2 octobre 2026 : plafonds
-      de ligne, de texte et d'icône dans `UI.AelColonnes`, et vues ramenées
-      autour de 520 × 600. À revoir en jeu si c'est encore trop.
+- [x] **La densité des vues de fiche.** Reprise deux fois le 2 octobre 2026 :
+      plafonds de ligne, de texte, d'icône, de croix et de titre, colonnes de
+      droite calées sur le bord, et vues ramenées à 380 × 500. **On est au
+      bout de ce levier** : à cette largeur le texte des lignes calcule 10,3 px
+      et le plancher de lisibilité est à 10. Pour gagner encore, il faut
+      enlever quelque chose de la ligne, pas rétrécir.
+- [ ] **Le vide au milieu des lignes de statistique.** Le libellé finit vers
+      110, la valeur est calée à droite vers 336 : deux cents pixels de rien.
+      Necronicon a le même trou — la colonne de valeurs est alignée pour qu'on
+      la lise d'un trait. Deux sorties : rapprocher la valeur du libellé (la
+      fenêtre descend vers 300, on perd l'alignement vertical des chiffres), ou
+      garder l'alignement. **À trancher.**
+- [ ] **Le découpage Habilités / Statistiques dans le récapitulatif.** La fiche
+      sépare les deux depuis le 2 octobre ; la fenêtre Statistiques garde les
+      six primaires dans un seul dossier. À uniformiser ou non, au choix.
 - [ ] **Le mode joueur, en jeu.** Le banc sait enfin le jouer (`--sans-mj`),
       mais personne n'a encore ouvert l'addon **sans** le compagnon MJ dans le
       vrai jeu. C'est la moitié du produit.
