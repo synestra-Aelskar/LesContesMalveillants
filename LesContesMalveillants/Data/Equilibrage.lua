@@ -50,6 +50,98 @@ E.initiative = {
     diviseurPerception = 2,
 }
 
+-- Le deroule d'un combat (bandeau d'initiative, Core/Combat.lua). Ces reglages
+-- ne sont pas dans le template de fiche : ils viennent du Panel MJ du profil
+-- Necronicon des Contes (window_master) — initiativeTrackTurns et
+-- initiativeTrackRounds vrais, initiativeRoundMax = 3, annonces du tour, du
+-- round et du combattant actif dans le canal Raid.
+-- Un tour = roundsParTour passages complets de la liste ; le compteur de tour
+-- n'avance qu'au dernier.
+E.combat = {
+    roundsParTour = 3,
+    annonces = "RAID",
+}
+
+-- Les nombres des ACTIONS (attaque, bouclier, soin, buff, controles), releves
+-- dans l'onglet « Equilibrage ACTIONS » de la fenetre Equilibrage du template.
+-- Les resolutions du compendium les citent par leur libelle
+-- ({stat:Base buff Pen}) ou par leur champ ([[...custom_11::field_221...]]) :
+-- la table de correspondance est dans Core/Actions.lua. Libelles du template
+-- gardes en commentaire, pour qu'on retrouve d'ou vient chaque nombre.
+E.actions = {
+    -- ATTAQUES
+    multiForce = 1.2,            -- Base multi Force (field_221)
+    multiMystique = 0.8,         -- Base multi Mystique (field_223)
+    multiPerception = 1,         -- Base multi Perception (field_224)
+    -- DEFENSE
+    baseConstitution = 1,        -- Base constitution (field_226)
+    reductionMod = 3,            -- Equilibrage reduction Mod (field_244)
+    baseDefense = 80,            -- Base défense (field_269)
+    defenseParPoint = 5,         -- Défense par point (field_270)
+    -- BOUCLIER
+    bouclierForce = 0.2,         -- Base bouclier Force (field_227)
+    bouclierMystique = 1,        -- Base bouclier Mystique (field_228)
+    bouclierConstitution = 0.5,  -- Base bouclier Constitution (field_229)
+    multiBouclier = 1.5,         -- Multiplicateur Bouclier
+    multiStatBouclier = 1.5,     -- Multiplicateur Stat BOUCLIER
+    multiPenBouclier = 1.5,      -- Multiplicateur Pen BOUCLIER
+    multiFatigueBouclier = 4,    -- Multiplicateur Fatigue BOUCLIER
+    coutPABouclier = 1,          -- Cout PA BOUCLIER
+    -- SOIN
+    soinMystique = 0.5,          -- Base soin Mystique (field_231)
+    soinConstitution = 0.25,     -- Base soin Constitution (field_230)
+    multiSoin = 1.25,            -- Multiplicateur SOIN
+    multiStatSoin = 1.25,        -- Multiplicateur Stat SOIN
+    multiPenSoin = 1.25,         -- Multiplicateur Pen SOIN
+    multiFatigueSoin = 3,        -- Multiplicateur Fatigue SOIN
+    coutPASoin = 1,              -- Cout PA SOIN
+    -- BUFF
+    buffForce = 0.2,             -- Base buff Force
+    buffConstitution = 0.4,      -- Base buff Constitution
+    buffPerception = 0.4,        -- Base buff Perception
+    buffMystique = 0.8,          -- Base buff Mystique
+    buffPen = 0.8,               -- Base buff Pen
+    multiBuff = 1,               -- Multiplicateur BUFF
+    multiStatBuff = 1,           -- Multiplicateur stat BUFF
+    multiPenBuff = 2,            -- Multiplicateur pen BUFF
+    attractionParStat = 0.5,     -- Attraction par stat
+    attractionParPen = 0.25,     -- Attraction par Pen
+    repulsionParStat = 0.5,      -- Répulsion par stat
+    repulsionParPen = 0.25,      -- Répulsion par Pen
+    -- CONTROL
+    immobilisationParStat = 0.25, -- Immobilisation par stat
+    immobilisationParPen = 0.1,   -- Immobilisation par Pen
+    entraveParStat = 0.25,        -- Entrave par stat
+    entraveParPen = 0.1,          -- Entrave par Pen
+    permutationParStat = 0.5,     -- Permutation par stat
+    permutationParPen = 0.25,     -- Permutation par Pen
+    -- DEVIATION
+    deviationParStat = 0.25,      -- Déviation par stat
+    deviationParPen = 0.1,        -- Déviation par Pen
+    deviationMalusDistance = 3,   -- Déviation malus distance
+    deviationMalusAutrui = 3,     -- Déviation malus autrui
+    interventionBonusDeplacement = 25, -- Intervention bonus déplacement
+    deviationBonusActionPropre = 25,   -- Déviation bonus action propre
+}
+
+-- Un jet « inadapte » : on oppose Adresse a un jet d'Esprit, ou l'inverse. Le
+-- template (fenetre Actions de combat, « Adresse Inadapté » / « Esprit
+-- Inadapté ») lance le meme de, mais ne compte la primaire qu'a ce taux :
+-- « Malus inadapté » de l'onglet « Mod Statistiques » (field_192).
+E.malusInadapte = 0.8
+
+-- La puissance d'une mecanique de competence, en pourcentage : base + par
+-- point investi + par point d'equipement. Releve de la grille « Mecaniques de
+-- competence » (onglet « Equilibrage puissance action », field_258) : les
+-- vingt et une lignes y portent les memes valeurs, 70 / 5 / 5. Une mecanique
+-- qui en voudrait d'autres prend une entree a son id dans `parMecanique`.
+E.puissanceMecanique = {
+    base = 70,
+    parPoint = 5,
+    equipParPoint = 5,
+    parMecanique = {},
+}
+
 -- Points d'action max = base + points secondaires investis.
 E.pa = { base = 4 }
 

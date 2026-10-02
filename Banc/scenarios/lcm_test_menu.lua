@@ -58,8 +58,12 @@ attendu("eventail a 6 branches (textures du modele)",
 local premier, dernier = f.boutonsEntree[1], f.boutonsEntree[f.nombreEntrees]
 -- Sens horaire de la premiere a la derniere, quelle que soit la categorie.
 attendu("dans le sens horaire", premier.rx * dernier.ry - premier.ry * dernier.rx < 0, true)
+-- Depuis le 2 octobre 2026, chaque action joue sa resolution du compendium :
+-- Repulsion ouvre le composeur (avant : « pas encore disponible »).
 f.boutonsEntree[1]:Click("LeftButton")
-attendu("action pas encore branchee : on previent", dernierMessage():find("pas encore disponible") ~= nil, true)
+attendu("l'action ouvre son composeur", LCM.UI.Composeur.frame ~= nil and LCM.UI.Composeur.frame:IsShown(), true)
+attendu("sur la bonne resolution", LCM.UI.Composeur.frame.titre:GetText(), "Composer : Répulsion")
+LCM.UI.Composeur.frame:Hide()
 
 dire("== clic droit : la selection du personnage")
 f.sceau:Click("RightButton")
@@ -67,17 +71,46 @@ attendu("fenetre ouverte", LCM.UI.Personnages.frame:IsShown(), true)
 LCM.UI.Personnages.frame:Hide()
 __avancer(1)
 
+dire("== glisser le sceau : clic gauche seul, et le relache n'ouvre rien")
+local sc = f.sceau
+local function glisser()
+    sc:GetScript("OnMouseDown")(sc, "LeftButton")
+    sc:GetScript("OnDragStart")(sc)
+    sc:GetScript("OnDragStop")(sc)
+end
+__touches.shift = false
+glisser()
+attendu("sans Maj, le glisser commence", f.glisse, true)
+-- Le jeu envoie OnClick au relache d'un glisser fini sur le sceau.
+sc:Click("LeftButton")
+attendu("le clic de fin de glisser n'ouvre pas le menu", f.ouvert, false)
+sc:GetScript("OnMouseDown")(sc, "LeftButton")
+sc:Click("LeftButton")
+attendu("le clic suivant, lui, l'ouvre", f.ouvert, true)
+sc:Click("LeftButton")
+-- Glisser relache hors du sceau : pas d'OnClick, le drapeau reste pose ; le
+-- prochain appui doit l'effacer, sinon il avalerait un vrai clic.
+glisser()
+sc:GetScript("OnMouseDown")(sc, "LeftButton")
+sc:Click("LeftButton")
+attendu("un glisser lache ailleurs ne mange pas le clic d'apres", f.ouvert, true)
+sc:Click("LeftButton")
+attendu("la place est retenue", type(LCM.db.settings.radial), "table")
+
 -- ======================================================================
 dire("== le menu des fenetres : structure du template")
 local M = LCM.UI.Menu
 local noms = {}
 for _, n in ipairs(M.STRUCTURE) do noms[#noms + 1] = n.label end
 dire("   " .. table.concat(noms, " | "))
--- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont pas repris.
-attendu("sept entrees de premier niveau", #M.STRUCTURE, 7)
+-- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont pas
+-- repris, et « Création Personnage » a quitte le menu le 2 octobre 2026.
+attendu("six entrees de premier niveau", #M.STRUCTURE, 6)
+attendu("plus de dossier Creation", M.Trouver("creation_personnage"), nil)
 attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
-attendu("Outils : six fenetres", #M.Trouver("outils").enfants, 6)
+attendu("Outils : sept fenetres (Regles comprises)", #M.Trouver("outils").enfants, 7)
+attendu("les Regles ouvrent Outils", M.Trouver("outils").enfants[1].id, "regles")
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
 
@@ -131,7 +164,7 @@ __addonsCharges["LesContesMalveillants_MJ"] = false
 local outils = M.Visibles(M.Trouver("outils").enfants)
 local ids = {}
 for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
-attendu("outils du joueur", table.concat(ids, ","), "parametres,vendeur,ressources")
+attendu("outils du joueur", table.concat(ids, ","), "regles,parametres,vendeur,ressources")
 local racine = {}
 for _, n in ipairs(M.Visibles()) do racine[#racine + 1] = n.id end
 -- Le compendium est consultable par tous, comme dans le template (le

@@ -30,11 +30,9 @@ Menu.STRUCTURE = {
     -- « Création » a quitte le menu le 1er octobre 2026 : on cree un personnage
     -- depuis la selection (clic droit sur le sceau, « + Créer un personnage »),
     -- la ou l'on choisit deja qui l'on joue. L'avoir aux deux endroits ne
-    -- servait qu'a se demander lequel fait foi.
-    { id = "creation_personnage", label = "Création Personnage", icone = ICONE .. "eps_buildershaven_gobinfo",
-      enfants = {
-          { id = "regles",   label = "Règles",   icone = ICONE .. "eps_arc_book_bluedragon2" },
-      } },
+    -- servait qu'a se demander lequel fait foi. Le dossier « Création
+    -- Personnage » du template, qui ne gardait plus que les Règles, l'a suivi
+    -- le 2 octobre 2026 ; les Règles sont passees dans « Outils ».
     { id = "fiches_personnages", label = "Fiches personnages", icone = ICONE .. "eps_lol_tft_infiltratoremblem",
       enfants = {
           { id = "fiche",         label = "Fiche",                     icone = ICONE .. "eps_lol_tft_enlightenedemblem" },
@@ -55,6 +53,7 @@ Menu.STRUCTURE = {
       } },
     { id = "outils", label = "Outils", icone = ICONE .. "eps_lol_yorick_mourningmist2",
       enfants = {
+          { id = "regles",     label = "Règles",     icone = ICONE .. "eps_arc_book_bluedragon2" },
           { id = "parametres", label = "Paramètres", icone = ICONE .. "eps_lol_tft_scrapemblem" },
           { id = "compendium", label = "Compendium", icone = ICONE .. "eps_arc_book_venthyr2", mjSeulement = true },
           { id = "panneau_mj", label = "Panel MJ",   icone = ICONE .. "ability_rogue_controlisking", mjSeulement = true },

@@ -63,11 +63,19 @@ _G.__sorties = sorties
 
 DEFAULT_CHAT_FRAME = { AddMessage = function(self, texte) sorties[#sorties + 1] = tostring(texte) end }
 
--- Le groupe simule : __groupe({"Nytherah-Apertus", ...}) le compose.
-local groupe = {}
-_G.__groupe = function(membres) groupe = membres or {} end
+-- Le groupe simule : __groupe({"Nytherah-Apertus", ...}) le compose ;
+-- __groupe(membres, true) en fait un RAID. Groupe ou raid, c'est le chef qui
+-- le decide, pas le nombre : un raid peut ne compter qu'une personne, et deux
+-- joueurs peuvent former un raid. Le banc le deduisait du nombre (raid au-dela
+-- de deux) ; ce n'est pas ce que fait le jeu.
+local groupe, enRaid = {}, false
+_G.__groupe = function(membres, raid)
+    groupe = membres or {}
+    enRaid = raid == true
+end
 function GetNumGroupMembers() return #groupe end
-function IsInRaid() return #groupe > 2 end
+function IsInRaid() return enRaid end
+function IsInGroup() return enRaid or #groupe > 0 end
 function UnitName(unit)
     local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
     if index then
@@ -110,6 +118,7 @@ local function NouvelleRegion(kind, parent)
     function r:ClearAllPoints() self.__points = {} end
     function r:GetPoint(i) local p = self.__points[i or 1] if p then return unpack(p) end end
     function r:GetNumPoints() return #self.__points end
+    function r:GetParent() return self.parent end
     function r:SetSize(w, h) self.__w, self.__h = w, h end
     function r:SetWidth(w) self.__w = w end
     function r:SetHeight(h) self.__h = h end
@@ -384,6 +393,32 @@ function __plusGrosEnvoi()
     local max = 0
     for _, e in ipairs(envois) do if e.taille > max then max = e.taille end end
     return max
+end
+
+-- Les canaux de discussion : un scenario lit ceux qu'on a rejoints et ceux
+-- qu'on a retires des fenetres. Rejoindre est immediat ici ; dans le jeu, il
+-- faut attendre CHAT_MSG_CHANNEL_NOTICE.
+local canaux, canauxCaches = {}, {}
+_G.__canaux, _G.__canauxCaches = canaux, canauxCaches
+function JoinChannelByName(nom)
+    for i, c in ipairs(canaux) do if c == nom then return i end end
+    canaux[#canaux + 1] = nom
+    return #canaux
+end
+function GetChannelName(nom)
+    for i, c in ipairs(canaux) do if c == nom then return i + 4, nom end end
+    return 0, nil
+end
+function ChatFrame_RemoveChannel(fenetre, nom) canauxCaches[nom] = true end
+NUM_CHAT_WINDOWS = 1
+ChatFrame1 = DEFAULT_CHAT_FRAME
+
+-- Ce que l'addon dit dans le chat du jeu (annonces de combat, jets envoyes au
+-- groupe) : retenu, avec le canal, pour que le scenario le relise.
+local chats = {}
+_G.__chats = chats
+function SendChatMessage(texte, canal, langue, cible)
+    chats[#chats + 1] = { texte = tostring(texte), canal = canal, cible = cible }
 end
 
 local lienInsere

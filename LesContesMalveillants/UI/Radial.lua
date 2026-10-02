@@ -3,15 +3,19 @@
 -- Comme dans Necronicon (RadialLauncher.lua), il sert aux actions, pas aux
 -- fenetres : ses categories sont les barres du template (Offensives,
 -- Supports, Competences, Controles ; Animation pour le MJ). Les fenetres
--- passent par le menu (UI/Menu.lua). Tant que la resolution des actions
--- n'existe pas, ses entrees sont eteintes et le disent.
+-- passent par le menu (UI/Menu.lua). Chaque entree joue une resolution du
+-- compendium (Core/Actions.lua) ; une entree sans resolution reste eteinte et
+-- le dit.
 --
 -- Il est affiche en permanence. Clic gauche sur le sceau : la couronne des
 -- categories se deploie. Clic sur une categorie : ses entrees s'ouvrent en
 -- eventail. Clic droit sur le sceau : la selection du personnage.
 --
 -- La structure est FIGEE ici. Un module n'ajoute pas d'entree : il en habille
--- une qui existe deja, par Radial.Lier(id, fonction). Un identifiant inconnu
+-- une qui existe deja, par Radial.Lier(id, fonction). `resolution` dit quelle
+-- entree du compendium (Systeme-Resolution-Action, Actions-MJ) le bouton joue :
+-- ce sont celles des barres d'action du profil Necronicon (quickMenu,
+-- RunCompendiumEntryShortcut). UI/Composeur.lua fait la liaison. Un identifiant inconnu
 -- est refuse — c'est ce qui evite les menus qui poussent tout seuls et les
 -- ordres negocies au vol qu'on a subis dans Necronicon.
 --
@@ -45,19 +49,27 @@ Radial.STRUCTURE = {
     {
         id = "offensives", label = "Offensives", icone = ICONE .. "eps_lol_item_executionerscalling",
         entrees = {
-            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "ability_warrior_savageblow" },
-            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "ability_rogue_findweakness" },
-            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "ability_warrior_shieldbreak" },
-            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "spell_shadow_curseofsargeras" },
+            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "ability_warrior_savageblow",
+              resolution = "attaque_composeur" },
+            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "ability_rogue_findweakness",
+              resolution = "perce_armure_composeur" },
+            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "ability_warrior_shieldbreak",
+              resolution = "brise_armure_composeur" },
+            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "spell_shadow_curseofsargeras",
+              resolution = "generation_de_debuff_composeur" },
         },
     },
     {
         id = "supports", label = "Supports", icone = ICONE .. "eps_lol_jarvaniv_demacianstandard",
         entrees = {
-            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "spell_holy_powerwordshield" },
-            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "hots_ltmorales_healingbeam" },
-            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "ability_warrior_rallyingcry" },
-            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "spell_holy_dispelmagic" },
+            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "spell_holy_powerwordshield",
+              resolution = "generation_de_bouclier" },
+            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "hots_ltmorales_healingbeam",
+              resolution = "generation_de_soin" },
+            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "ability_warrior_rallyingcry",
+              resolution = "generation_de_buff_composeur" },
+            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "spell_holy_dispelmagic",
+              resolution = "dissipation" },
         },
     },
     -- Les competences propres au personnage : vide tant qu'elles n'existent pas.
@@ -65,21 +77,30 @@ Radial.STRUCTURE = {
     {
         id = "controles", label = "Contrôles", icone = ICONE .. "w3reforgedensnare",
         entrees = {
-            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "d3_waveofforce" },
-            { id = "attraction",     label = "Attraction",     icone = ICONE .. "ability_hunter_harpoon" },
-            { id = "permutation",    label = "Permutation",    icone = ICONE .. "ability_bastion_druid" },
-            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "spell_frost_frostnova" },
-            { id = "entrave",        label = "Entrave",        icone = ICONE .. "spell_nature_web" },
-            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "spell_magic_featherfall" },
+            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "d3_waveofforce",
+              resolution = "repulsion" },
+            { id = "attraction",     label = "Attraction",     icone = ICONE .. "ability_hunter_harpoon",
+              resolution = "attraction" },
+            { id = "permutation",    label = "Permutation",    icone = ICONE .. "ability_bastion_druid",
+              resolution = "permutation" },
+            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "spell_frost_frostnova",
+              resolution = "immobilisation" },
+            { id = "entrave",        label = "Entrave",        icone = ICONE .. "spell_nature_web",
+              resolution = "entrave" },
+            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "spell_magic_featherfall",
+              resolution = "levitation" },
         },
     },
     -- Le second lanceur du template (« Action mj ») : une categorie reservee.
     {
         id = "animation", label = "Animation", icone = ICONE .. "ability_crown_of_the_heavens_icon", mjSeulement = true,
         entrees = {
-            { id = "resolution_test_mj", label = "Résolution Test MJ", icone = ICONE .. "inv_misc_gear_02" },
-            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "eps_lol_aphelios_moonlightvigil" },
-            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "eps_lol_aatrox_darkflight" },
+            { id = "resolution_test_mj", label = "Résolution Test MJ", icone = ICONE .. "inv_misc_gear_02",
+              resolution = "resolution_test_mj" },
+            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "eps_lol_aphelios_moonlightvigil",
+              resolution = "buff_debuff_mj" },
+            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "eps_lol_aatrox_darkflight",
+              resolution = "attaque_mj" },
         },
     },
 }
@@ -545,10 +566,19 @@ local function Construire()
         f.ouvert, f.choisi = false, nil
     end)
 
-    -- Maj + glisser deplace le sceau ; sa place est retenue.
+    -- Glisser (clic gauche, sans Maj depuis le 2 octobre 2026) deplace le
+    -- sceau ; sa place est retenue.
+    --
+    -- Le jeu envoie quand meme OnClick au relache d'un glisser fini sur le
+    -- sceau : sans garde, chaque deplacement ouvrait le menu. `f.glisse` dit
+    -- « ce clic-la est la fin d'un glisser ». Il est remis a zero a CHAQUE
+    -- appui, et pas seulement par le clic qu'il avale : un glisser relache
+    -- hors du sceau ne recoit pas d'OnClick, et le drapeau reste pose — il
+    -- mangerait alors le vrai clic suivant.
     f.sceau:RegisterForDrag("LeftButton")
+    f.sceau:SetScript("OnMouseDown", function() f.glisse = false end)
     f.sceau:SetScript("OnDragStart", function()
-        if not (IsShiftKeyDown and IsShiftKeyDown()) then return end
+        f.glisse = true
         Fermer(f)
         f:StartMoving()
     end)
@@ -565,6 +595,10 @@ local function Construire()
 
     f.sceau:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f.sceau:SetScript("OnClick", function(_, souris)
+        if f.glisse then
+            f.glisse = false
+            return
+        end
         if souris == "RightButton" then
             Fermer(f, true)
             if UI.Personnages then UI.Personnages.Ouvrir() end
@@ -576,7 +610,7 @@ local function Construire()
         Dessiner(f, true, false)
     end)
     Bulle(f.sceau, "Les Contes Malveillants",
-        "Clic : le menu\nClic droit : choisir un personnage\nMaj + glisser : deplacer")
+        "Clic : le menu\nClic droit : choisir un personnage\nGlisser : déplacer")
 
     Radial.frame = f
     return f

@@ -22,6 +22,7 @@ Core\Traits.lua
 Core\Catalogues.lua
 Core\Objets.lua
 Core\Etats.lua
+Core\EtatsTemporaires.lua
 Core\Apprentissages.lua
 Core\Sacs.lua
 Core\Inventaire.lua
@@ -39,7 +40,11 @@ Core\Stock.lua
 Core\Points.lua
 Core\Lien.lua
 Core\Fiches.lua
+Core\Presence.lua
 Core\Incarnation.lua
+Core\Combat.lua
+Core\Scene.lua
+Core\Actions.lua
 Core\Grimoires.lua
 Core\Compendium.lua
 Data\Equilibrage.lua
@@ -82,5 +87,9 @@ UI\Parametres.lua
 UI\Points.lua
 UI\Bourse.lua
 UI\Compendium.lua
+UI\Combat.lua
+UI\Composeur.lua
+UI\Resolution.lua
+UI\Constructeur.lua
 UI\Radial.lua
 UI\Menu.lua
