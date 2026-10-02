@@ -408,21 +408,50 @@ end
 -- pour dire la meme chose.
 local LIGNE_MAX, ICONE_MAX = 26, 20
 
+-- Les colonnes de DROITE sont calees sur le bord droit de la ligne, pas sur
+-- leurs coordonnees du gabarit.
+--
+-- Le gabarit arrete sa derniere colonne a 762 unites sur 786 : les 24 qui
+-- restent sont la marge de l'image, pas une marge de contenu. En les reportant
+-- telles quelles, la ligne finissait avant son bord et laissait une bande vide
+-- entre le dernier bouton et le cadre — d'autant plus large que les boutons
+-- sont plafonnes et n'occupent plus toute leur case.
+--
+-- Les largeurs, elles, restent proportionnelles : seules les origines changent.
 function UI.AelColonnes(largeur)
     local s = (tonumber(largeur) or 786) / 786
+    local fin = tonumber(largeur) or 786
+    local ecart = 4
+
+    local actionLargeur = 110 * s
+    local modificateurLargeur = 85 * s
+    local valeurLargeur = 90 * s
+    local plageLargeur = 95 * s
+    local action = fin - actionLargeur
+    local modificateur = action - ecart - modificateurLargeur
+    local valeur = modificateur - ecart - valeurLargeur
+    local plage = valeur - ecart - plageLargeur
+
+    -- Les trois boutons d'une jauge, colles a droite eux aussi, et la barre
+    -- s'arrete juste avant le premier.
+    local boutonL = math.min(22, 37 * s)
+    local b3 = fin - boutonL
+    local b2 = b3 - ecart - boutonL
+    local b1 = b2 - ecart - boutonL
+
     return {
         echelle = s,
         ligne = math.min(LIGNE_MAX, 62 * s),
         police = math.min(POLICE_MAX, 24 * s),
         icone = 8 * s, iconeTaille = math.min(ICONE_MAX, 50 * s), separateur = 72 * s,
         nom = 96 * s, nomSansIcone = 24 * s, nomLargeur = 205 * s,
-        plage = 310 * s, plageLargeur = 95 * s,
-        valeur = 418 * s, valeurLargeur = 90 * s,
-        modificateur = 535 * s, modificateurLargeur = 85 * s,
-        action = 652 * s, actionLargeur = 110 * s,
-        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = math.min(16, 30 * s),
-        boutons = { 561 * s, 607 * s, 653 * s },
-        boutonL = math.min(22, 37 * s), boutonH = math.min(20, 38 * s),
+        plage = plage, plageLargeur = plageLargeur,
+        valeur = valeur, valeurLargeur = valeurLargeur,
+        modificateur = modificateur, modificateurLargeur = modificateurLargeur,
+        action = action, actionLargeur = actionLargeur,
+        barreDebut = 270 * s, barreFin = b1 - 6, barreHauteur = math.min(16, 30 * s),
+        boutons = { b1, b2, b3 },
+        boutonL = boutonL, boutonH = math.min(20, 38 * s),
     }
 end
 

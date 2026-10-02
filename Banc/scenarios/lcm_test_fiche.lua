@@ -64,6 +64,16 @@ attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")
 attendu("six statistiques", #page.blocs[2].lignes, 6)
 
+dire("== rien ne traine a droite d'une ligne")
+-- Le gabarit arrete sa derniere colonne a 762 unites sur 786 ; reportees
+-- telles quelles, ces 24 unites laissaient une bande vide entre le dernier
+-- bouton et le bord. Les colonnes de droite se calent donc sur le bord.
+local L = LCM.Vues.Get("fiche").largeur - 24 - 2 * LCM.UI.Fiche.MARGE_BLOC
+local col = LCM.UI.AelColonnes(L)
+attendu("le dernier bouton finit au bord", col.boutons[3] + col.boutonL, L)
+attendu("le bouton d'action aussi", col.action + col.actionLargeur, L)
+attendu("et la jauge s'arrete juste avant les boutons", col.barreFin < col.boutons[1], true)
+
 dire("== une icone n'ecrase pas son libelle")
 -- `Fiche.Nom` a deux colonnes : avec icone et sans. Oublier de dire laquelle
 -- pose le texte a l'interieur de l'icone — c'est arrive sur les trois types de
