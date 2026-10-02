@@ -15,8 +15,11 @@ local Vues = LCM.Vues
 local TAILLE_REGLES = 14
 Vues.Add({
     id = "regles", titre = "Règles",
-    largeur = 520, hauteur = 600,
+    -- Les chapitres sont a gauche, en sommaire : la colonne prend 174, la page
+    -- garde la largeur d'une page de texte.
+    largeur = 580, hauteur = 520,
     sansPersonnage = true,
+    sommaire = true,
     onglets = {
         { id = "fondamentaux", label = "Fondamentaux", blocs = {
             { label = "Principes des Contes Malveillants.", taille = TAILLE_REGLES, texte =
@@ -65,12 +68,12 @@ Vues.Add({
 -- Deplacement), FACULTES (Physiques), TRAITS.
 Vues.Add({
     id = "fiche", titre = "Fiche",
-    largeur = 520, hauteur = 600,
+    largeur = 410, hauteur = 520,
     onglets = {
         { id = "statistiques", label = "Statistiques", blocs = {
             -- La jauge des PV seule : les zones sont dans Sante. La surcharge
             -- des PV n'apparait qu'au MJ.
-            { label = "Générale", champs = { { id = "corps", zones = false }, "armure", "fatigue", "pa", "pv_max_override" } },
+            { label = "Générale", champs = { { id = "corps", zones = false }, "armure", "fatigue", "pa" } },
             { label = "Statistiques", champs = { "force", "mystique", "perception", "adresse", "esprit", "constitution" } },
             { label = "Caractéristiques", champs = { "initiative" } },
             { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
@@ -88,7 +91,7 @@ Vues.Add({
 -- Ame et les etats intangibles) — les quatre onglets du template.
 Vues.Add({
     id = "sante", titre = "Santé",
-    largeur = 500, hauteur = 560,
+    largeur = 400, hauteur = 500,
     onglets = {
         { id = "physique", label = "Physique", blocs = {
             { label = "Parties corporelles", champs = { { id = "corps", total = false } } },
@@ -105,7 +108,7 @@ Vues.Add({
 -- Equipements : Armes, Armures, Accessoires (1 / 5 / 5 emplacements).
 Vues.Add({
     id = "equipement", titre = "Équipements",
-    largeur = 520, hauteur = 560,
+    largeur = 410, hauteur = 500,
     onglets = {
         { id = "arme",       label = "Armes",       blocs = { { conteneur = { "objets", "arme" } } } },
         { id = "equipement", label = "Armures",     blocs = { { conteneur = { "objets", "equipement" } } } },
@@ -116,14 +119,14 @@ Vues.Add({
 -- Apprentissage : un conteneur de 60 emplacements.
 Vues.Add({
     id = "apprentissage", titre = "Apprentissage",
-    largeur = 520, hauteur = 580,
+    largeur = 410, hauteur = 510,
     blocs = { { conteneur = { "apprentissages", "apprentissage" }, label = "Apprentissages" } },
 })
 
 -- Expertises : un onglet par domaine.
 Vues.Add({
     id = "expertise", titre = "Expertises",
-    largeur = 520, hauteur = 580,
+    largeur = 410, hauteur = 510,
     onglets = {
         { id = "observations", label = "Observations", blocs = { { section = { "expertises", "observations" } } } },
         { id = "athletisme",   label = "Athlétisme",   blocs = { { section = { "expertises", "athletisme" } } } },
@@ -134,7 +137,7 @@ Vues.Add({
 -- Penetration & Resistances : les resistances d'abord, comme le template.
 Vues.Add({
     id = "penetrations_resistances", titre = "Pénétration & Résistances",
-    largeur = 520, hauteur = 580,
+    largeur = 410, hauteur = 510,
     onglets = {
         { id = "resistances",  label = "Résistances",  blocs = { { onglet = "resistances" } } },
         { id = "penetrations", label = "Pénétrations", blocs = { { onglet = "penetrations" } } },
@@ -145,7 +148,7 @@ Vues.Add({
 -- Necronicon, Deplacement.lua) ; ici, ses deux valeurs en attendant.
 Vues.Add({
     id = "deplacement", titre = "Déplacement",
-    largeur = 440, hauteur = 280,
+    largeur = 380, hauteur = 260,
     blocs = {
         { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
     },
@@ -167,7 +170,7 @@ do
 
     Vues.Add({
         id = "statistiques", titre = "Statistiques",
-        largeur = 500, hauteur = 580,
+        largeur = 400, hauteur = 510,
         blocs = {
             { texte = "Ci-dessous, vous retrouverez le total de l'ensemble des statistiques de votre personnage." },
             { label = "Statistiques", recap = "total", replie = true,

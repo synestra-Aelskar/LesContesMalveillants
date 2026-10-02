@@ -195,10 +195,23 @@ dire("== Regles : la fenetre du template")
 M.Trouver("regles").onClick()
 local r = LCM.UI.Vues.frames and LCM.UI.Vues.frames.regles or LCM.UI.Vues.Fenetre("regles")
 attendu("ouverte", r:IsShown(), true)
-local noms = {}
-for _, b in ipairs(r.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
-attendu("les huit onglets", table.concat(noms, ", "),
-    "Fondamentaux, Personnages, Ressources, Tests et Expertises, Combat, Magie et effets, Équipement, Progression")
+-- Les Regles se lisent : leurs chapitres sont dans un sommaire a gauche, pas
+-- dans une bande d'onglets en haut.
+attendu("pas de bande d'onglets", r.barre, nil)
+attendu("un sommaire", r.sommaire ~= nil, true)
+local function entrees()
+    local out = {}
+    for _, e in ipairs(r.sommaire.entrees) do
+        if e:IsShown() then out[#out + 1] = e end
+    end
+    return out
+end
+local chapitres = {}
+for _, e in ipairs(entrees()) do
+    if e.cible == 0 then chapitres[#chapitres + 1] = e.label:GetText() end
+end
+attendu("les huit chapitres", table.concat(chapitres, ", "),
+    "Fondamentaux, Principes des Contes Malveillants., Personnages, Ressources, Tests et Expertises, Combat, Magie et effets, Équipement, Progression")
 local fond = r.pages.fondamentaux
 attendu("cinq blocs, un par separateur", #fond.blocs, 5)
 attendu("premier bloc", fond.blocs[1].titre:GetText(), "PRINCIPES DES CONTES MALVEILLANTS.")
@@ -206,8 +219,33 @@ attendu("texte d'origine", fond.blocs[1].paragraphe:GetText():find("^Les contes 
 attendu("taille 14", select(2, fond.blocs[1].paragraphe:GetFont()), 14)
 attendu("le dernier separateur, sans texte", fond.blocs[5].paragraphe, nil)
 attendu("pas de personnage en sous-titre", r.sousTitre:IsShown() and r.sousTitre:GetText() ~= "" , false)
-r.barre.boutons[2]:Click()
+
+dire("   les titres de blocs sont les sous-chapitres")
+local sous = {}
+for _, e in ipairs(entrees()) do
+    if e.cible ~= 0 then sous[#sous + 1] = e.label:GetText() end
+end
+-- Le premier bloc est a l'ordonnee zero : il est compte plus haut avec les
+-- chapitres, les quatre suivants ont une cible.
+attendu("quatre blocs plus bas", table.concat(sous, ", "),
+    "Maitres du jeu, Les joueurs :, Le principe des tests, [NF] - No Fatigue")
+local cible = nil
+for _, e in ipairs(entrees()) do
+    if e.label:GetText() == "Le principe des tests" then cible = e end
+end
+cible:Click()
+attendu("cliquer un sous-chapitre fait defiler", r.zone.decalage > 0, true)
+attendu("jusqu'a son bloc", math.abs(r.zone.decalage - cible.cible) < 0.5, true)
+
+dire("   un autre chapitre")
+local vers = nil
+for _, e in ipairs(entrees()) do
+    if e.label:GetText() == "Personnages" then vers = e end
+end
+vers:Click()
 attendu("un onglet vide s'affiche", r.onglet, "personnages")
+attendu("le defilement repart du haut", r.zone.decalage, 0)
+attendu("et le chapitre vide n'a pas de sous-chapitre", #entrees(), 8)
 attendu("sans bloc", #r.pages.personnages.blocs, 0)
 attendu("onglet vide non declare : refuse", refus({ id = "vide_x", onglets = { { id = "a", label = "A" } } }):find("onglet vide") ~= nil, true)
 M.Trouver("regles").onClick()

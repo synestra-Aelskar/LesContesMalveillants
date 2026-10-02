@@ -198,11 +198,11 @@ local function ForgetIfClean(entity)
     if next(entity.body) == nil then entity.body = nil end
 end
 
--- Maximum global : la formule d'equilibrage, sauf si l'entite le surcharge
--- (un PNJ dont on fixe les PV a la main).
+-- Maximum global : la formule d'equilibrage, et rien d'autre. La surcharge
+-- « PV max impose » a ete retiree le 2 octobre 2026 : elle n'avait de sens que
+-- pour un PNJ, elle trainait sur la fiche de tout le monde, et un PNJ dont les
+-- PV ne suivent pas ses statistiques se regle en changeant ses statistiques.
 function Body.MaxTotal(entity)
-    local surcharge = tonumber(entity and entity.values and entity.values.pv_max_override)
-    if surcharge then return math.max(0, math.floor(surcharge)) end
     return math.max(0, math.floor(tonumber(LCM.Entities.Get_Value(entity, "pv_max")) or 0))
 end
 

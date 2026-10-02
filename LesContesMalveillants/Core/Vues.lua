@@ -151,6 +151,9 @@ function Vues.Add(definition)
         -- Une vue qui ne montre rien d'un personnage (les Regles) : pas de
         -- sous-titre, et elle s'ouvre meme sans personnage.
         sansPersonnage = definition.sansPersonnage == true,
+        -- Ses chapitres a gauche, en sommaire, plutot qu'en bande d'onglets :
+        -- c'est une vue qu'on lit, pas une qu'on remplit.
+        sommaire = definition.sommaire == true,
     }
     if definition.onglets then
         for _, onglet in ipairs(definition.onglets) do

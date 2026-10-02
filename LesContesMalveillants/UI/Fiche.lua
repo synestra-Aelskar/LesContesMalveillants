@@ -59,10 +59,18 @@ end
 local Ligne = Fiche.Ligne
 
 -- Le nom, a sa place : apres l'icone s'il y en a une, sinon a la sienne.
+--
+-- Il recoit une LARGEUR, bornee par la colonne qui suit : sans elle un libelle
+-- un peu long continue tout droit et s'ecrit sur la jauge (« Points d'action »
+-- par-dessus sa barre). Coupe plutot que deborde — et si ca coupe souvent,
+-- c'est le libelle qu'il faut raccourcir, comme le template le fait avec PA.
 function Fiche.Nom(l, c, texte, avecIcone)
     l.nom = UI.Texte(l, texte, UI.C.texte)
     UI.Police(l.nom, c.police)
-    l.nom:SetPoint("LEFT", l, "LEFT", avecIcone and c.nom or c.nomSansIcone, 0)
+    local depart = avecIcone and c.nom or c.nomSansIcone
+    l.nom:SetPoint("LEFT", l, "LEFT", depart, 0)
+    l.nom:SetWidth(math.max(40, math.min(c.nomLargeur, c.barreDebut - depart - 6)))
+    l.nom:SetJustifyH("LEFT")
     l.nom:SetWordWrap(false)
     l.label = l.nom
     return l.nom
@@ -297,9 +305,10 @@ function Lignes.body(parent, field, c, options)
     -- Le coeur du template : c'est sa ligne « Point de vie ».
     local iconeTotal = LCM.IconeChamp(field)
     if iconeTotal then Icone(l.total, c, iconeTotal) end
-    Nom(l.total, c, "Points de vie")
+    -- « Point de vie » au singulier : c'est le libelle du template.
+    Nom(l.total, c, "Point de vie", iconeTotal ~= nil)
     Jauge(l.total, c, UI.C.vie, nil)
-    Bulle(l.total, "Points de vie",
+    Bulle(l.total, "Point de vie",
         "Points de vie maximum moins les blessures de toutes les zones. Chaque zone vaut 30 % du maximum.")
 
     local function Zone(index)
@@ -735,6 +744,9 @@ function Fiche.Bloc(parent, section, largeur)
     local b = CreateFrame("Frame", nil, parent)
     local m = UI.AelMesures(largeur)
     local q = largeur / 822
+    -- Le bloc garde ce qui l'a produit : un sommaire a besoin de son titre et
+    -- de savoir ou il se trouve dans la page.
+    b.section = section
     b.aTitre = section.label ~= ""
     b.hautTitre = b.aTitre and math.max(24, 50 * m.echelle) or 0
     if b.aTitre then

@@ -206,7 +206,11 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     end
 
     f.fermer = CreateFrame("Button", nil, f)
-    f.fermer:SetSize(math.max(20, 54 * q), math.max(20, 54 * q))
+    -- Plafonnee a 32 : a 54 unites de l'atlas, une fenetre large porte une
+    -- croix de 46 px qui mange l'en-tete et vient mordre sur le titre. Une
+    -- croix n'a pas besoin de grandir avec la fenetre, on sait ce qu'elle fait.
+    local cote = math.max(18, math.min(24, 54 * q))
+    f.fermer:SetSize(cote, cote)
     f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6 * q, -6 * q)
     -- Au-dessus de l'habillage : l'ornement du coin passait par-dessus la croix
     -- et la fenetre n'avait plus l'air d'avoir de fermeture.

@@ -30,7 +30,10 @@ local _, _, _, _, yTitre = f.titre:GetPoint(1)
 local _, _, _, _, yNom = f.sousTitre:GetPoint(1)
 local _, _, _, _, yRegle = f.regle:GetPoint(1)
 attendu("le nom est sous le titre", yNom < yTitre, true)
-attendu("et au-dessus du filet", yNom - 7 > yRegle, true)
+-- Le bas du texte, pas son centre, et mesure sur sa police : un « 7 » en dur
+-- ne veut plus rien dire des qu'une fenetre change de largeur.
+local hautNom = select(2, f.sousTitre:GetFont()) / 2
+attendu("et au-dessus du filet", yNom - hautNom > yRegle, true)
 
 dire("== les onglets du template")
 local noms = {}
@@ -55,7 +58,7 @@ for _, bloc in ipairs(page.blocs) do titres[#titres + 1] = bloc.titre and bloc.t
 attendu("blocs", table.concat(titres, ", "), "GÉNÉRALE, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
 local generale = {}
 for _, l in ipairs(page.blocs[1].lignes) do generale[#generale + 1] = l.field.id end
-attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa,pv_max_override")
+attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa")
 local corps = page.blocs[1].lignes[1]
 attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")

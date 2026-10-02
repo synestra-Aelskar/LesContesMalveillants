@@ -379,9 +379,18 @@ end
 
 -- Mesures du modele. Fenetre : sur 845 unites de large (en-tete, onglets,
 -- titres). Lignes : sur 786 unites (colonnes d'une ligne de fiche).
+-- Meme regle que pour les colonnes : le decor suit la largeur (c'est une
+-- image, elle doit s'etirer), le texte et la hauteur des onglets non. Sans ces
+-- plafonds, une fenetre de 720 porte un titre de 27 et des onglets de 47.
+local POLICE_MAX = 12
+local TITRE_MAX, ONGLET_MAX = 17, 24
+
 function UI.AelMesures(largeur)
     local s = (tonumber(largeur) or 845) / 845
-    return { echelle = s, ligne = 62 * s, onglet = 55 * s, titre = 32 * s, police = 24 * s,
+    return { echelle = s, ligne = 62 * s,
+             onglet = math.min(ONGLET_MAX, 55 * s),
+             titre = math.min(TITRE_MAX, 32 * s),
+             police = math.min(POLICE_MAX, 24 * s),
              regle = 63 * s, bandeau = 70 * s }
 end
 
@@ -393,7 +402,11 @@ end
 -- Sans ces plafonds, une fiche de 600 de large donne des lignes de 46 et du
 -- texte de 18 : trois fois l'air qu'il faut autour d'une ligne de chiffres, et
 -- une fenetre qu'on trouve enorme meme a 76 % d'echelle.
-local LIGNE_MAX, POLICE_MAX, ICONE_MAX = 34, 14, 28
+-- Releve sur la fiche de Necronicon telle qu'elle tourne en seance : lignes de
+-- 26, texte de 12, icones de 20, dans une fenetre de ~390. C'est la densite a
+-- laquelle on joue ; au-dessus, la meme fiche demande deux fois plus d'ecran
+-- pour dire la meme chose.
+local LIGNE_MAX, ICONE_MAX = 26, 20
 
 function UI.AelColonnes(largeur)
     local s = (tonumber(largeur) or 786) / 786
@@ -407,9 +420,9 @@ function UI.AelColonnes(largeur)
         valeur = 418 * s, valeurLargeur = 90 * s,
         modificateur = 535 * s, modificateurLargeur = 85 * s,
         action = 652 * s, actionLargeur = 110 * s,
-        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = math.min(22, 30 * s),
+        barreDebut = 270 * s, barreFin = 540 * s, barreHauteur = math.min(16, 30 * s),
         boutons = { 561 * s, 607 * s, 653 * s },
-        boutonL = math.min(28, 37 * s), boutonH = math.min(26, 38 * s),
+        boutonL = math.min(22, 37 * s), boutonH = math.min(20, 38 * s),
     }
 end
 

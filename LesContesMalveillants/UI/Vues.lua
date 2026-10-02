@@ -18,6 +18,83 @@ UI.Vues = Ecran
 -- sur l'autre (la position est ensuite retenue par fenetre).
 local DECALAGE = 28
 
+local LARGEUR_SOMMAIRE = 162
+local LIGNE_SOMMAIRE = 20
+
+-- ===== Le sommaire =========================================================
+-- Les chapitres (les onglets de la vue) toujours visibles ; sous le chapitre
+-- ouvert, ses sous-chapitres, qui sont les titres de blocs de la page. Cliquer
+-- un sous-chapitre fait defiler jusqu'a son bloc.
+--
+-- Seul le chapitre ouvert deplie ses sous-chapitres : huit chapitres de cinq
+-- blocs feraient quarante lignes, et une table des matieres qu'on doit faire
+-- defiler pour s'y retrouver ne sert plus a rien.
+local function Sommaire(f, vue)
+    local s = UI.Defilement(f.contenu)
+    s:SetWidth(LARGEUR_SOMMAIRE)
+    s.entrees = {}
+
+    local function Entree(rang)
+        local b = s.entrees[rang]
+        if b then return b end
+        b = UI.Bouton(s.contenu, "", LARGEUR_SOMMAIRE - 10, LIGNE_SOMMAIRE, function(self)
+            f:Afficher(self.ongletId)
+            -- Un chapitre repart du haut ; un sous-chapitre va se montrer.
+            f.zone:Aller(self.cible or 0)
+        end)
+        b.label:ClearAllPoints()
+        b.label:SetJustifyH("LEFT")
+        s.entrees[rang] = b
+        return b
+    end
+
+    function s:Actualiser()
+        local y, rang = 0, 0
+        for _, onglet in ipairs(vue.onglets) do
+            rang = rang + 1
+            local b = Entree(rang)
+            b.ongletId, b.cible = onglet.id, 0
+            b.label:SetText(onglet.label)
+            b.label:SetPoint("LEFT", b, "LEFT", 8, 0)
+            UI.Police(b.label, 12)
+            b:Selectionner(onglet.id == f.onglet)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -y)
+            b:Show()
+            y = y + LIGNE_SOMMAIRE
+
+            if onglet.id == f.onglet then
+                local page = f.pages[onglet.id]
+                for _, bloc in ipairs((page and page.blocs) or {}) do
+                    local titre = bloc.section and tostring(bloc.section.label or "")
+                    if titre and titre ~= "" then
+                        rang = rang + 1
+                        local sb = Entree(rang)
+                        sb.ongletId = onglet.id
+                        -- La place du bloc dans la page : page:Disposer l'y a
+                        -- ancre a -y, c'est exactement le defilement a poser.
+                        local _, _, _, _, dy = bloc:GetPoint(1)
+                        sb.cible = math.max(0, -(dy or 0))
+                        sb.label:SetText(titre)
+                        sb.label:SetPoint("LEFT", sb, "LEFT", 20, 0)
+                        UI.Police(sb.label, 10)
+                        sb.label:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+                        sb:Selectionner(false)
+                        sb:ClearAllPoints()
+                        sb:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -y)
+                        sb:Show()
+                        y = y + LIGNE_SOMMAIRE - 2
+                    end
+                end
+            end
+        end
+        for index = rang + 1, #self.entrees do self.entrees[index]:Hide() end
+        self:Regler(y)
+    end
+
+    return s
+end
+
 local function Construire(vue, rang)
     local f = UI.Fenetre("vue_" .. vue.id, vue.titre, vue.largeur, vue.hauteur,
         { x = 180 + rang * DECALAGE, y = -rang * DECALAGE })
@@ -58,7 +135,18 @@ local function Construire(vue, rang)
         haut = 26
     end
 
-    if #vue.onglets > 1 then
+    -- Une vue en sommaire (les Regles) range ses chapitres a gauche plutot que
+    -- dans une bande d'onglets : huit onglets etales sur trois rangees au-dessus
+    -- d'un texte, c'est un livre dont la table des matieres serait au milieu de
+    -- la page. La colonne prend de la largeur au contenu.
+    local gauche = vue.sommaire and (LARGEUR_SOMMAIRE + 12) or 0
+    local largeurPage = largeurContenu - gauche
+
+    if vue.sommaire then
+        f.sommaire = Sommaire(f, vue)
+        f.sommaire:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
+        f.sommaire:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    elseif #vue.onglets > 1 then
         local onglets = {}
         for _, onglet in ipairs(vue.onglets) do onglets[#onglets + 1] = { id = onglet.id, label = onglet.label } end
         f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
@@ -68,12 +156,12 @@ local function Construire(vue, rang)
     end
 
     f.zone = UI.Defilement(f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
+    f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", gauche, -haut)
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
     f.pages = {}
     for _, onglet in ipairs(vue.onglets) do
-        local page = UI.Fiche.Page(f.zone.contenu, onglet.sections, largeurContenu)
+        local page = UI.Fiche.Page(f.zone.contenu, onglet.sections, largeurPage)
         page.onHauteur = function(h) if page:IsShown() then f.zone:Regler(h) end end
         f.pages[onglet.id] = page
     end
@@ -90,6 +178,9 @@ local function Construire(vue, rang)
             self.zone.decalage = 0
             self.zone:Regler(page.hauteur)
         end
+        -- Apres la page : le sommaire lit la place des blocs, qui n'est connue
+        -- qu'une fois la page disposee.
+        if self.sommaire then self.sommaire:Actualiser() end
     end
 
     function f:Montrer(entity)

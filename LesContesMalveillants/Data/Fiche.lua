@@ -33,9 +33,6 @@ Schema.AddTab({
                       return math.floor(e.base + e.parNiveau * v("niveau") + e.parVitalite * v("sec_vitalite")
                           + totale * (e.constitution.base + investie * e.constitution.parConstitution))
                   end },
-                -- Surcharge : un PNJ dont on fixe les PV a la main.
-                { id = "pv_max_override", kind = "stat", label = "PV max imposé", mjSeulement = true,
-                  note = "Surcharge du MJ : fixe les PV max d'un PNJ a la main." },
                 { id = "corps",    kind = "body", label = "Parties du corps",
                   note = "Points de vie et blessures, zone par zone." },
                 -- Fatigue (template) : 15 + 2 x niveau + esprit + 2 x constitution
@@ -165,7 +162,7 @@ Schema.AddTab({
                           + LCM.Formules.Primaire(entity, "perception") / e.diviseurPerception)
                   end },
                 -- Points d'action : 4 + pts secondaires + bonus portes.
-                { id = "pa",         kind = "gauge", label = "Points d'action",
+                { id = "pa",         kind = "gauge", label = "PA",
                   maxFormula = function(entity)
                       local v = tonumber(LCM.Entities.Get_Value(entity, "sec_pa")) or 0
                       return math.floor(LCM.Equilibrage.pa.base + v + LCM.Effets.Bonus(entity, "pa"))

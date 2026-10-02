@@ -46,15 +46,20 @@ local c2, m2 = LCM.Body.Totals(moi)
 attendu("les blessures sont conservees", m2 - c2 >= 3, true)
 attendu("et le total suit", m2, 50)
 
-dire("== un PNJ aux PV imposes")
+dire("== un PNJ aberrant")
 local boss = LCM.Entities.Create("boss", "Chose", "npc")
 LCM.Entities.Set_Value(boss, "morphologie", "aberration")
-LCM.Entities.Set_Value(boss, "pv_max_override", 400)
+-- Ses PV sortent de sa feuille comme ceux de tout le monde : une constitution
+-- de monstre, et rien d'autre a regler.
+LCM.Entities.Set_Value(boss, "niveau", 20)
+LCM.Entities.Set_Value(boss, "constitution", 30)
 local etatBoss, morpho = LCM.Body.State(boss)
 attendu("morphologie", morpho.id, "aberration")
 attendu("zones", #etatBoss, 19)
 -- Chaque zone vaut 30 % du total, quelle que soit la morphologie.
-attendu("une zone", etatBoss[1].max, 120)
+local totalBoss = LCM.Body.MaxTotal(boss)
+attendu("une zone", etatBoss[1].max, math.floor(totalBoss * LCM.Equilibrage.pv.parZone))
+attendu("et il a de quoi encaisser", totalBoss > 200, true)
 dire("  ses zones :")
 local parCategorie = {}
 for _, p in ipairs(etatBoss) do
