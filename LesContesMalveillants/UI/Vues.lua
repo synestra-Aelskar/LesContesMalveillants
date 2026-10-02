@@ -45,11 +45,32 @@ local function Sommaire(f, vue)
         b.label:ClearAllPoints()
         b.label:SetJustifyH("LEFT")
         b.label:SetWordWrap(false)
+
         -- La puce : allumee sur l'endroit ou l'on se trouve, eteinte ailleurs.
         -- Sans elle, deux lignes a peine differemment teintees ne disent pas
         -- ou on en est — et c'est tout ce qu'un sommaire a a dire.
-        b.puce = UI.Texte(b, "", UI.C.accent)
-        b.puce:SetJustifyH("CENTER")
+        --
+        -- C'est la gemme de l'atlas, celle qui coiffe les titres de bloc, et
+        -- pas un losange tape au clavier : la police du jeu n'a pas ce signe et
+        -- l'affichait en carre vide. Sans atlas (habillage Incritas), on
+        -- retombe sur un chevron, qui lui existe partout.
+        if UI.AelRef then
+            b.puce = UI.AelRef(b, 501, 656, 27, 25, "OVERLAY")
+            b.puce:SetSize(7, 7)
+            function b:Marque(etat)
+                self.marque = etat
+                self.puce:SetShown(etat ~= "")
+                self.puce:SetAlpha(etat == "ici" and 1 or 0.45)
+            end
+        else
+            b.puce = UI.Texte(b, "", UI.C.accent)
+            b.puce:SetJustifyH("CENTER")
+            UI.Police(b.puce, 10)
+            function b:Marque(etat)
+                self.marque = etat
+                self.puce:SetText(etat == "ici" and ">" or "")
+            end
+        end
         s.entrees[rang] = b
         return b
     end
@@ -67,7 +88,7 @@ local function Sommaire(f, vue)
         for _, b in ipairs(self.entrees) do
             if b:IsShown() then
                 local ici = (b == courant)
-                b.puce:SetText(ici and "◆" or (b.chapitre and "·" or ""))
+                b:Marque(ici and "ici" or (b.chapitre and "chapitre" or ""))
                 local teinte = ici and UI.C.titre or (b.chapitre and UI.C.texte or UI.C.discret)
                 b.label:SetTextColor(teinte[1], teinte[2], teinte[3])
                 b:Selectionner(ici)

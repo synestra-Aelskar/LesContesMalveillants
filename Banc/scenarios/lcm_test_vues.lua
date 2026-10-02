@@ -236,7 +236,9 @@ end
 cible:Click()
 attendu("cliquer un sous-chapitre fait defiler", r.zone.decalage > 0, true)
 attendu("jusqu'a son bloc", math.abs(r.zone.decalage - cible.cible) < 0.5, true)
-attendu("et le sommaire marque l'endroit", cible.puce:GetText(), "◆")
+-- On interroge l'etat, pas le dessin : la puce est une gemme de l'atlas
+-- quand il est la, un chevron sinon.
+attendu("et le sommaire marque l'endroit", cible.marque, "ici")
 
 dire("   le marquage suit la molette, pas seulement le clic")
 -- Remonter d'un cran doit rendre la puce au bloc precedent : un sommaire qui
@@ -246,10 +248,10 @@ for _, e in ipairs(entrees()) do
     if e.label:GetText() == "Les joueurs :" then precedent = e end
 end
 r.zone:Aller(precedent.cible)
-attendu("la puce a suivi", precedent.puce:GetText(), "◆")
+attendu("la puce a suivi", precedent.marque, "ici")
 -- Un sous-chapitre qu'on a quitte n'a plus de puce du tout : seuls les
 -- chapitres en portent une en permanence.
-attendu("et l'autre s'est eteinte", cible.puce:GetText(), "")
+attendu("et l'autre s'est eteinte", cible.marque, "")
 r.zone:Aller(0)
 
 dire("   un autre chapitre")
