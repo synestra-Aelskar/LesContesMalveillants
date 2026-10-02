@@ -223,9 +223,12 @@ function Reactions.Agir(recu, mode, competence, cible, deplacement)
     A.Annoncer(string.format("%s %s « %s » de %s%s (jet %d contre %d).", MonNom(),
         mode == "intervention" and "intervient et reçoit" or "dévie", nature, attaquant,
         mode == "intervention" and "" or (" vers " .. tostring(cible.nom)), total, a.aBattre))
-    if mode == "intervention" and deplacement and LCM.Deplacement and LCM.Deplacement.Force then
+    -- Le deplacement force (jauge qui decompte les metres) : module a venir,
+    -- LCM.DeplacementForce. Attention : LCM.Deplacement est la FONCTION de
+    -- calcul des deplacements (Data/Fiche.lua), pas un module.
+    if mode == "intervention" and deplacement and LCM.DeplacementForce and LCM.DeplacementForce.Demarrer then
         local distance = Reactions.Distance(paquet.pb)
-        if distance then LCM.Deplacement.Force(distance, "Intervention") end
+        if distance then LCM.DeplacementForce.Demarrer(distance, "Intervention") end
     end
     Oublier(paquet.t)
     -- Les cibles d'origine (autres que soi, et pas les PNJ) sont prevenues ;
