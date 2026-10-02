@@ -135,4 +135,36 @@ F.dernier:Click()
 attendu("le garde est immobilise", T.Liste(garde)[1] and T.Liste(garde)[1].nom, "Immobilisé")
 attendu("pas moi", #T.Liste(moi), 0)
 
+dire("== les etats temporaires dans Sante")
+T.Poser(moi, { nom = "Ralenti", id = "s1", rounds = 2, bonus = { depl_terrestre = -2 }, debuff = true })
+local V = LCM.UI.Vues.Basculer("sante")
+V:Afficher("etats")
+local page = V.pages.etats
+local bloc
+for _, l in ipairs(page.lignes) do if l.vide then bloc = l end end
+attendu("le bloc existe", bloc ~= nil, true)
+attendu("l'etat y est", bloc.lignes[1] and bloc.lignes[1]:IsShown() and bloc.lignes[1].nom:GetText(), "Ralenti")
+attendu("avec ses effets et sa duree", bloc.lignes[1].effets:GetText():find("Terrestre -2", 1, true) ~= nil
+    and bloc.lignes[1].effets:GetText():find("2 rounds", 1, true) ~= nil, true)
+attendu("le MJ peut le retirer", bloc.lignes[1].action:IsShown() and bloc.lignes[1].action.label:GetText(), "Retirer")
+bloc.lignes[1].action:Click()
+attendu("retire, la vue suit", bloc.vide:IsShown(), true)
+
+dire("== un etat qui se guerit par un jet")
+T.Poser(moi, { nom = "Maudit", id = "g1", guerison = { mode = "rand", competence = "Esprit", dc = 0 } })
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+V:Actualiser()
+attendu("le joueur peut tenter", bloc.lignes[1].action.label:GetText(), "Guérir (Esprit)")
+bloc.lignes[1].action:Click()
+attendu("DC 0 : gueri", #T.Liste(moi), 0)
+attendu("annonce", chatDit("guérison de « Maudit » (DC 0) : réussie") ~= nil, true)
+T.Poser(moi, { nom = "Narré", id = "g2" })
+V:Actualiser()
+attendu("sans jet de guerison : un joueur n'y touche pas", bloc.lignes[1].action:IsShown(), false)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+T.Retirer(moi, "Narré")
+V:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

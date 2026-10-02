@@ -67,6 +67,11 @@ local function Resoudre(vueId, bloc, sections)
             conteneur = { catalogue = catalogue, categorie = categorieId },
         }
 
+    elseif bloc.temporaires then
+        -- Les etats poses par une action, pour quelques rounds
+        -- (Core/EtatsTemporaires.lua) : pas d'emplacement, une ligne chacun.
+        sections[#sections + 1] = { label = tostring(bloc.label or "États temporaires"), temporaires = true, fields = {} }
+
     elseif bloc.texte then
         -- Un paragraphe (la description d'une fenetre du template).
         -- `taille` : la balise <taille=n> du template. Un texte vide garde le

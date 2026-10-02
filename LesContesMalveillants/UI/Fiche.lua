@@ -658,6 +658,83 @@ local function Emplacement(conteneur, c)
     return l
 end
 
+-- Les etats temporaires (Core/EtatsTemporaires.lua) : une ligne par etat —
+-- icone, nom, effets, duree. Le MJ peut retirer ; un etat qui se guerit par
+-- un jet propose « Guérir ». Aucun : une ligne le dit.
+function Lignes.temporaires(bloc, c)
+    local l = CreateFrame("Frame", nil, bloc)
+    l.lignes = {}
+    l.vide = UI.Texte(l, "Aucun état temporaire.", UI.C.discret)
+    UI.Police(l.vide, c.police * 0.85)
+    l.vide:SetPoint("TOPLEFT", l, "TOPLEFT", 8, -6)
+    function l:Actualiser(e)
+        self.entity = e
+        local T = LCM.EtatsTemporaires
+        local liste = T.Liste(e)
+        local y = 0
+        for i, etat in ipairs(liste) do
+            local r = self.lignes[i]
+            if not r then
+                r = Ligne(self, c)
+                r:SetHeight(math.max(40, c.ligne))
+                Icone(r, c, VIDE)
+                Nom(r, c, "", true)
+                r.effets = UI.Texte(r, "", UI.C.accent)
+                UI.Police(r.effets, c.police * 0.72)
+                r.effets:SetPoint("LEFT", r, "LEFT", c.plage, 0)
+                r.effets:SetPoint("RIGHT", r, "LEFT", c.action - 8 * c.echelle, 0)
+                r.effets:SetJustifyH("RIGHT")
+                r.effets:SetWordWrap(false)
+                r.action = UI.Bouton(r, "", c.actionLargeur, c.boutonH, function(self_)
+                    local et = self_:GetParent().etat
+                    local ent = l.entity
+                    if not (et and ent) then return end
+                    if et.guerison and et.guerison.mode == "rand" and not LCM.IsMaster() then
+                        local _, ligne = T.Guerir(ent, et.nom)
+                        if ligne then LCM.Actions.Annoncer(ligne) end
+                    else
+                        T.Retirer(ent, et.nom)
+                    end
+                end)
+                r.action:SetPoint("LEFT", r, "LEFT", c.action, 0)
+                UI.Police(r.action.label, c.police * 0.8)
+                self.lignes[i] = r
+            end
+            r.etat = etat
+            r.icone:SetTexture(LCM.Icone(etat.icone))
+            r.nom:SetText(etat.nom)
+            local couleur = etat.debuff and UI.C.plein or UI.C.titre
+            r.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+            local effets = {}
+            for champ, n in pairs(etat.bonus or {}) do
+                local field = LCM.Schema.Field(champ)
+                effets[#effets + 1] = string.format("%s %+d", field and field.label or champ, n)
+            end
+            table.sort(effets)
+            r.effets:SetText(table.concat(effets, ", ") .. "  |cff9a9a9a" .. T.Duree(etat) .. "|r")
+            Bulle(r, etat.nom, ((etat.description or "") ~= "" and (etat.description .. "\n\n") or "")
+                .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat))
+            local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
+            r.action.label:SetText(guerir and string.format("Guérir (%s)", etat.guerison.competence) or "Retirer")
+            r.action:SetShown(LCM.IsMaster() or guerir)
+            r:ClearAllPoints()
+            r:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
+            r:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
+            r:Show()
+            y = y + r:GetHeight() + 2
+        end
+        for i = #liste + 1, #self.lignes do self.lignes[i]:Hide() end
+        self.vide:SetShown(#liste == 0)
+        local h = math.max(#liste == 0 and 24 or 0, y)
+        if h ~= self.hauteur then
+            self.hauteur = h
+            self:SetHeight(h)
+            if self.onChange then self.onChange() end
+        end
+    end
+    return l
+end
+
 -- Un conteneur : autant de lignes que d'emplacements. `bloc` recoit le compte
 -- « occupes / total ».
 function Lignes.conteneur(bloc, def, c)
@@ -828,6 +905,12 @@ function Fiche.Page(parent, sections, largeur)
                 bloc.replie = not bloc.replie
                 page:Disposer()
             end)
+        end
+        if section.temporaires then
+            local ligne = Lignes.temporaires(bloc, c)
+            ligne.onChange = function() if not page.enDisposition then page:Disposer() end end
+            bloc.lignes[#bloc.lignes + 1] = ligne
+            page.lignes[#page.lignes + 1] = ligne
         end
         if section.conteneur then
             local ligne = Lignes.conteneur(bloc, section.conteneur, c)

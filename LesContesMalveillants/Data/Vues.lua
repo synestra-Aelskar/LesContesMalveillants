@@ -97,7 +97,9 @@ Vues.Add({
         { id = "physique", label = "Physique", blocs = {
             { label = "Parties corporelles", champs = { { id = "corps", total = false } } },
         } },
-        { id = "etats", label = "États", blocs = { { conteneur = { "etats", "etat" } } } },
+        -- Ajout a la structure du template : les etats qu'une action a poses
+        -- (Immobilise, un buff...), avec leur duree.
+        { id = "etats", label = "États", blocs = { { conteneur = { "etats", "etat" } }, { temporaires = true } } },
         { id = "maladies", label = "Maladies", blocs = { { conteneur = { "etats", "maladie" } } } },
         { id = "intangible", label = "Intangible", blocs = {
             { section = { "general", "existence" } },

@@ -8,9 +8,10 @@
 -- resultat en pied. La logique est dans Core/Actions.lua : cette fenetre ne
 -- fait que montrer le composeur et lui transmettre les clics.
 --
--- Ecart voulu : pas d'ecran d'accueil ni de « jeux de choix » enregistres. Le
--- composeur ouvre directement sur la premiere question ; enregistrer un jeu de
--- choix viendra s'il manque a la table.
+-- Les jeux de choix (Necronicon : templates du composeur) : on enregistre ses
+-- reponses a la fin, on les recharge depuis l'ecran d'accueil. Ecart voulu :
+-- l'accueil (« Commencer » / « Charger un jeu ») ne s'affiche que s'il y a un
+-- jeu a charger — sans, il ne ferait qu'ajouter un clic a chaque action.
 
 local _, LCM = ...
 local UI = LCM.UI
@@ -149,6 +150,25 @@ local function Construire()
     Placer(f.suivant, "BOTTOMRIGHT", C, "BOTTOMRIGHT", -8, 6)
     f.declarer = UI.Bouton(C, "Déclarer mon action", 200, 34, function() Ecran.Declarer() end)
     Placer(f.declarer, "TOP", C, "TOP", 0, -80)
+    f.enregistrer = UI.Bouton(C, "Enregistrer ce jeu de choix", 200, 26, function()
+        UI.Demande():Demander("Nom du jeu de choix", "", function(nom)
+            local jeu = A.EnregistrerJeu(f.composeur.ctx.resolution.id, nom, f.composeur)
+            LCM.Ok(string.format("jeu de choix « %s » enregistré.", jeu.nom))
+            return true
+        end)
+    end)
+    Placer(f.enregistrer, "TOP", f.declarer, "BOTTOM", 0, -8)
+    -- L'accueil et la liste des jeux : de gros boutons, puis une ligne par jeu.
+    f.accueil = {}
+    for i, texte in ipairs({ "Commencer mon action", "Charger un jeu de choix" }) do
+        local b = UI.Bouton(C, texte, 260, 32, function()
+            if i == 1 then f.ecran, f.pos = "questions", 1 else f.ecran = "jeux" end
+            Ecran.Rendre()
+        end)
+        Placer(b, "TOP", C, "TOP", 0, -76 - (i - 1) * 40)
+        f.accueil[i] = b
+    end
+    f.lignesJeux = {}
     f.blocage = UI.Texte(C, "", UI.C.plein, "GameFontNormalSmall")
     f.blocage:SetPoint("TOPLEFT", f.declarer, "BOTTOMLEFT", -20, -8)
     f.blocage:SetPoint("TOPRIGHT", f.declarer, "BOTTOMRIGHT", 20, -8)
@@ -302,7 +322,62 @@ local function Cacher(f)
     for _, c in ipairs(f.cases) do c:Hide() end
     f.saisie:Hide()
     f.declarer:Hide()
+    f.enregistrer:Hide()
+    for _, b in ipairs(f.accueil) do b:Hide() end
+    for _, l in ipairs(f.lignesJeux) do l:Hide() end
     f.blocage:SetText("")
+end
+
+-- Une ligne par jeu de choix : le charger, le monter, le descendre, le
+-- renommer, le supprimer.
+local function Jeux(f)
+    local id = f.composeur.ctx.resolution.id
+    local jeux = A.JeuxDeChoix(id)
+    f.question:SetText(#jeux > 0 and "|cffffd200Jeux de choix|r  —  clic pour charger"
+        or "|cff909090Aucun jeu de choix enregistré.|r")
+    local largeur = f.corps:GetWidth()
+    if not largeur or largeur < 40 then largeur = 380 end
+    for i, jeu in ipairs(jeux) do
+        local l = f.lignesJeux[i]
+        if not l then
+            l = CreateFrame("Frame", nil, f.corps.contenu)
+            l:SetHeight(26)
+            l.charger = UI.Bouton(l, "", 100, 24, function()
+                A.ChargerJeu(f.composeur, A.JeuxDeChoix(id)[l.index])
+                -- Charge, on va droit a la fin : il ne reste qu'a declarer.
+                f.ecran = "fin"
+                Ecran.Rendre()
+            end)
+            l.charger:SetPoint("LEFT", l, "LEFT", 0, 0)
+            local function Petit(texte, action)
+                local b = UI.Bouton(l, texte, 22, 22, function() action(l.index) Ecran.Rendre() end)
+                return b
+            end
+            l.supprimer = Petit("x", function(n) A.SupprimerJeu(id, n) end)
+            l.supprimer:SetPoint("RIGHT", l, "RIGHT", -2, 0)
+            l.renommer = Petit("R", function(n)
+                UI.Demande():Demander("Renommer le jeu de choix", A.JeuxDeChoix(id)[n].nom, function(nom)
+                    A.RenommerJeu(id, n, nom)
+                    Ecran.Rendre()
+                    return true
+                end)
+            end)
+            l.renommer:SetPoint("RIGHT", l.supprimer, "LEFT", -3, 0)
+            l.bas = Petit("v", function(n) A.DeplacerJeu(id, n, 1) end)
+            l.bas:SetPoint("RIGHT", l.renommer, "LEFT", -3, 0)
+            l.haut = Petit("^", function(n) A.DeplacerJeu(id, n, -1) end)
+            l.haut:SetPoint("RIGHT", l.bas, "LEFT", -3, 0)
+            f.lignesJeux[i] = l
+        end
+        l.index = i
+        l:SetWidth(largeur)
+        l.charger:SetWidth(math.max(60, largeur - 110))
+        l.charger.label:SetText(string.format("%s  |cff909090(PA %d · PF %d)|r", jeu.nom, jeu.pa or 0, jeu.pf or 0))
+        l:ClearAllPoints()
+        l:SetPoint("TOPLEFT", f.corps.contenu, "TOPLEFT", 0, -(i - 1) * 30)
+        l:Show()
+    end
+    f.corps:Regler(#jeux * 30)
 end
 
 local function Libelle(o)
@@ -408,6 +483,27 @@ function Ecran.Rendre()
     Cacher(f)
     Ecran.Entete()
     f.visibles = c:Visibles()
+    if f.ecran == "accueil" then
+        f.q = nil
+        f.question:SetText("|cffffd200Composer l'action|r")
+        local jeux = #A.JeuxDeChoix(c.ctx.resolution.id) > 0
+        f.accueil[1]:Show()
+        f.accueil[2]:Show()
+        f.accueil[2]:SetEnabled(jeux)
+        f.accueil[2]:SetAlpha(jeux and 1 or 0.4)
+        f.corps:Regler(0)
+        f.precedent:Hide()
+        f.suivant:Hide()
+        return
+    end
+    if f.ecran == "jeux" then
+        f.q = nil
+        Jeux(f)
+        f.precedent:Show()
+        f.precedent:SetEnabled(true)
+        f.suivant:Hide()
+        return
+    end
     if f.ecran ~= "fin" and #f.visibles == 0 then f.ecran = "fin" end
     if f.ecran == "fin" then
         f.q = nil
@@ -417,6 +513,7 @@ function Ecran.Rendre()
         f.declarer:Show()
         f.declarer:SetEnabled(blocage == nil)
         f.declarer:SetAlpha(blocage and 0.4 or 1)
+        f.enregistrer:Show()
         f.corps:Regler(0)
         f.precedent:Show()
         f.suivant:Hide()
@@ -428,7 +525,7 @@ function Ecran.Rendre()
     f.question:SetText(string.format("|cffffd200%d/%d|r  %s", f.pos, #f.visibles, q.label))
     Question(f, q)
     f.precedent:Show()
-    f.precedent:SetEnabled(f.pos > 1)
+    f.precedent:SetEnabled(f.pos > 1 or #A.JeuxDeChoix(c.ctx.resolution.id) > 0)
     f.suivant:Show()
     f.suivant.label:SetText(f.pos >= #f.visibles and "Terminer" or "Suivant")
     -- Un choix unique exige une reponse avant d'avancer.
@@ -439,6 +536,14 @@ end
 
 function Ecran.Aller(sens)
     local f = Ecran.frame
+    if f.ecran == "jeux" then
+        f.ecran = "accueil"
+        return Ecran.Rendre()
+    end
+    if f.ecran == "questions" and sens < 0 and f.pos <= 1 and #A.JeuxDeChoix(f.composeur.ctx.resolution.id) > 0 then
+        f.ecran = "accueil"
+        return Ecran.Rendre()
+    end
     if f.ecran == "fin" then
         if sens < 0 then f.ecran, f.pos = "questions", #f.visibles end
         return Ecran.Rendre()
@@ -479,7 +584,9 @@ function Ecran.Ouvrir(composeur, valider, annuler)
     -- Une composition precedente encore ouverte est abandonnee proprement.
     if f:IsShown() then f:Hide() end
     f.composeur, f.valider, f.annuler = composeur, valider, annuler
-    f.ecran, f.pos = "questions", 1
+    -- L'accueil n'a de sens que s'il y a un jeu de choix a charger.
+    f.ecran = #A.JeuxDeChoix(composeur.ctx.resolution.id) > 0 and "accueil" or "questions"
+    f.pos = 1
     local etape = composeur.etape
     f.titre:SetText(tostring(etape.label or "") ~= "" and etape.label or "Composer l'action")
     f.icone:SetTexture(LCM.Icone(composeur.ctx.icone))

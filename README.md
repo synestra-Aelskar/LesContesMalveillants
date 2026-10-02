@@ -44,16 +44,22 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm doc        la documentation en jeu
 /lcm brouillons (MJ) le contenu créé en séance
 /lcm atelier    (MJ) créer traits, races et objets en séance
+/lcm combat     (MJ) la fenêtre de combat ; joueur : passer son tour
+/lcm combat fin (MJ) terminer le combat
+/lcm etats      les états temporaires portés ; « retirer <nom> »
+/lcm incarner   (MJ) incarner un PNJ ; vide : reprendre sa place
 /lcm debug      les traces
 ```
 
 Organisation reprise de Necronicon et de son template :
 - le **bouton** (36 px, déplaçable) : clic gauche, la colonne des fenêtres
-  (dossiers Création personnage, Fiches personnages, Objets, Outils… du
-  template) ; clic droit, la sélection du personnage ;
+  (dossiers Fiches personnages, Objets, Outils… du template ; les Règles sont
+  dans Outils depuis le 2 octobre 2026) ; clic droit, la sélection du
+  personnage ;
 - le **sceau** : le lanceur radial des **actions** (Offensives, Supports,
-  Compétences, Contrôles ; Animation pour le MJ), éteintes tant que la
-  résolution des actions n'existe pas. Maj + glisser : le déplacer.
+  Compétences, Contrôles ; Animation pour le MJ). Chaque bouton joue sa
+  résolution du compendium. Glisser (clic gauche) : le déplacer — le relâcher
+  n'ouvre pas le menu.
 
 ---
 
@@ -131,6 +137,52 @@ encore porté, et il le dit), Ael'Raz'kah lourd et léger.
 
 **Les chaînes d'outillage** : export du contenu créé en séance, conversion des
 artworks, publication. Voir plus bas.
+
+**Le combat** (2 octobre 2026, `Core/Combat.lua`, `UI/Combat.lua`,
+`LesContesMalveillants_MJ/Combat.lua`). Repris de l'initiative de Necronicon,
+réduit aux réglages que le Panel MJ des Contes utilisait : le MJ invite le
+groupe (chacun accepte ou refuse, son **jet d'Initiative part avec sa
+réponse**), ajoute les PNJ en jeu, et lance. Ordre du plus haut au plus bas,
+tours et **3 rounds par tour**, annonces au raid, le MJ **incarne** le PNJ dont
+c'est le tour. Le **bandeau** reprend celui de Necronicon (textures
+`ressources/combat/`) ; « Passer le tour » ne s'allume qu'au tour du joueur
+(et, chez le MJ, au tour d'un PNJ). Un joueur qui recharge redemande l'état ;
+un combat ne survit pas au `/reload` du MJ.
+
+**Les actions du radial** (`Core/Actions.lua`). Les dix-sept boutons jouent les
+résolutions du compendium, importées de Necronicon : le **composeur** (questions,
+coûts PA/PF, dégâts calculés en direct, **jeux de choix** enregistrés), les
+**calculateurs**, les coûts **débités à la déclaration seulement** (annuler ne
+coûte rien), la **déclaration** (jets annoncés au groupe), le **choix des
+cibles** (soi, le groupe, les PNJ du combat et de la scène ; « addon non
+confirmé » à côté de qui n'a pas répondu au ping). Les formules de Necronicon
+(`{stat:…}`, `[[0.fiche.window_custom_7::…]]`) passent par une **table de
+correspondance** vers notre fiche ; une référence inconnue vaut 0 et **le dit**.
+
+**Chez la cible** (`UI/Resolution.lua`). « Vous êtes la cible de » : résoudre
+(la **Défense (auto v3)** du template : Encaisser ou Parer, jet opposé —
+« inadapté » à 0,8 —, réduction par résistances et constitution), puis
+**répartir les dégâts** sur les zones et les Boucliers (perce-armure minimum en
+santé, **émote de réponse**), et le compte rendu revient à l'attaquant. Ou bien
+**dévier** l'action vers une autre cible, ou **proposer une intervention** à un
+tiers (`Core/Reactions.lua`, le « Bloc D » de Necronicon). Un PNJ visé est
+résolu par le MJ, sur la fiche du PNJ.
+
+**Soins, contrôles, buffs, dissipation.** Le soin se répartit zone par zone et
+guérit la cible ; Répulsion / Attraction / Permutation sont **narratives**
+(« repoussé de 6 m ») ; Immobilisation, Entrave, Lévitation et les buffs /
+débuffs du **constructeur** posent des **états temporaires**
+(`Core/EtatsTemporaires.lua`) : ils comptent comme une source de bonus, vivent
+quelques rounds du combat, se lisent dans **Santé › États**, se résistent
+(débuff) ou s'acceptent (buff), peuvent **cumuler** (drain par round), être
+**illimités** et se **guérir** par un jet. La **dissipation** retire ceux qu'on
+bat, chez soi, chez un joueur ou sur un PNJ.
+
+**La présence et la scène.** Un **ping** discret (`Core/Presence.lua`) dit qui a
+l'addon, sur tout le serveur (un canal dédié, caché) ; on le note sans
+péremption. Le choix des cibles reste limité au groupe. Les **PNJ en scène**
+(`Core/Scene.lua`) : ceux que le MJ a mis en jeu dans Incarner, diffusés au
+groupe — on cible un PNJ sans parcourir tout le catalogue.
 
 ### Ce que la première séance en jeu a corrigé
 
@@ -269,12 +321,35 @@ Par ordre de ce qui bloque le plus :
       apprentissages : icône, description, bonus et avantage (catalogues,
       `Core/Catalogues.lua`), créés dans l'atelier. Les 41 statistiques de
       combat du template (`Data/Combat.lua`) sont des cibles de bonus.
-- [ ] **Le réseau.** Le transport existe (`Core/Reseau.lua` : découpage sous
-      les **255 octets**, renumérotation, recollage — c'est la limite qui
-      cassait les invitations de combat dans Necronicon), et il porte le partage
-      de sorts **et la consultation des fiches par le MJ** — à sens unique :
-      un joueur n'a aucun moyen de demander la fiche d'un autre, et celui qu'on
-      consulte en est prévenu. Restent : bandeau d'initiative, combat.
+- [x] **Le réseau.** Le transport (`Core/Reseau.lua` : découpage sous les
+      **255 octets**, renumérotation, recollage — c'est la limite qui cassait
+      les invitations de combat dans Necronicon) porte le partage de sorts, la
+      consultation des fiches par le MJ (à sens unique), et depuis le
+      2 octobre 2026 : le **combat** et son bandeau, les **actions** (déclaration,
+      défense, compte rendu, effets, dissipation, déviation, intervention), la
+      **présence** de l'addon et la **scène** du MJ.
+- [x] **Les boutons du radial** (2 octobre 2026) : les dix-sept jouent leur
+      résolution de bout en bout au banc. Voir « Ce qui marche ».
+- [ ] **Une séance de test à deux, en jeu**, sur tout ce qui précède : le banc
+      vérifie la logique et les clics, pas l'écran ni le vrai réseau.
+- [ ] **Le déplacement forcé** (Répulsion, Attraction, intervention avec
+      déplacement) : Necronicon ouvrait une jauge qui décompte les mètres.
+      L'effet narratif est là ; la jauge, pas encore.
+- [ ] **La catégorie « Compétences » du radial** est vide : dans Necronicon,
+      elle portait les sorts du personnage (son grimoire). À brancher sur
+      `Core/Sorts.lua`.
+- [ ] **« Résolution Test MJ »** : le bouton se propose l'épreuve à soi-même,
+      paquet vide, comme Necronicon — ce qui ne sert à rien. Le vrai émetteur
+      est « Dégat MJ. » : **à décider**, le mettre au radial (Animation).
+- [ ] **La jauge `#armure`** : les attaques citent une zone « armure » que la
+      fiche n'a pas (le template en avait une par pièce d'armure). Aujourd'hui
+      la répartition le signale et se fait en santé et Boucliers.
+- [ ] **La fenêtre Combat dans le Panel MJ ou le menu** : elle ne s'ouvre que
+      par `/lcm combat`.
+- [ ] **Les actions MJ livrées aux joueurs** : `Compendium_Resolutions.lua` est
+      dans l'addon de base, donc « Attaque MJ » & co sont chez les joueurs
+      (ils ne peuvent pas les lancer, mais les ont). À ranger dans le
+      compagnon si c'est un secret.
 - [x] **L'objet.** `LCM.Objets` : arme, équipement, accessoire (1 / 5 / 5
       emplacements, `Equilibrage.emplacements`), bonus et avantage comme un
       trait. Créés dans l'atelier, équipés par le MJ dans « Équipement ».
@@ -330,6 +405,16 @@ Par ordre de ce qui bloque le plus :
   humanoïde et ne compte que Terrestre et Nage, donc ces trois-là sont des
   choix de l'addon. Tout le reste vient du template, relevé entrée par entrée
   (`Data/Icones.lua`, `Core/Body.lua`).
+- **Tout le combat et toutes les actions du 2 octobre 2026** : bandeau
+  (position, échelle, textures), composeur, constructeur (860 de large),
+  fenêtres de la cible, de répartition, de réaction et de dissipation.
+- Le **canal de présence** `LesContesMalveillants` : rejoindre un canal peut
+  afficher « Canal rejoint » une fois ; et le jeu limite le nombre de canaux
+  personnalisés (le groupe sert alors de secours).
+- Deux **interprétations** de la table de correspondance : une ligne de
+  mécanique du récapitulatif (`Recapitulatif#repulsion`) = les bonus portés sur
+  cette mécanique ; les noms du constructeur rattachés à nos champs (Adresse,
+  Mystique et Perception « - Camouflage » n'ont pas d'équivalent).
 - L'équilibrage et les formules (PV, fatigue, initiative, PA, déplacement,
   apports des primaires aux expertises) suivent le **template Necronicon**
   (voir `CLAUDE.md`). Les écarts voulus sont commentés dans

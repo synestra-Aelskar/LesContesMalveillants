@@ -124,6 +124,16 @@ E.actions = {
     deviationBonusActionPropre = 25,   -- Déviation bonus action propre
 }
 
+-- Le cout d'une reaction a une action qui nous vise (Core/Reactions.lua).
+-- Releve du « Bloc D » de Necronicon (Reactions.lua, table COST), que le
+-- template ne chiffre pas : une deviation coute le PA de l'action recue
+-- (`pa` n'est que le repli quand elle n'en dit rien) et 5 PF ; une
+-- intervention, 1 PA et 3 PF.
+E.reactions = {
+    deviation = { pa = 2, pf = 5, paDeLAction = true },
+    intervention = { pa = 1, pf = 3 },
+}
+
 -- Un jet « inadapte » : on oppose Adresse a un jet d'Esprit, ou l'inverse. Le
 -- template (fenetre Actions de combat, « Adresse Inadapté » / « Esprit
 -- Inadapté ») lance le meme de, mais ne compte la primaire qu'a ce taux :

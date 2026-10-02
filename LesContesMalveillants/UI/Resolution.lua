@@ -9,8 +9,8 @@
 -- Mesures et textes repris de Necronicon ; la logique est dans
 -- Core/Actions.lua, ces fenetres ne font que montrer et transmettre le clic.
 --
--- Ecart voulu : la fenetre de repartition n'a pas la zone d'emote de reponse
--- de Necronicon. On repond en emote dans le chat, comme d'habitude.
+-- La fenetre de repartition porte, comme celle de Necronicon, une « emote de
+-- reponse » et son canal : Appliquer l'envoie dans la foulee.
 
 local _, LCM = ...
 local UI = LCM.UI
@@ -20,6 +20,7 @@ local Ecran = {}
 UI.Resolution = Ecran
 
 local DORE = { 0.93, 0.80, 0.52 }
+local function Trim(x) return (tostring(x or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 local function Placer(region, point, parent, relPoint, x, y)
     region:ClearAllPoints()
@@ -73,6 +74,20 @@ local function Carre(parent, libelle, couleur)
         return trop
     end
     return c
+end
+
+-- Le canal d'une emote : un bouton qui passe d'Emote a Dire, Groupe, Raid.
+local CANAUX = { { id = "EMOTE", nom = "Émote" }, { id = "SAY", nom = "Dire" },
+                 { id = "PARTY", nom = "Groupe" }, { id = "RAID", nom = "Raid" } }
+local function BoutonCanal(parent)
+    local b = UI.Bouton(parent, "", 120, 22, function(self)
+        self.rang = self.rang % #CANAUX + 1
+        self.label:SetText("Canal : " .. CANAUX[self.rang].nom)
+    end)
+    b.rang = 1
+    b.label:SetText("Canal : " .. CANAUX[1].nom)
+    function b:Canal() return CANAUX[self.rang].id end
+    return b
 end
 
 -- ===== Le choix des cibles =================================================
@@ -307,6 +322,18 @@ local function ConstruireRecu()
         if recu then A.Resoudre(recu) end
     end)
     f.ignorer = UI.Bouton(f, "Ignorer", 368, 22, function() Ecran.Ignorer() end)
+    -- Reagir avant de resoudre (Core/Reactions.lua). L'action quitte la file
+    -- des actions recues le temps de la reaction ; elle y revient si on annule
+    -- ou si la deviation rate — jamais en double.
+    local function Sortir()
+        local recu = f.recu
+        f.recu = nil
+        for i = #A.recus, 1, -1 do if A.recus[i] == recu then table.remove(A.recus, i) end end
+        f:Hide()
+        return recu
+    end
+    f.devier = UI.Bouton(f, "", 368, 26, function() Ecran.Reaction(Sortir(), "deviation") end)
+    f.proposer = UI.Bouton(f, "Proposer une intervention à…", 368, 26, function() Ecran.Solliciter(Sortir()) end)
     Ecran.recu = f
     return f
 end
@@ -318,6 +345,7 @@ function Ecran.Montrer(recu)
     if f:IsShown() and f.recu and f.recu ~= recu then return f end
     f.recu = recu
     local p = recu.paquet
+    f.titre:SetText(p.rd and string.format("Action redirigée sur vous par %s :", p.rd) or "Vous êtes la cible de :")
     local par = (p.rp and p.rp ~= "" and p.rp ~= p.a) and string.format("Déclaré par %s (%s)", p.rp, p.a)
         or string.format("Déclaré par %s", tostring(p.a))
     local cible = p.p and string.format("   |cffffa030[PNJ : %s]|r", tostring(p.pn or p.p)) or ""
@@ -331,6 +359,22 @@ function Ecran.Montrer(recu)
         Placer(f.resoudre, "TOPLEFT", f, "TOPLEFT", 16, -y)
         f.resoudre:Show()
         y = y + 32
+        -- Devier, ou proposer d'intervenir — sinon, on dit pourquoi pas.
+        local possible, pourquoi = LCM.Reactions.Possible(p)
+        f.devier:SetShown(possible)
+        f.proposer:SetShown(possible)
+        if possible then
+            local pa, pf = LCM.Reactions.Cout("deviation", p)
+            f.devier.label:SetText(string.format("Dévier vers une autre cible (%d PA + %d PF)", pa, pf))
+            Placer(f.devier, "TOPLEFT", f, "TOPLEFT", 16, -y)
+            y = y + 32
+            Placer(f.proposer, "TOPLEFT", f, "TOPLEFT", 16, -y)
+            y = y + 32
+        elseif not zone then
+            f.resume:SetText("|cff9a9a9aDéviation / intervention indisponibles : " .. tostring(pourquoi) .. ".|r")
+            y = y + 16
+            Placer(f.resoudre, "TOPLEFT", f, "TOPLEFT", 16, -(y - 32))
+        end
         -- Une zone : on peut dire qu'on n'y est pas (« Ignorer », renomme).
         f.ignorer.label:SetText(zone and "Je ne suis pas dans la zone AoE." or "Ignorer")
         f.ignorer:SetShown(zone ~= nil)
@@ -338,6 +382,8 @@ function Ecran.Montrer(recu)
         f.resume:SetText("|cffff8080Aucune résolution configurée pour cette nature.|r")
         y = y + 16 + 14
         f.resoudre:Hide()
+        f.devier:Hide()
+        f.proposer:Hide()
         f.ignorer.label:SetText("Ignorer")
         f.ignorer:Show()
     end
@@ -536,13 +582,20 @@ local function ConstruireRepartition()
 
     f.zone = UI.Defilement(f)
     f.zone:SetPoint("TOPLEFT", f.reste, "BOTTOMLEFT", 0, -10)
-    f.zone:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -20, 48)
+    f.zone:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -20, 150)
     f.lignes = {}
 
     f.appliquer = UI.Bouton(f, "Appliquer", 150, 24, function() Ecran.Appliquer(true) end)
     Placer(f.appliquer, "BOTTOM", f, "BOTTOM", 0, 12)
     f.ignorer = UI.Bouton(f, "Ignorer", 110, 24, function() Ecran.Appliquer(false) end)
     Placer(f.ignorer, "RIGHT", f.appliquer, "LEFT", -8, 0)
+    -- L'emote de reponse, au-dessus des boutons (Necronicon : 46 de haut).
+    f.canal = BoutonCanal(f)
+    Placer(f.canal, "BOTTOMLEFT", f, "BOTTOMLEFT", 14, 44)
+    f.emote = UI.Zone(f, 492, 46)
+    Placer(f.emote, "BOTTOMLEFT", f.canal, "TOPLEFT", 0, 26)
+    f.emoteTitre = UI.Texte(f, "Émote de réponse.", DORE, "GameFontNormalSmall")
+    Placer(f.emoteTitre, "BOTTOMLEFT", f.canal, "TOPLEFT", 0, 8)
     Ecran.repartition = f
     return f
 end
@@ -593,6 +646,7 @@ function Ecran.Repartir(ctx, fin)
     f.ctx, f.fin, f.cases, f.montant, f.signe = ctx, fin, cases, montant, signe
     f.minimum = signe == "-" and A.PerceMinimum(ctx, montant) or 0
     f.valeurs = {}
+    f.emote:SetText("")
     f.titre:SetText(string.format("%s : %d point%s à répartir", signe == "-" and "Dégâts" or "Gain", montant,
         montant > 1 and "s" or ""))
     local aide = "Répartissez sur vos zones."
@@ -661,6 +715,8 @@ function Ecran.Appliquer(oui)
     f:Hide()
     if oui then
         A.Repartir(f.ctx, f.cases, f.valeurs, f.signe)
+        local emote = f.emote:GetText()
+        if emote ~= "" then A.DireEnChat(emote, f.canal:Canal()) end
     else
         f.ctx.journal[#f.ctx.journal + 1] = "Réparti : ignoré"
     end
@@ -794,8 +850,6 @@ local function ConstruireEffet()
     Ecran.effet = f
     return f
 end
-
-local function Trim(x) return (tostring(x or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 local function Plage(entity, competence, bonus)
     for _, id in ipairs({ "adresse", "esprit" }) do
@@ -1054,6 +1108,265 @@ function Ecran.Dissiper(oui)
     rappel(selection, { competence = f.choix.competence, niveau = f.choix.niveau })
 end
 
+-- ===== Devier, intervenir =================================================
+-- Necronicon (Reactions.lua) : 470 x 420 ; la competence (Esprit / Adresse,
+-- « inadapte » si ce n'est pas celle de l'attaquant), la nouvelle cible (une
+-- deviation) ou le deplacement (une intervention), les chances, le bouton
+-- « Deviation (x PA + y PF) ».
+
+local function ConstruireReaction()
+    local f = Fenetre("LCM_Reaction", 470, 420)
+    f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+    f.titre = UI.Texte(f, "", DORE)
+    Placer(f.titre, "TOPLEFT", f, "TOPLEFT", 16, -14)
+    f.sous = UI.Texte(f, "", UI.C.texte, "GameFontNormalSmall")
+    f.sous:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -38)
+    f.sous:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    f.sous:SetWordWrap(true)
+    f.corps = UI.Texte(f, "", UI.C.discret, "GameFontNormalSmall")
+    f.corps:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -70)
+    f.corps:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    f.corps:SetWordWrap(true)
+    f.tJet = UI.Texte(f, "Jet utilisé", DORE, "GameFontNormalSmall")
+    Placer(f.tJet, "TOPLEFT", f, "TOPLEFT", 16, -116)
+    f.jets = {}
+    for i, c in ipairs({ "Esprit", "Adresse" }) do
+        local b = UI.Bouton(f, c, 200, 24, function() f.competence = c Ecran.RendreReaction() end)
+        Placer(b, "TOPLEFT", f, "TOPLEFT", 16 + (i - 1) * 212, -134)
+        b.competence = c
+        f.jets[i] = b
+    end
+    f.tSecond = UI.Texte(f, "", DORE, "GameFontNormalSmall")
+    Placer(f.tSecond, "TOPLEFT", f, "TOPLEFT", 16, -168)
+    f.second = {}
+    f.zCibles = UI.Defilement(f)
+    f.zCibles:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -186)
+    f.zCibles:SetSize(424, 88)
+    f.resume = UI.Texte(f, "", UI.C.texte, "GameFontNormalSmall")
+    f.resume:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -282)
+    f.resume:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    f.resume:SetWordWrap(true)
+    f.agir = UI.Bouton(f, "", 260, 26, function() Ecran.Reagir(true) end)
+    Placer(f.agir, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 14)
+    f.annuler = UI.Bouton(f, "Annuler", 110, 26, function() Ecran.Reagir(false) end)
+    Placer(f.annuler, "BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 14)
+    Ecran.reaction = f
+    return f
+end
+
+-- Les nouvelles cibles d'une deviation : le groupe, l'attaquant, les PNJ, soi.
+local function Candidats(recu)
+    local joueurs, pnj = A.Cibles()
+    local out, vus = {}, {}
+    for _, j in ipairs(joueurs) do
+        if not j.soi then out[#out + 1] = { id = j.id, nom = j.nom } vus[j.id] = true end
+    end
+    local a = recu.paquet.a
+    if a and not vus[a] and a ~= LCM.PlayerId() then out[#out + 1] = { id = a, nom = recu.paquet.rp or a } end
+    for _, p in ipairs(pnj) do out[#out + 1] = { id = p.id, nom = p.nom, pnj = true, mj = p.mj } end
+    out[#out + 1] = { id = LCM.PlayerId(), nom = (LCM.Identite and LCM.Identite.Joueur().nom or LCM.PlayerId()) .. " (moi)" }
+    return out
+end
+
+function Ecran.RendreReaction()
+    local f = Ecran.reaction
+    local recu, mode = f.recu, f.mode
+    local R = LCM.Reactions
+    local pa, pf, libelle = R.Cout(mode, recu.paquet)
+    local a = R.Analyse(recu.paquet, mode, f.competence or "Esprit", f.deplacement, recu.entity)
+    for _, b in ipairs(f.jets) do
+        local ad = R.Analyse(recu.paquet, mode, b.competence, f.deplacement, recu.entity).adaptee
+        b.label:SetText(b.competence .. (ad and "" or "  (inadapté)"))
+        b:Selectionner(f.competence == b.competence)
+    end
+    for _, b in ipairs(f.second) do b:Hide() end
+    if mode == "intervention" then
+        f.tSecond:SetText("Déplacement")
+        f.zCibles:Hide()
+        for i, def in ipairs({ { false, "À distance" }, { true, "Avec déplacement (+25 %)" } }) do
+            local b = f.second[i]
+            if not b then
+                b = UI.Bouton(f, "", 200, 24, function(self) f.deplacement = self.valeur Ecran.RendreReaction() end)
+                f.second[i] = b
+            end
+            b.valeur = def[1]
+            b.label:SetText(def[2])
+            b:Selectionner((f.deplacement == true) == def[1])
+            Placer(b, "TOPLEFT", f, "TOPLEFT", 16 + (i - 1) * 212, -186)
+            b:Show()
+        end
+    else
+        f.tSecond:SetText("Nouvelle cible")
+        f.zCibles:Show()
+        for i, c in ipairs(f.candidats) do
+            local b = f.second[i]
+            if not b then
+                b = UI.Bouton(f.zCibles.contenu, "", 420, 22, function(self) f.cible = self.cible Ecran.RendreReaction() end)
+                f.second[i] = b
+            end
+            b.cible = c
+            b.label:SetText(c.nom .. (c.pnj and " |cffffa030[PNJ]|r" or ""))
+            b:Selectionner(f.cible == c)
+            Placer(b, "TOPLEFT", f.zCibles.contenu, "TOPLEFT", 0, -(i - 1) * 24)
+            b:Show()
+        end
+        f.zCibles:Regler(#f.candidats * 24)
+    end
+    local lignes = {}
+    lignes[#lignes + 1] = string.format("Score à battre : |cffffd200%d|r  (jet de l'attaquant %d%s%s)", a.aBattre, a.base,
+        a.malusDistance > 0 and string.format(" + %d action à distance", a.malusDistance) or "",
+        a.malusAutrui > 0 and string.format(" + %d action visant autrui", a.malusAutrui) or "")
+    lignes[#lignes + 1] = string.format("Bonus : |cff9be08f+%d|r%s", a.bonus, a.facteur > 1 and " (doublé)" or "")
+    if a.mult ~= 1 then lignes[#lignes + 1] = string.format("|cff9be08fPart fixe x %.2f|r", a.mult) end
+    if #a.types > 0 then lignes[#lignes + 1] = "|cff9a9a9aTypes de l'action : " .. table.concat(a.types, ", ") .. "|r" end
+    local dpa, dpf = A.Disponible(recu.entity)
+    local manque = (dpa or 0) < pa or (dpf or 0) < pf
+    if manque then
+        lignes[#lignes + 1] = string.format("|cffff5959Coût : %d PA + %d PF — tu as %d PA / %d PF.|r", pa, pf, dpa or 0, dpf or 0)
+    end
+    f.resume:SetText(table.concat(lignes, "\n"))
+    local pret = f.competence ~= nil and (mode == "intervention" or f.cible ~= nil) and not manque
+    f.agir.label:SetText(string.format("%s (%d PA + %d PF)", libelle, pa, pf))
+    f.agir:SetEnabled(pret)
+    f.agir:SetAlpha(pret and 1 or 0.45)
+end
+
+function Ecran.Reaction(recu, mode)
+    local f = Ecran.reaction or ConstruireReaction()
+    f.recu, f.mode = recu, mode
+    f.competence, f.cible, f.deplacement = nil, nil, false
+    f.candidats = Candidats(recu)
+    local p = recu.paquet
+    local pa, pf, libelle = LCM.Reactions.Cout(mode, p)
+    f.titre:SetText(libelle .. " — " .. tostring(p.n))
+    f.sous:SetText(string.format("Déclarée par %s.  Coût : %d PA + %d PF. En cas d'échec, l'action continue normalement.",
+        Trim(p.rp) ~= "" and p.rp or tostring(p.a), pa, pf))
+    f.corps:SetText(mode == "intervention"
+        and "Tu rediriges l'action sur toi-même. Avec déplacement : il faut pouvoir rejoindre la cible avec ta distance Terrestre (+25 % sur la part fixe du jet). Bonus doublé par rapport à une déviation."
+        or "Tu rediriges l'action vers une autre cible (joueur, PNJ, ou l'attaquant lui-même). Une action à distance, ou qui ne te visait pas, est plus dure à dévier.")
+    f:Show()
+    f:Raise()
+    Ecran.RendreReaction()
+    return f
+end
+
+function Ecran.Reagir(oui)
+    local f = Ecran.reaction
+    local recu, mode = f.recu, f.mode
+    if not recu then return end
+    if oui and not f.agir:IsEnabled() then return end
+    f.recu = nil
+    f:Hide()
+    if oui then
+        local cible = mode == "intervention" and { id = LCM.PlayerId(), nom = LCM.PlayerId() } or f.cible
+        LCM.Reactions.Agir(recu, mode, f.competence, cible, f.deplacement)
+    elseif recu.proposition then
+        LCM.Reactions.Refuser(recu)
+    else
+        -- Annule : l'action revient, a resoudre.
+        A.recus[#A.recus + 1] = recu
+        Ecran.Montrer(recu)
+    end
+end
+
+-- Proposer a quelqu'un du groupe d'intervenir (Necronicon :
+-- OpenInterventionRequestPicker) ; « Retour » rend l'action.
+local function ConstruireSollicitation()
+    local f = Fenetre("LCM_Sollicitation", 320, 300)
+    f.titre = UI.Texte(f, "Proposer une intervention", DORE)
+    Placer(f.titre, "TOPLEFT", f, "TOPLEFT", 16, -14)
+    f.sous = UI.Texte(f, "À qui demander d'intervenir ?", UI.C.discret, "GameFontNormalSmall")
+    Placer(f.sous, "TOPLEFT", f, "TOPLEFT", 16, -36)
+    f.zone = UI.Defilement(f)
+    f.zone:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -56)
+    f.zone:SetSize(288, 190)
+    f.lignes = {}
+    f.retour = UI.Bouton(f, "Retour", 150, 24, function()
+        local recu = f.recu
+        f.recu = nil
+        f:Hide()
+        if recu then A.recus[#A.recus + 1] = recu Ecran.Montrer(recu) end
+    end)
+    Placer(f.retour, "BOTTOM", f, "BOTTOM", 0, 12)
+    Ecran.sollicitation = f
+    return f
+end
+
+function Ecran.Solliciter(recu)
+    local f = Ecran.sollicitation or ConstruireSollicitation()
+    f.recu = recu
+    local membres = LCM.Combat.Membres()
+    for i, m in ipairs(membres) do
+        local b = f.lignes[i]
+        if not b then
+            b = UI.Bouton(f.zone.contenu, "", 284, 22, function(self)
+                local r = f.recu
+                f.recu = nil
+                f:Hide()
+                LCM.Reactions.Proposer(r, self.joueur)
+                LCM.Info(string.format("Intervention proposée à %s.", self.joueur))
+            end)
+            f.lignes[i] = b
+        end
+        b.joueur = m
+        b.label:SetText(m)
+        Placer(b, "TOPLEFT", f.zone.contenu, "TOPLEFT", 0, -(i - 1) * 24)
+        b:Show()
+    end
+    for i = #membres + 1, #f.lignes do f.lignes[i]:Hide() end
+    f.zone:Regler(#membres * 24)
+    if #membres == 0 then f.sous:SetText("Personne à solliciter : aucun joueur dans le groupe.") end
+    f:Show()
+    f:Raise()
+    return f
+end
+
+-- ===== Une emote a ecrire ================================================
+-- Necronicon : PromptChatEmote — un titre, une aide, la saisie, le canal ;
+-- « Envoyer » ou « Passer », et l'action reprend dans les deux cas.
+
+local function ConstruireEmote()
+    local f = Fenetre("LCM_Emote", 420, 220)
+    f.titre = UI.Texte(f, "", DORE, "GameFontNormalLarge")
+    f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -14)
+    f.aide = UI.Texte(f, "", UI.C.discret, "GameFontNormalSmall")
+    f.aide:SetPoint("TOPLEFT", f.titre, "BOTTOMLEFT", 0, -6)
+    f.aide:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+    f.aide:SetWordWrap(true)
+    f.texte = UI.Zone(f, 388, 70)
+    Placer(f.texte, "TOPLEFT", f, "TOPLEFT", 16, -76)
+    f.canal = BoutonCanal(f)
+    Placer(f.canal, "TOPLEFT", f.texte, "BOTTOMLEFT", 0, -8)
+    f.envoyer = UI.Bouton(f, "Envoyer", 120, 24, function()
+        A.DireEnChat(f.texte:GetText(), f.canal:Canal())
+        Ecran.FinEmote()
+    end)
+    Placer(f.envoyer, "BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 12)
+    f.passer = UI.Bouton(f, "Passer", 100, 24, function() Ecran.FinEmote() end)
+    Placer(f.passer, "RIGHT", f.envoyer, "LEFT", -8, 0)
+    Ecran.emote = f
+    return f
+end
+
+function Ecran.Emote(titre, aide, suite)
+    local f = Ecran.emote or ConstruireEmote()
+    f.suite = suite
+    f.titre:SetText(titre)
+    f.aide:SetText(aide or "")
+    f.texte:SetText("")
+    f:Show()
+    f:Raise()
+    return f
+end
+
+function Ecran.FinEmote()
+    local f = Ecran.emote
+    local suite = f.suite
+    f.suite = nil
+    f:Hide()
+    if suite then suite() end
+end
+
 -- ===== Branchements ========================================================
 
 A.onCibler = function(ctx, mono, rappel) Ecran.Cibler(ctx, mono, rappel) end
@@ -1065,9 +1378,29 @@ A.onDistribuer = function(titre, montant, zones, ctx, rappel, note)
 end
 A.onRecu = function(recu) Ecran.Montrer(recu) end
 A.onEffetRecu = function(recu) Ecran.MontrerEffet(recu) end
+A.onEmote = function(titre, aide, suite) Ecran.Emote(titre, aide, suite) end
+-- On me propose d'intervenir : la fenetre de reaction, en intervention.
+LCM.Reactions.onProposition = function(recu) Ecran.Reaction(recu, "intervention") end
+-- L'action qui me visait part ailleurs : son « Vous etes la cible » se ferme.
+LCM.Reactions.onDetour = function(t)
+    local f = Ecran.recu
+    if f and f:IsShown() and f.recu and f.recu.paquet.t == t then
+        f.recu = nil
+        f:Hide()
+        if A.recus[1] then Ecran.Montrer(A.recus[1]) end
+    end
+end
 A.onDissiper = function(ctx, cfg, rappel) Ecran.Dissipation(ctx, cfg, rappel) end
 A.onEtats = function()
     if Ecran.dissipation and Ecran.dissipation:IsShown() then RendreDissipation() end
+end
+
+-- Un etat temporaire pose, eteint ou retire : les vues ouvertes (Sante)
+-- suivent.
+LCM.EtatsTemporaires.onChange = function()
+    for _, f in pairs(UI.Vues and UI.Vues.frames or {}) do
+        if f:IsShown() and f.Actualiser then f:Actualiser() end
+    end
 end
 
 -- Une resolution finie (ou arretee) laisse la place a l'action recue suivante.

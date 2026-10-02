@@ -6,9 +6,9 @@
 -- que son modele d'etats. La logique est dans Core/Actions.lua (Constructeur) :
 -- la fenetre montre, et transmet les clics.
 --
--- Ecarts voulus : pas de choix d'un modele d'etat du compendium (notre fiche
--- n'en a qu'un genre, les champs) ni de bouton « Illimite » (aucune regle du
--- template ne l'active).
+-- Ecart voulu : pas de choix d'un modele d'etat du compendium (notre fiche
+-- n'en a qu'un genre, les champs). « Illimite » n'apparait que si l'action le
+-- permet (aucune regle du template ne l'active aujourd'hui).
 
 local _, LCM = ...
 local UI = LCM.UI
@@ -98,6 +98,12 @@ local function Construire()
     Placer(f.dureeMoins, "TOPLEFT", f, "TOPLEFT", 300, -224)
     f.dureePlus = UI.Bouton(f, "+", 22, 20, function() f.constructeur:AcheterDuree(1) Ecran.Rendre() end)
     Placer(f.dureePlus, "LEFT", f.dureeMoins, "RIGHT", 4, 0)
+    -- « Illimite » : seulement quand l'action le permet (regle `permanent`).
+    f.illimite = UI.Bouton(f, "Illimité", 70, 20, function()
+        f.constructeur:Illimite(not f.constructeur.illimite)
+        Ecran.Rendre()
+    end)
+    Placer(f.illimite, "LEFT", f.dureePlus, "RIGHT", 8, 0)
 
     f.champs = UI.Defilement(f)
     f.champs:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -254)
@@ -292,6 +298,9 @@ function Ecran.Rendre()
         Arrondi(depense), reserve))
     f.duree:SetText(string.format("Durée : %s  |cff9a9a9a(+1 round = %d pt)|r",
         duree and (duree .. " round" .. (duree > 1 and "s" or "")) or "jusqu'à dissipation", c:ParRound()))
+    f.illimite:SetShown(c.regles.permanent == true)
+    f.illimite:Selectionner(c.illimite == true)
+    f.illimite.label:SetText(string.format("Illimité (%d pt)", c.regles.permanentCost or 0))
     Gauche(f)
     Droite(f)
     local pa, pf = c.composeur:Deriver()

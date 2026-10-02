@@ -58,6 +58,9 @@ function Temporaires.Poser(entity, etat)
         -- Ce que la dissipation doit battre : le jet du lanceur, et sa
         -- competence (la meme est « adaptee », l'autre « inadaptee »).
         id = etat.id, jet = etat.jet,
+        -- Un etat sans duree se guerit : par la narration (le MJ le retire) ou
+        -- par un jet { competence, dc } (Necronicon : cureMode « rand »).
+        guerison = etat.guerison,
     }
     if Temporaires.onChange then Temporaires.onChange(entity) end
     return liste[#liste]
@@ -130,6 +133,35 @@ function Temporaires.Round(entity)
         if Temporaires.onChange then Temporaires.onChange(entity) end
     end
     return eteints
+end
+
+-- Tenter de guerir un etat qui le permet par un jet : la competence contre la
+-- difficulte. Une primaire qui ne se lance pas (Constitution) se joue au de de
+-- l'Adresse, plus sa valeur.
+function Temporaires.Guerir(entity, nom)
+    local etat
+    for _, e in ipairs(Temporaires.Liste(entity)) do if e.nom == nom or e.id == nom then etat = e end end
+    if not etat then return nil, "aucun état « " .. tostring(nom) .. " »." end
+    local g = etat.guerison
+    if not (g and g.mode == "rand") then return nil, "« " .. etat.nom .. " » ne se guérit pas par un jet : le MJ le retire." end
+    local A = LCM.Actions
+    local field = A.ChampParLibelle(g.competence, "roll")
+    local total, detail
+    if field then
+        local r = LCM.Roll.Field(entity, field.id)
+        total, detail = r.total, LCM.Roll.Describe(r)
+    else
+        local primaire = A.ChampParLibelle(g.competence)
+        local des = LCM.Schema.Field("adresse").dice
+        local de = LCM.Roll.Des(des.min or 0, des.max or 0)
+        local valeur = primaire and LCM.Formules.Primaire(entity, primaire.id) or 0
+        total = de + valeur
+        detail = string.format("%s : %d  (dé %d, valeur %+d)", tostring(g.competence), total, de, valeur)
+    end
+    local ok = total >= (tonumber(g.dc) or 0)
+    if ok then Temporaires.Retirer(entity, etat.nom) end
+    return ok, string.format("%s — guérison de « %s » (DC %d) : %s", detail, etat.nom, tonumber(g.dc) or 0,
+        ok and "réussie" or "ratée")
 end
 
 function Temporaires.Duree(etat)

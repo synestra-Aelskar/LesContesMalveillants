@@ -158,6 +158,8 @@ local function ChampParLibelle(nom, genre)
     return trouve
 end
 
+Actions.ChampParLibelle = ChampParLibelle
+
 -- {stat:<nom>} : « Fenetre#ligne:colonne » ou un nom seul.
 function Actions.Stat(nom, entity)
     nom = Trim(nom)
@@ -706,6 +708,100 @@ function Composeur:Blocage()
     return nil
 end
 
+-- ===== Les jeux de choix ===================================================
+-- Repris de Necronicon (SaveActionComposerTemplate) : un jeu de reponses
+-- enregistre pour une action, qu'on recharge d'un clic (« Coup de bouclier »
+-- au lieu de huit questions). Donnee du JOUEUR, rangee avec son personnage.
+-- Ecart : les reponses sont retenues par LIBELLE de question et d'option, pas
+-- par numero — un jeu survit ainsi a une retouche de l'action au compendium.
+-- Une reponse qui ne correspond plus a rien est ignoree au chargement.
+
+local function Jeux(resolutionId, ecrire)
+    LCM.EnsureDatabase()
+    local db = LCM.charDb
+    if not ecrire then
+        return type(db.jeuxDeChoix) == "table" and type(db.jeuxDeChoix[resolutionId]) == "table"
+            and db.jeuxDeChoix[resolutionId] or {}
+    end
+    db.jeuxDeChoix = type(db.jeuxDeChoix) == "table" and db.jeuxDeChoix or {}
+    db.jeuxDeChoix[resolutionId] = type(db.jeuxDeChoix[resolutionId]) == "table" and db.jeuxDeChoix[resolutionId] or {}
+    return db.jeuxDeChoix[resolutionId]
+end
+
+-- Une liste devenue vide disparait de la sauvegarde.
+local function RangerJeux(resolutionId)
+    local db = LCM.charDb
+    if type(db.jeuxDeChoix) ~= "table" then return end
+    if type(db.jeuxDeChoix[resolutionId]) == "table" and #db.jeuxDeChoix[resolutionId] == 0 then
+        db.jeuxDeChoix[resolutionId] = nil
+    end
+    if not next(db.jeuxDeChoix) then db.jeuxDeChoix = nil end
+end
+
+function Actions.JeuxDeChoix(resolutionId) return Jeux(tostring(resolutionId or "")) end
+
+function Actions.EnregistrerJeu(resolutionId, nom, composeur)
+    local reponses = {}
+    for _, q in ipairs(composeur.questions) do
+        local r = composeur.reponses[q.id]
+        if type(r) == "table" then
+            local labels = {}
+            for _, o in ipairs(q.options) do if r[o.id] then labels[#labels + 1] = o.label end end
+            reponses[q.label] = labels
+        elseif r ~= nil then
+            local label = r
+            for _, o in ipairs(q.options) do if o.id == r then label = o.label end end
+            reponses[q.label] = (q.mode == "number" or q.mode == "text") and { saisie = r } or label
+        end
+    end
+    local pa, pf = composeur:Deriver()
+    local liste = Jeux(tostring(resolutionId), true)
+    nom = Trim(nom)
+    liste[#liste + 1] = { nom = nom ~= "" and nom or ("Jeu " .. (#liste + 1)), reponses = reponses, pa = pa, pf = pf }
+    return liste[#liste]
+end
+
+function Actions.ChargerJeu(composeur, jeu)
+    composeur.reponses = {}
+    for _, q in ipairs(composeur.questions) do
+        local r = jeu.reponses and jeu.reponses[q.label]
+        if type(r) == "table" and r.saisie ~= nil then
+            composeur.reponses[q.id] = r.saisie
+        elseif type(r) == "table" then
+            local coche = {}
+            for _, label in ipairs(r) do
+                for _, o in ipairs(q.options) do if o.label == label then coche[o.id] = true end end
+            end
+            if next(coche) then composeur.reponses[q.id] = coche end
+        elseif r ~= nil then
+            for _, o in ipairs(q.options) do if o.label == r then composeur.reponses[q.id] = o.id end end
+        end
+    end
+    composeur:Deriver()
+end
+
+function Actions.RenommerJeu(resolutionId, index, nom)
+    local jeu = Jeux(tostring(resolutionId))[index]
+    if jeu and Trim(nom) ~= "" then jeu.nom = Trim(nom) return true end
+    return false
+end
+
+function Actions.SupprimerJeu(resolutionId, index)
+    local liste = Jeux(tostring(resolutionId))
+    if not liste[index] then return false end
+    table.remove(liste, index)
+    RangerJeux(tostring(resolutionId))
+    return true
+end
+
+function Actions.DeplacerJeu(resolutionId, index, sens)
+    local liste = Jeux(tostring(resolutionId))
+    local cible = index + ((tonumber(sens) or 0) < 0 and -1 or 1)
+    if not liste[index] or not liste[cible] then return false end
+    liste[index], liste[cible] = liste[cible], liste[index]
+    return true
+end
+
 -- ===== Calculateurs (pas « compute ») ======================================
 
 -- Les libelles d'une valeur recue sous forme de liste (« Tranchant, Feu »).
@@ -849,6 +945,44 @@ function Actions.Annoncer(texte, ctx)
     else
         LCM.Info(texte)
     end
+end
+
+-- Une emote (ou une reponse) dans le chat : decoupee en morceaux de 250
+-- octets au plus sur les espaces (limite de SendChatMessage), comme
+-- SendChatChunked de Necronicon. Raid sans raid : groupe, sinon « dire ».
+-- Necronicon espacait les morceaux de 0,8 s ; sans minuterie, ils partent
+-- d'un coup.
+function Actions.DireEnChat(texte, canal)
+    texte = Trim(tostring(texte or "")):gsub("%s+", " ")
+    if texte == "" or not SendChatMessage then return 0 end
+    canal = tostring(canal or "EMOTE"):upper()
+    if canal == "RAID" then
+        canal = (IsInRaid and IsInRaid()) and "RAID" or ((IsInGroup and IsInGroup()) and "PARTY" or "SAY")
+    elseif canal == "PARTY" then
+        canal = (IsInGroup and IsInGroup()) and "PARTY" or "SAY"
+    end
+    local morceaux, courant = {}, ""
+    for mot in texte:gmatch("%S+") do
+        while #mot > 250 do
+            if courant ~= "" then morceaux[#morceaux + 1] = courant courant = "" end
+            morceaux[#morceaux + 1] = mot:sub(1, 250)
+            mot = mot:sub(251)
+        end
+        local candidat = courant == "" and mot or (courant .. " " .. mot)
+        if #candidat > 250 then morceaux[#morceaux + 1] = courant courant = mot else courant = candidat end
+    end
+    if courant ~= "" then morceaux[#morceaux + 1] = courant end
+    local i = 0
+    local function Suivant()
+        i = i + 1
+        if not morceaux[i] then return end
+        pcall(SendChatMessage, morceaux[i], canal)
+        if morceaux[i + 1] then
+            if C_Timer and C_Timer.After then C_Timer.After(0.8, Suivant) else Suivant() end
+        end
+    end
+    Suivant()
+    return #morceaux
 end
 
 -- ===== Jets (pas « roll ») =================================================
@@ -1345,12 +1479,21 @@ Actions.CHAMPS_EFFET = CHAMPS_EFFET
 local function LireRegles(texte)
     local r = { mode = "buff", families = {}, groupes = {}, defaut = 1, affinityGood = 0.7, affinityBad = 1,
                 poolMult = 1, pool = "0", durationBase = "1", durationPerPoint = 1, resistSkills = { "Esprit" },
-                stackDrainPct = 5, stackLifeCost = 3, dispellCost = 10, puissanceRef = "", dureeRef = "" }
+                stackDrainPct = 5, stackLifeCost = 3, dispellCost = 10, puissanceRef = "", dureeRef = "",
+                -- « Illimite » : pas d'expiration, pour un surcout ; la guerison
+                -- (narration, jet, action) coute plus cher a mesure qu'elle est dure.
+                permanent = false, permanentCost = 10, cureMode = "narration", cureRandSkill = "Constitution",
+                cureDC = 12 }
     for ligne in (tostring(texte or "") .. "\n"):gmatch("(.-)\n") do
         local k, v = ligne:match("^%s*([%w_]+)%s*:%s*(.-)%s*$")
         if k then
             k = k:lower()
             if k == "mode" then r.mode = Cle(v) == "debuff" and "debuff" or "buff"
+            elseif k == "permanent" then r.permanent = Cle(v):match("^[o1ty]") ~= nil
+            elseif k == "curemode" then
+                local m = Cle(v)
+                r.cureMode = (m == "rand" or m == "action") and m or "narration"
+            elseif k == "curerandskill" then r.cureRandSkill = Trim(v)
             elseif k == "pool" or k == "durationbase" or k == "puissanceref" or k == "dureeref" or k == "dispelltag" then
                 r[({ pool = "pool", durationbase = "durationBase", puissanceref = "puissanceRef",
                      dureeref = "dureeRef", dispelltag = "dispellTag" })[k]] = Trim(v)
@@ -1380,11 +1523,15 @@ local function LireRegles(texte)
             else
                 local cle = ({ poolmult = "poolMult", affinitygood = "affinityGood", affinitybad = "affinityBad",
                                durationperpoint = "durationPerPoint", stackdrainpct = "stackDrainPct",
-                               stacklifecost = "stackLifeCost", dispellcost = "dispellCost" })[k]
+                               stacklifecost = "stackLifeCost", dispellcost = "dispellCost",
+                               permanentcost = "permanentCost", curedc = "cureDC", curecost = "cureCost" })[k]
                 if cle then r[cle] = tonumber(v) or r[cle] end
             end
         end
     end
+    -- Le prix de la guerison, retire de la reserve (Necronicon :
+    -- BUFF_CURE_COST_BY_MODE) : narration 0, jet 4, action 8.
+    if r.cureCost == nil then r.cureCost = ({ narration = 0, rand = 4, action = 8 })[r.cureMode] or 0 end
     return r
 end
 
@@ -1494,7 +1641,16 @@ local function Calcul(expr, vars)
 end
 
 function Constructeur:Reserve()
-    return math.max(0, math.floor(Calcul(self.regles.pool, self:Variables()) * (self.regles.poolMult or 1) + 0.5))
+    local brute = math.floor(Calcul(self.regles.pool, self:Variables()) * (self.regles.poolMult or 1) + 0.5)
+    return math.max(0, brute - (self.regles.cureCost or 0))
+end
+
+-- « Illimite » : seulement si l'action le permet ; on n'achete plus de rounds.
+function Constructeur:Illimite(oui)
+    if not self.regles.permanent then return false end
+    self.illimite = oui and true or false
+    if self.illimite then self.dureeAchetee = 0 end
+    return true
 end
 
 -- Le cumul (« stack ») : chaque cumul draine une part d'une jauge a chaque round.
@@ -1537,7 +1693,8 @@ function Constructeur:Depense()
     local s = 0
     for champ, n in pairs(self.points) do s = s + n * self:Cout(champ) end
     local cumul = self:Cumul()
-    if not (cumul and cumul.fin == "dispell") then s = s + self.dureeAchetee * self:ParRound() end
+    if not (cumul and cumul.fin == "dispell") and not self.illimite then s = s + self.dureeAchetee * self:ParRound() end
+    if self.illimite then s = s + (self.regles.permanentCost or 0) end
     if cumul then
         s = s + cumul.n * cumul.coutJauge
         if cumul.fin == "dispell" then s = s + self.regles.dispellCost end
@@ -1548,7 +1705,7 @@ end
 -- La duree en rounds, ou nil pour « jusqu'a dissipation ».
 function Constructeur:Duree()
     local cumul = self:Cumul()
-    if cumul and cumul.fin == "dispell" then return nil end
+    if self.illimite or (cumul and cumul.fin == "dispell") then return nil end
     if cumul then return 1 + self.dureeAchetee end
     local pts = 0
     for _, n in pairs(self.points) do pts = pts + n end
@@ -1600,6 +1757,9 @@ function Constructeur:Valider(nom, description, icone)
         bonusJet = 0, multJet = 1,
         dissipation = Trim(self.regles.dispellTag) ~= "" and self.regles.dispellTag or Cle(nom),
         cumul = cumul and { n = cumul.n, jauge = cumul.jauge, pct = self.regles.stackDrainPct } or nil,
+        -- Un etat sans fin se guerit comme la regle le dit.
+        guerison = (self.illimite or (cumul and cumul.fin == "dispell"))
+            and { mode = self.regles.cureMode, competence = self.regles.cureRandSkill, dc = self.regles.cureDC } or nil,
     }
     V._buffData = donnees
     Journal(self.ctx, string.format("%s « %s » : %d / %d pt, %s", self.debuff and "Débuff" or "Buff",
@@ -1827,6 +1987,13 @@ local function Envoyer(ctx, joueurs, pnj, soi)
     local d = ctx.declaration
     local identite = LCM.Identite and LCM.Identite.Joueur() or {}
     local paquet = { t = Jeton_(), n = d.nature, a = LCM.PlayerId(), rp = identite.nom, v = d.valeurs }
+    -- Qui l'action vise : une deviation par un tiers en depend (malus « action
+    -- visant autrui »), et les cibles d'origine sont prevenues d'un detour.
+    local visees = {}
+    for _, j in ipairs(joueurs) do visees[#visees + 1] = j end
+    for _, p in ipairs(pnj) do visees[#visees + 1] = "PNJ " .. tostring(p.nom) end
+    if soi then visees[#visees + 1] = LCM.PlayerId() end
+    paquet.ci = table.concat(visees, ",")
     for _, joueur in ipairs(joueurs) do
         LCM.Reseau.Envoyer("act", paquet, "WHISPER", joueur)
     end
@@ -1922,6 +2089,7 @@ local function DeclarerEffet(etape, ctx, suite)
         end)(), ", "),
         kp = tonumber(V.kPen) or tonumber(V.penCoef) or 0, d = e.donnees,
         cu = e.cumul and { n = e.cumul.n, j = e.cumul.jauge, p = e.cumul.pct } or nil,
+        gu = e.guerison and { m = e.guerison.mode, c = e.guerison.competence, d = e.guerison.dc } or nil,
     }
     ctx.annonces = {}
     local nomJet = Trim(V.randSkill)
@@ -1975,6 +2143,11 @@ local function DeclarerEffet(etape, ctx, suite)
         local joueurs, pnj = Actions.Cibles()
         local autres = {}
         for _, j in ipairs(joueurs) do if not j.soi then autres[#autres + 1] = j.id end end
+        if mode:find("cond") and Actions.onEmote then
+            return Actions.onEmote("Condition de la zone",
+                "Décrivez la condition de déclenchement / la portée de l'effet. Ce texte part dans le chat à la suite du jet.",
+                function() Envoyer_(autres, pnj, true) end)
+        end
         return Envoyer_(autres, pnj, true)
     end
     if not Actions.onCibler then return Arreter(ctx, "aucune fenêtre pour choisir les cibles.") end
@@ -2085,7 +2258,8 @@ function Actions.Subir(recu, ecart)
         local cumul = type(p.cu) == "table" and { n = tonumber(p.cu.n) or 1, jauge = p.cu.j, pct = tonumber(p.cu.p) or 5 } or nil
         LCM.EtatsTemporaires.Poser(recu.entity, { nom = p.nom, icone = p.ic, description = p.desc, bonus = bonus,
             rounds = rounds, lanceur = lanceur, debuff = recu.debuff, dissipation = p.dis, cumul = cumul,
-            id = p.t, jet = p.js and { competence = p.js, valeur = tonumber(p.jr) or 0 } or nil })
+            id = p.t, jet = p.js and { competence = p.js, valeur = tonumber(p.jr) or 0 } or nil,
+            guerison = type(p.gu) == "table" and { mode = p.gu.m, competence = p.gu.c, dc = tonumber(p.gu.d) or 0 } or nil })
         texte = string.format("%s « %s » appliqué à %s (%s)%s.", recu.debuff and "Débuff" or "Buff", tostring(p.nom),
             cible, rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'à retrait",
             facteur > 1 and " — critique, durée doublée" or "")
@@ -2222,6 +2396,13 @@ function Pas.declare(etape, ctx, suite)
         for _, j in ipairs(joueurs) do if not j.soi then autres[#autres + 1] = j.id end end
         valeurs.Zone = string.format("%s yards%s", tostring(math.floor((tonumber(ctx.vars.aoeYards) or 0) + 0.5)),
             mode:find("cond") and " (conditionnelle)" or "")
+        -- Une zone conditionnelle : la condition s'ecrit en emote, a la suite
+        -- du jet, avant que la zone parte (Necronicon : PromptChatEmote).
+        if mode:find("cond") and Actions.onEmote then
+            return Actions.onEmote("Condition de la zone",
+                "Décrivez la condition de déclenchement / la portée de l'effet. Ce texte part dans le chat à la suite du jet.",
+                function() Declarer(autres, pnj, true) end)
+        end
         return Declarer(autres, pnj, true)
     end
     if not Actions.onCibler then return Arreter(ctx, "aucune fenêtre pour choisir les cibles.") end
@@ -2375,17 +2556,25 @@ local function CompteRendu(ctx, recu)
         end
     end
     local texte = string.format("%s — %s : %s", qui, tostring(recu.paquet.n), table.concat(lignes, " | "))
-    if recu.expediteur == LCM.PlayerId() then
+    -- A l'attaquant, meme quand l'action a ete deviee en route : c'est lui qui
+    -- attend l'issue, pas celui qui a fait le detour.
+    local destinataire = Trim(recu.paquet.a) ~= "" and recu.paquet.a or recu.expediteur
+    if destinataire == LCM.PlayerId() then
         LCM.Info(texte)
     else
-        LCM.Reseau.Envoyer("act=", { t = recu.paquet.t, texte = texte }, "WHISPER", recu.expediteur)
+        LCM.Reseau.Envoyer("act=", { t = recu.paquet.t, texte = texte }, "WHISPER", destinataire)
     end
 end
 
 -- Resoudre une action recue : la resolution de sa nature, jouee sur la fiche
 -- visee, puis la repartition de ce qu'elle applique, puis le compte rendu.
+-- Les actions dont la resolution a commence : un detour qui arrive apres est
+-- « trop tard » (Core/Reactions.lua).
+Actions.resolues = {}
+
 function Actions.Resoudre(recu)
     for i, r in ipairs(Actions.recus) do if r == recu then table.remove(Actions.recus, i) break end end
+    if recu.paquet.t then Actions.resolues[recu.paquet.t] = true end
     local resolution = recu.resolution
     if not resolution then
         LCM.Alerte(string.format("aucune résolution pour « %s ».", tostring(recu.paquet.n)))

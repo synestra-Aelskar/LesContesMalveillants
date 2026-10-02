@@ -83,7 +83,14 @@ attendu("reste 0", R.reste.valeur:GetText(), "0")
 attendu("on peut appliquer", R.appliquer:IsEnabled(), true)
 local avant = blessures()
 local n = #__envois
+-- Une emote de reponse, envoyee avec l'application.
+R.emote:SetText("encaisse le coup en grimaçant.")
+R.canal:Click()
+attendu("canal : dire", R.canal:Canal(), "SAY")
+local nc = #__chats
 R.appliquer:Click()
+attendu("l'emote part", __chats[nc + 1] and __chats[nc + 1].texte, "encaisse le coup en grimaçant.")
+attendu("sur le canal choisi", __chats[nc + 1] and __chats[nc + 1].canal, "SAY")
 attendu("les blessures sont posees", blessures(), avant + 5)
 local cr = __envois[n + 1]
 attendu("le compte rendu part a l'attaquant", cr and cr.cible, "Nytherah-Apertus")

@@ -45,6 +45,7 @@ Core\Incarnation.lua
 Core\Combat.lua
 Core\Scene.lua
 Core\Actions.lua
+Core\Reactions.lua
 Core\Grimoires.lua
 Core\Compendium.lua
 Data\Equilibrage.lua
