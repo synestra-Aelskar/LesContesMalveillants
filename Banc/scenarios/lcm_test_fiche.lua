@@ -55,14 +55,22 @@ dire("== Statistiques : les blocs du template, dans l'ordre")
 local page = f.pages.statistiques
 local titres = {}
 for _, bloc in ipairs(page.blocs) do titres[#titres + 1] = bloc.titre and bloc.titre:GetText() or "?" end
-attendu("blocs", table.concat(titres, ", "), "GÉNÉRALE, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
+-- Les primaires sont en deux blocs : celles qui se lancent (Habilites) et
+-- celles qui se lisent.
+attendu("blocs", table.concat(titres, ", "),
+    "GÉNÉRALE, HABILITÉS, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
 local generale = {}
 for _, l in ipairs(page.blocs[1].lignes) do generale[#generale + 1] = l.field.id end
 attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa")
 local corps = page.blocs[1].lignes[1]
 attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")
-attendu("six statistiques", #page.blocs[2].lignes, 6)
+local habilites, stats = {}, {}
+for _, l in ipairs(page.blocs[2].lignes) do habilites[#habilites + 1] = l.field.id end
+for _, l in ipairs(page.blocs[3].lignes) do stats[#stats + 1] = l.field.id end
+attendu("les deux qui se lancent", table.concat(habilites, ","), "adresse,esprit")
+attendu("et les quatre qui se lisent", table.concat(stats, ","),
+    "force,mystique,perception,constitution")
 
 dire("== rien ne traine a droite d'une ligne")
 -- Le gabarit arrete sa derniere colonne a 762 unites sur 786 ; reportees
@@ -95,8 +103,8 @@ for _, bloc in ipairs(page.blocs) do
 end
 attendu("des lignes portent une icone", avecIcone > 0, true)
 attendu("aucun libelle sous son icone", chevauche, 0)
-attendu("initiative", page.blocs[3].lignes[1].field.id, "initiative")
-attendu("deplacement", #page.blocs[4].lignes, 2)
+attendu("initiative", page.blocs[4].lignes[1].field.id, "initiative")
+attendu("deplacement", #page.blocs[5].lignes, 2)
 
 dire("== Facultes (formules du template)")
 f.barre.boutons[2]:Click()

@@ -113,18 +113,24 @@ Schema.AddTab({
     label = "Statistiques",
     sections = {
         {
+            -- Les deux primaires qui se LANCENT (template : « 0-15 ... Rand »)
+            -- sont a part : leur ligne porte un de et un bouton, les quatre
+            -- autres se lisent. Melangees, on ne voyait plus lesquelles se
+            -- jouent.
+            label = "Habilités",
+            fields = {
+                { id = "adresse",      kind = "roll", label = "Adresse",      default = 0,
+                  dice = { min = 0, max = 15 } },
+                { id = "esprit",       kind = "roll", label = "Esprit",       default = 0,
+                  dice = { min = 0, max = 15 } },
+            },
+        },
+        {
             label = "Statistiques",
             fields = {
                 { id = "force",        kind = "stat", label = "Force",        default = 0 },
                 { id = "mystique",     kind = "stat", label = "Mystique",     default = 0 },
                 { id = "perception",   kind = "stat", label = "Perception",   default = 0 },
-                -- Adresse et Esprit se LANCENT (template : « 0-15 ... Rand »).
-                -- Les quatre autres primaires se lisent ; ces deux-la servent
-                -- directement de jet, d'ou leur de propre.
-                { id = "adresse",      kind = "roll", label = "Adresse",      default = 0,
-                  dice = { min = 0, max = 15 } },
-                { id = "esprit",       kind = "roll", label = "Esprit",       default = 0,
-                  dice = { min = 0, max = 15 } },
                 { id = "constitution", kind = "stat", label = "Constitution", default = 0 },
             },
         },

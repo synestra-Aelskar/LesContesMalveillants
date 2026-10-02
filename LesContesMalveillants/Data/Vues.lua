@@ -74,7 +74,8 @@ Vues.Add({
             -- La jauge des PV seule : les zones sont dans Sante. La surcharge
             -- des PV n'apparait qu'au MJ.
             { label = "Générale", champs = { { id = "corps", zones = false }, "armure", "fatigue", "pa" } },
-            { label = "Statistiques", champs = { "force", "mystique", "perception", "adresse", "esprit", "constitution" } },
+            { label = "Habilités", champs = { "adresse", "esprit" } },
+            { label = "Statistiques", champs = { "force", "mystique", "perception", "constitution" } },
             { label = "Caractéristiques", champs = { "initiative" } },
             { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
         } },

@@ -78,7 +78,7 @@ attendu("composant repris de sa copie", composants and composants[1].nom, "Cuivr
 attendu("composant perdu (aucune copie)", composants and composants[3].nom, "Composant introuvable")
 local apnj = C.Carte(C.Get("pnj"), pnj)
 attendu("PNJ : race et niveau", apnj.meta, "Race : Aelskardien  |  Niveau : 12")
-attendu("PNJ : statistiques par section", apnj.stats[1].dossier, "Statistiques")
+attendu("PNJ : statistiques par section", apnj.stats[1].dossier, "Habilités")
 local xp = C.Carte(C.Get("table_xp"), C.Entrees(C.Get("table_xp"))[1])
 attendu("table xp : rien sur la carte (champ cache du template)", #xp.corps, 0)
 
