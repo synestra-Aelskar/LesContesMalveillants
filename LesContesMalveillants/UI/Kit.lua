@@ -706,6 +706,10 @@ function UI.Defilement(parent)
         zone.contenu:SetPoint("TOPLEFT", zone, "TOPLEFT", 0, zone.decalage)
         zone.contenu:SetPoint("TOPRIGHT", zone, "TOPRIGHT", 0, zone.decalage)
         zone.debord = debord
+        -- Qui veut suivre le defilement — un sommaire qui marque le chapitre
+        -- ou l'on est — l'apprend ici, donc a la molette aussi, pas seulement
+        -- quand on clique dans la table des matieres.
+        if zone.onDefilement then zone.onDefilement(zone.decalage) end
 
         barre:SetShown(debord > 0)
         if debord > 0 then

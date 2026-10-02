@@ -211,10 +211,10 @@ for _, e in ipairs(entrees()) do
     if e.cible == 0 then chapitres[#chapitres + 1] = e.label:GetText() end
 end
 attendu("les huit chapitres", table.concat(chapitres, ", "),
-    "Fondamentaux, Principes des Contes Malveillants., Personnages, Ressources, Tests et Expertises, Combat, Magie et effets, Équipement, Progression")
+    "Fondamentaux, Principe, Personnages, Ressources, Tests et Expertises, Combat, Magie et effets, Équipement, Progression")
 local fond = r.pages.fondamentaux
 attendu("cinq blocs, un par separateur", #fond.blocs, 5)
-attendu("premier bloc", fond.blocs[1].titre:GetText(), "PRINCIPES DES CONTES MALVEILLANTS.")
+attendu("premier bloc", fond.blocs[1].titre:GetText(), "PRINCIPE")
 attendu("texte d'origine", fond.blocs[1].paragraphe:GetText():find("^Les contes malveillants sont") ~= nil, true)
 attendu("taille 14", select(2, fond.blocs[1].paragraphe:GetFont()), 14)
 attendu("le dernier separateur, sans texte", fond.blocs[5].paragraphe, nil)
@@ -236,6 +236,21 @@ end
 cible:Click()
 attendu("cliquer un sous-chapitre fait defiler", r.zone.decalage > 0, true)
 attendu("jusqu'a son bloc", math.abs(r.zone.decalage - cible.cible) < 0.5, true)
+attendu("et le sommaire marque l'endroit", cible.puce:GetText(), "◆")
+
+dire("   le marquage suit la molette, pas seulement le clic")
+-- Remonter d'un cran doit rendre la puce au bloc precedent : un sommaire qui
+-- ne bouge qu'au clic ment des qu'on fait defiler a la main.
+local precedent = nil
+for _, e in ipairs(entrees()) do
+    if e.label:GetText() == "Les joueurs :" then precedent = e end
+end
+r.zone:Aller(precedent.cible)
+attendu("la puce a suivi", precedent.puce:GetText(), "◆")
+-- Un sous-chapitre qu'on a quitte n'a plus de puce du tout : seuls les
+-- chapitres en portent une en permanence.
+attendu("et l'autre s'est eteinte", cible.puce:GetText(), "")
+r.zone:Aller(0)
 
 dire("   un autre chapitre")
 local vers = nil

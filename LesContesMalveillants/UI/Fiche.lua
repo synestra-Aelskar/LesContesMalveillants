@@ -100,14 +100,18 @@ local Icone = Fiche.Icone
 -- trois boutons carres a droite. `rappels` : moins(), plus(), remise().
 local function Jauge(l, c, couleur, rappels)
     local debut = c.barreDebut
-    l.barre = UI.Barre(l, couleur, c.barreFin - debut, c.barreHauteur)
+    -- Une jauge SANS boutons (les points de vie, qui se perdent et se rendent
+    -- zone par zone) laissait derriere elle la place des trois boutons, vide.
+    -- Elle va donc jusqu'au bord gauche du « R » des jauges d'en dessous : les
+    -- colonnes restent alignees, et la barre occupe ce qui ne servait a rien.
+    local fin = rappels and c.barreFin or c.boutons[3]
+    l.barre = UI.Barre(l, couleur, fin - debut, c.barreHauteur)
     l.barre:SetPoint("LEFT", l, "LEFT", debut, 0)
     UI.Police(l.barre.label, c.police, "OUTLINE")
     if UI.AelCadreJauge then l.cadreJauge = UI.AelCadreJauge(l.barre) end
 
     -- La barre commence apres le nom : une police plus grande ne la cache pas.
     function l:CaleBarre()
-        local fin = c.barreFin
         local x = math.min(fin - 80 * c.echelle,
             math.max(debut, (self.nomX or c.nomSansIcone) + (self.nom:GetStringWidth() or 0) + 14 * c.echelle))
         self.barre:ClearAllPoints()
@@ -788,6 +792,10 @@ function Fiche.Bloc(parent, section, largeur)
         b.paragraphe = UI.Texte(b, section.texte, UI.C.texte)
         UI.Police(b.paragraphe, section.taille or math.max(11, m.police * 0.75))
         b.paragraphe:SetWidth(largeur - 40)
+        -- Le bloc sait se re-largir : son paragraphe se recoupe tout seul.
+        function b:Largeur(l)
+            self.paragraphe:SetWidth(math.max(80, l - 40))
+        end
         b.paragraphe:SetWordWrap(true)
         b.paragraphe:SetPoint("TOPLEFT", b, "TOPLEFT", 20, -(b.hautTitre + 12))
     end
@@ -856,6 +864,23 @@ function Fiche.Page(parent, sections, largeur)
 
     -- Pose blocs et lignes de haut en bas : certaines lignes (corps, traits)
     -- changent de hauteur avec l'entite.
+    -- Changer la largeur d'une page : pour une fenetre qu'on tire. Les blocs
+    -- s'etirent et les paragraphes se re-coupent tout seuls.
+    --
+    -- ATTENTION : les colonnes des LIGNES de fiche (`c`) gardent les mesures du
+    -- depart. C'est sans effet sur une page de texte (les Regles), qui n'a pas
+    -- de ligne ; une page de fiche ne doit pas etre redimensionnee tant que `c`
+    -- ne se recalcule pas.
+    function page:Largeur(nouvelle)
+        nouvelle = math.max(120, tonumber(nouvelle) or largeur)
+        if nouvelle == largeur then return end
+        largeur = nouvelle
+        for _, bloc in ipairs(self.blocs) do
+            if bloc.Largeur then bloc:Largeur(largeur) end
+        end
+        self:Disposer()
+    end
+
     function page:Disposer()
         local y = 0
         for _, bloc in ipairs(self.blocs) do

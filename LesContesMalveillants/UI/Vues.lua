@@ -37,15 +37,42 @@ local function Sommaire(f, vue)
     local function Entree(rang)
         local b = s.entrees[rang]
         if b then return b end
-        b = UI.Bouton(s.contenu, "", LARGEUR_SOMMAIRE - 10, LIGNE_SOMMAIRE, function(self)
+        b = UI.Bouton(s.contenu, "", LARGEUR_SOMMAIRE, LIGNE_SOMMAIRE, function(self)
             f:Afficher(self.ongletId)
             -- Un chapitre repart du haut ; un sous-chapitre va se montrer.
             f.zone:Aller(self.cible or 0)
         end)
         b.label:ClearAllPoints()
         b.label:SetJustifyH("LEFT")
+        b.label:SetWordWrap(false)
+        -- La puce : allumee sur l'endroit ou l'on se trouve, eteinte ailleurs.
+        -- Sans elle, deux lignes a peine differemment teintees ne disent pas
+        -- ou on en est — et c'est tout ce qu'un sommaire a a dire.
+        b.puce = UI.Texte(b, "", UI.C.accent)
+        b.puce:SetJustifyH("CENTER")
         s.entrees[rang] = b
         return b
+    end
+
+    -- Marque l'endroit ou l'on se trouve : le chapitre ouvert, et parmi ses
+    -- sous-chapitres le dernier qu'on ait depasse en descendant.
+    function s:Marquer(decalage)
+        decalage = tonumber(decalage) or (f.zone and f.zone.decalage) or 0
+        local courant
+        for _, b in ipairs(self.entrees) do
+            if b:IsShown() and b.ongletId == f.onglet and b.cible <= decalage + 2 then
+                if not courant or b.cible >= courant.cible then courant = b end
+            end
+        end
+        for _, b in ipairs(self.entrees) do
+            if b:IsShown() then
+                local ici = (b == courant)
+                b.puce:SetText(ici and "◆" or (b.chapitre and "·" or ""))
+                local teinte = ici and UI.C.titre or (b.chapitre and UI.C.texte or UI.C.discret)
+                b.label:SetTextColor(teinte[1], teinte[2], teinte[3])
+                b:Selectionner(ici)
+            end
+        end
     end
 
     function s:Actualiser()
@@ -53,11 +80,13 @@ local function Sommaire(f, vue)
         for _, onglet in ipairs(vue.onglets) do
             rang = rang + 1
             local b = Entree(rang)
-            b.ongletId, b.cible = onglet.id, 0
+            b.ongletId, b.cible, b.chapitre = onglet.id, 0, true
             b.label:SetText(onglet.label)
-            b.label:SetPoint("LEFT", b, "LEFT", 8, 0)
+            b.label:SetPoint("LEFT", b, "LEFT", 18, 0)
+            b.label:SetWidth(LARGEUR_SOMMAIRE - 24)
             UI.Police(b.label, 12)
-            b:Selectionner(onglet.id == f.onglet)
+            b.puce:SetPoint("LEFT", b, "LEFT", 5, 0)
+            UI.Police(b.puce, 10)
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -y)
             b:Show()
@@ -70,16 +99,17 @@ local function Sommaire(f, vue)
                     if titre and titre ~= "" then
                         rang = rang + 1
                         local sb = Entree(rang)
-                        sb.ongletId = onglet.id
+                        sb.ongletId, sb.chapitre = onglet.id, false
                         -- La place du bloc dans la page : page:Disposer l'y a
                         -- ancre a -y, c'est exactement le defilement a poser.
                         local _, _, _, _, dy = bloc:GetPoint(1)
                         sb.cible = math.max(0, -(dy or 0))
                         sb.label:SetText(titre)
-                        sb.label:SetPoint("LEFT", sb, "LEFT", 20, 0)
+                        sb.label:SetPoint("LEFT", sb, "LEFT", 30, 0)
+                        sb.label:SetWidth(LARGEUR_SOMMAIRE - 34)
                         UI.Police(sb.label, 10)
-                        sb.label:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
-                        sb:Selectionner(false)
+                        sb.puce:SetPoint("LEFT", sb, "LEFT", 17, 0)
+                        UI.Police(sb.puce, 10)
                         sb:ClearAllPoints()
                         sb:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -y)
                         sb:Show()
@@ -90,6 +120,7 @@ local function Sommaire(f, vue)
         end
         for index = rang + 1, #self.entrees do self.entrees[index]:Hide() end
         self:Regler(y)
+        self:Marquer()
     end
 
     return s
@@ -97,7 +128,8 @@ end
 
 local function Construire(vue, rang)
     local f = UI.Fenetre("vue_" .. vue.id, vue.titre, vue.largeur, vue.hauteur,
-        { x = 180 + rang * DECALAGE, y = -rang * DECALAGE })
+        { x = 180 + rang * DECALAGE, y = -rang * DECALAGE },
+        { redimensionnable = vue.sommaire })
     f.vue = vue
     f.nom = f.sousTitre
     local largeurContenu = vue.largeur - 24
@@ -139,7 +171,10 @@ local function Construire(vue, rang)
     -- dans une bande d'onglets : huit onglets etales sur trois rangees au-dessus
     -- d'un texte, c'est un livre dont la table des matieres serait au milieu de
     -- la page. La colonne prend de la largeur au contenu.
-    local gauche = vue.sommaire and (LARGEUR_SOMMAIRE + 12) or 0
+    -- 11 = la barre de defilement du sommaire (posee a +3, large de 6) et deux
+    -- pixels d'air. Ajouter une marge en plus creusait un couloir vide entre la
+    -- table des matieres et le texte.
+    local gauche = vue.sommaire and (LARGEUR_SOMMAIRE + 11) or 0
     local largeurPage = largeurContenu - gauche
 
     if vue.sommaire then
@@ -158,6 +193,9 @@ local function Construire(vue, rang)
     f.zone = UI.Defilement(f.contenu)
     f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", gauche, -haut)
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    if f.sommaire then
+        f.zone.onDefilement = function(decalage) f.sommaire:Marquer(decalage) end
+    end
 
     f.pages = {}
     for _, onglet in ipairs(vue.onglets) do
@@ -203,6 +241,20 @@ local function Construire(vue, rang)
     function f:Actualiser()
         local page = self.onglet and self.pages[self.onglet]
         if self.entity and page then page:Actualiser(self.entity) end
+    end
+
+    -- Une vue qu'on lit se tire aux dimensions qu'on veut : un chapitre de
+    -- regles n'a pas de raison de tenir dans la fenetre que j'ai choisie.
+    -- Reserve au sommaire : les pages de fiche gardent les colonnes du depart
+    -- (voir page:Largeur), les etirer ferait mentir leurs mesures.
+    if vue.sommaire then
+        UI.Redimensionner(f, 420, 320, function()
+            local l = f.contenu:GetWidth() - gauche
+            for _, page in pairs(f.pages) do page:Largeur(l) end
+            local page = f.onglet and f.pages[f.onglet]
+            if page then f.zone:Regler(page.hauteur) end
+            if f.sommaire then f.sommaire:Actualiser() end
+        end)
     end
     return f
 end
