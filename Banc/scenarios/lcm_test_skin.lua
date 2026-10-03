@@ -66,6 +66,18 @@ dire("== la croix et la pastille de canal evitent les coins, en miroir")
 -- feuille. On verifie donc qu'ils restent en miroir et dans le cadre, et non
 -- plus qu'ils commencent apres l'ornement.
 local function coins(f, piece)
+    -- Le cadre leger a des encoches (4 octobre 2026) : les boutons y sont
+    -- centres, sur les mesures de l'atlas. Le lourd n'en a pas : miroir.
+    local enc = LCM.UI.AelEncoches(f)
+    if enc then
+        local pc, _, rc, xc, yc = f.coinGauche:GetPoint(1)
+        local pf, _, rf, xf, yf = f.fermer:GetPoint(1)
+        attendu("  pastille centree dans l'encoche gauche", pc .. rc .. xc .. yc,
+            "CENTERTOPLEFT" .. enc.gauche[1] .. enc.gauche[2])
+        attendu("  croix centree dans l'encoche droite", pf .. rf .. xf .. yf,
+            "CENTERTOPRIGHT" .. enc.droite[1] .. enc.droite[2])
+        return
+    end
     local _, _, _, xc, yc = f.coinGauche:GetPoint(1)
     local _, _, _, xf, yf = f.fermer:GetPoint(1)
     attendu("  miroir horizontal", xc, -xf)
@@ -86,8 +98,10 @@ attendu("  sans habillage, plus rien a eviter", xi < 10, true)
 LCM.UI.AppliquerTheme("leger")
 attendu("  un titre court garde ses ornements", fv.ornementG:IsShown(), true)
 local pr = LCM.UI.Vues.Fenetre("penetrations_resistances")
--- Le texte tient, ses ornements passeraient sous la croix : ils s'effacent.
-attendu("  un titre trop long les perd", pr.ornementG:IsShown() or pr.ornementD:IsShown(), false)
+-- Ses ornements s'effacaient : ils seraient passes sous la croix. Depuis le
+-- 4 octobre 2026 la croix est dans son encoche, a l'interieur de la piece
+-- d'angle : elle ne les gene plus.
+attendu("  un titre long garde ses ornements (croix dans l'encoche)", pr.ornementG:IsShown(), true)
 attendu("  mais garde son texte", pr.titre:GetText(), "PÉNÉTRATION & RÉSISTANCES")
 
 dire("== deux fenetres ne naissent pas au meme endroit")

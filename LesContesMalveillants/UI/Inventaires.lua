@@ -637,6 +637,12 @@ function Ecran.FermerSac(onglet, index)
     if s then s:Hide() end
 end
 
+-- Les fenetres de sac montrent un emplacement de CE personnage : quand on en
+-- change, elles n'ont plus de sens.
+function Ecran.FermerSacsOuverts()
+    for _, s in pairs(sacs) do if s:IsShown() then s:Hide() end end
+end
+
 function Ecran.RafraichirSacs()
     for _, s in pairs(sacs) do if s:IsShown() then s:Rafraichir() end end
 end
@@ -650,6 +656,11 @@ end
 -- remplit un) : l'inventaire ouvert suit (Core/Direct.lua).
 LCM.Entities.Ecouter(function(entity)
     if entity == LCM.Entities.Self() then Ecran.Actualiser() end
+end)
+-- On joue quelqu'un d'autre : ses sacs a lui.
+LCM.Entities.EcouterSoi(function()
+    Ecran.FermerSacsOuverts()
+    Ecran.Actualiser()
 end)
 
 -- ===== Ouverture ==========================================================

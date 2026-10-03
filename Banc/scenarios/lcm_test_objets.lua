@@ -83,7 +83,10 @@ fr:Montrer(moi)
 fr:Afficher("resistances")
 local ombre
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Ombre" then ombre = l end end
-attendu("Ombre : valeur + bonus", ombre.valeur:GetText(), "0 +2")
+-- Le bonus a son texte, a droite de la valeur : le 0 reste dans sa colonne.
+attendu("Ombre : la valeur seule dans sa colonne", ombre.valeur:GetText(), "0")
+attendu("Ombre : le bonus a sa droite", ombre.bonus:GetText(), "+2")
+attendu("Ombre : ancre a droite de la valeur", select(3, ombre.bonus:GetPoint(1)), "RIGHT")
 local feu
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Feu" then feu = l end end
 attendu("Feu : pas de bonus, pas de signe", feu.valeur:GetText(), "0")

@@ -123,6 +123,7 @@ local function Construire()
 
     -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
     UI.SuivrePersonnage(f, function(self) self:Afficher() end)
+    f.suitSoi = true
     return f
 end
 

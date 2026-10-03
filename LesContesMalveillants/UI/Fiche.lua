@@ -191,6 +191,13 @@ function Lignes.stat(parent, field, c)
     -- chiffres restent les uns sous les autres ; simplement plus pres du nom.
     l.valeur:SetPoint("RIGHT", l, "LEFT", c.valeur + c.valeurLargeur, 0)
     l.valeur:SetJustifyH("RIGHT")
+    -- Le bonus a son propre texte, A DROITE de la valeur (4 octobre 2026) :
+    -- ecrit a la suite dans le meme texte aligne a droite, « 0 +1 » poussait
+    -- le 0 vers la gauche, et la colonne ne s'alignait plus.
+    l.bonus = UI.Texte(l, "", UI.C.titre)
+    UI.Police(l.bonus, c.police)
+    l.bonus:SetPoint("LEFT", l.valeur, "RIGHT", 4, 0)
+    l.bonus:SetJustifyH("LEFT")
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
         local valeur = LCM.Entities.Get_Value(e, field.id)
@@ -198,9 +205,11 @@ function Lignes.stat(parent, field, c)
         -- part : « 2 +3 », pour qu'on sache ce qui vient de soi.
         local bonus = field.kind == "stat" and LCM.Effets.Bonus(e, field.id) or 0
         if bonus ~= 0 then
-            self.valeur:SetText(Nombre(tonumber(valeur) or 0) .. " " .. Montant(bonus))
+            self.valeur:SetText(Nombre(tonumber(valeur) or 0))
+            self.bonus:SetText(Montant(bonus))
         else
             self.valeur:SetText(Nombre(valeur))
+            self.bonus:SetText("")
         end
     end
     return l
@@ -1412,38 +1421,16 @@ function Fiche.Artwork(parent, largeur)
     -- bord : les seize bandes d'avant doublaient l'opacite dans les coins.
     p.inconscient = CreateFrame("Frame", nil, p)
     local etat = p.inconscient
-    etat:SetPoint("TOPLEFT", p, "TOPLEFT", 3, -3)
-    etat:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -3, 3)
+    -- Cale exactement sur le portrait : en retrait de 3 quand le portrait l'est
+    -- de 2, il laissait un liseré clair d'un pixel tout autour.
+    etat:SetAllPoints(p.art)
     etat:SetFrameLevel(p:GetFrameLevel() + 4)
     etat:EnableMouse(false)
-    local SOMBRE = { 0.10, 0.005, 0.015, 0.97 }
-    local CLAIR = { 0.86, 0.17, 0.19, 0.26 }
-    local CLAIR_EFFACE = { CLAIR[1], CLAIR[2], CLAIR[3], 0 }
-    etat.coeur = UI.Aplat(etat, CLAIR, "BACKGROUND")
-    etat.coeur:SetAllPoints(etat)
-    local function Couleur(c) return CreateColor(c[1], c[2], c[3], c[4]) end
-    -- `bord` : le cote opaque. Le jeu prend la couleur « min » a gauche (ou en
-    -- bas), « max » a droite (ou en haut).
-    local function Bord(cote, epaisseur)
-        local t = etat:CreateTexture(nil, "ARTWORK")
-        t:SetColorTexture(1, 1, 1, 1)
-        if cote == "LEFT" or cote == "RIGHT" then
-            t:SetPoint("TOP" .. cote, etat, "TOP" .. cote, 0, 0)
-            t:SetPoint("BOTTOM" .. cote, etat, "BOTTOM" .. cote, 0, 0)
-            t:SetWidth(epaisseur)
-            if cote == "LEFT" then t:SetGradient("HORIZONTAL", Couleur(SOMBRE), Couleur(CLAIR_EFFACE))
-            else t:SetGradient("HORIZONTAL", Couleur(CLAIR_EFFACE), Couleur(SOMBRE)) end
-        else
-            t:SetPoint(cote .. "LEFT", etat, cote .. "LEFT", 0, 0)
-            t:SetPoint(cote .. "RIGHT", etat, cote .. "RIGHT", 0, 0)
-            t:SetHeight(epaisseur)
-            if cote == "BOTTOM" then t:SetGradient("VERTICAL", Couleur(SOMBRE), Couleur(CLAIR_EFFACE))
-            else t:SetGradient("VERTICAL", Couleur(CLAIR_EFFACE), Couleur(SOMBRE)) end
-        end
-        return t
-    end
-    local laterale = math.floor(largeur * 0.42)
-    etat.bords = { Bord("LEFT", laterale), Bord("RIGHT", laterale), Bord("TOP", 170), Bord("BOTTOM", 170) }
+    -- Une seule texture (ressources/fiche/voile-inconscient.tga, 256 x 512) :
+    -- SetGradient rendait du noir opaque en jeu, sans transparence.
+    etat.voile = etat:CreateTexture(nil, "ARTWORK")
+    etat.voile:SetTexture("Interface\\AddOns\\LesContesMalveillants\\ressources\\fiche\\voile-inconscient.tga")
+    etat.voile:SetAllPoints(etat)
 
     local cartouche = CreateFrame("Frame", nil, etat)
     cartouche:SetSize(276, 64)

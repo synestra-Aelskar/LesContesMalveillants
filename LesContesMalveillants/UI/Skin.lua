@@ -50,6 +50,15 @@ local VARIANTES = {
         -- sur trente unites — exactement la ou la croix se pose. On prend le
         -- plus large des deux : les coins restent en miroir.
         emprise = { bas = 40, cote = 30, coinHaut = 140 },
+        -- Les encoches des coins hauts, ou se posent la pastille (a gauche) et
+        -- la croix (a droite) : le centre de chaque petit cadre a boussole, en
+        -- unites source, et le cote du bouton qui s'y pose. Mesurees au pixel
+        -- sur l'atlas le 4 octobre 2026. Les deux pieces d'angle ne sont pas
+        -- en miroir exact : la droite est 2,5 unites plus loin de son bord.
+        -- Le bouton couvre tout le petit cadre dore (environ 66 x 53), pas
+        -- seulement son interieur sombre (40 x 32) : a cette taille-la, on ne
+        -- le voyait plus.
+        encoches = { gauche = { 110.5, 86 }, droite = { 1423, 85.5 }, cote = 54 },
         fixes = {
             {   0,   0, 230, 330,    0,   0, "TOPLEFT" },
             { 232,   0, 236, 330, 1300,   0, "TOPRIGHT" },
@@ -173,6 +182,22 @@ end
 
 -- Ce que l'ornement du coin haut prend, en pixels d'ecran. Zero sans atlas :
 -- il n'y a alors rien a eviter.
+-- Ou poser la croix et la pastille : le centre de chaque encoche, en pixels,
+-- depuis le coin haut correspondant de la fenetre (gauche depuis TOPLEFT,
+-- droite depuis TOPRIGHT), et le cote d'un bouton qui y tient. Nil sans
+-- encoches (Incritas, cadre lourd).
+function UI.AelEncoches(cadre)
+    local decor = cadre and cadre.decor
+    local V = decor and decor.theme and VARIANTES[decor.theme]
+    if not V or not V.encoches or not decor.echelle then return nil end
+    local k, e = decor.echelle, V.encoches
+    return {
+        gauche = { (e.gauche[1] - V.L) * k, -(e.gauche[2] - V.T) * k },
+        droite = { (e.droite[1] - V.R) * k, -(e.droite[2] - V.T) * k },
+        cote = e.cote * k,
+    }
+end
+
 function UI.AelRetraitCoin(cadre)
     local decor = cadre and cadre.decor
     local V = decor and decor.theme and VARIANTES[decor.theme]

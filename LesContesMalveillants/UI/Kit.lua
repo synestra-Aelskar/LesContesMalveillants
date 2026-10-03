@@ -188,7 +188,10 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
             -- Résistances » sur 340) pousserait ses ornements sous la croix et
             -- la pastille : ils s'effacent, le titre reste. Ce sont eux le
             -- decor, pas les boutons.
-            local place = self.fermer and (self:GetWidth() / 2 - (self.retraitCoin or 0) - self.fermer:GetWidth() - 4)
+            -- Une croix posee dans son encoche est DANS la piece d'angle : seule
+            -- la piece limite alors les ornements.
+            local croix = self.dansEncoches and 0 or (self.fermer and self.fermer:GetWidth() or 0)
+            local place = self.fermer and (self:GetWidth() / 2 - (self.retraitCoin or 0) - croix - 4)
             local tient = not place or demi + self.ornementD:GetWidth() <= place
             self.ornementG:SetShown(tient)
             self.ornementD:SetShown(tient)
@@ -227,6 +230,31 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- un bouton mord sur la tour d'angle de l'habillage.
     function f:PlacerCoinsHaut()
         local retrait = math.max(6 * q, (UI.AelRetraitCoin and UI.AelRetraitCoin(self) or 0) + 4)
+        -- Le cadre a deux ENCOCHES dans ses coins hauts (les petits cadres a
+        -- boussole, a cote des bougies) : la croix et la pastille s'y posent,
+        -- centrees, a leur taille. Mesurees sur l'atlas (UI.AelEncoches) ; au
+        -- jugé, elles tombaient a cote (4 octobre 2026).
+        local encoches = UI.AelEncoches and UI.AelEncoches(self)
+        if encoches then
+            local cote = math.max(10, math.floor(encoches.cote + 0.5))
+            self.fermer:SetSize(cote, cote)
+            self.fermer:ClearAllPoints()
+            self.fermer:SetPoint("CENTER", self, "TOPRIGHT", encoches.droite[1], encoches.droite[2])
+            if self.coinGauche then
+                self.coinGauche:SetSize(cote, cote)
+                -- La lettre du canal grandit avec sa case.
+                if self.coinGauche.label and UI.Police then
+                    UI.Police(self.coinGauche.label, math.max(10, math.floor(cote * 0.6)))
+                end
+                self.coinGauche:ClearAllPoints()
+                self.coinGauche:SetPoint("CENTER", self, "TOPLEFT", encoches.gauche[1], encoches.gauche[2])
+            end
+            self.retraitCoin = retrait
+            self.dansEncoches = true
+            self:Titre(self.titre:GetText())
+            return
+        end
+        self.dansEncoches = nil
         -- Chacun s'ecarte du centre de SA PROPRE largeur. Poses au retrait de
         -- l'ornement, la croix et la pastille du canal avaient l'air posees au
         -- milieu de la feuille plutot qu'a son bord. Un plancher les garde
@@ -1250,6 +1278,18 @@ UI.suivis = {}
 function UI.SuivrePersonnage(f, redessiner)
     UI.suivis[#UI.suivis + 1] = { fenetre = f, redessiner = redessiner }
 end
+
+-- Une fenetre qui montre celui qu'on joue (`f.suitSoi`, et une methode
+-- `Montrer(entity)`) passe au nouveau quand on incarne quelqu'un d'autre ou
+-- qu'on reprend sa place. Celle qui regarde un autre personnage (le MJ qui
+-- consulte une fiche) n'est pas touchee.
+LCM.Entities.EcouterSoi(function(avant, apres)
+    for _, f in ipairs(UI.fenetres) do
+        if f.suitSoi and f:IsShown() and f.Montrer and (f.entity == nil or f.entity == avant) then
+            f:Montrer(apres)
+        end
+    end
+end)
 
 LCM.Entities.Ecouter(function(entity)
     for _, s in ipairs(UI.suivis) do

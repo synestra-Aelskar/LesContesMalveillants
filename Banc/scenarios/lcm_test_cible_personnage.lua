@@ -21,7 +21,19 @@ local moi = LCM.PlayerId()
 __groupe({ moi, "Nytherah-Apertus", "Claydenn-Apertus" })
 
 dire("== Le MJ incarne l'assassin")
+-- Les fenetres ouvertes sur Blud suivent l'incarnation ; celle qui regarde
+-- quelqu'un d'autre ne bouge pas.
+LCM.UI.Menu.Trouver("statistiques").onClick()
+local stats = LCM.UI.Vues.frames.statistiques
+attendu("statistiques ouvertes sur Blud", stats.entity == blud, true)
+local autre = LCM.Entities.Create("autre_perso", "Autre", "player")
+local consult = LCM.UI.Vues.Fenetre("equipement")
+consult:Montrer(autre)
 local assassin = LCM.Incarnation.Incarner(LCM.PNJ.list[1].id, "Assassin du culte")
+attendu("les statistiques passent a l'assassin", stats.entity == assassin, true)
+attendu("et son nom en sous-titre", stats.sousTitre:GetText(), assassin.name)
+attendu("la fenetre sur un autre ne bouge pas", consult.entity == autre, true)
+consult:Hide()
 attendu("incarne", E.Self() == assassin, true)
 attendu("mais son personnage reste Blud", E.Personnage() == blud, true)
 
@@ -78,6 +90,8 @@ attendu("resolue sur l'assassin", recu and recu.entity == assassin, true)
 
 dire("== Sans incarnation, rien ne change")
 LCM.Incarnation.Relacher()
+attendu("reprendre sa place : retour a Blud", stats.entity == blud, true)
+stats:Hide()
 attendu("Self et Personnage confondus", E.Self() == E.Personnage(), true)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

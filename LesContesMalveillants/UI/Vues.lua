@@ -150,11 +150,15 @@ local function Sommaire(f, vue)
     return s
 end
 
+local RETRAIT_ONGLETS_FICHE = 24
+
 local function Construire(vue, rang)
     local f = UI.Fenetre("vue_" .. vue.id, vue.titre, vue.largeur, vue.hauteur,
         { x = 180 + rang * DECALAGE, y = -rang * DECALAGE },
         { redimensionnable = true })
     f.vue = vue
+    -- Elle suit celui qu'on joue (incarnation, autre personnage).
+    f.suitSoi = not vue.sansPersonnage
     if vue.id == "fiche" then
         f.boutonsDansEncoches = true
         f:PlacerCoinsHaut()
@@ -221,7 +225,9 @@ local function Construire(vue, rang)
         f.sommaire:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
         f.sommaire:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     elseif #vue.onglets > 1 then
-        local retraitOnglets = vue.id == "fiche" and 16 or 0
+        -- La fiche resserre ses onglets pour qu'ils tiennent entre les
+        -- montants du cadre (24 de chaque cote depuis le 4 octobre 2026).
+        local retraitOnglets = vue.id == "fiche" and RETRAIT_ONGLETS_FICHE or 0
         local onglets = {}
         for _, onglet in ipairs(vue.onglets) do
             onglets[#onglets + 1] = { id = onglet.id, label = onglet.label, couleur = onglet.couleur }
@@ -277,7 +283,7 @@ local function Construire(vue, rang)
         if self.SetResizeBounds then self:SetResizeBounds(largeur, 160, largeur) end
         self:SetWidth(largeur)
         if self.barre then
-            local largeurOnglets = largeur - 24 - 32
+            local largeurOnglets = largeur - 24 - 2 * RETRAIT_ONGLETS_FICHE
             self.barre:SetWidth(largeurOnglets)
             self.barre:Disposer(largeurOnglets, self.mesures.onglet, { uneRangee = true })
         end

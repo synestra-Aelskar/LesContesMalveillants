@@ -82,6 +82,22 @@ function Entities.Self()
     return Entities.Get(id)
 end
 
+-- On joue quelqu'un d'autre (incarnation prise ou relachee, autre personnage
+-- choisi) : les fenetres qui montraient l'ancien passent au nouveau (4 octobre
+-- 2026). `avant` : l'entite d'avant le changement ; l'ecouteur lit `Self()`.
+Entities.ecouteursSoi = {}
+function Entities.EcouterSoi(fn)
+    if type(fn) == "function" then Entities.ecouteursSoi[#Entities.ecouteursSoi + 1] = fn end
+end
+function Entities.SoiChange(avant)
+    local apres = Entities.Self()
+    if apres == avant then return end
+    for _, fn in ipairs(Entities.ecouteursSoi) do
+        local ok, err = pcall(fn, avant, apres)
+        if not ok then LCM.Debug("soi : " .. tostring(err)) end
+    end
+end
+
 -- Le PERSONNAGE du joueur, meme quand le MJ incarne un PNJ (4 octobre 2026).
 -- Une action qui vise un JOUEUR arrive sur lui, pas sur le PNJ auquel il
 -- prete sa voix : l'assassin incarne attaque, mais c'est Blud qui encaisse une

@@ -81,13 +81,14 @@ local f = LCM.UI.Vues.Basculer("fiche")
 attendu("il est la", f.canal ~= nil, true)
 -- La pastille porte la LETTRE du canal, sa couleur dit le reste.
 attendu("il porte la lettre du canal", f.canal.label:GetText(), "L")
--- Dans l'en-tete, en miroir de la croix : meme taille, meme retrait du coin.
-local pointCanal, _, _, xCanal, yCanal = f.canal:GetPoint(1)
-local pointCroix, _, _, xCroix, yCroix = f.fermer:GetPoint(1)
-attendu("ancree au coin haut gauche de la fenetre", pointCanal, "TOPLEFT")
-attendu("la croix, au coin haut droit", pointCroix, "TOPRIGHT")
-attendu("meme hauteur que la croix", yCanal, yCroix)
-attendu("meme retrait du bord", xCanal, -xCroix)
+-- Dans l'encoche du coin haut gauche, la croix dans celle de droite, meme
+-- taille (4 octobre 2026 : posees sur les encoches mesurees de l'atlas, qui
+-- ne sont pas en miroir exact).
+local _, _, relCanal = f.canal:GetPoint(1)
+local _, _, relCroix = f.fermer:GetPoint(1)
+attendu("au coin haut gauche de la fenetre", relCanal, "TOPLEFT")
+attendu("la croix, au coin haut droit", relCroix, "TOPRIGHT")
+attendu("meme taille que la croix", f.canal:GetWidth(), f.fermer:GetWidth())
 attendu("et meme taille", f.canal:GetWidth(), f.fermer:GetWidth())
 f.canal:Click()
 attendu("le menu s'ouvre", f.canalMenu:IsShown(), true)

@@ -110,15 +110,19 @@ function Incarnation.Prendre(id)
     if not LCM.IsMaster() then return nil, "reserve au maitre du jeu." end
     local instance = Incarnation.Instance(id)
     if not instance then return nil, "instance inconnue." end
+    local avant = LCM.Entities.Self()
     Etat().incarne = instance.id
     if Incarnation.onChange then Incarnation.onChange(instance) end
+    LCM.Entities.SoiChange(avant)
     return instance
 end
 
 function Incarnation.Relacher()
     local avant = Incarnation.ActuelleId()
+    local qui = LCM.Entities.Self()
     Etat().incarne = nil
     if avant ~= "" and Incarnation.onChange then Incarnation.onChange(nil) end
+    LCM.Entities.SoiChange(qui)
     return avant ~= ""
 end
 

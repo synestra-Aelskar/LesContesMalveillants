@@ -53,9 +53,11 @@ function Personnages.Choisir(id)
         LCM.Alerte("ce personnage n'existe pas.")
         return nil
     end
+    local avant = LCM.Entities.Self()
     EtatPerso().personnageActif = id
     -- Le groupe voit ce nom dans ses listes de cibles (Core/Presence.lua).
     if LCM.Presence and LCM.Presence.Annoncer then LCM.Presence.Annoncer() end
+    LCM.Entities.SoiChange(avant)
     if LCM.UI and LCM.UI.Fiche and LCM.UI.Fiche.frame and LCM.UI.Fiche.frame:IsShown() then
         LCM.UI.Fiche.frame:Montrer(entity)
     end
