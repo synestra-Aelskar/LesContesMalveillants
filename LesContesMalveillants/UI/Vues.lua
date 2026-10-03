@@ -155,6 +155,10 @@ local function Construire(vue, rang)
         { x = 180 + rang * DECALAGE, y = -rang * DECALAGE },
         { redimensionnable = true })
     f.vue = vue
+    if vue.id == "fiche" then
+        f.boutonsDansEncoches = true
+        f:PlacerCoinsHaut()
+    end
     f.nom = f.sousTitre
     -- Une hauteur deja retenue en sauvegarde est un choix du joueur : on ne la
     -- recalcule pas sous ses yeux a la premiere ouverture.
@@ -217,12 +221,16 @@ local function Construire(vue, rang)
         f.sommaire:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
         f.sommaire:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     elseif #vue.onglets > 1 then
+        local retraitOnglets = vue.id == "fiche" and 16 or 0
         local onglets = {}
-        for _, onglet in ipairs(vue.onglets) do onglets[#onglets + 1] = { id = onglet.id, label = onglet.label } end
+        for _, onglet in ipairs(vue.onglets) do
+            onglets[#onglets + 1] = { id = onglet.id, label = onglet.label, couleur = onglet.couleur }
+        end
         f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
-        f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
-        f.barre:SetWidth(largeurContenu)
-        haut = haut + f.barre:Disposer(largeurContenu, f.mesures.onglet) + 6
+        f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", retraitOnglets, -haut)
+        f.barre:SetWidth(largeurContenu - 2 * retraitOnglets)
+        haut = haut + f.barre:Disposer(largeurContenu - 2 * retraitOnglets,
+            f.mesures.onglet, vue.id == "fiche" and { uneRangee = true } or nil) + 6
     end
 
     f.zone = UI.Defilement(f.contenu)
@@ -236,14 +244,56 @@ local function Construire(vue, rang)
     f.pages = {}
     for _, onglet in ipairs(vue.onglets) do
         local page = UI.Fiche.Page(f.zone.contenu, onglet.sections, largeurPage)
+        if onglet.couleur then
+            local c = onglet.couleur
+            for _, bloc in ipairs(page.blocs) do
+                if bloc.titre then
+                    bloc.titre:SetTextColor(c[1], c[2], c[3])
+                    -- Le libelle reste explicite meme sans distinguer les couleurs.
+                    bloc.titre:SetText(UI.Majuscules(onglet.label .. " · " .. bloc.section.label))
+                end
+                if bloc.filet then bloc.filet:SetColorTexture(c[1], c[2], c[3], 0.65) end
+                bloc.repereCouleur = UI.Aplat(bloc, { c[1], c[2], c[3], 0.8 }, "OVERLAY")
+                bloc.repereCouleur:SetWidth(2)
+                bloc.repereCouleur:SetPoint("TOPLEFT", bloc, "TOPLEFT", 4, -bloc.hautTitre)
+                bloc.repereCouleur:SetPoint("BOTTOMLEFT", bloc, "BOTTOMLEFT", 4, 5)
+            end
+        end
         page.onHauteur = function(h) if page:IsShown() then f.zone:Regler(h) end end
         f.pages[onglet.id] = page
     end
     -- Une vue simple : sa page unique, sous le nom qu'on lui a toujours donne.
     f.page = f.pages[vue.onglets[1].id]
+    if vue.id == "fiche" then
+        f.artwork = UI.Fiche.Artwork(f.contenu, vue.largeur - 12)
+        f.artwork:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
+        f.artwork:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    end
+
+    function f:DisposerArtwork()
+        if not self.artwork then return end
+        local ouvert = self.onglet == "statistiques"
+        local largeur = vue.largeur * (ouvert and 2 or 1)
+        if self.SetResizeBounds then self:SetResizeBounds(largeur, 160, largeur) end
+        self:SetWidth(largeur)
+        if self.barre then
+            local largeurOnglets = largeur - 24 - 32
+            self.barre:SetWidth(largeurOnglets)
+            self.barre:Disposer(largeurOnglets, self.mesures.onglet, { uneRangee = true })
+        end
+        self.artwork:SetShown(ouvert)
+        self.zone:ClearAllPoints()
+        self.zone:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", ouvert and vue.largeur or 0, -haut)
+        self.zone:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", 0, 0)
+        if ouvert and self.entity then
+            self.artwork.entity = self.entity
+            self.artwork:Actualiser(self.entity)
+        end
+    end
 
     function f:Afficher(ongletId)
         self.onglet = ongletId
+        self:DisposerArtwork()
         if self.barre then self.barre:Selectionner(ongletId) end
         for id, page in pairs(self.pages) do page:SetShown(id == ongletId) end
         local page = self.pages[ongletId]
@@ -256,6 +306,7 @@ local function Construire(vue, rang)
         -- qu'une fois la page disposee.
         if self.sommaire then self.sommaire:Actualiser() end
         self:AjusterHauteur()
+        if self.artwork and self.entity then self.artwork:Actualiser(self.entity) end
     end
 
     -- La fenetre prend la hauteur de son contenu : on ne fait pas defiler une
@@ -298,6 +349,7 @@ local function Construire(vue, rang)
     function f:Actualiser()
         local page = self.onglet and self.pages[self.onglet]
         if self.entity and page then page:Actualiser(self.entity) end
+        if self.artwork and self.entity then self.artwork:Actualiser(self.entity) end
     end
 
     -- Une vue qu'on lit se tire aux dimensions qu'on veut : un chapitre de
@@ -318,6 +370,7 @@ local function Construire(vue, rang)
     if not texteSeul then
         UI.Redimensionner(f, vue.largeur, 160, function()
             f.hauteurChoisie = true
+            f:DisposerArtwork()
             local page = f.onglet and f.pages[f.onglet]
             if page then f.zone:Regler(page.hauteur) end
         end, vue.largeur)
@@ -367,6 +420,11 @@ end
 -- jauge, un trait tombe) : ce qui est affiche suit, immediatement. Avant, il
 -- fallait fermer la fiche et la rouvrir pour voir ses propres PA descendre.
 LCM.WhenReady(function()
+    local avantGain = LCM.Experience.onGain
+    LCM.Experience.onGain = function(...)
+        if avantGain then avantGain(...) end
+        Ecran.Rafraichir()
+    end
     LCM.Entities.onChange = function(entity)
         -- Une fiche montre UN personnage : celle qui regarde quelqu'un d'autre
         -- n'a aucune raison de se recalculer.

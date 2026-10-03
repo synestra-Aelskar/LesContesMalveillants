@@ -257,6 +257,16 @@ E.armure = {
     parDefaut = 2,
 }
 
+-- ===== Forge ================================================================
+-- Le cout d'un point dans une statistique qu'un jeu d'equilibrage ne regle
+-- pas (Core/Forge.lua). Repris de Necronicon (GetForgeStatCost : 1 quand rien
+-- n'est fixe). Les pools des raretes et les autres couts sont decides par le
+-- MJ en creant chaque jeu, pas ici (decision du 3 octobre 2026).
+
+E.forge = {
+    coutParDefaut = 1,
+}
+
 -- ===== Inventaires ==========================================================
 -- Les emplacements de la fenetre Inventaires du template, par onglet : deux
 -- sacs, quatre saccoches, un emplacement de devise (inventoryWindows ›

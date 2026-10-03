@@ -234,7 +234,10 @@ function Compendium.Options(champ)
         end
     end
     local liste = source:match("^listes:(.+)$")
-    if liste then
+    local forge = source:match("^forge:(.+)$")
+    if forge then
+        for _, option in ipairs(LCM.Forge.Options(forge)) do out[#out + 1] = option end
+    elseif liste then
         Ajouter(LCM.Listes.De(liste))
     elseif source == "metiers" then
         Ajouter(LCM.Metiers.list)
@@ -267,6 +270,8 @@ local FAMILLES = {
     devises = "Devises", informations = "Informations", listes = "Listes",
     connaissances = "Connaissances", resolutions = "Resolutions",
     calculateurs = "Calculateurs", pnj = "PNJ",
+    -- Les jeux d'equilibrage de la forge : du contenu, sans categorie a eux.
+    jeux = "Forge",
 }
 Compendium.FAMILLES = FAMILLES
 

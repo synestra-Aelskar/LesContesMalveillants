@@ -1053,36 +1053,66 @@ function Lignes.conteneur(bloc, def, c)
     -- d'une demi-ligne trop haut.
     bloc.occupation:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -26 * m.echelle, -(bloc.hautTitre - 4) / 2 + 2)
 
+    -- Un catalogue qui s'equipe depuis les sacs (les objets) : chacun habille
+    -- son propre personnage, et l'on ne propose que ce qu'il porte dans ses
+    -- sacs. Les autres (etats, apprentissages) restent un geste du MJ.
+    local depuisLesSacs = l.catalogue.Equiper ~= nil
+
+    function l:Autorise(entity)
+        if not entity then return false end
+        if LCM.IsMaster() then return true end
+        return depuisLesSacs and LCM.Personnages.Actif() == entity
+    end
+
     function l:Proposer(ancre)
-        if not (self.entity and LCM.IsMaster()) then return end
+        if not self:Autorise(self.entity) then return end
         local categorie = self.catalogue.Categorie(self.categorie)
+        local candidats = depuisLesSacs and self.catalogue.CandidatsPossedes(self.entity, self.categorie)
+            or self.catalogue.Candidats(self.entity, self.categorie)
         local options = {}
-        for _, element in ipairs(self.catalogue.Candidats(self.entity, self.categorie)) do
+        for _, element in ipairs(candidats) do
             options[#options + 1] = { id = element.id, label = element.label .. (element.brouillon and "  · brouillon" or "") }
         end
         if #options == 0 then
-            LCM.Alerte(string.format("rien a ajouter en %s.", categorie.label:lower()))
+            LCM.Alerte(depuisLesSacs
+                and string.format("aucun objet de type %s dans les sacs.", categorie.label:lower())
+                or string.format("rien a ajouter en %s.", categorie.label:lower()))
             return
         end
         table.sort(options, function(a, b) return a.label:lower() < b.label:lower() end)
         local choix = Choix()
         choix.titre:SetText(categorie.label)
         choix:Proposer(ancre, options, function(id)
-            local ok, raison = self.catalogue.Placer(self.entity, id)
+            local placer = depuisLesSacs and self.catalogue.Equiper or self.catalogue.Placer
+            local ok, raison = placer(self.entity, id)
             if not ok then LCM.Alerte(raison) end
             self:Actualiser(self.entity)
         end)
     end
 
-    -- Retirer se rattrape (on replace) : pas de confirmation.
+    -- Retirer se rattrape (on replace) : pas de confirmation. Un objet
+    -- retourne dans un sac ; sans place, il reste porte et c'est dit.
     function l:Retirer(id)
-        if not (self.entity and LCM.IsMaster()) then return end
-        if self.catalogue.Enlever(self.entity, id) then self:Actualiser(self.entity) end
+        if not self:Autorise(self.entity) then return end
+        if depuisLesSacs then
+            -- Un objet disparu de cette version ne peut pas retourner dans un
+            -- sac (une case refuse l'inconnu) : seul le MJ l'enleve, d'un clic
+            -- explicite, comme avant.
+            if not self.catalogue.Get(id) and LCM.IsMaster() then
+                if self.catalogue.Enlever(self.entity, id) then self:Actualiser(self.entity) end
+                return
+            end
+            local ok, raison = self.catalogue.Desequiper(self.entity, id)
+            if not ok then LCM.Alerte(raison) end
+            self:Actualiser(self.entity)
+        elseif self.catalogue.Enlever(self.entity, id) then
+            self:Actualiser(self.entity)
+        end
     end
 
     function l:Actualiser(e)
         self.entity = e
-        local mj = LCM.IsMaster()
+        local mj = self:Autorise(e)
         local portes = self.catalogue.Ids(e, self.categorie)
         local places = self.catalogue.Capacite(self.categorie)
         -- Au-dessus du total (capacite reduite apres coup), le compte passe au
@@ -1318,6 +1348,164 @@ function Fiche.Page(parent, sections, largeur)
 end
 
 -- ===== La fenetre ==========================================================
+-- Artwork fixe : il reste visible lorsque les statistiques defilent.
+function Fiche.Artwork(parent, largeur)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetWidth(largeur)
+    p.fond = UI.Aplat(p, UI.C.fond)
+    p.fond:SetAllPoints(p)
+    UI.Bordure(p)
+    p.art = p:CreateTexture(nil, "ARTWORK")
+    p.art:SetPoint("TOPLEFT", p, "TOPLEFT", 2, -2)
+    p.art:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -2, 2)
+
+    local pied = CreateFrame("Frame", nil, p)
+    pied:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 3, 3)
+    pied:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -3, 3)
+    pied:SetHeight(108)
+    -- Voile progressif, pour garder l'image sous le cartouche sans perdre le texte.
+    for i = 1, 12 do
+        local voile = UI.Aplat(pied, { 0.025, 0.015, 0.022, i / 13 }, "BACKGROUND")
+        voile:SetPoint("TOPLEFT", pied, "TOPLEFT", 0, -(i - 1) * 9)
+        voile:SetPoint("TOPRIGHT", pied, "TOPRIGHT", 0, -(i - 1) * 9)
+        voile:SetHeight(9)
+    end
+    p.niveau = UI.Texte(pied, "", UI.C.titre)
+    UI.Police(p.niveau, 22)
+    p.niveau:SetPoint("TOP", pied, "TOP", 0, -27)
+    p.niveau:SetShadowColor(0, 0, 0, 1)
+    p.niveau:SetShadowOffset(1, -2)
+    if UI.AelRef then
+        for _, cote in ipairs({ "LEFT", "RIGHT" }) do
+            local t = UI.AelRef(pied, cote == "LEFT" and 329 or 635, 119, 63, 19, "ARTWORK")
+            t:SetSize(42, 13)
+            t:SetPoint(cote, pied, cote, cote == "LEFT" and 20 or -20, 14)
+        end
+        local gemme = UI.AelRef(pied, 501, 656, 27, 25, "OVERLAY")
+        gemme:SetSize(15, 14)
+        gemme:SetPoint("TOP", pied, "TOP", 0, -9)
+    end
+    p.jauge = CreateFrame("Frame", nil, pied)
+    p.jauge:SetPoint("BOTTOMLEFT", pied, "BOTTOMLEFT", 22, 27)
+    p.jauge:SetPoint("BOTTOMRIGHT", pied, "BOTTOMRIGHT", -22, 27)
+    p.jauge:SetHeight(22)
+    p.remplissage = p.jauge:CreateTexture(nil, "ARTWORK")
+    p.remplissage:SetTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    p.remplissage:SetVertexColor(0.58, 0.12, 0.22)
+    p.remplissage:SetPoint("TOPLEFT", p.jauge, "TOPLEFT", 0, 0)
+    p.remplissage:SetHeight(22)
+    local fond = UI.Aplat(p.jauge, { 0.065, 0.025, 0.035, 1 }, "BACKGROUND")
+    fond:SetAllPoints(p.jauge)
+    local cadre = UI.AelCadreJauge and UI.AelCadreJauge(p.jauge) or p.jauge
+    p.xp = UI.Texte(cadre, "", UI.C.titre)
+    p.xp:SetAllPoints(p.jauge)
+    p.xp:SetJustifyH("CENTER")
+    UI.Police(p.xp, 12)
+    p.legende = UI.Texte(pied, "EXPÉRIENCE", UI.C.discret)
+    p.legende:SetPoint("BOTTOM", pied, "BOTTOM", 0, 9)
+    UI.Police(p.legende, 9)
+
+    -- A zero PV, un voile rouge sur le portrait (4 octobre 2026) : rouge
+    -- tres sombre et opaque sur les bords, qui s'eclaircit et s'efface vers
+    -- le centre, ou ne reste qu'un rouge clair translucide. Le portrait reste
+    -- reconnaissable. Les degrades sont ceux du jeu (SetGradient), un par
+    -- bord : les seize bandes d'avant doublaient l'opacite dans les coins.
+    p.inconscient = CreateFrame("Frame", nil, p)
+    local etat = p.inconscient
+    etat:SetPoint("TOPLEFT", p, "TOPLEFT", 3, -3)
+    etat:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -3, 3)
+    etat:SetFrameLevel(p:GetFrameLevel() + 4)
+    etat:EnableMouse(false)
+    local SOMBRE = { 0.10, 0.005, 0.015, 0.97 }
+    local CLAIR = { 0.86, 0.17, 0.19, 0.26 }
+    local CLAIR_EFFACE = { CLAIR[1], CLAIR[2], CLAIR[3], 0 }
+    etat.coeur = UI.Aplat(etat, CLAIR, "BACKGROUND")
+    etat.coeur:SetAllPoints(etat)
+    local function Couleur(c) return CreateColor(c[1], c[2], c[3], c[4]) end
+    -- `bord` : le cote opaque. Le jeu prend la couleur « min » a gauche (ou en
+    -- bas), « max » a droite (ou en haut).
+    local function Bord(cote, epaisseur)
+        local t = etat:CreateTexture(nil, "ARTWORK")
+        t:SetColorTexture(1, 1, 1, 1)
+        if cote == "LEFT" or cote == "RIGHT" then
+            t:SetPoint("TOP" .. cote, etat, "TOP" .. cote, 0, 0)
+            t:SetPoint("BOTTOM" .. cote, etat, "BOTTOM" .. cote, 0, 0)
+            t:SetWidth(epaisseur)
+            if cote == "LEFT" then t:SetGradient("HORIZONTAL", Couleur(SOMBRE), Couleur(CLAIR_EFFACE))
+            else t:SetGradient("HORIZONTAL", Couleur(CLAIR_EFFACE), Couleur(SOMBRE)) end
+        else
+            t:SetPoint(cote .. "LEFT", etat, cote .. "LEFT", 0, 0)
+            t:SetPoint(cote .. "RIGHT", etat, cote .. "RIGHT", 0, 0)
+            t:SetHeight(epaisseur)
+            if cote == "BOTTOM" then t:SetGradient("VERTICAL", Couleur(SOMBRE), Couleur(CLAIR_EFFACE))
+            else t:SetGradient("VERTICAL", Couleur(CLAIR_EFFACE), Couleur(SOMBRE)) end
+        end
+        return t
+    end
+    local laterale = math.floor(largeur * 0.42)
+    etat.bords = { Bord("LEFT", laterale), Bord("RIGHT", laterale), Bord("TOP", 170), Bord("BOTTOM", 170) }
+
+    local cartouche = CreateFrame("Frame", nil, etat)
+    cartouche:SetSize(276, 64)
+    cartouche:SetPoint("CENTER", etat, "CENTER", 0, 0)
+    local ombre = UI.Aplat(cartouche, { 0.09, 0.008, 0.014, 0.8 }, "BACKGROUND")
+    ombre:SetAllPoints(cartouche)
+    local filetHaut = UI.Aplat(cartouche, { 0.69, 0.12, 0.16, 0.8 }, "ARTWORK")
+    filetHaut:SetHeight(1)
+    filetHaut:SetPoint("TOPLEFT", cartouche, "TOPLEFT", 12, -7)
+    filetHaut:SetPoint("TOPRIGHT", cartouche, "TOPRIGHT", -12, -7)
+    local filetBas = UI.Aplat(cartouche, { 0.36, 0.035, 0.055, 0.85 }, "ARTWORK")
+    filetBas:SetHeight(1)
+    filetBas:SetPoint("BOTTOMLEFT", cartouche, "BOTTOMLEFT", 12, 7)
+    filetBas:SetPoint("BOTTOMRIGHT", cartouche, "BOTTOMRIGHT", -12, 7)
+    etat.texte = UI.Texte(cartouche, "INCONSCIENT", { 0.94, 0.13, 0.17 })
+    UI.Police(etat.texte, 25, "OUTLINE")
+    etat.texte:SetPoint("CENTER", cartouche, "CENTER", 0, 0)
+    etat.texte:SetWidth(270)
+    etat.texte:SetHeight(32)
+    etat.texte:SetJustifyH("CENTER")
+    etat.texte:SetShadowColor(0.13, 0, 0, 1)
+    etat.texte:SetShadowOffset(2, -2)
+    -- Les gouttes de sang sous le titre sont retirees le 4 octobre 2026 : elles
+    -- seront redessinees.
+    etat:Hide()
+    -- Le niveau et l'experience passent DEVANT le voile : on doit les lire
+    -- meme inconscient.
+    pied:SetFrameLevel(etat:GetFrameLevel() + 2)
+
+    function p:Actualiser(entity)
+        LCM.Portraits.Appliquer(self.art, entity)
+        -- Rogner le portrait pour remplir le panneau sans deformer l'artwork.
+        local portrait = LCM.Portraits.Of(entity) or LCM.Portraits.silhouette
+        if portrait then
+            local c = portrait.coords or LCM.Portraits.COORDS
+            local ratio = math.max(1, self:GetWidth() - 4) / math.max(1, self:GetHeight() - 4)
+            local x, y = math.min(1, ratio / LCM.Portraits.RATIO), math.min(1, LCM.Portraits.RATIO / ratio)
+            local dx, dy = (c[2] - c[1]) * (1 - x) / 2, (c[4] - c[3]) * (1 - y) / 2
+            self.art:SetTexCoord(c[1] + dx, c[2] - dx, c[3] + dy, c[4] - dy)
+        end
+        local progression = LCM.Experience.Progression(entity)
+        local debut = 0
+        for _, palier in ipairs(LCM.Equilibrage.experience.paliers) do
+            if palier.xp <= progression.xp then debut = palier.xp end
+        end
+        local maximum = progression.prochainXp and (progression.prochainXp - debut)
+        local acquis = progression.xp - debut
+        self.niveau:SetText("Niveau " .. Nombre(LCM.Entities.Get_Value(entity, "niveau") or progression.niveau))
+        local proportion = maximum and math.max(0, math.min(1, acquis / maximum)) or 1
+        self.remplissage:SetWidth(math.max(0.01, (largeur - 50) * proportion))
+        self.remplissage:SetShown(proportion > 0)
+        self.xp:SetText(maximum and (Nombre(acquis) .. " / " .. Nombre(maximum)) or "Palier maximal")
+        local pvCourants, pvMaximum = LCM.Body.Totals(entity)
+        self.inconscient:SetShown(pvMaximum > 0 and pvCourants <= 0)
+        UI.Bulle(self.jauge, "Expérience", Nombre(progression.xp) .. " XP au total."
+            .. (progression.reste and ("\n" .. Nombre(progression.reste) .. " XP avant le niveau " .. progression.prochainNiveau .. ".") or ""))
+    end
+    p:SetScript("OnSizeChanged", function(self) if self.entity then self:Actualiser(self.entity) end end)
+    p:Hide()
+    return p
+end
+
 -- La Fiche est une vue comme les autres (Data/Vues.lua, id « fiche ») : ses
 -- onglets sont ceux du template (Statistiques, Facultes, Traits).
 

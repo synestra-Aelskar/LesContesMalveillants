@@ -66,7 +66,7 @@ attendu("indisponible", LCM.Canal.Disponible(LCM.Canal.Actuel()), false)
 local avant = #__envois
 local canal = LCM.Canal.Dire("Esprit : 12")
 attendu("on retombe en local", canal.id, "local")
-attendu("et on previent", __sansCouleur(__sorties[#__sorties - 1]):find("pas de groupe") ~= nil, true)
+attendu("et on previent", __sansCouleur(__sorties[#__sorties - 1]):lower():find("pas de groupe") ~= nil, true)
 __groupe({ "Reika-Apertus", "Nytherah-Apertus" })
 attendu("avec un groupe, disponible", LCM.Canal.Disponible(LCM.Canal.Get("party")), true)
 LCM.Canal.Choisir("local")

@@ -82,6 +82,19 @@ function Entities.Self()
     return Entities.Get(id)
 end
 
+-- Le PERSONNAGE du joueur, meme quand le MJ incarne un PNJ (4 octobre 2026).
+-- Une action qui vise un JOUEUR arrive sur lui, pas sur le PNJ auquel il
+-- prete sa voix : l'assassin incarne attaque, mais c'est Blud qui encaisse une
+-- attaque adressee a son joueur, avec ses stats a lui. `Self` reste ce qu'on
+-- joue a l'ecran ; `Personnage`, qui l'on est.
+function Entities.Personnage()
+    local actif = LCM.Personnages and LCM.Personnages.Actif and LCM.Personnages.Actif()
+    if actif then return actif end
+    local id = LCM.PlayerId()
+    if id == "" then return nil end
+    return Entities.Get(id)
+end
+
 -- ===== Valeurs =============================================================
 -- Lecture et ecriture passent TOUJOURS par ici : un champ inconnu du schema est
 -- refuse, ce qui interdit les valeurs orphelines dans la sauvegarde.
@@ -111,11 +124,19 @@ end
 -- reparte en boucle.
 local enNotification = false
 function Entities.Changed(entity, fieldId)
-    if enNotification or type(Entities.onChange) ~= "function" then return end
+    if enNotification then return end
+    -- Au milieu d'un geste (Core/Direct.lua) : on previendra a la fin.
+    if LCM.Direct and LCM.Direct.Differer(entity) then return end
     enNotification = true
-    local ok, err = pcall(Entities.onChange, entity, fieldId)
+    if type(Entities.onChange) == "function" then
+        local ok, err = pcall(Entities.onChange, entity, fieldId)
+        if not ok then LCM.Debug("onChange : " .. tostring(err)) end
+    end
+    for _, ecouteur in ipairs(LCM.Direct and LCM.Direct.ecouteurs or {}) do
+        local ok, err = pcall(ecouteur, entity, fieldId)
+        if not ok then LCM.Debug("ecouteur : " .. tostring(err)) end
+    end
     enNotification = false
-    if not ok then LCM.Debug("onChange : " .. tostring(err)) end
 end
 
 function Entities.Set_Value(entity, fieldId, value)

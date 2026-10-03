@@ -34,7 +34,8 @@ local A = LCM.Actions
 local function Eq() return LCM.Equilibrage end
 local function Trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 local function Moi() return LCM.PlayerId() end
-local function MonNom() return LCM.Identite and LCM.Identite.Joueur().nom or Moi() end
+-- Celui qui reagit signe du nom de la fiche qu'il joue (Identite.NomEnJeu).
+local function MonNom() return LCM.Identite and LCM.Identite.NomEnJeu() or Moi() end
 
 -- Peut-on reagir a ce paquet ? Faux, et la raison, sinon.
 function Reactions.Possible(paquet)

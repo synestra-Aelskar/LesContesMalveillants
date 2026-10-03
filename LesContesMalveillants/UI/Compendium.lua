@@ -1,4 +1,6 @@
--- La fenetre du compendium « Systeme d'Aelskar », et le hub « Compendiums ».
+-- La fenetre du compendium « Systeme d'A'Hell'Razkah ». Le hub « Compendiums »
+-- qui y menait (CreateCompendiumHubFrame) est retire le 3 octobre 2026 : il
+-- ne contenait que cette carte.
 --
 -- Reprise de Necronicon (Compendium.lua : CreateCompendiumFrame,
 -- RefreshCompendiumUI, UpdateCompendiumPanelLayout, EnsureCompendiumRow,
@@ -523,9 +525,12 @@ Fenetre.cartes = cartes
 local TYPES_FILTRE = {}
 
 local function Construire()
-    local f = UI.Fenetre("compendium", "Système d'Aelskar", LARGEUR, HAUTEUR, { x = -120, y = 30 },
+    local f = UI.Fenetre("compendium", "Système d'A'Hell'Razkah", LARGEUR, HAUTEUR, { x = -120, y = 30 },
         { enTeteSimple = true, redimensionnable = true })
     Fenetre.frame = f
+    -- Ouverte par l'entree « Systeme » : c'est elle qui dit qu'elle est
+    -- reservee au MJ (/lcm switch la referme).
+    f.menuId = "systeme_aelskar"
     f.actif = C.categories[1] and C.categories[1].id
     f.types = {}
     for _, t in ipairs(C.TYPES) do f.types[t.id] = true end
@@ -679,6 +684,9 @@ local function Construire()
     f.nouvelle = UI.Bouton(d, "Nouvelle entree", 106, 20, function() f:Nouvelle() end)
     f.groupee = UI.Bouton(d, "Modif. groupée", 128, 20, function() f:ModifGroupee() end)
     f.supprimer = UI.Bouton(d, "Supprimer", 100, 20, function() f:SupprimerSelection() end)
+    -- A droite de la rangee : la forge, pour une categorie qu'un jeu
+    -- d'equilibrage peut viser (MJ/Forge.lua).
+    f.forger = UI.Bouton(d, "Forger", 90, 20, function() f:Forger() end)
     f.lectureSeule = UI.Texte(d, "", UI.C.discret, "GameFontNormalSmall")
     f.lectureSeule:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -36)
     f.lectureSeule:SetPoint("TOPRIGHT", d, "TOPRIGHT", -10, -36)
@@ -857,6 +865,10 @@ local function Cellule(r, n)
     c.icone:SetPoint("LEFT", c, "LEFT", 2, 0)
     c.survol = UI.Aplat(c, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
     c.survol:SetAllPoints(c)
+    -- Une cellule est un bouton : elle prend la souris a la ligne. Sans ce
+    -- relais, on ne glissait une entree qu'en la saisissant par son nom.
+    c:RegisterForDrag("LeftButton")
+    c:SetScript("OnDragStart", function() local f = r:GetScript("OnDragStart") if f then f(r) end end)
     r.cellules[n] = c
     return c
 end
@@ -988,6 +1000,12 @@ function Fenetre.Comportement(f)
     function f:Message(texte, couleur)
         self.message:SetText(texte or "")
         Peindre(self.message, couleur or UI.C.discret)
+    end
+
+    function f:Forger()
+        if not (LCM.IsMaster() and UI.Forge) then return end
+        local ok, raison = UI.Forge.Ouvrir(self:Categorie().id)
+        if not ok then self:Message("Forge : " .. tostring(raison), UI.C.plein) end
     end
 
     function f:Nouvelle()
@@ -1425,6 +1443,15 @@ function Fenetre.Comportement(f)
         local boutons = { self.nouvelle, self.groupee, self.supprimer }
         local x, rang = 0, 0
         local utile = math.max(200, (d:GetWidth() or 400) - 20)
+        -- « Forger », cale a droite de la premiere rangee : les autres lui
+        -- laissent sa place.
+        local forgeable = editable and LCM.IsMaster() and UI.Forge ~= nil and categorie.statistiques == "bonus"
+        self.forger:SetShown(forgeable)
+        if forgeable then
+            self.forger:ClearAllPoints()
+            self.forger:SetPoint("TOPRIGHT", d, "TOPRIGHT", -10, -34)
+            utile = utile - self.forger:GetWidth() - 10
+        end
         for _, b in ipairs(boutons) do
             b:SetShown(editable)
             if editable then
@@ -1521,79 +1548,10 @@ function Fenetre.Actualiser()
             if element then carte:Montrer(categorie, element) else carte:Hide() end
         end
     end
-    if Fenetre.hub and Fenetre.hub:IsShown() then Fenetre.hub:Rafraichir() end
-end
-
--- ===== Le hub « Compendiums » =============================================
--- Une carte par compendium. Il n'y en a qu'un, et on ne cree pas de
--- compendium en jeu : ni « Nouveau compendium », ni modifier, ni supprimer.
-
-local HUB_CARTE_H, HUB_ECART, HUB_CARTE_MIN = 110, 12, 160
-
-local function ConstruireHub()
-    local h = UI.Fenetre("compendium_hub", "Compendiums", 460, 280, { x = -260, y = 60 },
-        { enTeteSimple = true, redimensionnable = true })
-    Fenetre.hub = h
-    -- Le hub n'a pas de bandeau de categories : le motif du haut du cadre
-    -- reste entier (centredTitle de Necronicon ne vaut que pour le compendium).
-    h.titreCentre = false
-    if h.decor then h.decor:Disposer() end
-    h.filet = UI.Filet(h)
-    h.filet:SetPoint("TOPLEFT", h, "TOPLEFT", 12, -38)
-    h.filet:SetPoint("TOPRIGHT", h, "TOPRIGHT", -12, -38)
-    h.zone = UI.Defilement(h)
-    h.zone:SetPoint("TOPLEFT", h, "TOPLEFT", 12, -48)
-    h.zone:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -28, 12)
-
-    local c = CreateFrame("Button", nil, h.zone.contenu)
-    h.carte = c
-    c:SetHeight(HUB_CARTE_H)
-    c.fond = UI.Aplat(c, { 0, 0, 0, 0.2 })
-    c.fond:SetAllPoints(c)
-    UI.BordureFine(c, 0.2)
-    c.icone = c:CreateTexture(nil, "ARTWORK")
-    c.icone:SetSize(42, 42)
-    c.icone:SetPoint("TOPLEFT", c, "TOPLEFT", 12, -12)
-    c.icone:SetTexture("Interface\\ICONS\\achievement_zone_stormpeaks_03")
-    c.titre = UI.Texte(c, "Système d'Aelskar", UI.C.titre, "GameFontNormal")
-    c.titre:SetPoint("TOPLEFT", c.icone, "TOPRIGHT", 12, -1)
-    c.titre:SetPoint("RIGHT", c, "RIGHT", -68, 0)
-    c.titre:SetWordWrap(false)
-    c.meta = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
-    c.meta:SetPoint("TOPLEFT", c.titre, "BOTTOMLEFT", 0, -4)
-    c.meta:SetPoint("RIGHT", c, "RIGHT", -68, 0)
-    c.description = UI.Texte(c, "Systeme d'Aelskar", UI.C.texte, "GameFontNormalSmall")
-    c.description:SetPoint("TOPLEFT", c.icone, "BOTTOMLEFT", 0, -10)
-    c.description:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -12, 12)
-    c.description:SetJustifyV("TOP")
-    c.description:SetWordWrap(true)
-    c.survol = UI.Aplat(c, UI.C.survol, "HIGHLIGHT")
-    c.survol:SetAllPoints(c)
-    c:SetScript("OnClick", function() Fenetre.Basculer() end)
-
-    function h:Rafraichir()
-        local disponible = math.max((self.zone:GetWidth() or (self:GetWidth() - 52)) - 8, HUB_CARTE_MIN)
-        c:ClearAllPoints()
-        c:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, 0)
-        -- Une seule carte : elle prend la largeur d'une colonne de la grille.
-        local colonnes = math.max(1, math.floor((disponible + HUB_ECART) / (HUB_CARTE_MIN + HUB_ECART)))
-        c:SetWidth(math.floor((disponible - (colonnes - 1) * HUB_ECART) / colonnes))
-        c.meta:SetText(string.format("%d categorie(s)  |  %d entree(s)", #C.categories, C.Total()))
-        self.zone:Regler(HUB_CARTE_H)
-    end
-    UI.Redimensionner(h, 280, 280, function() h:Rafraichir() end)
-    h:HookScript("OnShow", function(self) self:Rafraichir() end)
-    return h
-end
-
-function Fenetre.BasculerHub()
-    local h = Fenetre.hub or ConstruireHub()
-    if h:IsShown() then h:Hide() else h:Show() end
 end
 
 LCM.WhenReady(function()
     if UI.Menu and UI.Menu.Lier then
-        UI.Menu.Lier("compendium", Fenetre.BasculerHub)
         UI.Menu.Lier("systeme_aelskar", Fenetre.Basculer)
     end
 end)

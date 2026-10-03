@@ -260,6 +260,7 @@ function Body.Damage(entity, partId, amount)
     if not wounds then return false end
     wounds[partId] = wound > 0 and wound or nil
     ForgetIfClean(entity)
+    LCM.Entities.Changed(entity, "corps")
     return true
 end
 
@@ -279,12 +280,14 @@ function Body.SetCurrent(entity, partId, current)
     if not wounds then return false end
     wounds[partId] = wound > 0 and wound or nil
     ForgetIfClean(entity)
+    LCM.Entities.Changed(entity, "corps")
     return true
 end
 
 function Body.HealAll(entity)
     if type(entity) ~= "table" then return false end
     entity.body = nil
+    LCM.Entities.Changed(entity, "corps")
     return true
 end
 

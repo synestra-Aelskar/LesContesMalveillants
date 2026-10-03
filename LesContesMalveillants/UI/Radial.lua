@@ -3,8 +3,9 @@
 -- Le sceau est affiche en permanence. Clic gauche : la couronne des FENETRES
 -- (structure de UI/Menu.lua). Clic droit : la couronne des ACTIONS, dont les
 -- categories sont les barres du template (Offensives, Supports, Competences,
--- Controles ; Animation pour le MJ) et dont chaque entree joue une resolution
--- du compendium (Core/Actions.lua). Maj + clic gauche : la selection du
+-- Controles ; Animation pour le MJ) et dont chaque entree joue son action,
+-- ecrite avec elle dans le code (Core/ActionsBoutons.lua, Core/Actions.lua).
+-- Maj + clic gauche : la selection du
 -- personnage. Une seule couronne a la fois : ouvrir l'une ferme l'autre.
 --
 -- Jusqu'au 3 octobre 2026, les fenetres avaient leur propre bouton, avec une
@@ -13,9 +14,10 @@
 -- en eventail ; une entree sans rien derriere reste eteinte et le dit.
 --
 -- La structure est FIGEE ici. Un module n'ajoute pas d'entree : il en habille
--- une qui existe deja, par Radial.Lier(id, fonction). `resolution` dit quelle
--- entree du compendium (Systeme-Resolution-Action, Actions-MJ) le bouton joue :
--- ce sont celles des barres d'action du profil Necronicon (quickMenu,
+-- une qui existe deja, par Radial.Lier(id, fonction). L'action d'un bouton
+-- est definie AVEC lui, dans le code (Core/ActionsBoutons.lua, Data/
+-- ActionsBoutons.lua ; celles du MJ dans le compagnon) : jusqu'au 3 octobre
+-- 2026, il citait une entree du compendium importee de Necronicon (quickMenu,
 -- RunCompendiumEntryShortcut). UI/Composeur.lua fait la liaison. Un identifiant inconnu
 -- est refuse — c'est ce qui evite les menus qui poussent tout seuls et les
 -- ordres negocies au vol qu'on a subis dans Necronicon.
@@ -58,27 +60,19 @@ Radial.STRUCTURE = {
     {
         id = "offensives", label = "Offensives", icone = ICONE .. "offensives.tga",
         entrees = {
-            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "attaque_simple.tga",
-              resolution = "attaque_composeur" },
-            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "perce_armure.tga",
-              resolution = "perce_armure_composeur" },
-            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "brise_armure.tga",
-              resolution = "brise_armure_composeur" },
-            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "generation_debuff.tga",
-              resolution = "generation_de_debuff_composeur" },
+            { id = "attaque_simple",     label = "Attaque",              icone = ICONE .. "attaque_simple.tga" },
+            { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "perce_armure.tga" },
+            { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "brise_armure.tga" },
+            { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "generation_debuff.tga" },
         },
     },
     {
         id = "supports", label = "Supports", icone = ICONE .. "supports.tga",
         entrees = {
-            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "generation_bouclier.tga",
-              resolution = "generation_de_bouclier" },
-            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "generation_soin.tga",
-              resolution = "generation_de_soin" },
-            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "generation_buff.tga",
-              resolution = "generation_de_buff_composeur" },
-            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "dissipation.tga",
-              resolution = "dissipation" },
+            { id = "generation_bouclier", label = "Génération de bouclier", icone = ICONE .. "generation_bouclier.tga" },
+            { id = "generation_soin",     label = "Génération de soin",     icone = ICONE .. "generation_soin.tga" },
+            { id = "generation_buff",     label = "Génération de buff",     icone = ICONE .. "generation_buff.tga" },
+            { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "dissipation.tga" },
         },
     },
     -- La seule categorie dont le contenu n'est pas ecrit ici : ce sont les
@@ -114,18 +108,12 @@ Radial.STRUCTURE = {
     {
         id = "controles", label = "Contrôles", icone = ICONE .. "controles.tga",
         entrees = {
-            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "repulsion.tga",
-              resolution = "repulsion" },
-            { id = "attraction",     label = "Attraction",     icone = ICONE .. "attraction.tga",
-              resolution = "attraction" },
-            { id = "permutation",    label = "Permutation",    icone = ICONE .. "permutation.tga",
-              resolution = "permutation" },
-            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "immobilisation.tga",
-              resolution = "immobilisation" },
-            { id = "entrave",        label = "Entrave",        icone = ICONE .. "entrave.tga",
-              resolution = "entrave" },
-            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "levitation.tga",
-              resolution = "levitation" },
+            { id = "repulsion",      label = "Répulsion",      icone = ICONE .. "repulsion.tga" },
+            { id = "attraction",     label = "Attraction",     icone = ICONE .. "attraction.tga" },
+            { id = "permutation",    label = "Permutation",    icone = ICONE .. "permutation.tga" },
+            { id = "immobilisation", label = "Immobilisation", icone = ICONE .. "immobilisation.tga" },
+            { id = "entrave",        label = "Entrave",        icone = ICONE .. "entrave.tga" },
+            { id = "levitation",     label = "Lévitation",     icone = ICONE .. "levitation.tga" },
         },
     },
     -- Le second lanceur du template (« Action mj ») : une categorie reservee.
@@ -136,12 +124,9 @@ Radial.STRUCTURE = {
             -- Elle etait fidele au template et ne servait a rien : elle se
             -- proposait l'epreuve a soi-meme, avec un paquet vide. Le vrai
             -- emetteur d'une epreuve de MJ, c'est « Dégât MJ ».
-            { id = "degat_mj",           label = "Dégât MJ",           icone = ICONE .. "resolution_test_mj.tga",
-              resolution = "degat_mj" },
-            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "buff_debuff_mj.tga",
-              resolution = "buff_debuff_mj" },
-            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "attaque_mj.tga",
-              resolution = "attaque_mj" },
+            { id = "degat_mj",           label = "Dégât MJ",           icone = ICONE .. "resolution_test_mj.tga" },
+            { id = "buff_debuff_mj",     label = "Buff / Débuff MJ",   icone = ICONE .. "buff_debuff_mj.tga" },
+            { id = "attaque_mj",         label = "Attaque MJ",         icone = ICONE .. "attaque_mj.tga" },
         },
     },
 }
@@ -897,21 +882,63 @@ local function Construire()
     -- appui, et pas seulement par le clic qu'il avale : un glisser relache
     -- hors du sceau ne recoit pas d'OnClick, et le drapeau reste pose — il
     -- mangerait alors le vrai clic suivant.
-    f.sceau:RegisterForDrag("LeftButton")
-    f.sceau:SetScript("OnMouseDown", function() f.glisse = false end)
-    f.sceau:SetScript("OnDragStart", function()
-        f.glisse = true
-        f:StartMoving()
-    end)
-    f.sceau:SetScript("OnDragStop", function()
-        f:StopMovingOrSizing()
+    --
+    -- Le glisser est fait a la main (3 octobre 2026), pas par StartMoving :
+    -- le jeu n'envoie OnDragStart qu'apres quelques pixels, et un geste vif
+    -- est deja sorti du sceau a ce moment-la. StartMoving gardait alors
+    -- l'ecart pris, et le sceau suivait de loin ou decrochait. Ici, le point
+    -- saisi est retenu a l'appui, et le sceau est repose dessous a chaque
+    -- image tant que le bouton est tenu, ou que soit le curseur.
+    local SEUIL = 4
+    local glisseur = CreateFrame("Frame", nil, f)
+    f.glisseur = glisseur
+
+    local function Retenir()
         LCM.EnsureDatabase()
         LCM.db.settings.radial = type(LCM.db.settings.radial) == "table" and LCM.db.settings.radial or {}
         local x, y = f:GetCenter()
         local cx, cy = UIParent:GetCenter()
         if x and cx then
-            LCM.db.settings.radial.x, LCM.db.settings.radial.y = x - cx, y - cy
+            -- Le centre de l'ecran, ramene a l'echelle du sceau : c'est dans
+            -- celle-la que Radial.Placer pose son decalage.
+            local k = (UIParent:GetEffectiveScale() or 1) / (f:GetEffectiveScale() or 1)
+            LCM.db.settings.radial.x, LCM.db.settings.radial.y = x - cx * k, y - cy * k
         end
+    end
+
+    local function Lacher()
+        glisseur:SetScript("OnUpdate", nil)
+        if f.glisse then Retenir() end
+    end
+
+    f.sceau:SetScript("OnMouseDown", function(_, bouton)
+        f.glisse = false
+        if bouton ~= "LeftButton" then return end
+        local echelle = f:GetEffectiveScale() or 1
+        local cx, cy = GetCursorPosition()
+        cx, cy = cx / echelle, cy / echelle
+        local x, y = f:GetCenter()
+        if not x then return end
+        local ecartX, ecartY = x - cx, y - cy
+        glisseur:SetScript("OnUpdate", function()
+            local mx, my = GetCursorPosition()
+            mx, my = mx / echelle, my / echelle
+            if not f.glisse then
+                -- Sous le seuil, c'est encore un clic.
+                if math.abs(mx - cx) < SEUIL and math.abs(my - cy) < SEUIL then
+                    if not IsMouseButtonDown("LeftButton") then glisseur:SetScript("OnUpdate", nil) end
+                    return
+                end
+                f.glisse = true
+            end
+            f:ClearAllPoints()
+            f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", mx + ecartX, my + ecartY)
+            -- Relache hors du sceau : il ne recoit pas OnMouseUp, on le voit ici.
+            if not IsMouseButtonDown("LeftButton") then Lacher() end
+        end)
+    end)
+    f.sceau:SetScript("OnMouseUp", function(_, bouton)
+        if bouton == "LeftButton" then Lacher() end
     end)
 
     -- Clic gauche : les fenetres. Clic droit : les actions. Maj + clic

@@ -149,8 +149,8 @@ Vues.Add({
     id = "penetrations_resistances", titre = "Pénétration & Résistances",
     largeur = 340, hauteur = 460,
     onglets = {
-        { id = "resistances",  label = "Résistances",  blocs = { { onglet = "resistances" } } },
-        { id = "penetrations", label = "Pénétrations", blocs = { { onglet = "penetrations" } } },
+        { id = "resistances", label = "Résistances", couleur = { 0.44, 0.78, 0.94 }, blocs = { { onglet = "resistances" } } },
+        { id = "penetrations", label = "Pénétrations", couleur = { 1, 0.48, 0.38 }, blocs = { { onglet = "penetrations" } } },
     },
 })
 

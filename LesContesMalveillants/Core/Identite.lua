@@ -56,6 +56,17 @@ function Identite.Joueur()
     }
 end
 
+-- Le nom sous lequel on AGIT : celui de la fiche qui agit (le PNJ incarne,
+-- sinon le personnage), le nom RP ou WoW a defaut (4 octobre 2026). C'est ce
+-- que la cible lit (« Déclaré par Assassin du culte ») : le MJ qui incarne un
+-- PNJ ne doit pas signer de son nom de joueur.
+function Identite.NomEnJeu(entity)
+    entity = entity or (LCM.Entities and LCM.Entities.Self())
+    local nom = type(entity) == "table" and tostring(entity.name or "") or ""
+    if nom ~= "" then return nom end
+    return Identite.Joueur().nom
+end
+
 -- TRP3 peut se charger apres nous : on previent qui affiche l'identite.
 Identite.abonnes = {}
 function Identite.AuChangement(fonction)

@@ -210,6 +210,8 @@ local function ConstruireHub()
         self:Show()
     end
 
+    -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
+    UI.SuivrePersonnage(f, function(self) self:Afficher() end)
     return f
 end
 
@@ -475,6 +477,8 @@ local function ConstruireLivre()
         self:Show()
     end
 
+    -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
+    UI.SuivrePersonnage(f, function(self) if self.grimoire then self:Afficher(self.sousRang) end end)
     return f
 end
 

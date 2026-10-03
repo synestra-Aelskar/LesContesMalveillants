@@ -321,6 +321,36 @@ LCM.WhenReady(function()
     end
 end)
 
+-- Ou se trouve une entree dans les sacs : l'onglet, l'emplacement et la case
+-- de la premiere pile qui la contient, ou nil. Sert a l'equipement, qui ne
+-- prend que ce que le personnage porte dans ses sacs.
+function Inventaire.Chercher(entity, ref)
+    if type(entity) ~= "table" then return nil end
+    for _, categorie in ipairs(Inventaire.categories) do
+        for index = 1, Inventaire.Capacite(categorie.id) do
+            local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
+            for case, c in pairs(emplacement and type(emplacement.cases) == "table" and emplacement.cases or VIDE) do
+                if type(c) == "table" and c.ref == ref then return categorie.id, index, case end
+            end
+        end
+    end
+    return nil
+end
+
+-- Sort UN exemplaire d'une entree des sacs : la pile baisse, la derniere
+-- unite libere la case. false et la raison si elle n'y est pas.
+function Inventaire.Prendre(entity, ref)
+    local categorieId, index, case = Inventaire.Chercher(entity, ref)
+    if not categorieId then return false, "absent des sacs." end
+    local c = Inventaire.Case(Inventaire.Emplacement(entity, categorieId, index), case)
+    local quantite = tonumber(c.quantite) or 1
+    if quantite > 1 then
+        c.quantite = quantite - 1
+        return true
+    end
+    return Inventaire.Vider(entity, categorieId, index, case)
+end
+
 -- Ranger une entree SANS dire ou : la premiere case libre venue, tous sacs
 -- confondus. C'est ce dont ont besoin la recolte et l'achat, qui donnent un
 -- objet sans savoir ce que le joueur a dans ses sacs.

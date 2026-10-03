@@ -2016,7 +2016,7 @@ local function Resume(liste)
 end
 
 function Actions.EtatsDe(cible)
-    if cible.soi then return Resume(LCM.EtatsTemporaires.Liste(LCM.Entities.Self())) end
+    if cible.soi then return Resume(LCM.EtatsTemporaires.Liste(LCM.Entities.Personnage())) end
     if cible.pnj and (cible.mj or LCM.PlayerId()) == LCM.PlayerId() then
         local instance = LCM.Incarnation.Instance(cible.id)
         return instance and Resume(LCM.EtatsTemporaires.Liste(instance)) or {}
@@ -2069,7 +2069,7 @@ function Actions.Dissiper(ctx, cfg, selection, choix)
             s.cible.soi and "" or (" (" .. tostring(s.cible.nom) .. ")"), jets[cle], tonumber(etat.seuil) or 0,
             ok and "dissipé" or "échec")
     end
-    local qui = LCM.Identite and LCM.Identite.Joueur().nom or LCM.PlayerId()
+    local qui = LCM.Identite.NomEnJeu(ctx.entity)
     Actions.Annoncer(string.format("%s dissipe (%s, niveau %d) : %s.", qui, choix.competence, choix.niveau,
         table.concat(resultats, " ; ")))
     ctx.vars.dispelSuccess, ctx.vars.dispelCount = reussis, #selection
@@ -2099,9 +2099,23 @@ end
 -- Les cibles possibles : soi, le groupe ou le raid, et les PNJ — ceux du
 -- combat en cours et ceux que le MJ a mis en scene (Core/Scene.lua), une fois
 -- chacun. Chaque PNJ dit a quel MJ s'adresser : c'est lui qui le resout.
+-- Les joueurs s'affichent sous le nom de leur PERSONNAGE actif (4 octobre
+-- 2026) : le sien meme quand on incarne un PNJ, celui des autres tel que leur
+-- addon l'annonce (Core/Presence.lua) ; le nom WoW a defaut. L'identifiant,
+-- lui, reste le nom WoW : c'est l'adresse des messages.
+local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostring(nom or "") end
+
 function Actions.Cibles()
-    local joueurs = { { id = LCM.PlayerId(), nom = (UnitName and UnitName("player")) or LCM.PlayerId(), soi = true } }
-    for _, m in ipairs(LCM.Combat.Membres()) do joueurs[#joueurs + 1] = { id = m, nom = m } end
+    local moi = LCM.PlayerId()
+    local perso = LCM.Entities.Personnage()
+    local joueurs = { { id = moi, soi = true,
+                        nom = perso and perso.name or (UnitName and UnitName("player")) or moi } }
+    for _, m in ipairs(LCM.Combat.Membres()) do
+        -- Le groupe compte aussi le joueur lui-meme : il etait liste deux fois.
+        if m ~= moi and Court(m) ~= Court(moi) then
+            joueurs[#joueurs + 1] = { id = m, nom = LCM.Presence.Personnage(m) or m }
+        end
+    end
     local pnj, vus = {}, {}
     local function Ajouter(e)
         if vus[e.id] then return end
@@ -2140,8 +2154,9 @@ end
 -- fiche du PNJ : chez lui si c'est nous, sinon on lui envoie.
 local function Envoyer(ctx, joueurs, pnj, soi)
     local d = ctx.declaration
-    local identite = LCM.Identite and LCM.Identite.Joueur() or {}
-    local paquet = { t = Jeton_(), n = d.nature, a = LCM.PlayerId(), rp = identite.nom, v = d.valeurs }
+    -- Signe du nom de la fiche qui agit : l'assassin incarne, pas le joueur.
+    local paquet = { t = Jeton_(), n = d.nature, a = LCM.PlayerId(), rp = LCM.Identite.NomEnJeu(ctx.entity),
+                     v = d.valeurs }
     -- Qui l'action vise : une deviation par un tiers en depend (malus « action
     -- visant autrui »), et les cibles d'origine sont prevenues d'un detour.
     local visees = {}
@@ -2233,9 +2248,8 @@ end
 
 local function DeclarerEffet(etape, ctx, suite)
     local e, V = ctx.effet, ctx.vars
-    local identite = LCM.Identite and LCM.Identite.Joueur() or {}
     local paquet = {
-        t = Jeton_(), a = LCM.PlayerId(), rp = identite.nom, nom = e.nom, ic = e.icone, desc = e.description,
+        t = Jeton_(), a = LCM.PlayerId(), rp = LCM.Identite.NomEnJeu(ctx.entity), nom = e.nom, ic = e.icone, desc = e.description,
         deb = e.debuff and 1 or nil, nar = e.narratif and 1 or nil, txt = e.texte, mt = e.montant, u = e.unite,
         r = e.rounds, res = e.resistance, ce = e.critEcart, cf = e.critFacteur, dis = e.dissipation,
         -- `ct` : le volet de Sante qui recoit. Deux lettres, parce que le
@@ -2282,7 +2296,7 @@ local function DeclarerEffet(etape, ctx, suite)
         ctx.annonces = nil
         for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
         if annonce then
-            Actions.Annoncer(string.format("%s lance %s : %s.", identite.nom or LCM.PlayerId(),
+            Actions.Annoncer(string.format("%s lance %s : %s.", LCM.Identite.NomEnJeu(ctx.entity),
                 e.debuff and "un débuff" or "un buff", e.nom))
         end
         for _, j in ipairs(joueurs) do LCM.Reseau.Envoyer("etat", paquet, "WHISPER", j) end
@@ -2339,7 +2353,8 @@ function Actions.RecevoirEtat(paquet, expediteur)
         entity = LCM.Incarnation.Instance(paquet.p)
         if not entity then return false end
     else
-        entity = LCM.Entities.Self()
+        -- Adresse au joueur : son personnage, pas le PNJ qu'il incarne.
+        entity = LCM.Entities.Personnage()
     end
     local recu = { paquet = paquet, expediteur = expediteur, entity = entity, debuff = paquet.deb ~= nil }
     -- La resistance aux types de l'effet : la moyenne des resistances de la
@@ -2406,7 +2421,7 @@ function Actions.Subir(recu, ecart)
     local p = recu.paquet
     local facteur = (tonumber(p.ce) or 0) > 0 and (tonumber(p.cf) or 1) > 1 and ecart and ecart >= tonumber(p.ce)
         and tonumber(p.cf) or 1
-    local cible = p.p and (p.pn or p.p) or (LCM.Identite and LCM.Identite.Joueur().nom) or LCM.PlayerId()
+    local cible = p.p and (p.pn or p.p) or LCM.Identite.NomEnJeu(recu.entity)
     local lanceur = Trim(p.rp) ~= "" and p.rp or p.a
     local texte
     if p.nar then
@@ -2457,7 +2472,7 @@ function Actions.Resister(recu, competence)
     local total = r.total + recu.bonusResistance
     local oppose = tonumber(p.jr) or 0
     local resiste = total >= oppose
-    local cible = p.p and (p.pn or p.p) or (LCM.Identite and LCM.Identite.Joueur().nom) or LCM.PlayerId()
+    local cible = p.p and (p.pn or p.p) or LCM.Identite.NomEnJeu(recu.entity)
     local ligne = string.format("%s %s %s de %s (jet %d contre %d)%s.", cible, resiste and "résiste" or "succombe",
         p.nar and "à l'effet" or "au débuff", Trim(p.rp) ~= "" and p.rp or "l'adversaire", total, oppose,
         (not resiste and oppose - total >= (tonumber(p.ce) or 0) and (tonumber(p.ce) or 0) > 0)
@@ -2481,7 +2496,7 @@ function Actions.Refuser(recu)
     Retirer(recu)
     if recu.expediteur ~= LCM.PlayerId() then
         LCM.Reseau.Envoyer("act=", { t = recu.paquet.t,
-            texte = string.format("%s refuse « %s ».", LCM.Identite and LCM.Identite.Joueur().nom or LCM.PlayerId(),
+            texte = string.format("%s refuse « %s ».", LCM.Identite.NomEnJeu(recu.entity),
                 tostring(recu.paquet.nom)) }, "WHISPER", recu.expediteur)
     end
     if Actions.onResolu then Actions.onResolu() end
@@ -2547,7 +2562,7 @@ function Pas.declare(etape, ctx, suite)
         ctx.annonces = nil
         for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
         if annonce then
-            local qui = LCM.Identite and LCM.Identite.Joueur().nom or LCM.PlayerId()
+            local qui = LCM.Identite.NomEnJeu(ctx.entity)
             Actions.Annoncer(string.format("%s déclare : %s", qui, nature))
         end
         Journal(ctx, string.format("Déclaration : %s (%d cible%s)", nature, nombre, nombre > 1 and "s" or ""))
@@ -2638,9 +2653,13 @@ end
 -- Joue une resolution du compendium pour une fiche. Retourne le contexte, qui
 -- porte le journal, la declaration, et les references inconnues.
 function Actions.Lancer(resolutionId, entity, onFin)
-    local resolution = LCM.Resolutions.Get(resolutionId)
+    -- Une action de bouton (Core/ActionsBoutons.lua) l'emporte : c'est le
+    -- code qui fait foi, pas un brouillon qui porterait le meme identifiant.
+    local resolution = type(resolutionId) == "table" and resolutionId
+        or (LCM.ActionsBoutons and LCM.ActionsBoutons.Get(resolutionId))
+        or LCM.Resolutions.Get(resolutionId)
     if not resolution then
-        LCM.Alerte("action inconnue du compendium : " .. tostring(resolutionId))
+        LCM.Alerte("action inconnue : " .. tostring(resolutionId))
         return nil
     end
     if resolution.categorie == "mj" and not LCM.IsMaster() then
@@ -2678,10 +2697,15 @@ end
 function Actions.ResolutionPour(nature)
     local voulu = Cle(nature)
     if voulu == "" then return nil end
-    for _, r in ipairs(LCM.Resolutions.list) do
-        if not r.emission then
-            for morceau in tostring(r.natures or ""):gmatch("[^,;\n]+") do
-                if Cle(morceau) == voulu then return r end
+    -- Les receptions ecrites dans le code d'abord (Data/Receptions.lua), puis
+    -- celles qu'un MJ aurait creees au compendium.
+    local listes = { LCM.ActionsBoutons and LCM.ActionsBoutons.list or {}, LCM.Resolutions.list }
+    for _, liste in ipairs(listes) do
+        for _, r in ipairs(liste) do
+            if not r.emission then
+                for morceau in tostring(r.natures or ""):gmatch("[^,;\n]+") do
+                    if Cle(morceau) == voulu then return r end
+                end
             end
         end
     end
@@ -2704,7 +2728,9 @@ function Actions.Recevoir(paquet, expediteur, resolutionImposee)
             return false
         end
     else
-        entity = LCM.Entities.Self()
+        -- Adresse au joueur : son PERSONNAGE resout, avec ses stats, meme si
+        -- le MJ incarne un PNJ a ce moment-la (4 octobre 2026).
+        entity = LCM.Entities.Personnage()
     end
     paquet.valeurs = type(paquet.v) == "table" and paquet.v or {}
     local recu = { paquet = paquet, expediteur = expediteur, entity = entity,
@@ -2716,8 +2742,10 @@ end
 
 -- Le compte rendu, renvoye a celui qui a agi.
 local function CompteRendu(ctx, recu)
+    -- Un joueur repond sous le nom de son PERSONNAGE (celui qui a encaisse).
+    local perso = not recu.paquet.p and recu.entity
     local qui = recu.paquet.p and (recu.paquet.pn or recu.paquet.p)
-        or (LCM.Identite and LCM.Identite.Joueur().nom) or LCM.PlayerId()
+        or (perso and perso.name) or (LCM.Identite and LCM.Identite.Joueur().nom) or LCM.PlayerId()
     local lignes = {}
     for _, l in ipairs(ctx.journal) do
         if l:match("^Jet ") or l:match("^Message") or l:match("^Réparti") or l:match("^Dégât absorbé")
@@ -2846,7 +2874,7 @@ LCM.WhenReady(function()
     -- peut le demander ; on ne livre que ce qu'une dissipation doit savoir.
     R.Ecouter("etats?", function(expediteur, d)
         if not LCM.Fiches.DansLeGroupe(expediteur) then return end
-        local entity = LCM.Entities.Self()
+        local entity = LCM.Entities.Personnage()
         if d.p then
             if not LCM.IsMaster() then return end
             entity = LCM.Incarnation.Instance(d.p)
@@ -2873,7 +2901,7 @@ LCM.WhenReady(function()
     -- Un de mes etats (ou de mes PNJ) a ete dissipe.
     R.Ecouter("dissipe", function(expediteur, d)
         if not LCM.Fiches.DansLeGroupe(expediteur) then return end
-        local entity = LCM.Entities.Self()
+        local entity = LCM.Entities.Personnage()
         if d.p then
             if not LCM.IsMaster() then return end
             entity = LCM.Incarnation.Instance(d.p)

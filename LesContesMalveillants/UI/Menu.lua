@@ -31,7 +31,7 @@ Menu.STRUCTURE = {
     -- servait qu'a se demander lequel fait foi. Le dossier « Création
     -- Personnage » du template, qui ne gardait plus que les Règles, l'a suivi
     -- le 2 octobre 2026 ; les Règles sont passees dans « Outils ».
-    { id = "fiches_personnages", label = "Fiches personnages", icone = RADIAL .. "fenetres-personnages.tga",
+    { id = "fiches_personnages", label = "Personnage", icone = RADIAL .. "fenetres-personnages.tga",
       enfants = {
           { id = "fiche",         label = "Fiche",                     icone = RADIAL .. "fenetres-fiche.tga" },
           { id = "sante",         label = "Santé",                     icone = RADIAL .. "fenetres-sante.tga" },
@@ -67,9 +67,9 @@ Menu.STRUCTURE = {
     -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,
     -- les resolutions et les actions MJ, et un joueur n'a rien a y lire. Sa
     -- race, il la choisit a la creation, pas ici.
-    { id = "compendium", label = "Compendium", icone = RADIAL .. "fenetres-compendium.tga",
-      mjSeulement = true },
-    { id = "systeme_aelskar", label = "Système d'Aelskar", icone = ICONE .. "achievement_zone_stormpeaks_03",
+    -- L'entree « Compendium » (le hub « Compendiums ») est retiree le 3 octobre
+    -- 2026 : elle ne menait qu'a une carte, celle-ci.
+    { id = "systeme_aelskar", label = "Système", icone = ICONE .. "achievement_zone_stormpeaks_03",
       mjSeulement = true },
     { id = "deplacement", label = "Déplacement", icone = RADIAL .. "fenetres-deplacement.tga" },
 }

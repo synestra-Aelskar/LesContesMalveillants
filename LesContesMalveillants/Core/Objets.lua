@@ -10,8 +10,11 @@
 --
 --     entity.equipement = { arme = { "lame_de_givre" }, accessoire = { ... } }
 --
--- Pas encore d'inventaire : on equipe un objet parce qu'il existe, pas parce
--- qu'on le possede. C'est pour ca que l'equipement est un geste de MJ.
+-- On n'equipe que ce qu'on POSSEDE (3 octobre 2026) : l'objet doit etre dans
+-- un sac du personnage, et il le quitte en passant sur lui ; le retirer le
+-- remet dans le premier sac qui a de la place. Le compendium n'est pas un
+-- magasin. Tout le monde peut donc equiper ses propres affaires ; remplir un
+-- sac, en revanche, reste un geste du MJ (UI/Inventaires.lua).
 
 local _, LCM = ...
 
@@ -37,10 +40,70 @@ LCM.Objets = Objets
 -- Les noms que le reste de l'addon connaissait deja.
 Objets.Icone = LCM.Icone
 Objets.Emplacements = Objets.Capacite
-Objets.Equiper = Objets.Placer
-Objets.Desequiper = Objets.Enlever
 Objets.EstEquipe = Objets.Porte
 Objets.Equipes = Objets.Portes
+
+-- ===== Equiper depuis les sacs =============================================
+-- `Placer` et `Enlever` (le catalogue) restent les gestes bruts, sans sac :
+-- ils servent aux regles et aux PNJ que le MJ habille. Les fenetres passent
+-- par `Equiper` et `Desequiper`.
+
+local function Ref(id) return "objets/" .. tostring(id) end
+
+function Objets.Possede(entity, id)
+    return LCM.Inventaire.Chercher(entity, Ref(id)) ~= nil
+end
+
+function Objets.Equiper(entity, id)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    local objet = Objets.Get(id)
+    if not objet then return false, "objet inconnu." end
+    if not Objets.Possede(entity, objet.id) then
+        return false, string.format("%s n'est dans aucun sac : on n'équipe que ce qu'on porte sur soi.", objet.label)
+    end
+    -- La place sur soi d'abord : si elle manque, l'objet reste dans son sac.
+    local ok, raison = Objets.Placer(entity, objet.id)
+    if not ok then return false, raison end
+    LCM.Inventaire.Prendre(entity, Ref(objet.id))
+    return true
+end
+
+-- Remet l'objet dans un sac. Sans place libre, il reste porte : on ne le
+-- fait pas disparaitre faute de sac.
+function Objets.Desequiper(entity, id)
+    if not Objets.Porte(entity, id) then return false, "cet objet n'est pas équipé." end
+    local objet = Objets.Get(id)
+    if not objet then
+        return false, string.format("« %s » n'existe pas dans cette version : il reste équipé.", tostring(id))
+    end
+    local ok, raison = LCM.Inventaire.Deposer(entity, Ref(objet.id), 1)
+    if not ok then
+        return false, string.format("%s reste équipé : %s", objet.label, raison == "aucune place libre."
+            and "aucune place libre dans les sacs." or tostring(raison))
+    end
+    Objets.Enlever(entity, objet.id)
+    return true
+end
+
+-- Ce que la fenetre propose : les objets de cette categorie qui sont dans les
+-- sacs, une fois chacun, sauf ceux deja portes.
+function Objets.CandidatsPossedes(entity, categorieId)
+    local out, vus = {}, {}
+    for _, categorie in ipairs(LCM.Inventaire.categories) do
+        for index = 1, LCM.Inventaire.Capacite(categorie.id) do
+            local emplacement = LCM.Inventaire.Emplacement(entity, categorie.id, index)
+            for _, c in pairs(emplacement and type(emplacement.cases) == "table" and emplacement.cases or {}) do
+                local id = type(c) == "table" and tostring(c.ref or ""):match("^objets/(.+)$")
+                local objet = id and Objets.Get(id)
+                if objet and objet.categorie == categorieId and not vus[objet.id] and not Objets.Porte(entity, objet.id) then
+                    vus[objet.id] = true
+                    out[#out + 1] = objet
+                end
+            end
+        end
+    end
+    return out
+end
 
 -- ===== L'armure portee =====================================================
 -- Chaque piece d'armure equipee apporte sa valeur ; la jauge #armure compte

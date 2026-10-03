@@ -20,6 +20,10 @@ local ICONE_DEFAUT = "Interface\\Icons\\INV_Misc_QuestionMark"
 function LCM.Icone(valeur)
     valeur = tostring(valeur or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if valeur == "" then return ICONE_DEFAUT end
+    -- Le navigateur d'icones et LibRPMedia rendent aussi des chemins avec /.
+    -- Les normaliser avant de reconnaitre un chemin complet evite de lui
+    -- ajouter une seconde fois Interface\Icons (texture verte en jeu).
+    valeur = valeur:gsub("/", "\\")
     if not valeur:find("\\") then valeur = "Interface\\Icons\\" .. valeur end
     return valeur
 end
@@ -78,6 +82,11 @@ function LCM.ChampsCommuns(definition, element, Erreur)
     local typ = Texte(definition.type)
     element.type = typ ~= "" and typ or nil
     element.metiers = ListeIds(id, "metiers", definition.metiers, Erreur)
+    -- Le jeu d'equilibrage et la rarete d'une entree forgee (« jeu/rarete »,
+    -- Core/Forge.lua). Garde tel quel : c'est la forge qui juge, a
+    -- l'enregistrement d'un brouillon, pas le chargement.
+    local forge = Texte(definition.forge)
+    element.forge = forge ~= "" and forge or nil
     -- La jauge « Etat » (durabilite d'un objet...). Un courant au-dessus du
     -- maximum est refuse, pas rabote : c'est au MJ de trancher.
     if definition.etat ~= nil then

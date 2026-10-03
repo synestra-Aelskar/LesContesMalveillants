@@ -51,6 +51,9 @@ Core\DeplacementForce.lua
 Core\Reactions.lua
 Core\Grimoires.lua
 Core\Compendium.lua
+Core\Forge.lua
+Core\ActionsBoutons.lua
+Core\Direct.lua
 Data\Equilibrage.lua
 Data\Icones.lua
 Data\Morphologies.lua
@@ -75,6 +78,8 @@ Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
 Data\Genere\Points.lua
 Data\Genere\Necronicon_Grimoires.lua
+Data\ActionsBoutons.lua
+Data\Receptions.lua
 
 # Interface
 UI\Kit.lua

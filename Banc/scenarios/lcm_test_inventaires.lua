@@ -120,10 +120,38 @@ attendu("occupation du sac", f.occupation:GetText(), "0 / 12")
 attendu("douze lignes de contenu", #f.lignes, 12)
 attendu("toutes vides pour l'instant", f.lignes[1].nom:GetText(), "Vide")
 
--- Clic sur l'emplacement libre : le MJ choisit un sac.
+-- Glisser une entree du compendium sur une cible, comme a la souris.
+local function Glisser(categorieId, id, cible)
+    local Comp = LCM.UI.Compendium.Ouvrir(categorieId)
+    local rang
+    for _, r in ipairs(Comp.rangees) do if r.element and r.element.id == id then rang = r end end
+    __souris.LeftButton = true
+    rang:GetScript("OnDragStart")(rang)
+    cible.__survol = true
+    __avancer(0.02, 0.02)
+    __souris.LeftButton = false
+    __avancer(0.02, 0.02)
+    cible.__survol = nil
+    Comp:Hide()
+end
+
+-- Clic sur l'emplacement libre : plus de liste (3 octobre 2026), on ne se
+-- donne pas un sac a la volee. Le MJ le glisse depuis le compendium.
 f.cartes[2]:Click("LeftButton")
-for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "sacs/sac_d_essai" then b:Click() end end
-attendu("sac pose depuis la liste", I.Emplacement(moi, "sacs", 2).sac, "sac_d_essai")
+attendu("pas de liste au clic", f.choix:IsShown(), false)
+Glisser("sacs", "sac_d_essai", f.cartes[2])
+attendu("sac pose en glissant", I.Emplacement(moi, "sacs", 2).sac, "sac_d_essai")
+
+-- La colonne de droite recoit aussi : c'est la que le MJ regarde le contenu.
+f.cartes[1]:Click("LeftButton")
+Glisser("ressources", "eau", f.lignes[4])
+attendu("depose dans la colonne de droite", I.Case(I.Emplacement(moi, "sacs", 1), 4)
+    and I.Case(I.Emplacement(moi, "sacs", 1), 4).ref, "ressources/eau")
+attendu("la ligne le montre", f.lignes[4].nom:GetText(), "Eau")
+Glisser("ressources", "eau", f.lignes[4])
+attendu("case prise : refuse", I.Case(I.Emplacement(moi, "sacs", 1), 4).quantite, 1)
+I.Vider(moi, "sacs", 1, 4)
+f:Rafraichir()
 
 -- Glisser un sac du compendium sur une saccoche (les rangs 3 a 6).
 attendu("quatre emplacements de saccoche", f.cartes[6]:IsShown(), true)
@@ -150,9 +178,10 @@ attendu("fenetre du sac", s and s:IsShown(), true)
 attendu("son titre", s.titre:GetText(), "GROS SAC")
 attendu("douze cases", #s.cases, 12)
 attendu("cases de 46", s.cases[1]:GetWidth(), 46)
--- Clic sur une case vide : le MJ choisit une entree.
+-- Clic sur une case vide : plus de liste ; le MJ glisse l'entree.
 s.cases[1]:Click("LeftButton")
-for _, b in ipairs(s.choix.lignes) do if b:IsShown() and b.choix == "ressources/eau" then b:Click() end end
+attendu("pas de liste au clic", s.choix:IsShown(), false)
+Glisser("ressources", "eau", s.cases[1])
 attendu("eau rangee", I.Case(I.Emplacement(moi, "sacs", 1), 1).ref, "ressources/eau")
 attendu("le remplissage suit", f.cartes[1].nom:GetText(), "Gros sac (1/12)")
 -- Clic droit : le menu ; Quantite.

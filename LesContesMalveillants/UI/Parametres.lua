@@ -273,7 +273,10 @@ LCM.AddCommand("switch", "bascule entre maitre du jeu et joueur", function()
     if UI.Radial and UI.Radial.Fermer then UI.Radial.Fermer() end
     for _, fenetre in ipairs(UI.fenetres or {}) do
         if fenetre:IsShown() then
-            local noeud = fenetre.cle and UI.Menu and UI.Menu.Trouver and UI.Menu.Trouver(fenetre.cle)
+            -- `menuId` : l'entree de menu dont la fenetre depend, quand elle ne
+            -- porte pas son nom (le compendium s'ouvre par « Systeme »).
+            local id = fenetre.menuId or fenetre.cle
+            local noeud = id and UI.Menu and UI.Menu.Trouver and UI.Menu.Trouver(id)
             if noeud and noeud.mjSeulement and not LCM.IsMaster() then
                 fenetre:Hide()
             elseif fenetre.Rafraichir then

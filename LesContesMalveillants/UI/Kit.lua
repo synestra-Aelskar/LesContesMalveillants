@@ -234,13 +234,20 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
         local function dehors(element)
             local largeur = element and element.GetWidth and element:GetWidth()
             if not largeur or largeur <= 0 then return retrait end
+            -- La fiche large a deux encoches dans les tours d'angle. Leur centre
+            -- est a mi-chemin de l'emprise du decor, et non a son bord interieur.
+            if self.boutonsDansEncoches and UI.AelRetraitCoin and UI.AelRetraitCoin(self) > 0 then
+                return math.max(2 * q, retrait / 2 - largeur / 2)
+            end
             return math.max(2 * q, retrait - largeur)
         end
+        local aEncoches = self.boutonsDansEncoches and UI.AelRetraitCoin and UI.AelRetraitCoin(self) > 0
+        local hautBouton = aEncoches and 12 or -6 * q
         self.fermer:ClearAllPoints()
-        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -dehors(self.fermer), -6 * q)
+        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -dehors(self.fermer), hautBouton)
         if self.coinGauche then
             self.coinGauche:ClearAllPoints()
-            self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", dehors(self.coinGauche), -6 * q)
+            self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", dehors(self.coinGauche), hautBouton)
         end
         self.retraitCoin = retrait
         -- Les coins ont bouge : les ornements du titre tiennent-ils encore ?
@@ -367,6 +374,25 @@ function UI.Onglets(parent, onglets, onChange, options)
         end)
         b.ongletId = onglet.id
         if UI.HabillerOnglet then UI.HabillerOnglet(b) end
+        if onglet.couleur then
+            local c = onglet.couleur
+            local selectionner = b.Selectionner
+            b.repereCouleur = UI.Aplat(b, { c[1], c[2], c[3], 1 }, "OVERLAY")
+            b.repereCouleur:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 6, 2)
+            b.repereCouleur:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -6, 2)
+            b.repereCouleur:SetHeight(2)
+            b.voileCouleur = UI.Aplat(b, { c[1], c[2], c[3], 0.12 }, "ARTWORK")
+            b.voileCouleur:SetPoint("TOPLEFT", b, "TOPLEFT", 3, -3)
+            b.voileCouleur:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
+            function b:Selectionner(actif)
+                if selectionner then selectionner(self, actif) end
+                local intensite = actif and 1 or 0.65
+                self.label:SetTextColor(c[1] * intensite, c[2] * intensite, c[3] * intensite)
+                self.repereCouleur:SetAlpha(actif and 1 or 0.35)
+                self.repereCouleur:SetHeight(actif and 3 or 1)
+                self.voileCouleur:SetShown(actif)
+            end
+        end
 
         local rangee = math.ceil(index / parRangee)
         local place = (index - 1) % parRangee
@@ -1213,6 +1239,25 @@ function UI.Case(parent, libelle, onChange)
     return b
 end
 
+-- ===== Suivre le personnage =================================================
+-- Une fenetre qui montre un personnage se redessine des qu'il change
+-- (Core/Direct.lua) : equiper une dague met a jour les Statistiques ouvertes
+-- a cote, sans changer d'onglet. `f.entity` dit qui elle montre ; sans, elle
+-- suit tout le monde. Fermee, elle ne calcule rien.
+
+UI.suivis = {}
+
+function UI.SuivrePersonnage(f, redessiner)
+    UI.suivis[#UI.suivis + 1] = { fenetre = f, redessiner = redessiner }
+end
+
+LCM.Entities.Ecouter(function(entity)
+    for _, s in ipairs(UI.suivis) do
+        local f = s.fenetre
+        if f:IsShown() and (f.entity == nil or f.entity == entity) then s.redessiner(f) end
+    end
+end)
+
 -- ===== Glisser-deposer =====================================================
 -- Repris de Necronicon (Inventory.lua : ShowInventoryDragGhost) : on glisse
 -- une entree (une ligne du compendium), un fantome de 180 x 42 — icone et nom
@@ -1246,6 +1291,7 @@ local function Fantome()
             Glisser.Lacher()
             return
         end
+        Glisser.Suivre()
         local x, y = GetCursorPosition()
         local echelle = UIParent:GetEffectiveScale() or 1
         self:ClearAllPoints()
@@ -1269,23 +1315,44 @@ end
 
 function Glisser.EnCours() return Glisser.objet ~= nil end
 
--- La cible survolee au relache, parmi celles qui sont affichees.
+-- La cible sous le curseur, parmi celles qui sont affichees.
+local function SousLeCurseur()
+    for _, cible in ipairs(Glisser.cibles) do
+        if cible:IsVisible() and cible:IsMouseOver() then return cible end
+    end
+    return nil
+end
+
+-- A chaque image du glissement : la cible survolee s'eclaire, et elle est
+-- retenue. C'est le fantome qui suit la souris, pas les cibles : les ecrans
+-- posent leur propre OnEnter (infobulle) APRES s'etre inscrits, ce qui
+-- effacait le crochet du kit — aucune case ne s'eclairait jamais.
+-- Necronicon retenait de meme la derniere cible survolee
+-- (SetInventoryDragHoverTarget) et deposait la, pas « sous le curseur au
+-- relache ».
+function Glisser.Suivre()
+    local cible = SousLeCurseur()
+    if cible ~= Glisser.survolee then
+        if Glisser.survolee then Glisser.survolee.glisserSurvol:Hide() end
+        Glisser.survolee = cible
+        if cible and Glisser.objet and cible.glisserAccepte(Glisser.objet) then cible.glisserSurvol:Show() end
+    end
+end
+
 function Glisser.Lacher()
     local objet = Glisser.objet
     Glisser.objet = nil
     if Glisser.fantome then Glisser.fantome:Hide() end
-    if not objet then return false end
-    for _, cible in ipairs(Glisser.cibles) do
-        if cible:IsVisible() and cible:IsMouseOver() then
-            local ok, raison = cible.glisserAccepte(objet)
-            if ok then
-                cible.glisserDepose(objet)
-                return true
-            end
-            if raison then LCM.Alerte(raison) end
-            return false
-        end
+    local cible = SousLeCurseur() or Glisser.survolee
+    if Glisser.survolee then Glisser.survolee.glisserSurvol:Hide() end
+    Glisser.survolee = nil
+    if not (objet and cible) then return false end
+    local ok, raison = cible.glisserAccepte(objet)
+    if ok then
+        cible.glisserDepose(objet)
+        return true
     end
+    if raison then LCM.Alerte(raison) end
     return false
 end
 
@@ -1297,10 +1364,6 @@ function Glisser.Cible(frame, accepte, depose)
     frame.glisserSurvol = UI.Aplat(frame, { 0.95, 0.82, 0.38, 0.20 }, "OVERLAY")
     frame.glisserSurvol:SetAllPoints(frame)
     frame.glisserSurvol:Hide()
-    frame:HookScript("OnEnter", function(self)
-        if Glisser.objet and self.glisserAccepte(Glisser.objet) then self.glisserSurvol:Show() end
-    end)
-    frame:HookScript("OnLeave", function(self) self.glisserSurvol:Hide() end)
     return frame
 end
 
@@ -1471,7 +1534,10 @@ local function CatalogueJeu(poser)
     if lib and lib.FindAllIcons then
         local ok = pcall(function()
             for _, nom in lib:FindAllIcons() do
-                poser("Interface" .. string.char(92) .. "ICONS" .. string.char(92) .. nom)
+                nom = tostring(nom)
+                if nom:lower():find("^interface[/\\]") then poser(nom)
+                elseif nom:lower():find("^addons[/\\]") then poser("Interface/" .. nom)
+                else poser("Interface/ICONS/" .. nom) end
             end
         end)
         if ok then return end
@@ -1488,11 +1554,14 @@ function UI.CatalogueIcones(source)
     local vues, out = {}, {}
     local function poser(chemin)
         chemin = tostring(chemin or "")
-        if chemin == "" or vues[chemin:lower()] then return end
-        vues[chemin:lower()] = true
+        chemin = LCM.Icone(chemin)
+        local identifiant = chemin:lower()
+        if chemin == "" or vues[identifiant] then return end
+        vues[identifiant] = true
         out[#out + 1] = chemin
     end
-    if source == "addon" then CatalogueAddon(poser) else CatalogueJeu(poser) end
+    CatalogueAddon(poser)
+    if source == "wow" then CatalogueJeu(poser) end
     table.sort(out, function(a, b) return a:lower() < b:lower() end)
     cataloguesIcones[source] = out
     return out
@@ -1502,126 +1571,134 @@ function UI.NomIcone(chemin)
     return (tostring(chemin or ""):match("([^\\/]+)$")) or tostring(chemin or "")
 end
 
+-- Port du navigateur Omega_Hub/Modules/Spell/OmegaSpell_IconBrowser.lua :
+-- grille 12 x 7, icones 44 px, pool fixe et defilement par ligne.
+-- Habillage et callback locaux : Omega Hub n'est pas requis pour choisir.
 function UI.SelecteurIcone(cle)
+    local COLONNES, RANGEES, COTE, PAS = 12, 7, 44, 48
     local d = CreateFrame("Frame", "LCM_Icones_" .. tostring(cle), UIParent)
-    d:SetSize(420, 380)
+    d:SetSize(620, 520)
+    d:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     d:SetFrameStrata("FULLSCREEN_DIALOG")
     d:SetClampedToScreen(true)
+    d:SetMovable(true)
     d:EnableMouse(true)
-    d.fond = UI.Aplat(d, UI.C.fond)
+    d:RegisterForDrag("LeftButton")
+    d:SetScript("OnDragStart", d.StartMoving)
+    d:SetScript("OnDragStop", d.StopMovingOrSizing)
+    d.fond = UI.Aplat(d, { 0.045, 0.038, 0.03, 0.99 })
     d.fond:SetAllPoints(d)
     if UI.AelCadre then d.cadre = UI.AelCadre(d, "section") else UI.Bordure(d) end
-
-    d.titre = UI.Texte(d, "Icône", UI.C.titre, "GameFontNormalSmall")
-    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -9)
-    d.fermer = UI.Bouton(d, "x", 18, 18, function() d:Hide() end)
-    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -6, -6)
-
-    -- Deux sources, et on dit laquelle on regarde : « Addon » est la courte
-    -- liste de la campagne, « WoW » est tout le reste. Melangees, les quelques
-    -- icones qu'on utilise vraiment se noyaient dans des milliers d'autres.
-    d.source = "addon"
-    d.onglets = {}
-    for index, o in ipairs({ { id = "addon", label = "Addon" }, { id = "wow", label = "WoW" } }) do
-        local b = UI.Bouton(d, o.label, 70, 20, function()
+    d.titre = UI.Texte(d, "COMPENDIUM D'ICÔNES", UI.C.titre, "GameFontNormalLarge")
+    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 18, -15)
+    d.fermer = UI.Bouton(d, "x", 22, 22, function() d:Hide() end)
+    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -12, -10)
+    d.source = #UI.CatalogueIcones("wow") > 0 and "wow" or "addon"
+    d.onglets, d.cases, d.resultats = {}, {}, {}
+    d.decalage = 0
+    for index, o in ipairs({ { id = "wow", label = "Toutes les icônes" }, { id = "addon", label = "Campagne" } }) do
+        local b = UI.Bouton(d, o.label, 132, 24, function()
             d.source = o.id
             d:Remplir(d.recherche:GetText())
         end)
         b.sourceId = o.id
-        b:SetPoint("TOPLEFT", d, "TOPLEFT", 10 + (index - 1) * 74, -30)
+        b:SetPoint("TOPLEFT", d, "TOPLEFT", 18 + (index - 1) * 140, -44)
         d.onglets[index] = b
     end
-
-    -- Le zoom : x2 a x8, comme chez Necronicon. Une planche d'icones de 32 ne
-    -- se regarde pas, on cherche une image, pas un nom.
-    local ZOOMS = { 2, 4, 6, 8 }
-    d.zoom = 2
-    d.boutonZoom = UI.Bouton(d, "x2", 44, 20, function()
-        for index, z in ipairs(ZOOMS) do
-            if z == d.zoom then d.zoom = ZOOMS[index + 1] or ZOOMS[1] break end
-        end
-        d.boutonZoom.label:SetText("x" .. d.zoom)
-        d:Remplir(d.recherche:GetText())
+    d.recherche = UI.Champ(d, 582, 26, function(texte) d:Remplir(texte) end)
+    d.recherche:SetPoint("TOPLEFT", d, "TOPLEFT", 18, -78)
+    d.recherche:SetMaxLetters(100)
+    d.indication = UI.Texte(d, "Rechercher une icône par son nom…", UI.C.discret)
+    d.indication:SetPoint("LEFT", d.recherche, "LEFT", 8, 0)
+    d.recherche:HookScript("OnEditFocusGained", function() d.indication:Hide() end)
+    d.recherche:HookScript("OnEditFocusLost", function()
+        d.indication:SetShown(d.recherche:GetText() == "")
     end)
-    d.boutonZoom:SetPoint("TOPRIGHT", d, "TOPRIGHT", -10, -30)
-
-    d.recherche = UI.Champ(d, 380, 22, function(texte) d:Remplir(texte) end)
-    d.recherche:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -54)
-
+    d.zone = CreateFrame("Frame", nil, d)
+    d.zone:SetSize(COLONNES * PAS - 4, RANGEES * PAS - 4)
+    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 18, -116)
+    d.zone:EnableMouseWheel(true)
+    d.vide = UI.Texte(d.zone, "", UI.C.discret)
+    d.vide:SetPoint("CENTER", d.zone, "CENTER", 0, 0)
+    d.vide:SetWidth(530)
+    d.vide:SetJustifyH("CENTER")
+    d.apercu = UI.Texte(d, "Survoler une icône pour voir son nom", UI.C.texte, "GameFontNormalSmall")
+    d.apercu:SetPoint("TOPLEFT", d, "TOPLEFT", 18, -459)
+    d.apercu:SetWidth(580)
+    d.apercu:SetWordWrap(false)
+    d.apercu:SetJustifyH("LEFT")
     d.compte = UI.Texte(d, "", UI.C.discret, "GameFontNormalSmall")
-    d.compte:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 10, 8)
-
-    d.zone = UI.Defilement(d)
-    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -80)
-    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -10, 24)
-    d.cases = {}
-
-    -- Au-dela, on ne dessine plus : des milliers de boutons figent le jeu. La
-    -- ligne du bas dit combien d'autres repondent, et la recherche les trouve.
-    local PLAFOND = 900
-
+    d.compte:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 18, 16)
+    function d:Defiler(delta)
+        local maximum = math.max(0, math.ceil(#self.resultats / COLONNES) - RANGEES)
+        self.decalage = math.max(0, math.min(maximum, self.decalage + delta))
+        self:AfficherGrille()
+    end
+    d.zone:SetScript("OnMouseWheel", function(_, delta) d:Defiler(-delta) end)
+    d.precedent = UI.Bouton(d, "<", 28, 22, function() d:Defiler(-RANGEES) end)
+    d.precedent:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -50, 10)
+    d.suivant = UI.Bouton(d, ">", 28, 22, function() d:Defiler(RANGEES) end)
+    d.suivant:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -16, 10)
+    for i = 1, COLONNES * RANGEES do
+        local b = CreateFrame("Button", nil, d.zone)
+        b:SetSize(COTE, COTE)
+        b:SetPoint("TOPLEFT", d.zone, "TOPLEFT", ((i - 1) % COLONNES) * PAS, -math.floor((i - 1) / COLONNES) * PAS)
+        b.icone = b:CreateTexture(nil, "ARTWORK")
+        b.icone:SetAllPoints(b)
+        b.icone:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        UI.BordureFine(b, 0.4)
+        b.survol = UI.Aplat(b, { 0.85, 0.75, 0.40, 0.3 }, "HIGHLIGHT")
+        b.survol:SetAllPoints(b)
+        b:SetScript("OnClick", function(self)
+            if not self.chemin then return end
+            d:Hide()
+            if d.onChoix then d.onChoix(self.chemin) end
+        end)
+        UI.Bulle(b, function(self) return UI.NomIcone(self.chemin) end,
+            function(self) return "|T" .. tostring(self.chemin) .. ":64|t" end)
+        b:HookScript("OnEnter", function(self) d.apercu:SetText(UI.NomIcone(self.chemin)) end)
+        b:EnableMouseWheel(true)
+        b:SetScript("OnMouseWheel", function(_, delta) d:Defiler(-delta) end)
+        d.cases[i] = b
+    end
+    function d:AfficherGrille()
+        local debut = self.decalage * COLONNES
+        for i, b in ipairs(self.cases) do
+            b.chemin = self.resultats[debut + i]
+            b:SetShown(b.chemin ~= nil)
+            if b.chemin then b.icone:SetTexture(b.chemin) end
+        end
+        local total = #self.resultats
+        self.nombreAffiche = math.min(#self.cases, math.max(0, total - debut))
+        self.vide:SetShown(total == 0)
+        self.vide:SetText(#UI.CatalogueIcones(self.source) == 0
+            and "Aucune icône disponible dans cette source. Essaie Campagne."
+            or "Aucune icône trouvée. Essaie un autre nom.")
+        self.compte:SetText(string.format("%d icônes · %d–%d · Molette pour défiler", total,
+            total > 0 and debut + 1 or 0, math.min(total, debut + #self.cases)))
+    end
     function d:Remplir(filtre)
         filtre = tostring(filtre or ""):lower()
+        self.resultats, self.decalage = {}, 0
         for _, b in ipairs(self.onglets) do b:Selectionner(b.sourceId == self.source) end
-        local cote = 16 * self.zoom
-        local largeur = self.zone:GetWidth()
-        if not largeur or largeur < cote then largeur = 380 end
-        local parRangee = math.max(1, math.floor(largeur / cote))
-
-        local nombre, trouves = 0, 0
         for _, chemin in ipairs(UI.CatalogueIcones(self.source)) do
-            if filtre == "" or chemin:lower():find(filtre, 1, true) then
-                trouves = trouves + 1
-                if nombre < PLAFOND then
-                    nombre = nombre + 1
-                    local b = self.cases[nombre]
-                    if not b then
-                        b = CreateFrame("Button", nil, self.zone.contenu)
-                        b.icone = b:CreateTexture(nil, "ARTWORK")
-                        b.icone:SetAllPoints(b)
-                        b.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
-                        b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
-                        b.survol:SetAllPoints(b)
-                        b:SetScript("OnClick", function(soi)
-                            self:Hide()
-                            if self.onChoix then self.onChoix(soi.chemin) end
-                        end)
-                        UI.Bulle(b, function(soi) return UI.NomIcone(soi.chemin) end, nil, 0.4)
-                        self.cases[nombre] = b
-                    end
-                    b.chemin = chemin
-                    b.icone:SetTexture(chemin)
-                    b:SetSize(cote - 2, cote - 2)
-                    local rangee = math.floor((nombre - 1) / parRangee)
-                    local colonne = (nombre - 1) % parRangee
-                    b:ClearAllPoints()
-                    b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", colonne * cote, -rangee * cote)
-                    b:Show()
-                end
+            if filtre == "" or UI.NomIcone(chemin):lower():find(filtre, 1, true) then
+                self.resultats[#self.resultats + 1] = chemin
             end
         end
-        for index = nombre + 1, #self.cases do self.cases[index]:Hide() end
-        self.zone.decalage = 0
-        self.zone:Regler(math.ceil(nombre / parRangee) * cote)
-        self.nombreAffiche = nombre
-        if trouves > nombre then
-            self.compte:SetText(string.format("%d affichées sur %d — affine ta recherche.", nombre, trouves))
-        else
-            self.compte:SetText(string.format("%d icône%s", trouves, trouves > 1 and "s" or ""))
-        end
+        self.indication:SetShown(filtre == "" and not self.recherche:HasFocus())
+        self:AfficherGrille()
     end
-
     function d:Proposer(ancre, onChoix)
         self.onChoix = onChoix
         self.recherche:SetText("")
         self:Remplir("")
         self:ClearAllPoints()
-        self:SetPoint("TOPLEFT", ancre, "BOTTOMLEFT", 0, -4)
+        self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
         UI.Devant(self)
         self:Show()
     end
-
+    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
     d:Hide()
     return d
 end
-

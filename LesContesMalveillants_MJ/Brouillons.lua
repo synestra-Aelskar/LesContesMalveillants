@@ -22,11 +22,12 @@ MJ.Brouillons = Brouillons
 LCM.Brouillons = Brouillons
 
 -- Les familles exportables. En ajouter une ici ET dans l'outil d'export.
--- Les huit dernieres viennent du compendium (Core/Contenus.lua) : l'outil
--- d'export ne les connait pas encore, leurs brouillons attendent qu'il le
--- fasse.
+-- Les huit suivantes viennent du compendium (Core/Contenus.lua), et « jeux »
+-- de la forge (Core/Forge.lua) : l'outil d'export ne les connait pas encore,
+-- leurs brouillons attendent qu'il le fasse.
 Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
-    "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj" }
+    "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
+    "jeux" }
 
 local function Store(famille)
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
@@ -197,6 +198,11 @@ function Brouillons.Enregistrer(famille, entree, creation, remplacer)
     if creation and Brouillons.Get(famille, neuf.id) then
         return false, string.format("un brouillon porte deja l'identifiant « %s »", neuf.id)
     end
+    -- Le bareme de la forge BLOQUE (decision du 3 octobre 2026). Ici, et pas
+    -- dans chaque fenetre : l'atelier, l'editeur et la modification groupee
+    -- passent tous par cette porte.
+    local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
+    if not dansLeBareme then return false, horsBareme end
 
     -- Retenu DANS le brouillon : l'export doit savoir qu'il ecrase un publie,
     -- et l'atelier doit pouvoir le dire a chaque ouverture.

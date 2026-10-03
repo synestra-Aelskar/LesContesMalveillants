@@ -82,7 +82,7 @@ attendu("fatigue max", E.Gauge(moi, "fatigue").max, 38)
 attendu("PV max", E.Get_Value(moi, "pv_max"), 25)
 
 dire("== un objet qui donne de la Force change tout ce qui en depend")
-attendu("equipe", LCM.Objets.Equiper(moi, "gantelets"), true)
+attendu("equipe (geste brut : les regles, pas les sacs)", LCM.Objets.Placer(moi, "gantelets"), true)
 attendu("force totale", F.Primaire(moi, "force"), 6)
 attendu("force saisie inchangee", E.Get_Value(moi, "force"), 4)
 -- Course : 3 + (0,25 x 6 + 0,25 x 3 = 2,25 -> 2) + 2 (trait) = 7

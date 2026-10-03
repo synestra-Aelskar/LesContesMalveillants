@@ -50,9 +50,82 @@ end
 
 -- Tous les chemins des icones de la campagne, dans l'ordre des noms : le
 -- selecteur d'icones les propose avant celles du jeu.
+-- Icones originales des couronnes, egalement disponibles pour les objets.
+local ICONES_COURONNES = {
+    "actions-animation.tga",
+    "actions-attaque_mj.tga",
+    "actions-attaque_simple.tga",
+    "actions-attraction.tga",
+    "actions-brise_armure.tga",
+    "actions-buff_debuff_mj.tga",
+    "actions-competences.tga",
+    "actions-controles.tga",
+    "actions-dissipation.tga",
+    "actions-entrave.tga",
+    "actions-generation_bouclier.tga",
+    "actions-generation_buff.tga",
+    "actions-generation_debuff.tga",
+    "actions-generation_soin.tga",
+    "actions-immobilisation.tga",
+    "actions-levitation.tga",
+    "actions-offensives.tga",
+    "actions-perce_armure.tga",
+    "actions-permutation.tga",
+    "actions-repulsion.tga",
+    "actions-resolution_test_mj.tga",
+    "actions-supports.tga",
+    "animation.tga",
+    "attaque_mj.tga",
+    "attaque_simple.tga",
+    "attraction.tga",
+    "brise_armure.tga",
+    "buff_debuff_mj.tga",
+    "competences.tga",
+    "controles.tga",
+    "dissipation.tga",
+    "entrave.tga",
+    "fenetres-apprentissage.tga",
+    "fenetres-bourse.tga",
+    "fenetres-compendium.tga",
+    "fenetres-deplacement.tga",
+    "fenetres-equipement.tga",
+    "fenetres-expertise.tga",
+    "fenetres-fiche.tga",
+    "fenetres-grimoires.tga",
+    "fenetres-incarner.tga",
+    "fenetres-inventaires.tga",
+    "fenetres-metiers.tga",
+    "fenetres-objets.tga",
+    "fenetres-outils.tga",
+    "fenetres-panneau_mj.tga",
+    "fenetres-parametres.tga",
+    "fenetres-penetrations_resistances.tga",
+    "fenetres-personnages.tga",
+    "fenetres-regles.tga",
+    "fenetres-ressources.tga",
+    "fenetres-sante.tga",
+    "fenetres-statistiques.tga",
+    "fenetres-vendeur.tga",
+    "generation_bouclier.tga",
+    "generation_buff.tga",
+    "generation_debuff.tga",
+    "generation_soin.tga",
+    "immobilisation.tga",
+    "levitation.tga",
+    "offensives.tga",
+    "perce_armure.tga",
+    "permutation.tga",
+    "repulsion.tga",
+    "resolution_test_mj.tga",
+    "supports.tga",
+}
+
 function LCM.IconesCampagne()
     local out = {}
     for _, nom in ipairs(DISPONIBLES) do out[#out + 1] = connues[nom] end
+    for _, fichier in ipairs(ICONES_COURONNES) do
+        out[#out + 1] = "Interface/AddOns/LesContesMalveillants/ressources/radial/icones/" .. fichier
+    end
     table.sort(out, function(a, b) return a:lower() < b:lower() end)
     return out
 end

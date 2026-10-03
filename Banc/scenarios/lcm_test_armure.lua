@@ -17,6 +17,8 @@ end
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
 local O, A = LCM.Objets, LCM.Actions
+-- Placer / Enlever : les gestes bruts, sans passer par les sacs (ce scenario
+-- parle de la jauge, lcm_test_equipement.lua des sacs).
 local moi = LCM.Entities.Self()
 
 dire("== la valeur d'une piece")
@@ -32,11 +34,11 @@ attendu("negative : refusee", (pcall(O.Construire, { id = "x", categorie = "equi
 
 dire("== la jauge suit ce qu'on porte")
 attendu("nu", Jauge(moi), "0/0")
-O.Equiper(moi, "tshirt_d_essai")
+O.Placer(moi, "tshirt_d_essai")
 attendu("un t-shirt", Jauge(moi), "0/2")
-O.Equiper(moi, "plastron_d_essai")
+O.Placer(moi, "plastron_d_essai")
 attendu("et un plastron", Jauge(moi), "0/12")
-O.Equiper(moi, "epee_d_essai")
+O.Placer(moi, "epee_d_essai")
 attendu("une arme n'y ajoute rien", Jauge(moi), "0/12")
 attendu("rien dans les valeurs", moi.values.armure_portee, nil)
 attendu("ni d'usure retenue", moi.usureArmure, nil)
@@ -56,10 +58,10 @@ cases = A.Zones(moi, { "#armure" })
 attendu("une piece epuisee n'absorbe plus", cases[1].plafond, 0)
 
 dire("== chaque piece garde son usure")
-O.Desequiper(moi, "plastron_d_essai")
+O.Enlever(moi, "plastron_d_essai")
 attendu("sans le plastron", Jauge(moi), "2/2")
 attendu("son usure reste retenue", O.Usure(moi, "plastron_d_essai"), 3)
-O.Equiper(moi, "plastron_d_essai")
+O.Placer(moi, "plastron_d_essai")
 attendu("remis, toujours abime", Jauge(moi), "5/12")
 
 dire("== reparer")
@@ -115,9 +117,9 @@ if LCM.Brouillons then
     attendu("avec sa valeur", O.Get("cotte_d_essai").armure, 7)
 end
 
-O.Desequiper(moi, "tshirt_d_essai")
-O.Desequiper(moi, "plastron_d_essai")
-O.Desequiper(moi, "epee_d_essai")
+O.Enlever(moi, "tshirt_d_essai")
+O.Enlever(moi, "plastron_d_essai")
+O.Enlever(moi, "epee_d_essai")
 attendu("deshabille : 0/0", Jauge(moi), "0/0")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

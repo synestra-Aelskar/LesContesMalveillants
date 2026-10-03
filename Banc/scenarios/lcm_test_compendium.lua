@@ -22,18 +22,26 @@ for _, l in ipairs(alertes) do dire("     " .. l) end
 dire("== Les categories du template, dans son ordre")
 local ids = {}
 for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
-attendu("24 categories (PNJ et Fiches PNJ fondus)", #C.categories, 24)
+attendu("24 categories (PNJ fondus, Jeux d'équilibrage ajoutes, Systeme-Resolution-Action retiree)", #C.categories, 24)
 attendu("ordre", table.concat(ids, ","),
     "Information,Type Armures,Liste Armes,Liste origine,Liste ressources,Liste métiers,Connaissances,"
-    .. "Table xp,Systeme-Résolution-Action,Calculateur,Sacs,Devises,Ressources,Armes,Armures,Accessoires,"
+    .. "Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Armes,Armures,Accessoires,"
     .. "Races,Traits,Etats,Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")
 local function N(id) return #C.Entrees(C.Get(id)) end
 attendu("type armures", N("type_armures"), 8)
 attendu("metiers (figes dans le code)", N("liste_metiers"), 31)
-attendu("resolutions (copies exactes ecartees)", N("resolutions"), 19)
-attendu("actions MJ", N("actions_mj"), 2)
+-- Les actions des boutons du radial et les receptions ne sont plus des
+-- entrees du compendium depuis le 3 octobre 2026 (Core/ActionsBoutons.lua,
+-- Data/ActionsBoutons.lua, Data/Receptions.lua) : la categorie est vide, prete
+-- pour ce qu'un MJ y creerait.
+attendu("Systeme-Resolution-Action retiree (tout est dans le code)", C.Get("resolutions"), nil)
+attendu("la defense aussi", LCM.Resolutions.Get("defense_auto_v3"), nil)
+attendu("et elle repond toujours a une attaque", LCM.Actions.ResolutionPour("Attaque").id, "defense_auto_v3")
+attendu("actions MJ : toutes sur leurs boutons", N("actions_mj"), 0)
+attendu("l'attaque n'est plus au compendium", LCM.Resolutions.Get("attaque_composeur"), nil)
+attendu("elle est sur son bouton", LCM.ActionsBoutons.DuBouton("attaque_simple").id, "attaque_composeur")
 attendu("races : humain + 4 importees", N("races"), 5)
 attendu("traits : escalade + 8 importes", N("traits"), 9)
 -- La dague, l'epee rouillee (sauvegarde) et le baton (repris de l'ancien compendium).
@@ -96,7 +104,7 @@ local F = LCM.UI.Compendium
 LCM.UI.Menu.Trouver("systeme_aelskar").onClick()
 local f = F.frame
 attendu("ouverte depuis le menu", f:IsShown(), true)
-attendu("titre", f.titre:GetText(), "SYSTÈME D'AELSKAR")
+attendu("titre", f.titre:GetText(), "SYSTÈME D'A'HELL'RAZKAH")
 attendu("en-tete simple : pas de filet d'or", f.regle, nil)
 attendu("panneaux a 38 du haut", select(5, f.gauche:GetPoint(1)), -38)
 attendu("types : Tous + 10", #f.boutonsTypes, 11)
@@ -336,7 +344,7 @@ attendu("connaissance creee", fonte ~= nil, true)
 attendu("composant pose", fonte and fonte.composants[1].ref, "ressources/eau")
 
 dire("== Une resolution : le cheminement")
-f:ChoisirCategorie("resolutions")
+f:ChoisirCategorie("actions_mj")
 f.nouvelle:Click()
 ed.identite.nom:Saisir("Essai de cheminement")
 for _, b in ipairs(ed.onglets) do if b.ongletId == "table" then b:Click() end end
@@ -349,7 +357,7 @@ ed.ok:Click()
 local essai = LCM.Resolutions.Get("essai_de_cheminement")
 attendu("resolution creee", essai ~= nil, true)
 attendu("une feuille, une etape", essai and #essai.feuilles[1].etapes, 1)
-attendu("categorie systeme (par la categorie)", essai and essai.categorie, "systeme")
+attendu("categorie mj (par la categorie)", essai and essai.categorie, "mj")
 
 dire("== Le joueur consulte, il n'edite pas")
 LCM._masterCompanion = false
@@ -362,15 +370,12 @@ attendu("pas de Dup", f.rangees[1].dupliquer:IsShown(), false)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
-dire("== Le hub")
-LCM.UI.Menu.Trouver("compendium").onClick()
-local h = F.hub
-attendu("hub ouvert", h:IsShown(), true)
-attendu("titre", h.titre:GetText(), "COMPENDIUMS")
-attendu("compte", h.carte.meta:GetText(), string.format("24 categorie(s)  |  %d entree(s)", C.Total()))
+dire("== Une seule entree de menu (le hub est retire le 3 octobre 2026)")
+attendu("plus d'entree Compendium", LCM.UI.Menu.Trouver("compendium"), nil)
+attendu("plus de hub", F.hub, nil)
 f:Hide()
-h.carte:Click()
-attendu("la carte ouvre le compendium", f:IsShown(), true)
+LCM.UI.Menu.Trouver("systeme_aelskar").onClick()
+attendu("le Systeme ouvre le compendium", f:IsShown(), true)
 
 dire("== la carte s'ouvre et se referme sur son contenu")
 local trait = LCM.Traits.list[1]

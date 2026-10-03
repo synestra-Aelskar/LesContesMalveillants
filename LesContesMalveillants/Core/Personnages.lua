@@ -54,6 +54,8 @@ function Personnages.Choisir(id)
         return nil
     end
     EtatPerso().personnageActif = id
+    -- Le groupe voit ce nom dans ses listes de cibles (Core/Presence.lua).
+    if LCM.Presence and LCM.Presence.Annoncer then LCM.Presence.Annoncer() end
     if LCM.UI and LCM.UI.Fiche and LCM.UI.Fiche.frame and LCM.UI.Fiche.frame:IsShown() then
         LCM.UI.Fiche.frame:Montrer(entity)
     end

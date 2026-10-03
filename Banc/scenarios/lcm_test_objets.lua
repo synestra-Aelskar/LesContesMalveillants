@@ -9,6 +9,8 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 -- Des objets crees par le MJ lors d'une seance precedente.
+-- Placer / Enlever : les regles d'emplacement, sans les sacs (depuis le
+-- 3 octobre 2026, Equiper passe par les sacs : lcm_test_equipement.lua).
 local B = LCM.Brouillons
 B.Set("objets", { id = "lame_de_givre", label = "Lame de givre", categorie = "arme",
     description = "Une lame qui mord le froid.", bonus = { pen_eau = 2 } })
@@ -40,25 +42,25 @@ dire("     " .. tostring(err))
 dire("== equiper")
 attendu("au depart rien", #O.Equipes(moi), 0)
 attendu("rien en sauvegarde", moi.equipement, nil)
-attendu("une arme", O.Equiper(moi, "lame_de_givre"), true)
+attendu("une arme", O.Placer(moi, "lame_de_givre"), true)
 local refus
-ok, refus = O.Equiper(moi, "hache")
+ok, refus = O.Placer(moi, "hache")
 attendu("pas de deuxieme arme", ok, false)
 dire("     " .. tostring(refus))
-ok, refus = O.Equiper(moi, "lame_de_givre")
+ok, refus = O.Placer(moi, "lame_de_givre")
 attendu("pas deux fois le meme", ok, false)
-ok, refus = O.Equiper(moi, "inexistant")
+ok, refus = O.Placer(moi, "inexistant")
 attendu("objet inconnu", ok, false)
-for i = 1, 5 do O.Equiper(moi, "anneau_" .. i) end
-ok, refus = O.Equiper(moi, "anneau_6")
+for i = 1, 5 do O.Placer(moi, "anneau_" .. i) end
+ok, refus = O.Placer(moi, "anneau_6")
 attendu("5 accessoires au plus", ok, false)
 dire("     " .. tostring(refus))
 attendu("rangement par categorie", #O.Ids(moi, "accessoire"), 5)
 
 dire("== les effets se cumulent avec les traits")
 LCM.Traits.Grant(moi, "escalade_jungle")         -- +3 escalade, avantage escalade
-O.Desequiper(moi, "anneau_5")
-O.Equiper(moi, "amulette")                       -- +1 escalade, +2 resi_ombre, avantage pistage
+O.Enlever(moi, "anneau_5")
+O.Placer(moi, "amulette")                       -- +1 escalade, +2 resi_ombre, avantage pistage
 attendu("escalade : trait + objet", LCM.Effets.Bonus(moi, "escalade"), 4)
 attendu("vue : quatre anneaux", LCM.Effets.Bonus(moi, "vue"), 4)
 local element, source = LCM.Effets.Avantage(moi, "pistage")
@@ -89,11 +91,11 @@ fr:Hide()
 
 dire("== retirer nettoie la sauvegarde")
 local test = LCM.Entities.Create("Mannequin", "Mannequin", "npc")
-O.Equiper(test, "hache")
+O.Placer(test, "hache")
 attendu("equipe", O.EstEquipe(test, "hache"), true)
-attendu("retire", O.Desequiper(test, "hache"), true)
+attendu("retire", O.Enlever(test, "hache"), true)
 attendu("plus aucune table", test.equipement, nil)
-attendu("retirer deux fois ne fait rien", O.Desequiper(test, "hache"), false)
+attendu("retirer deux fois ne fait rien", O.Enlever(test, "hache"), false)
 
 dire("== la fenetre Equipements (vue du template)")
 local R = LCM.UI.Menu
@@ -164,6 +166,10 @@ attendu("vide : bouton ajouter", armures.conteneur.emplacements[1].action.label:
 attendu("occupation 0 / 5", armures.occupation:GetText(), "0 / 5")
 
 dire("== le MJ retire et equipe depuis la fenetre")
+-- Depuis le 3 octobre 2026, on equipe depuis les sacs : un sac, et la hache
+-- dedans. Retirer la lame la range dans ce sac.
+LCM.Inventaire.Poser(moi, "sacs", 1, "gros_sac")
+LCM.Inventaire.Ranger(moi, "sacs", 1, 1, "objets/hache", 1)
 f.barre.boutons[1]:Click()
 ligne.action:Click()
 attendu("arme retiree", O.EstEquipe(moi, "lame_de_givre"), false)
@@ -174,11 +180,9 @@ local choix = LCM.UI.Fiche.choixConteneur
 local proposes = {}
 for _, b in ipairs(choix.lignes) do if b:IsShown() then proposes[#proposes + 1] = b.choix end end
 table.sort(proposes)
--- Toutes les armes du registre (compendium importe compris), et elles seules.
-local toutesLesArmes = {}
-for _, o in ipairs(LCM.Objets.list) do if o.categorie == "arme" then toutesLesArmes[#toutesLesArmes + 1] = o.id end end
-table.sort(toutesLesArmes)
-attendu("seulement les armes", table.concat(proposes, ","), table.concat(toutesLesArmes, ","))
+-- Les armes des sacs, et elles seules : plus tout le compendium.
+attendu("seulement les armes des sacs", table.concat(proposes, ","), "hache,lame_de_givre")
+attendu("la lame retiree est au sac", O.Possede(moi, "lame_de_givre"), true)
 for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "hache" then b:Click() end end
 attendu("hache equipee", O.EstEquipe(moi, "hache"), true)
 attendu("affichage suit", armes.occupation:GetText(), "1 / 1")

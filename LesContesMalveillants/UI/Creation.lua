@@ -554,7 +554,7 @@ function Pages.generale(page, f)
             GameTooltip:AddLine("Clic droit : voir ou retirer.", 0.6, 0.56, 0.5)
         else
             GameTooltip:SetText("Emplacement")
-            GameTooltip:AddLine("Glisse ici une race depuis le compendium (Système d'Aelskar, catégorie Races).",
+            GameTooltip:AddLine("Glisse ici une race depuis le compendium (Système d'A'Hell'Razkah, catégorie Races).",
                 0.88, 0.84, 0.76, true)
         end
         GameTooltip:Show()
@@ -866,7 +866,7 @@ function Pages.traits(page, f)
             else
                 GameTooltip:SetText("Emplacement")
                 GameTooltip:AddLine("Clique pour choisir un trait, ou glisse-le depuis le compendium "
-                    .. "(Système d'Aelskar, catégorie Traits).", 0.88, 0.84, 0.76, true)
+                    .. "(Système d'A'Hell'Razkah, catégorie Traits).", 0.88, 0.84, 0.76, true)
             end
             GameTooltip:Show()
         end)

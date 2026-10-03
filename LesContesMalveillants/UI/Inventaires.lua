@@ -72,20 +72,6 @@ local function Voir(ref, ancre)
     if element and categorie then UI.Compendium.Voir(categorie, element, ancre) end
 end
 
--- La liste du compendium qu'un emplacement ou une case peut recevoir.
-local function Candidats(familles)
-    local out = {}
-    for _, categorie in ipairs(LCM.Compendium.categories) do
-        if categorie.famille and familles[categorie.famille] then
-            for _, element in ipairs(LCM.Compendium.Entrees(categorie)) do
-                out[#out + 1] = { id = LCM.Compendium.Reference(categorie, element), label = element.label,
-                                  groupe = categorie.label, element = element }
-            end
-        end
-    end
-    return out
-end
-
 -- Les vues choisies (grille / liste) durent le temps de la session : une
 -- preference d'ecran, pas une donnee du personnage.
 local vues = {}
@@ -229,8 +215,23 @@ local function Construire()
                 l.nom:SetWordWrap(false)
                 l.survol = UI.Aplat(l, UI.C.survol, "HIGHLIGHT")
                 l.survol:SetAllPoints(l)
+                -- On y depose une entree glissee du compendium, comme dans la
+                -- fenetre d'un sac. Il manquait : c'est pourtant la que le MJ
+                -- regarde le contenu, et le glisser y etait refuse sans un mot.
+                UI.Glisser.Cible(l, function(objet)
+                    if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
+                    local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
+                    if not (ici and ici.sac) then return false, "aucun sac ici." end
+                    if Inv.Case(ici, l.case) then return false, "cette case est déjà occupée." end
+                    return Inv.Accepte(ici, l.case, objet.ref)
+                end, function(objet)
+                    local ok, raison = Inv.Ranger(Entite(), l.place.onglet, l.place.index, l.case, objet.ref, 1)
+                    if not ok then Refuser(raison) end
+                    f:Rafraichir()
+                end)
                 self.lignes[n] = l
             end
+            l.place, l.case = place, n
             local c = Inv.Case(e, n)
             local element = c and LCM.Compendium.Resoudre(c.ref)
             l.icone:SetTexture(element and element.icone or VIDE)
@@ -303,8 +304,8 @@ local function Construire()
             Peindre(c.nom, UI.C.discret)
             c.description:SetText("Emplacement disponible")
             c.aide = LCM.IsMaster()
-                and (categorie.contient == "sac" and "Clic : choisir un sac, ou glisse-le depuis le compendium."
-                    or "Clic : choisir une devise, ou glisse-la depuis le compendium.")
+                and (categorie.contient == "sac" and "Glisse un sac depuis le compendium."
+                    or "Glisse une devise depuis le compendium.")
                 or nil
             return
         end
@@ -335,7 +336,6 @@ local function Construire()
     function f:CliquerEmplacement(c, bouton)
         local entity, onglet, index = Entite(), c.onglet, c.index
         local e = c.emplacement
-        local categorie = Inv.Get(onglet)
         -- Clic gauche : on regarde ce qu'il y a dedans, a droite.
         if bouton ~= "RightButton" and e and e.sac then
             self.choisi = c.rang
@@ -398,16 +398,10 @@ local function Construire()
             Ecran.OuvrirSac(onglet, index)
         elseif e then
             Voir("devises/" .. e.devise, self)
-        elseif LCM.IsMaster() then
-            local options = Candidats({ [categorie.contient == "sac" and "sacs" or "devises"] = true })
-            self.choix.titre:SetText(categorie.contient == "sac" and "Sac" or "Devise")
-            self.choix:Proposer(c, options, function(ref)
-                local id = tostring(ref):match("/(.+)$")
-                local ok, raison = Inv.Poser(entity, onglet, index, id)
-                if not ok then Refuser(raison) end
-                self:Rafraichir()
-            end)
         end
+        -- Un emplacement vide ne propose plus de liste au clic (3 octobre
+        -- 2026) : on ne se donne pas un sac a la volee. Le MJ le glisse depuis
+        -- le compendium.
     end
     return f
 end
@@ -457,7 +451,7 @@ local function NouvelleCase(s, n)
             GameTooltip:AddLine("Clic gauche : voir. Clic droit : options.", 0.55, 0.55, 0.55)
         else
             GameTooltip:SetText(self.devise and "Emplacement devise" or "Emplacement", 1, 0.82, 0)
-            if LCM.IsMaster() then GameTooltip:AddLine("Clic : ajouter une entree.", 0.55, 0.55, 0.55) end
+            if LCM.IsMaster() then GameTooltip:AddLine("Glisse une entrée depuis le compendium.", 0.55, 0.55, 0.55) end
         end
         GameTooltip:Show()
     end)
@@ -622,15 +616,10 @@ local function ConstruireSac(onglet, index)
         if c then
             -- Un sac range dans un sac : comme dans le template, on le voit.
             Voir(c.ref, self)
-        elseif LCM.IsMaster() then
-            local familles = b.devise and { devises = true } or { objets = true, ressources = true, sacs = true }
-            self.choix.titre:SetText(b.devise and "Devise" or "Entrée")
-            self.choix:Proposer(b, Candidats(familles), function(ref)
-                local ok, raison = Inv.Ranger(entity, self.onglet, self.index, b.index, ref, 1)
-                if not ok then Refuser(raison) end
-                Ecran.Actualiser()
-            end)
         end
+        -- Une case vide ne propose plus de liste au clic (3 octobre 2026) :
+        -- on ne se donne pas un objet a la volee. Le MJ le glisse depuis le
+        -- compendium.
     end
     return s
 end
@@ -656,6 +645,12 @@ Ecran.sacs = sacs
 function Ecran.Actualiser()
     if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Rafraichir() else Ecran.RafraichirSacs() end
 end
+
+-- Le personnage joue change (un objet equipe quitte son sac, une recolte en
+-- remplit un) : l'inventaire ouvert suit (Core/Direct.lua).
+LCM.Entities.Ecouter(function(entity)
+    if entity == LCM.Entities.Self() then Ecran.Actualiser() end
+end)
 
 -- ===== Ouverture ==========================================================
 

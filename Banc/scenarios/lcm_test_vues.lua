@@ -165,7 +165,7 @@ LCM.Personnages.Choisir(moi.id)
 LCM.Entities.Set_Value(moi, "force", 3)
 LCM.Brouillons.Enregistrer("objets", { id = "gantelets", label = "Gantelets", categorie = "equipement",
     bonus = { force = 2, force_attaque = 3, pa = 1 } }, true)
-LCM.Objets.Equiper(moi, "gantelets")
+LCM.Objets.Placer(moi, "gantelets")   -- geste brut : on teste le recapitulatif, pas les sacs
 M.Trouver("statistiques").onClick()
 local fst = LCM.UI.Vues.frames.statistiques
 -- En deux volets depuis le 3 octobre 2026 : les familles en sommaire a gauche

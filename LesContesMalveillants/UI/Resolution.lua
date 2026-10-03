@@ -346,8 +346,9 @@ function Ecran.Montrer(recu)
     f.recu = recu
     local p = recu.paquet
     f.titre:SetText(p.rd and string.format("Action redirigée sur vous par %s :", p.rd) or "Vous êtes la cible de :")
-    local par = (p.rp and p.rp ~= "" and p.rp ~= p.a) and string.format("Déclaré par %s (%s)", p.rp, p.a)
-        or string.format("Déclaré par %s", tostring(p.a))
+    -- Le nom de la fiche qui agit, seul (4 octobre 2026) : « Déclaré par
+    -- Assassin du culte », sans le nom WoW du MJ qui l'incarne.
+    local par = string.format("Déclaré par %s", (p.rp and p.rp ~= "") and p.rp or tostring(p.a))
     local cible = p.p and string.format("   |cffffa030[PNJ : %s]|r", tostring(p.pn or p.p)) or ""
     f.sous:SetText(string.format("|cffffd200%s|r   |cff808080%s|r%s", tostring(p.n), par, cible))
     local y = 14 + 22 + 18 + 10
@@ -665,6 +666,14 @@ function Ecran.Repartir(ctx, fin)
             if UI.SurfaceLigne then UI.SurfaceLigne(l) end
             l.nom = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
             Placer(l.nom, "LEFT", l, "LEFT", 8, 0)
+            -- Borne a sa colonne : une piece d'armure au long nom (« Capuche
+            -- d'assassin du culte #armure ») passait sur les chiffres. Le nom
+            -- entier reste lisible au survol.
+            l.nom:SetWidth(136)
+            l.nom:SetWordWrap(false)
+            l.nom:SetJustifyH("LEFT")
+            l:EnableMouse(true)
+            UI.Bulle(l, function(soi) return soi.nomComplet or "" end, nil, 0.3)
             l.etat = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
             Placer(l.etat, "LEFT", l, "LEFT", 150, 0)
             l.plus = UI.Bouton(l, "+", 22, 20, function() Ecran.Ajuster(i, 1) end)
@@ -681,6 +690,7 @@ function Ecran.Repartir(ctx, fin)
             f.lignes[i] = l
         end
         l.nom:SetText(case.sante and case.nom or (case.nom .. " |cff9fbfdf" .. tostring(case.tag or "#bouclier") .. "|r"))
+        l.nomComplet = case.sante and case.nom or (case.nom .. " " .. tostring(case.tag or "#bouclier"))
         l:ClearAllPoints()
         l:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 0, -y)
         l:SetPoint("TOPRIGHT", f.zone.contenu, "TOPRIGHT", 0, -y)
@@ -1164,7 +1174,7 @@ local function Candidats(recu)
     local a = recu.paquet.a
     if a and not vus[a] and a ~= LCM.PlayerId() then out[#out + 1] = { id = a, nom = recu.paquet.rp or a } end
     for _, p in ipairs(pnj) do out[#out + 1] = { id = p.id, nom = p.nom, pnj = true, mj = p.mj } end
-    out[#out + 1] = { id = LCM.PlayerId(), nom = (LCM.Identite and LCM.Identite.Joueur().nom or LCM.PlayerId()) .. " (moi)" }
+    out[#out + 1] = { id = LCM.PlayerId(), nom = LCM.Identite.NomEnJeu(LCM.Entities.Personnage()) .. " (moi)" }
     return out
 end
 

@@ -217,6 +217,8 @@ local function NouvelleRegion(kind, parent)
     function r:SetDesaturated(v) self.__desature = v and true or false end
     function r:IsDesaturated() return self.__desature == true end
     function r:SetColorTexture(...) self.__color = {...} end
+    function r:SetGradient(sens, mini, maxi) self.__gradient = { sens = sens, min = mini, max = maxi } end
+    function r:GetGradient() return self.__gradient end
     function r:SetVertexColor(...) self.__vertex = {...} end
     function r:SetTextColor(...) self.__textColor = {...} end
     function r:GetTextColor() local c = self.__textColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] or 1 end
@@ -371,7 +373,8 @@ local function NouveauCadre(kind, nom, parent, template)
         local fn = self.__scripts.OnTabPressed
         if fn then fn(self) end
     end
-    function f:ClearFocus() end
+    function f:ClearFocus() if _G.__focus == self then _G.__focus = nil end end
+    function f:HasFocus() return _G.__focus == self end
     function f:HighlightText() end
     function f:SetNumeric() end
     function f:SetMaxLetters(n) self.__maxLetters = n end
@@ -534,7 +537,13 @@ function IsMouseButtonDown(b) return __souris[b or "LeftButton"] == true end
 ColorPickerFrame = NouveauCadre("Frame", "ColorPickerFrame", nil, nil)
 function ColorPickerFrame:SetupColorPickerAndShow(info) self.__info = info self:Show() end
 function ColorPickerFrame:GetColorRGB() local i = self.__info or {} return i.r or 1, i.g or 1, i.b or 1 end
-function GetCursorPosition() return 0, 0 end
+-- Le curseur : un scenario le deplace avec __curseur = { x, y } (pixels).
+__curseur = { 0, 0 }
+-- Une couleur du jeu (ColorMixin) : ce que SetGradient attend.
+function CreateColor(r, g, b, a)
+    return { r = r, g = g, b = b, a = a, GetRGBA = function(c) return c.r, c.g, c.b, c.a end }
+end
+function GetCursorPosition() return __curseur[1], __curseur[2] end
 
 GameTooltip = NouveauCadre("GameTooltip", "GameTooltip", nil, nil)
 function GameTooltip:SetOwner(o) self.__owner = o end

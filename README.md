@@ -635,12 +635,18 @@ l'addon, donc livrées aux joueurs à chaque publication.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **La Forge : jeu d'équilibrage pour la création d'entrées.** On fabrique
-      races, objets, états et traits **sans aucun garde-fou**. Il faut le
-      barème par catégorie (raretés, min / max de budget, coûts globaux,
-      verrou) de la Forge de Necronicon (`Forge.lua`). **Chantier d'Akriaxx**
-      — tranché le 3 octobre 2026. À décider en le portant : le barème
-      **bloque** l'enregistrement ou **alerte** seulement ?
+- [x] **La Forge : jeu d'équilibrage pour la création d'entrées** (Akriaxx,
+      3 octobre 2026). `Core/Forge.lua` + `LesContesMalveillants_MJ/Forge.lua`.
+      Tout passe par le compendium : la catégorie « Jeux d'équilibrage »
+      crée et règle les jeux, le bouton « Forger » (à droite de la rangée
+      Nouvelle entrée) ouvre la forge d'une catégorie. Un jeu vise une catégorie : raretés
+      (pool, couleur) décidées par le MJ, et par statistique verrou / min /
+      base / max (par rareté si besoin) / coût du point, **propre au jeu**.
+      Le barème **bloque** : dès qu'un jeu vise une catégorie, toute entrée
+      enregistrée doit en choisir un (champ « Forge ») et le respecter.
+      Reste : l'outil d'export ne connaît ni la famille `jeux` ni le champ
+      `forge` des entrées ; l'atelier perd le champ `forge` en rouvrant une
+      entrée forgée (refus à l'enregistrement, pas de contournement).
 - [ ] **Toute la partie XP.** Le module existe (`Core/Experience.lua`, paliers
       marqués *à valider*), mais il n'y a **aucun endroit où la voir**. Il faut
       un écran qui montre l'**artwork**, le **niveau**, l'**XP en cours** et ce

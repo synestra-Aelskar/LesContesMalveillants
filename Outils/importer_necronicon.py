@@ -46,6 +46,19 @@ GENERE_MJ = os.path.join(DEPOT, 'LesContesMalveillants_MJ', 'Genere')
 # range toutes sauf une : « Degat MJ. » vit dans l'onglet systeme. Leurs
 # receptions (Defense, Buff, Debuff, Resolution Test MJ) restent chez le joueur.
 EMETTEURS_MJ = {'degat_mj'}
+
+# Les actions des boutons du radial et les receptions : ecrites dans le code
+# depuis le 3 octobre 2026 (Data/ActionsBoutons.lua, et ActionsBoutons.lua du
+# compagnon). Elles ne sont plus des entrees du compendium : l'import les
+# ecarte, sinon il les remettrait.
+EN_DUR = {
+    'attaque_composeur', 'perce_armure_composeur', 'brise_armure_composeur', 'generation_de_debuff_composeur',
+    'generation_de_bouclier', 'generation_de_soin', 'generation_de_buff_composeur', 'dissipation',
+    'repulsion', 'attraction', 'permutation', 'immobilisation', 'entrave', 'levitation',
+    'degat_mj', 'buff_debuff_mj', 'attaque_mj',
+    # Et les receptions (Data/Receptions.lua).
+    'defense_auto_v3', 'reception_de_bouclier', 'reception_de_soin', 'resolution_test_mj',
+}
 DEFAUT = '/mnt/e/Games/Epsilon/_retail_/Interface/AddOns/Necronicon_System_Les_contes_Malveillants_MJ/data.lua'
 SAUVEGARDES = '/mnt/e/Games/Epsilon/_retail_/WTF/Account/AKRX/SavedVariables'
 
@@ -649,6 +662,8 @@ def convertir(etat, extra=None):
                 continue
             v = e.get('values') or {}
             d = {'id': ids.donner('resolutions', e['name']), 'label': e['name'], 'categorie': categorie}
+            if d['id'] in EN_DUR:
+                continue
             d.update(identite(e, v))
             if str(v.get('natures') or '').strip():
                 d['natures'] = str(v['natures']).strip()

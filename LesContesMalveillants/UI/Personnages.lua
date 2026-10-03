@@ -383,6 +383,8 @@ local function Construire()
         self.glissement, self.destination = nil, nil
     end)
 
+    -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
+    UI.SuivrePersonnage(f, function(self) self:Rafraichir() end)
     return f
 end
 

@@ -1352,6 +1352,10 @@ local function Fenetre()
 end
 
 function Editeur.Ouvrir(categorie, element)
+    -- Une categorie qui a son propre editeur (les jeux de la forge) l'ouvre :
+    -- sa structure ne tient pas dans des champs.
+    local propre = categorie and categorie.editeur and MJ[categorie.editeur]
+    if propre then return propre.Editer(element) end
     Fenetre():Ouvrir(categorie, element)
 end
 
@@ -1387,6 +1391,12 @@ end
 -- Modification groupee : un champ, une valeur, appliques a chaque brouillon
 -- selectionne. Le contenu publie est ignore, et compte.
 function Editeur.ModifGroupee(categorie, elements)
+    -- Les champs d'une categorie a editeur propre sont des resumes calcules :
+    -- les ecrire n'aurait aucun sens.
+    if categorie.editeur then
+        LCM.Alerte(categorie.label .. " : pas de modification groupee, chacun s'edite dans sa fenetre.")
+        return
+    end
     local f = Fenetre()
     local champs = {}
     for _, champ in ipairs(Champs(categorie)) do

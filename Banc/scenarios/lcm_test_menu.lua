@@ -107,7 +107,7 @@ dire("   " .. table.concat(noms, " | "))
 -- Sept depuis le 3 octobre 2026 : le hub du compendium est remonte d'un cran
 -- pour liberer une branche dans « Outils », qui en avait deja huit (le maximum
 -- qu'un eventail sait dessiner) et devait accueillir l'Atelier.
-attendu("sept entrees de premier niveau", #M.STRUCTURE, 7)
+attendu("six entrees de premier niveau (Compendium retire le 3 octobre)", #M.STRUCTURE, 6)
 attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 attendu("Outils : sept fenetres (les Regles s'y sont ajoutees)", #M.Trouver("outils").enfants, 7)
@@ -117,7 +117,7 @@ attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() e
 dire("== ce qui est branche")
 -- « creation » n'est plus au menu : on cree un personnage depuis la selection.
 for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances",
-                      "equipement", "deplacement", "compendium", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
+                      "equipement", "deplacement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
                       "grimoires", "parametres", "panneau_mj", "incarner",
                       "vendeur", "ressources" }) do
     attendu("  " .. id, M.EstLiee(id), true)

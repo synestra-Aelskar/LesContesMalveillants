@@ -8,7 +8,9 @@ local function attendu(libelle, obtenu, voulu)
 end
 local function aDit(motif)
     for i = #__sorties, 1, -1 do
-        if __sansCouleur(__sorties[i]):find(motif, 1, true) then return true end
+        -- Sans la casse : un message du chat commence par une majuscule
+        -- (Core/Log.lua), une raison s'ecrit en minuscules.
+        if __sansCouleur(__sorties[i]):lower():find(motif:lower(), 1, true) then return true end
     end
     return false
 end
@@ -66,7 +68,13 @@ end)(), true)
 R.Trouver("attaque_simple").onClick()
 local f = LCM.UI.Composeur.frame
 attendu("fenetre ouverte", f:IsShown(), true)
+local _, _, _, pfX = f.pf:GetPoint(1)
+local _, _, _, fermerX = f.fermer:GetPoint(1)
+attendu("fermer hors du bloc PF", (-12 + pfX) < (fermerX - f.fermer:GetWidth()), true)
+attendu("titre cale avant les couts", select(4, f.titre:GetPoint(2)), -276)
 attendu("titre", f.titre:GetText(), "Composer mon attaque")
+-- Une seule icone : celle du bouton du lanceur, pas l'icone WoW importee.
+attendu("icone du bouton dans le composeur", f.icone:GetTexture(), R.Trouver("attaque_simple").icone)
 attendu("premiere question", f.question:GetText():find("Type d'action", 1, true) ~= nil, true)
 attendu("PA : rien d'engage sur 4", f.pa.valeur:GetText(), "0 / 4")
 attendu("on ne passe pas sans repondre", f.suivant:IsEnabled(), false)
@@ -101,6 +109,8 @@ attendu("pas de penetration cosmique : question sautee", f.question:GetText():fi
 choisir("Monocible")
 attendu("degat normal au pied", f.resultats[1].titre:GetText() .. " " .. f.resultats[1].valeur:GetText(), "Dégât normal 8")
 attendu("degat critique", f.resultats[2].valeur:GetText(), "12")
+attendu("separateur entre normal et critique", f.resultats[2].separateur:IsShown(), true)
+attendu("aucun separateur avant le premier resultat", f.resultats[1].separateur:IsShown(), false)
 attendu("perce-armure", f.resultats[3]:IsShown() and f.resultats[3].valeur:GetText():find("(6 %)", 1, true) ~= nil, true)
 f.suivant:Click()
 attendu("ecran de fin", f.declarer:IsShown(), true)
@@ -238,12 +248,13 @@ dire("== une action MJ est refusee a un joueur")
 -- Depuis le 2 octobre 2026, les actions du MJ sont dans le compagnon : un vrai
 -- joueur (--sans-mj) ne les a meme pas. Avec le compagnon, on simule un
 -- joueur qui les aurait : le registre refuse quand meme.
-local livree = LCM.Resolutions.Get("attaque_mj") ~= nil
+-- Sur son bouton depuis le 3 octobre 2026 (ActionsBoutons.lua du compagnon).
+local livree = LCM.ActionsBoutons.Get("attaque_mj") ~= nil
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 attendu("refus", A.Lancer("attaque_mj"), nil)
 attendu("dit pourquoi", aDit(livree and "Attaque MJ : réservé au maître du jeu."
-    or "action inconnue du compendium : attaque_mj"), true)
+    or "action inconnue : attaque_mj"), true)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 

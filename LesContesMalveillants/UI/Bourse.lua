@@ -121,6 +121,8 @@ local function Construire()
         self.pas = self:Pas()
     end)
 
+    -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
+    UI.SuivrePersonnage(f, function(self) self:Afficher() end)
     return f
 end
 

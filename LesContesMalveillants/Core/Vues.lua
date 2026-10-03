@@ -175,7 +175,8 @@ function Vues.Add(definition)
             -- chapitre du recapitulatif s'appelle comme la section qu'il montre,
             -- et le recopier ferait deux noms a tenir d'accord.
             local label = onglet.label or (sections[1] and sections[1].label ~= "" and sections[1].label) or ongletId
-            vue.onglets[#vue.onglets + 1] = { id = ongletId, label = tostring(label), sections = sections }
+            vue.onglets[#vue.onglets + 1] = { id = ongletId, label = tostring(label), sections = sections,
+                couleur = onglet.couleur }
         end
     else
         local sections = Sections(id, definition.blocs)

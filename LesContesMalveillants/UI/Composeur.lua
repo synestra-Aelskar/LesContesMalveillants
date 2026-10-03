@@ -20,7 +20,7 @@ local A = LCM.Actions
 local Ecran = {}
 UI.Composeur = Ecran
 
-local LARGEUR, HAUTEUR = 686, 352
+local LARGEUR, HAUTEUR = 760, 402
 local PAD, ECART_X, ECART_Y = 4, 8, 8
 local DORE = { 0.93, 0.80, 0.52 }
 
@@ -40,7 +40,7 @@ end
 -- Bloc PA ou PF du bandeau : etiquette a gauche, « cout / dispo » a droite.
 local function BlocCout(f, libelle, decalage, couleur)
     local b = CreateFrame("Frame", nil, f.bandeau)
-    b:SetSize(112, 44)
+    b:SetSize(106, 44)
     Placer(b, "TOPRIGHT", f.bandeau, "TOPRIGHT", decalage, -4)
     b.filet = UI.Aplat(b, { 0.53, 0.43, 0.27, 0.8 })
     b.filet:SetWidth(1)
@@ -68,7 +68,7 @@ local function Construire()
     f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", function(self) self:StartMoving() end)
     f:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
-    f.fond = UI.Aplat(f, UI.C.fond)
+    f.fond = UI.Aplat(f, { 0.045, 0.038, 0.03, 0.985 })
     f.fond:SetAllPoints(f)
     if UI.AelCadre then f.cadre = UI.AelCadre(f, "section") else UI.Bordure(f) end
 
@@ -76,35 +76,38 @@ local function Construire()
     f.bandeau = Panneau(f)
     f.bandeau:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -10)
     f.bandeau:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -10)
-    f.bandeau:SetHeight(52)
+    f.bandeau:SetHeight(62)
     f.regle = UI.Aplat(f.bandeau, { 0.53, 0.43, 0.27, 0.9 })
     f.regle:SetHeight(1)
     f.regle:SetPoint("BOTTOMLEFT", f.bandeau, "BOTTOMLEFT", 0, 0)
     f.regle:SetPoint("BOTTOMRIGHT", f.bandeau, "BOTTOMRIGHT", 0, 0)
 
     f.cadreIcone = Panneau(f, 0.95, true)
-    f.cadreIcone:SetSize(44, 44)
-    Placer(f.cadreIcone, "TOPLEFT", f, "TOPLEFT", 16, -14)
+    f.cadreIcone:SetSize(46, 46)
+    Placer(f.cadreIcone, "TOPLEFT", f, "TOPLEFT", 18, -18)
+    if UI.AelCadre then f.cadreIcone.cadre = UI.AelCadre(f.cadreIcone, "icone") end
     f.icone = f.cadreIcone:CreateTexture(nil, "ARTWORK")
     f.icone:SetPoint("TOPLEFT", f.cadreIcone, "TOPLEFT", 3, -3)
     f.icone:SetPoint("BOTTOMRIGHT", f.cadreIcone, "BOTTOMRIGHT", -3, 3)
 
     f.titre = UI.Texte(f.bandeau, "", DORE, "GameFontNormalLarge")
-    Placer(f.titre, "CENTER", f.bandeau, "CENTER", -96, 0)
+    f.titre:SetJustifyH("CENTER")
+    f.titre:SetWordWrap(false)
 
-    f.pf = BlocCout(f, "PF", -8, { 0.62, 0.80, 0.96 })
-    f.pa = BlocCout(f, "PA", -128, { 0.62, 0.88, 0.62 })
+    f.pf = BlocCout(f, "PF", -38, { 0.62, 0.80, 0.96 })
+    f.pa = BlocCout(f, "PA", -154, { 0.62, 0.88, 0.62 })
 
     f.fermer = UI.Bouton(f, "x", 18, 18, function() f:Hide() end)
     Placer(f.fermer, "TOPRIGHT", f, "TOPRIGHT", -14, -12)
+    UI.Bulle(f.fermer, "Fermer le composeur", "Annule cette action sans dépenser de points.")
 
     -- ----- corps ------------------------------------------------------------
-    f.principal = Panneau(f, 0.92, true)
-    f.principal:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -66)
-    f.principal:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 72)
+    f.principal = Panneau(f, 0.95, true)
+    f.principal:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -78)
+    f.principal:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 88)
     local M = f.principal
 
-    f.recap = Panneau(M, 0.25, true)
+    f.recap = Panneau(M, 0.34, true)
     f.recap:SetPoint("TOPLEFT", M, "TOPLEFT", 10, -10)
     f.recap:SetPoint("BOTTOMLEFT", M, "BOTTOMLEFT", 10, 10)
     f.recap:SetWidth(232)
@@ -120,7 +123,7 @@ local function Construire()
     f.recapVide = UI.Texte(f.recapZone.contenu, "(aucun choix)", UI.C.discret, "GameFontNormalSmall")
     Placer(f.recapVide, "TOPLEFT", f.recapZone.contenu, "TOPLEFT", 2, 0)
 
-    f.centre = Panneau(M, 0.25, true)
+    f.centre = Panneau(M, 0.34, true)
     f.centre:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 10, 0)
     f.centre:SetPoint("BOTTOMRIGHT", M, "BOTTOMRIGHT", -10, 10)
     local C = f.centre
@@ -177,15 +180,27 @@ local function Construire()
     -- ----- pied : une case par calcul de la feuille -------------------------
     f.pied = UI.Aplat(f, { 0.53, 0.43, 0.27, 0.9 })
     f.pied:SetHeight(1)
-    f.pied:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 14, 66)
-    f.pied:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 66)
+    f.pied:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 80)
+    f.pied:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 80)
     f.resultats = {}
     for i = 1, 3 do
-        local c = Panneau(f, 0)
-        c.titre = UI.Texte(c, "", { 0.80, 0.72, 0.55 }, "GameFontNormalSmall")
-        Placer(c.titre, "TOP", c, "TOP", 0, -6)
+        local c = Panneau(f, 0.3)
+        c.titre = UI.Texte(c, "", UI.C.titre, "GameFontNormalSmall")
+        Placer(c.titre, "TOP", c, "TOP", 0, -9)
+        c.titre:SetWidth(200)
+        c.titre:SetJustifyH("CENTER")
+        c.titre:SetWordWrap(false)
         c.valeur = UI.Texte(c, "—", { 1, 0.82, 0.35 }, "GameFontNormalLarge")
-        Placer(c.valeur, "BOTTOM", c, "BOTTOM", 0, 6)
+        Placer(c.valeur, "BOTTOM", c, "BOTTOM", 0, 9)
+        c.separateur = UI.Aplat(c, { 0.64, 0.52, 0.31, 0.9 }, "OVERLAY")
+        c.separateur:SetWidth(1)
+        c.separateur:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -7)
+        c.separateur:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 0, 7)
+        c.separateur:SetShown(i > 1)
+        c.filet = UI.Aplat(c, { 0.64, 0.52, 0.31, 0.55 }, "ARTWORK")
+        c.filet:SetHeight(1)
+        c.filet:SetPoint("TOPLEFT", c, "TOPLEFT", 14, -4)
+        c.filet:SetPoint("TOPRIGHT", c, "TOPRIGHT", -14, -4)
         c:Hide()
         f.resultats[i] = c
     end
@@ -297,13 +312,14 @@ function Ecran.Entete()
     -- Pied.
     local cases = Cases(f)
     local n = math.min(3, #cases)
-    local l = n > 0 and math.floor((LARGEUR - 28) / n) or 0
+    local l = n > 0 and math.floor((LARGEUR - 36) / n) or 0
     for i, case in ipairs(f.resultats) do
         local spec = cases[i]
         if spec and i <= n then
-            Placer(case, "BOTTOMLEFT", f, "BOTTOMLEFT", 14 + (i - 1) * l, 12)
-            case:SetSize(l, 52)
+            Placer(case, "BOTTOMLEFT", f, "BOTTOMLEFT", 18 + (i - 1) * l, 16)
+            case:SetSize(l, 58)
             case.titre:SetText(spec.titre)
+            case.titre:SetWidth(l - 16)
             case.valeur:SetText(spec.texte or (spec.valeur and Arrondi(spec.valeur)) or "—")
             -- La deuxieme de deux calculs (le critique) en rouge.
             local rouge = i == 2 and not spec.texte
@@ -593,7 +609,10 @@ function Ecran.Ouvrir(composeur, valider, annuler)
     local sansCout = etape.hideCost == true
     f.pa:SetShown(not sansCout)
     f.pf:SetShown(not sansCout)
-    Placer(f.titre, "CENTER", f.bandeau, "CENTER", sansCout and 0 or -96, 0)
+    f.titre:ClearAllPoints()
+    f.titre:SetPoint("LEFT", f.bandeau, "LEFT", 66, 0)
+    f.titre:SetPoint("RIGHT", f.bandeau, "RIGHT", sansCout and -40 or -276, 0)
+    f.titre:SetHeight(28)
     f:Show()
     f:Raise()
     Ecran.Rendre()
@@ -616,19 +635,25 @@ end
 
 -- ===== Les boutons du lanceur radial =======================================
 
+-- Chaque bouton joue SON action (Core/ActionsBoutons.lua), definie avec lui
+-- dans le code depuis le 3 octobre 2026 ; il ne cite plus une entree du
+-- compendium.
 LCM.WhenReady(function()
     for _, categorie in ipairs(UI.Radial.STRUCTURE) do
-        -- Les actions du MJ vivent dans le compagnon (Genere/Compendium_
-        -- Resolutions_MJ.lua) : chez un joueur, elles n'existent pas, et leur
-        -- categorie ne s'affiche pas. Rien a lier, rien a signaler.
+        -- Les actions du MJ vivent dans le compagnon (ActionsBoutons.lua) :
+        -- chez un joueur, elles n'existent pas, et leur categorie ne s'affiche
+        -- pas. Rien a lier, rien a signaler.
         local entrees = (categorie.mjSeulement and not LCM.IsMaster()) and {} or categorie.entrees or {}
         for _, entree in ipairs(entrees) do
-            local resolution = entree.resolution
-            if resolution and LCM.Resolutions.Get(resolution) then
-                UI.Radial.Lier(entree.id, function() A.Lancer(resolution) end)
-            elseif resolution then
-                LCM.Erreur(string.format("radial : « %s » vise une résolution absente du compendium (%s).",
-                    entree.id, resolution))
+            local action = LCM.ActionsBoutons.DuBouton(entree.id)
+            if action then
+                -- Une seule icone : celle du bouton, que le composeur reprend.
+                -- Les deux montraient chacun la sienne (le lanceur ses
+                -- dessins, le composeur l'icone WoW importee de Necronicon).
+                action.icone = entree.icone
+                UI.Radial.Lier(entree.id, function() A.Lancer(action) end)
+            else
+                LCM.Erreur(string.format("radial : le bouton « %s » n'a pas d'action.", entree.id))
             end
         end
     end

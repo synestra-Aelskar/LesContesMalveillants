@@ -23,7 +23,7 @@ attendu("brouillon fautif ecarte", LCM.Traits.Get("triche"), nil)
 attendu("le fichier fait foi", LCM.Traits.Get("escalade_jungle").label, "Escalade de la jungle")
 local annonce = false
 for _, l in ipairs(__sorties) do
-    if l:find("brouillon refuse %(traits%)") and l:find("primaire") then annonce = true end
+    if l:lower():find("brouillon refuse %(traits%)") and l:find("primaire") then annonce = true end
 end
 attendu("le refus est annonce", annonce, true)
 
@@ -347,7 +347,7 @@ f:Ouvrir("amulette_du_guetteur")
 attendu("rouvert : categorie relue", f.edition.categorie, "accessoire")
 
 dire("== Menu")
-attendu("compendium lie", LCM.UI.Menu.EstLiee("compendium"), true)
+attendu("compendium lie", LCM.UI.Menu.EstLiee("systeme_aelskar"), true)
 
 
 dire("== Atelier : statuts dans la liste")

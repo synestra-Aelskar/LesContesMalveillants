@@ -98,6 +98,11 @@ local function Generique(def)
         { cle = "metiers", label = "Metier", type = "liste", source = "metiers", multiple = true, emplacement = "body" },
     }
     for _, champ in ipairs(def.extras or {}) do champs[#champs + 1] = champ end
+    -- Ajout de l'addon (3 octobre 2026) : le jeu d'equilibrage et la rarete
+    -- de l'entree (Core/Forge.lua). Des qu'un jeu vise la categorie, le MJ
+    -- doit en choisir un pour enregistrer, et le bareme s'applique.
+    champs[#champs + 1] = { cle = "forge", label = "Forge", type = "liste", source = "forge:" .. def.id,
+                            emplacement = "meta" }
     def.champs = champs
     def.statistiques = "bonus"
     def.dossiers = DOSSIERS_GENERIQUES
@@ -205,7 +210,9 @@ local function Resolution(id, label, categorie)
         },
     })
 end
-Resolution("resolutions", "Systeme-Résolution-Action", "systeme")
+-- « Systeme-Resolution-Action » est retiree le 4 octobre 2026 : toutes ses
+-- entrees sont passees dans le code (Data/ActionsBoutons.lua, Data/
+-- Receptions.lua), elle restait vide.
 
 C.Categorie({
     id = "calculateurs", label = "Calculateur", type = "calculateur",
@@ -241,6 +248,41 @@ C.Categorie({
     id = "devises", label = "Devises", type = "currency",
     registre = "Devises", famille = "devises",
     champs = { Icone(), Description(false) },
+})
+
+-- Ajout de l'addon (3 octobre 2026) : les jeux d'equilibrage de la forge,
+-- ranges juste avant les categories qu'ils equilibrent
+-- (Core/Forge.lua). Ils se creent ici comme toute entree ; leur structure
+-- (raretes, reglages par statistique) ne tient pas dans l'editeur a champs,
+-- d'ou `editeur` : « Nouvelle entree » et la roue ouvrent l'equilibrage du
+-- compagnon MJ (MJ/Forge.lua).
+C.Categorie({
+    id = "jeux_equilibrage", label = "Jeux d'équilibrage", type = "generic",
+    registre = "Forge", famille = "jeux", editeur = "ForgeUI",
+    dossiers = { "Général" },
+    lire = {
+        cible = function(jeu)
+            local categorie = C.Get(jeu.categorie)
+            return categorie and categorie.label or jeu.categorie
+        end,
+        raretes = function(jeu)
+            local out = {}
+            for _, r in ipairs(jeu.raretes or {}) do
+                out[#out + 1] = string.format("|cff%s%s|r %d", r.couleur, r.label, r.points)
+            end
+            return table.concat(out, "  ·  ")
+        end,
+        reglages = function(jeu)
+            local n = 0
+            for _ in pairs(jeu.champs or {}) do n = n + 1 end
+            return n
+        end,
+    },
+    champs = {
+        { cle = "cible", label = "Catégorie", type = "texte", emplacement = "meta" },
+        { cle = "reglages", label = "Statistiques réglées", type = "nombre", emplacement = "meta" },
+        { cle = "raretes", label = "Raretés", type = "texte", emplacement = "body" },
+    },
 })
 
 Generique({ id = "ressources", label = "Ressources", liste = "ressources",

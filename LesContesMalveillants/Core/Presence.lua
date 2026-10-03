@@ -37,11 +37,12 @@ local derniereDemande = -math.huge
 local function Maintenant() return (GetTime and GetTime()) or 0 end
 local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostring(nom or "") end
 
-local function Noter(joueur, version)
+local function Noter(joueur, version, personnage)
     joueur = tostring(joueur or "")
     if joueur == "" then return end
+    personnage = tostring(personnage or "")
     -- Le meme joueur peut arriver avec ou sans son royaume selon le canal.
-    vus[joueur] = { version = version }
+    vus[joueur] = { version = version, personnage = personnage ~= "" and personnage or nil }
     vus[Court(joueur)] = vus[joueur]
     if Presence.onChange then Presence.onChange(joueur) end
 end
@@ -51,6 +52,20 @@ function Presence.Confirmee(joueur)
     joueur = tostring(joueur or "")
     if joueur == LCM.PlayerId() then return true end
     return (vus[joueur] or vus[Court(joueur)]) ~= nil
+end
+
+-- Le nom du personnage que ce joueur joue, tel que son addon l'a annonce, ou
+-- nil (pas vu, ou aucun personnage choisi).
+function Presence.Personnage(joueur)
+    local v = vus[tostring(joueur or "")] or vus[Court(joueur)]
+    return v and v.personnage or nil
+end
+
+-- Ce qu'on annonce de soi : la version, et le personnage joue, le sien meme
+-- quand le MJ incarne un PNJ.
+local function Moi()
+    local perso = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+    return { v = LCM.version, p = perso and perso.name or nil }
 end
 
 -- Ceux d'une liste qu'on n'a pas encore vus.
@@ -95,10 +110,18 @@ function Presence.Demander(force)
     derniereDemande = Maintenant()
     local envoye = false
     local id = Presence.Canal()
-    if id then envoye = LCM.Reseau.Envoyer("ici?", { v = LCM.version }, "CHANNEL", id) or envoye end
+    if id then envoye = LCM.Reseau.Envoyer("ici?", Moi(), "CHANNEL", id) or envoye end
     local groupe = LCM.Combat and LCM.Combat.CanalGroupe()
-    if groupe then envoye = LCM.Reseau.Envoyer("ici?", { v = LCM.version }, groupe) or envoye end
+    if groupe then envoye = LCM.Reseau.Envoyer("ici?", Moi(), groupe) or envoye end
     return envoye
+end
+
+-- On change de personnage : le groupe doit l'apprendre, sinon il cible
+-- encore l'ancien nom. Un « ici » sans question : chacun le note.
+function Presence.Annoncer()
+    local groupe = LCM.Combat and LCM.Combat.CanalGroupe()
+    if groupe then return LCM.Reseau.Envoyer("ici", Moi(), groupe) end
+    return false
 end
 
 LCM.WhenReady(function()
@@ -106,10 +129,10 @@ LCM.WhenReady(function()
     -- On me demande : je reponds en prive, et sa question prouve qu'il a
     -- l'addon lui aussi.
     R.Ecouter("ici?", function(expediteur, d)
-        Noter(expediteur, d.v)
-        R.Envoyer("ici", { v = LCM.version }, "WHISPER", expediteur)
+        Noter(expediteur, d.v, d.p)
+        R.Envoyer("ici", Moi(), "WHISPER", expediteur)
     end)
-    R.Ecouter("ici", function(expediteur, d) Noter(expediteur, d.v) end)
+    R.Ecouter("ici", function(expediteur, d) Noter(expediteur, d.v, d.p) end)
     -- Le canal n'est pas toujours rejoignable des la connexion : s'il l'est
     -- deja, on pingue ; sinon, on pinguera en le rejoignant (plus bas).
     if Presence.Rejoindre() then Presence.Demander(true) end

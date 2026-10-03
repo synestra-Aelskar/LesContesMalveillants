@@ -253,8 +253,7 @@ function Pages.contenu(page, f)
         end
     end
     local boutons = {
-        { "systeme", "Système d'Aelskar", Entree("systeme_aelskar") },
-        { "compendium", "Compendium", Entree("compendium") },
+        { "systeme", "Système d'A'Hell'Razkah", Entree("systeme_aelskar") },
     }
     page.boutons = {}
     local y = 28
