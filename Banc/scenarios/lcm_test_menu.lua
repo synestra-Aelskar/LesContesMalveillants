@@ -14,6 +14,7 @@ local function rayon(bouton)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 -- ======================================================================
 dire("== le lanceur d'actions : les barres du template")
@@ -197,7 +198,9 @@ __addonsCharges["LesContesMalveillants_MJ"] = false
 local outils = M.Visibles(M.Trouver("outils").enfants)
 local ids = {}
 for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
-attendu("outils du joueur", table.concat(ids, ","), "regles,parametres,vendeur,ressources")
+-- Vendeur et Ressources sont passes au MJ le 3 octobre 2026 : ils s'ouvrent
+-- quand le MJ met un point en jeu, pas quand un joueur veut faire ses courses.
+attendu("outils du joueur", table.concat(ids, ","), "regles,parametres")
 attendu("Systeme d'Aelskar reserve au MJ", M.Trouver("systeme_aelskar").mjSeulement, true)
 f.sceau:Click("LeftButton")
 __avancer(1)

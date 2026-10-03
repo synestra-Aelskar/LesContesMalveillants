@@ -9,6 +9,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== morphologies declarees")
 attendu("nombre", #LCM.Morphologies.list, 4)

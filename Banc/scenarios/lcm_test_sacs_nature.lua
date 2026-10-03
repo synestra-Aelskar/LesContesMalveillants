@@ -8,6 +8,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local I, S = LCM.Inventaire, LCM.Sacs
 
 dire("== la nature d'un sac")

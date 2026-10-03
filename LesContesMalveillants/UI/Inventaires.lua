@@ -551,7 +551,25 @@ local function ConstruireSac(onglet, index)
         end
         for n = total + 1, #self.cases do self.cases[n]:Hide() end
         local rangs = vue == "grille" and math.ceil(total / colonnes) or total
-        self.zone:Regler(vue == "grille" and rangs * (CASE + ECART_CASE) or total * 30)
+        local hauteurContenu = vue == "grille" and rangs * (CASE + ECART_CASE) or total * 30
+        self.zone:Regler(hauteurContenu)
+        -- La fenetre prend la taille de son sac : cinq cases ne meritent pas la
+        -- meme fenetre que vingt-cinq, et passer de la grille a la liste change
+        -- la hauteur du tout au tout. Tant qu'on ne l'a pas tiree soi-meme
+        -- (`placee`), elle suit.
+        if not self.placee then
+            -- 52 au-dessus de la zone (titre, filet), 28 en dessous.
+            local voulue = 80 + hauteurContenu
+            local plafond = (UIParent and UIParent:GetHeight() or 1080) * 0.8
+            self:SetHeight(math.max(160, math.min(voulue, plafond)))
+            -- En grille, on cale aussi la LARGEUR sur les colonnes occupees :
+            -- une rangee de cinq cases dans une fenetre de 380 laissait un
+            -- desert a droite.
+            if vue == "grille" then
+                local utiles = math.min(colonnes, total)
+                self:SetWidth(math.max(320, 44 + utiles * (CASE + ECART_CASE)))
+            end
+        end
     end
 
     function s:CliquerCase(b, bouton)

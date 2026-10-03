@@ -177,9 +177,11 @@ local function Construire(vue, rang)
                 f:ActualiserCanal()
             end)
         end)
-        local qCanal = (vue.largeur or 420) / 845
         f.canal:SetSize(f.fermer:GetWidth(), f.fermer:GetHeight())
-        f.canal:SetPoint("TOPLEFT", f, "TOPLEFT", 6 * qCanal, -6 * qCanal)
+        -- La fenetre place elle-meme ses deux coins hauts, en miroir et apres
+        -- l'ornement d'angle : on lui confie la pastille.
+        f.coinGauche = f.canal
+        f:PlacerCoinsHaut()
         -- Au-dessus de l'habillage, comme la croix : l'ornement du coin passait
         -- sinon par-dessus.
         f.canal:SetFrameLevel(f:GetFrameLevel() + 6)

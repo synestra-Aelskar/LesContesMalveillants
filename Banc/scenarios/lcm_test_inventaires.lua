@@ -212,4 +212,32 @@ attendu("le depot du joueur est refuse", I.Case(I.Emplacement(moi, "sacs", 1), 2
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
+dire("== la fenetre d'un sac prend la taille de son sac")
+-- Deux sacs de capacites differentes : la fenetre ne peut pas faire la meme
+-- taille pour cinq cases et pour vingt-cinq.
+LCM.Sacs.Add({ id = "sac_etroit", label = "Sac etroit", nature = "sac", places = 4 })
+LCM.Sacs.Add({ id = "sac_vaste",  label = "Sac vaste",  nature = "sac", places = 30 })
+moi.inventaire = nil
+I.Poser(moi, "sacs", 1, "sac_etroit")
+I.Poser(moi, "sacs", 2, "sac_vaste")
+local petit = LCM.UI.Inventaires.OuvrirSac("sacs", 1)
+local hautPetit = petit:GetHeight()
+petit:Hide()
+local grand = LCM.UI.Inventaires.OuvrirSac("sacs", 2)
+attendu("le grand sac ouvre une plus grande fenetre", grand:GetHeight() > hautPetit, true)
+
+dire("   passer de la grille a la liste change la hauteur")
+local enGrille = grand:GetHeight()
+grand.vue:Click()
+attendu("en liste, c'est plus haut", grand:GetHeight() > enGrille, true)
+grand.vue:Click()
+attendu("et en grille, ca revient", grand:GetHeight(), enGrille)
+
+dire("   une fenetre qu'on a tiree garde sa taille")
+grand.placee = true
+grand:SetHeight(250)
+grand.vue:Click()
+attendu("elle ne bouge plus", grand:GetHeight(), 250)
+grand:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

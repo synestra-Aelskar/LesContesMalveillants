@@ -214,7 +214,20 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- croix n'a pas besoin de grandir avec la fenetre, on sait ce qu'elle fait.
     local cote = math.max(14, math.min(18, 54 * q))
     f.fermer:SetSize(cote, cote)
-    f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6 * q, -6 * q)
+    -- La croix, et ce que la fenetre pose en miroir a gauche (la pastille de
+    -- canal), doivent commencer APRES l'ornement du coin : pose au ras du bord,
+    -- un bouton mord sur la tour d'angle de l'habillage.
+    function f:PlacerCoinsHaut()
+        local retrait = math.max(6 * q, (UI.AelRetraitCoin and UI.AelRetraitCoin(self) or 0) + 4)
+        self.fermer:ClearAllPoints()
+        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -retrait, -6 * q)
+        if self.coinGauche then
+            self.coinGauche:ClearAllPoints()
+            self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", retrait, -6 * q)
+        end
+        self.retraitCoin = retrait
+    end
+    f:PlacerCoinsHaut()
     -- Au-dessus de l'habillage : l'ornement du coin passait par-dessus la croix
     -- et la fenetre n'avait plus l'air d'avoir de fermeture.
     f.fermer:SetFrameLevel(f:GetFrameLevel() + 6)
@@ -577,9 +590,11 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     if type(rappels) == "function" then rappels = { change = rappels } end
     rappels = rappels or {}
 
-    -- `rappels.serre` : le chiffre a l'etroit (« 0 / 3 » tient dans 38). Sert
-    -- quand plusieurs compteurs se partagent une ligne.
-    local largeurChiffre = rappels.serre and 38 or 52
+    -- `rappels.serre` : le chiffre a l'etroit. 46 et pas moins : la valeur la
+    -- plus large n'est pas « 0 / 3 » mais « 10 / 10 », et a 38 elle passait a
+    -- la ligne — ce qui doublait la hauteur de la ligne et desalignait la
+    -- colonne entiere.
+    local largeurChiffre = rappels.serre and 46 or 52
 
     local l = CreateFrame("Frame", nil, parent)
     l:SetHeight(20)
@@ -592,8 +607,11 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     l.label:SetPoint("LEFT", l, "LEFT", 6, 0)
     l.label:SetWidth(largeurLibelle or 120)
     -- Un libelle trop long se coupe ; il ne passe pas a la ligne, sinon la
-    -- ligne double de hauteur et la colonne se desaligne.
+    -- ligne double de hauteur et la colonne se desaligne. `SetMaxLines(1)`
+    -- rend la coupe franche : sans lui, le texte deborde sous les boutons au
+    -- lieu de s'arreter a sa largeur.
     l.label:SetWordWrap(false)
+    if l.label.SetMaxLines then l.label:SetMaxLines(1) end
 
     -- Ce que la ligne occupe apres le libelle : R, -, le chiffre, +, M.
     -- Utile pour decider ce qui tient encore a droite dans une colonne etroite.
@@ -615,6 +633,36 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     l.chiffre:SetPoint("LEFT", l.moins, "RIGHT", 4, 0)
     l.chiffre:SetWidth(largeurChiffre)
     l.chiffre:SetJustifyH("CENTER")
+    -- Jamais de retour a la ligne dans un chiffre : s'il ne tient pas, c'est la
+    -- colonne qu'il faut elargir, pas la ligne qu'il faut faire grandir.
+    l.chiffre:SetWordWrap(false)
+
+    -- On clique le chiffre pour le taper. Monter de 0 a 10 au bouton « + »,
+    -- c'est dix clics ; le « M » envoie au plafond, mais entre les deux il n'y
+    -- avait rien. La saisie passe par le meme chemin que les boutons, donc par
+    -- les memes refus : on ne peut pas se donner ce qu'on n'a pas.
+    l.saisieValeur = CreateFrame("Button", nil, l)
+    l.saisieValeur:SetPoint("TOPLEFT", l.chiffre, "TOPLEFT", 0, 2)
+    l.saisieValeur:SetPoint("BOTTOMRIGHT", l.chiffre, "BOTTOMRIGHT", 0, -2)
+    l.saisieValeur.survol = UI.Aplat(l.saisieValeur, UI.C.survol, "HIGHLIGHT")
+    l.saisieValeur.survol:SetAllPoints(l.saisieValeur)
+    l.saisieValeur:SetScript("OnClick", function()
+        local plafond = rappels.max and rappels.max() or nil
+        UI.Demande():Demander(tostring(libelle or ""), l.valeur, function(texte)
+            local n = tonumber(texte)
+            if not n or n ~= math.floor(n) or n < 0 then
+                return false, "un nombre entier, 0 au minimum."
+            end
+            -- Le garde-fou est ici ET dans le rappel : ici on explique le
+            -- plafond avant d'essayer, la-bas on refuse ce qui ne passe pas.
+            if plafond and n > plafond then
+                return false, string.format("%d au maximum.", plafond)
+            end
+            Poser(n)
+            return true
+        end)
+    end)
+    UI.Bulle(l.saisieValeur, tostring(libelle or ""), "Clic : saisir la valeur.")
 
     l.plus = UI.Bouton(l, "+", 16, 16, function() Poser(l.valeur + 1) end)
     l.plus:SetPoint("LEFT", l.chiffre, "RIGHT", 4, 0)

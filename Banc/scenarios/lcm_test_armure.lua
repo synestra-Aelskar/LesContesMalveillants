@@ -15,6 +15,7 @@ local function Jauge(e)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local O, A = LCM.Objets, LCM.Actions
 local moi = LCM.Entities.Self()
 

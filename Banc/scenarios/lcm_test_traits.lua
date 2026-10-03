@@ -8,6 +8,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local moi = LCM.Entities.Self()
 
 dire("== la regle : pas de bonus aux primaires")

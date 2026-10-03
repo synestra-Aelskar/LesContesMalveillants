@@ -513,7 +513,8 @@ local function Bulle(bouton, titre, detail)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(titre, UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
-        if detail then GameTooltip:AddLine(detail, 0.7, 0.68, 0.62, true) end
+        local texte = type(detail) == "function" and detail() or detail
+        if texte then GameTooltip:AddLine(texte, 0.7, 0.68, 0.62, true) end
         GameTooltip:Show()
     end)
     bouton:SetScript("OnLeave", function(self)
@@ -927,11 +928,25 @@ local function Construire()
             if UI.Personnages then UI.Personnages.Ouvrir() end
             return
         end
+        -- Aucun personnage : la couronne des fenetres n'aurait rien a montrer
+        -- (une fiche sans personnage, un inventaire vide). On ouvre la creation,
+        -- qui est la seule chose a faire a ce moment-la.
+        if LCM.Personnages and LCM.Personnages.Compte() == 0 then
+            FermerTout(f, true)
+            if UI.Personnages and UI.Personnages.Creer then UI.Personnages.Creer() end
+            return
+        end
         Basculer(f, f.couronnes.fenetres)
     end)
-    Bulle(f.sceau, "Les Contes Malveillants",
-        "Clic : les fenêtres\nClic droit : les actions\n"
-        .. "Maj + clic : choisir ou créer un personnage\nGlisser : déplacer")
+    Bulle(f.sceau, "Les Contes Malveillants", function()
+        -- Sans personnage, le premier clic ne fait pas ce qu'il fait
+        -- d'habitude : l'infobulle doit le dire.
+        if LCM.Personnages and LCM.Personnages.Compte() == 0 then
+            return "Clic : créer ton premier personnage\nClic droit : les actions\nGlisser : déplacer"
+        end
+        return "Clic : les fenêtres\nClic droit : les actions\n"
+            .. "Maj + clic : choisir ou créer un personnage\nGlisser : déplacer"
+    end)
 
     Radial.frame = f
     return f

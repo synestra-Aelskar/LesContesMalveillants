@@ -17,9 +17,11 @@ local C = LCM.Creation
 local Ecran = {}
 UI.Creation = Ecran
 
--- 820 de large : le recapitulatif a gauche, la page a droite, et on reste
--- sous la plus large fenetre de Necronicon (780) une fois le recap deduit.
-local LARGEUR, HAUTEUR = 820, 620
+-- 1040 de large : le recapitulatif a gauche, et une page qui tient TROIS
+-- colonnes de compteurs. Les expertises ont trois familles (Observations,
+-- Athletisme, Filouterie) ; sur deux colonnes, la troisieme passait sous la
+-- ligne de flottaison et on repartissait a l'aveugle.
+local LARGEUR, HAUTEUR = 1040, 620
 -- La colonne du recapitulatif, a gauche : ce qu'on a deja pose, par categorie.
 local LARGEUR_RECAP = 224
 local LARGEUR_PAGE = LARGEUR - 24 - LARGEUR_RECAP - 12
@@ -59,6 +61,9 @@ local TEXTES = {
         .. "Répartis tes points en fonction des forces et des faiblesses que tu souhaites donner à ton personnage !",
     statistiquesGenerales = "Répartissez ci-dessous vos points de statistiques. Les points de statistiques "
         .. "primaires influent sur l'ensemble de vos compétences. Elles constituent le socle de votre personnage.",
+    mecaniques = "Les mécaniques de compétence disent ce que ton personnage sait faire d'une "
+        .. "compétence : à quelle distance, sur combien de cibles, avec quelle force. "
+        .. "Elles se répartissent comme les expertises, et sur leur propre budget.",
     expertises = "Les expertises représentent les compétences diverses et variées qu'un personnage sait faire "
         .. "ou non.\n\nIl est possible que certaines expertises ne soient pas présentées dans cette liste ; le "
         .. "cas échéant, celles-ci sont traitées soit au feeling, soit par aval d'un maître du jeu.",
@@ -129,16 +134,22 @@ end
 
 -- Le compte « reste / total » et la remise a zero d'une categorie, dans le
 -- titre du bloc.
+-- Le budget d'une categorie : combien il reste, et le bouton qui remet tout a
+-- zero. Il est ancre a la FENETRE, pas au bloc : une liste de vingt lignes se
+-- fait defiler, et c'est precisement en bas de liste qu'on a besoin de savoir
+-- ce qu'il reste. Le bloc, lui, garde son titre.
 local function Budget(page, f, bloc, categorie)
-    bloc.budget = UI.Texte(bloc, "", UI.C.titre)
+    bloc.budget = UI.Texte(f.contenu, "", UI.C.titre)
     UI.Police(bloc.budget, 14)
-    bloc.remise = UI.Bouton(bloc, "R", 22, 20, function()
+    bloc.remise = UI.Bouton(f.contenu, "R", 22, 20, function()
         C.RemettreCategorie(f.brouillon, categorie)
         f:Actualiser()
     end)
-    bloc.remise:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -14, -(bloc.hautTitre - 20) / 2)
-    bloc.budget:SetPoint("RIGHT", bloc.remise, "LEFT", -8, 0)
+    bloc.remise:SetFrameLevel(f.contenu:GetFrameLevel() + 10)
+    bloc.budget:SetDrawLayer("OVERLAY")
     bloc.categorie = categorie
+    -- Posee par f:PlacerBudget() quand on change d'etape : une seule de ces
+    -- lignes est visible a la fois, celle de l'etape ouverte.
     page.budgets[#page.budgets + 1] = bloc
 end
 
@@ -158,17 +169,18 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
     -- au libelle — le total est de toute facon dans le recapitulatif.
     -- 6 : la marge avant le libelle.
     local function Mesures(largeur, serre)
-        local boutons = serre and 122 or 136
+        local boutons = serre and 130 or 136
         local dispo = (largeur - 12) - 6 - boutons
         local label = math.min(LARGEUR_LABEL, math.max(serre and 56 or 76, dispo - 8 - 96))
         local total = math.min(96, math.max(0, dispo - label - 8))
         if total < 30 then label, total = math.max(serre and 56 or 76, dispo), 0 end
+        label = math.min(label, math.max(40, (largeur - 12) - 6 - boutons))
         return label, total
     end
 
     -- La place minimale d'un compteur serre : sa marge, son libelle le plus
     -- court lisible, et ses boutons.
-    local MINIMUM_SERRE = 6 + 56 + 122 + 12
+    local MINIMUM_SERRE = 6 + 56 + 130 + 12
 
     -- Les lignes, par groupe, dans l'ordre. Un groupe ne se coupe jamais en
     -- deux : une categorie qui se deverse sur la colonne d'a cote ne se lit
@@ -220,7 +232,9 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         compteur.total = UI.Texte(compteur, "", UI.C.accent, "GameFontNormalSmall")
         compteur.total:SetPoint("LEFT", compteur.maximum, "RIGHT", 8, 0)
         compteur.total:SetWidth(math.max(1, largeurTotal))
-        compteur.total:SetJustifyH("LEFT")
+        -- Cale a droite : les totaux s'alignent, quelle que soit la longueur
+        -- du calcul qui les precede.
+        compteur.total:SetJustifyH("RIGHT")
         compteur.total:SetShown(largeurTotal > 0)
 
         local cout = C.Cout(categorie, ligne.id)
@@ -275,6 +289,8 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         -- Les suivants : un groupe par colonne, a tour de role, et jamais
         -- coupe. Chaque colonne garde son propre fil vertical.
         local largeurColonne = largeurUtile / colonnes
+        -- A trois colonnes, un compteur entier ne tient plus : on le serre.
+        local serreColonne = colonnes >= 3
         local yColonne = {}
         for c = 1, colonnes do yColonne[c] = y end
         for rang = debut, #groupes do
@@ -288,7 +304,7 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
             local x = marge + (choisie - 1) * largeurColonne
             yColonne[choisie] = yColonne[choisie] + Titre(g.nom, x, yColonne[choisie], largeurColonne)
             for _, ligne in ipairs(g.lignes) do
-                Poser(ligne, x, yColonne[choisie], largeurColonne)
+                Poser(ligne, x, yColonne[choisie], largeurColonne, serreColonne)
                 yColonne[choisie] = yColonne[choisie] + LIGNE
             end
             yColonne[choisie] = yColonne[choisie] + 6
@@ -698,8 +714,11 @@ function Pages.statistiques(page, f)
 end
 
 function Pages.expertises(page, f)
-    Grille(page, f, "Expertises et compétences", TEXTES.expertises, "expertises", 2)
-    Grille(page, f, "Mécanique de compétence", nil, "mecaniques", 2)
+    Grille(page, f, "Expertises et compétences", TEXTES.expertises, "expertises", 3)
+end
+
+function Pages.mecaniques(page, f)
+    Grille(page, f, "Mécanique de compétence", TEXTES.mecaniques, "mecaniques", 3)
 end
 
 function Pages.penetrations(page, f)
@@ -966,7 +985,10 @@ local function Construire()
     f.probleme:SetJustifyH("RIGHT")
 
     f.zone = UI.Defilement(f.contenu)
-    f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 10))
+    -- Ce qui est pose AU-DESSUS de la zone : la rangee d'onglets, puis la ligne
+    -- de budget epinglee.
+    f.hautZoneCreation = hauteurBandeau + 10
+    f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 34))
 
     -- La rangee du bas (et ce qui s'appuie dessus) se pose au-dessus de ce que
     -- l'habillage mange a l'interieur de la fenetre : au ras du contenu, les
@@ -1116,6 +1138,28 @@ local function Construire()
     -- Avancer ou reculer d'une etape. On s'arrete aux extremites plutot que de
     -- boucler : revenir a « Bienvenue » depuis « Traits » en cliquant Suivant
     -- donnerait l'impression d'avoir perdu son travail.
+    -- Un seul budget visible : celui de l'etape ouverte, epingle au-dessus de
+    -- la zone qui defile.
+    function f:PlacerBudget()
+        local page = self.pages[self.etape]
+        for _, bloc in ipairs((page and page.budgets) or {}) do
+            bloc.remise:ClearAllPoints()
+            bloc.remise:SetPoint("TOPRIGHT", self.contenu, "TOPRIGHT", -12, -(self.hautZoneCreation or 0) + 2)
+            bloc.budget:ClearAllPoints()
+            bloc.budget:SetPoint("RIGHT", bloc.remise, "LEFT", -8, 0)
+            bloc.remise:Show()
+            bloc.budget:Show()
+        end
+        for id, autre in pairs(self.pages) do
+            if id ~= self.etape then
+                for _, bloc in ipairs(autre.budgets or {}) do
+                    bloc.remise:Hide()
+                    bloc.budget:Hide()
+                end
+            end
+        end
+    end
+
     function f:Pas(sens)
         local rang = 1
         for index, etape in ipairs(C.ETAPES) do
@@ -1156,9 +1200,16 @@ local function Construire()
                 elseif budget then
                     texte = string.format("%d pts", C.Total(self.brouillon, budget))
                 elseif bonus ~= 0 then
-                    texte = string.format("%d  |cff8a8a8a%+d|r", investi + bonus, bonus)
+                    -- Le calcul en entier, dans l'ordre ou il se fait : ce que
+                    -- la RACE donne (gris, on n'y peut rien), ce qu'on DEPENSE
+                    -- (orange, c'est notre geste), et le TOTAL.
+                    texte = string.format("|cff8a8a8a%d|r |cffff9933+ %d|r = |cfff2d9a1%d|r",
+                        bonus, investi, investi + bonus)
                 else
-                    texte = tostring(investi)
+                    -- Sans apport racial, il n'y a rien a additionner : le
+                    -- total seul, a la meme place, pour que la colonne se lise
+                    -- d'un trait.
+                    texte = string.format("= |cfff2d9a1%d|r", investi)
                 end
                 compteur.total:SetText(texte)
                 local teinte = (rendement or budget or bonus ~= 0) and UI.C.accent or UI.C.discret
@@ -1188,6 +1239,9 @@ local function Construire()
         self.precedent:ClearAllPoints()
         self.precedent:SetPoint("RIGHT", rang == dernier and self.valider or self.suivant, "LEFT", -6, 0)
         self.precedent:SetEnabled(rang > 1)
+
+        -- Le budget de l'etape ouverte, epingle en haut a droite de la page.
+        self:PlacerBudget()
 
         local problemes = C.Problemes(self.brouillon)
         self.probleme:SetText(problemes[1] or "")

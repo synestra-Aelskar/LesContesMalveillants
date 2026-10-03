@@ -55,8 +55,11 @@ Menu.STRUCTURE = {
           { id = "parametres", label = "Paramètres", icone = RADIAL .. "fenetres-parametres.tga" },
           { id = "compendium", label = "Compendium", icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
           { id = "panneau_mj", label = "Panel MJ",   icone = RADIAL .. "fenetres-panneau_mj.tga", mjSeulement = true },
-          { id = "vendeur",    label = "Vendeur",    icone = RADIAL .. "fenetres-vendeur.tga" },
-          { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga" },
+          -- Reserves au MJ depuis le 3 octobre 2026 : un vendeur et un filon
+          -- s'ouvrent quand le MJ les met en jeu, pas quand un joueur decide
+          -- d'aller faire ses courses.
+          { id = "vendeur",    label = "Vendeur",    icone = RADIAL .. "fenetres-vendeur.tga", mjSeulement = true },
+          { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga", mjSeulement = true },
           { id = "incarner",   label = "Incarner",   icone = RADIAL .. "fenetres-incarner.tga", mjSeulement = true },
       } },
     -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,

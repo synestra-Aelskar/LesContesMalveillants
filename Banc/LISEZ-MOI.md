@@ -78,7 +78,7 @@ vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
 | `lcm_test_objets.lua` | objets : registre, emplacements, effets cumulés avec les traits, fenêtre d'équipement |
 | `lcm_test_inventaires.lua` | l'inventaire du template : onglets Sacs / Saccoches / Devises, sacs posés et repris de l'ancien format, cases, quantités, soldes, refus ; la fenêtre (grille / liste, glisser depuis le compendium) et la fenêtre d'un sac (cases, menu clic droit, déplacer) |
 | `lcm_test_metiers.lua` | les 31 métiers du template, paliers d'XP incrémentaux, bonus de jet, fenêtre Métiers (XP réservée au MJ) |
-| `lcm_test_identite.lua` | l'identité Total RP 3 (nom RP, icône) reprise de Necronicon, TRP3 absent ou défaillant |
+| `lcm_test_identite.lua` | l'identité Total RP 3 (nom RP, icône) reprise de Necronicon, bouton du menu, TRP3 absent ou défaillant |
 | `lcm_test_regles.lua` | les formules du template, vérifiées à la main : apports aux expertises, déplacement, PA, fatigue, initiative, PV |
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
 | `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
@@ -102,6 +102,25 @@ vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
 | `lcm_test_creation.lua` | **les règles** de création : budgets, plafonds, refus |
 | `lcm_test_creation_ecran.lua` | l'écran de création : compteurs, R / M, récapitulatif |
 | `lcm_test_skin.lua` | le cadre Ael'Raz'kah, l'empilement des fenêtres |
+| `lcm_test_actions.lua` | les actions du radial : résolutions du compendium, composeur, déclaration |
+| `lcm_test_defense.lua` | recevoir une action : « Vous êtes la cible de », la défense, la répartition, le compte rendu |
+| `lcm_test_reactions.lua` | réagir à une action : dévier, proposer d'intervenir, intervenir |
+| `lcm_test_soin.lua` | le soin : le composer, le répartir par zone, le déclarer, le recevoir |
+| `lcm_test_buff.lua` | le constructeur de buff / debuff, et la dissipation |
+| `lcm_test_controles.lua` | les contrôles : effets narratifs, états temporaires, résistance, rounds |
+| `lcm_test_combat.lua` | le combat : invitation, initiative, tours et rounds, bandeau, réseau |
+| `lcm_test_combat_joueur.lua` | le combat vu d'un joueur, **sans** le compagnon MJ (à jouer aussi avec `--sans-mj`) ; le MJ est simulé par ses messages |
+| `lcm_test_armure.lua` | l'armure portée : la jauge `#armure`, nu à 0 / 0, chaque pièce équipée apporte sa valeur |
+| `lcm_test_deplacement_force.lua` | le déplacement : les mètres d'une poussée, le round (un gratuit puis un à 1 PA + 1 PF), et les deux sources de position (`UnitPosition`, puis la carte) |
+| `lcm_test_experience.lua` | l'expérience : le MJ la donne, le palier fait monter le niveau |
+| `lcm_test_sacs_nature.lua` | sacs et sacoches : où l'on peut les porter, et ce qu'ils contiennent |
+| `lcm_test_editeur_icone.lua` | l'éditeur d'entrée du compendium : l'icône se choisit au clic |
+| `lcm_test_radial_competences.lua` | la catégorie « Compétences » du lanceur : les sorts du personnage joué |
+| `lcm_test_scene.lua` | les PNJ en scène : le MJ les met en jeu, les joueurs les ciblent |
+| `lcm_test_presence.lua` | le ping de présence : qui a l'addon, sur tout le serveur |
+| `lcm_test_switch.lua` | `/lcm switch` : un MJ qui joue voit ce que voient ses joueurs |
+| `lcm_test_sans_personnage.lua` | une installation toute neuve : aucun personnage, et rien ne doit en inventer un |
+| `lcm_test_joueur.lua` | l'addon tel que le voit un joueur : tout ouvrir, sans rien casser |
 
 **Tous doivent être au vert avant de publier.** Pour les lancer d'affilée :
 
@@ -111,7 +130,7 @@ for %f in (scenarios\lcm_test_*.lua) do @lcm.cmd "%f" | findstr /C:"TOUT PASSE" 
 
 ## Écrire un scénario
 
-Copie n'importe lequel des douze. La forme est toujours la même :
+Copie n'importe lequel des cinquante. La forme est toujours la même :
 
 ```lua
 local function dire(...) print(table.concat({...}, " ")) end
@@ -152,6 +171,13 @@ bien construite, sans prétendre dessiner quoi que ce soit.
 | `__sorties` | ce que l'addon a écrit dans le chat |
 | `__sansCouleur(texte)` | enlever les codes couleur de WoW |
 | `__addonsCharges["..."]` | simuler la présence d'un addon |
+| `__personnage()` | donner un personnage au scénario. **Obligatoire** : l'addon n'en fabrique plus tout seul, et un scénario qui en a besoin le dit |
+| `__position(x, y, z)` | déplacer le personnage, pour les mètres d'un déplacement |
+| `__positionMonde(false)` | faire **refuser** `UnitPosition`, comme le jeu le fait sur les cartes de type instance |
+| `__carte(id, largeur, hauteur)` | ce que la carte déclare ; `__carte(nil)` pour une carte muette, qui ne permet plus rien de mesurer |
+| `__groupe(membres, raid)` | monter un groupe ou un raid |
+| `__chats`, `__canaux` | ce qui est parti dans quel canal |
+| `__avancerTemps(s)` | avancer l'horloge sans faire tourner les animations |
 
 `Show`, `Hide` et `SetShown` déclenchent `OnShow` / `OnHide`, comme dans le jeu.
 
@@ -165,4 +191,9 @@ dans le code de l'addon — sinon on ne teste plus ce qui tourne en jeu.
   illisible. Le rendu se vérifie en jeu.
 - Il n'écrit **jamais** dans les `SavedVariables` du jeu (`WTF/`). Il peut les
   lire pour relever une valeur, jamais les modifier.
-- Il ne simule pas le réseau, ni le combat, ni les cadres protégés.
+- Il ne résout **aucune géométrie d'écran** : pas de largeur réelle, pas de
+  police mesurée. Une fenêtre peut passer et déborder en jeu.
+- Il ne simule pas les **cadres protégés**, ni les commandes serveur.
+- Le réseau et le combat, eux, sont simulés depuis le 2 octobre 2026
+  (découpage sous 255 octets, canaux, invitations) : ce qui passe au banc
+  reste à voir à plusieurs clients.

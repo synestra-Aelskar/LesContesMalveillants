@@ -287,6 +287,63 @@ ouvre le sélecteur, comme dans l'atelier. En lecture seule, il ne propose rien
 et dit quoi faire. La catégorie Sacs n'a plus qu'un onglet (`ongletUnique`) :
 « Textes courts » est fusionné dans Général.
 
+**Le déplacement, exactement celui de Necronicon.** La jauge ne compte plus
+seulement les mètres, elle tient le **round** : un déplacement **gratuit**, puis
+un **supplémentaire à 1 PA + 1 PF**, et après cela plus rien avant « Nouveau
+round ». Le bouton dit à l'avance ce que le départ coûtera (« Se déplacer
+(gratuit) », « (1 PA + 1 PF) », « Plus de déplacement »), parce que « 1 / 2 ce
+round » ne dit pas ce qu'on paie. Le supplémentaire est **vérifié avant d'être
+débité** : sans les PA, on ne part pas, et la fatigue n'est pas prélevée pour un
+départ qui n'a pas eu lieu. Les trois modes sont en haut, et un mode que la
+fiche ne permet pas (le vol, le plus souvent) reste **visible mais éteint** : le
+menu ne mente pas sur ce qui existe. Les valeurs sont dans
+`Data/Equilibrage.lua` (`parRound`, `supplementPA`, `supplementPF`).
+
+**La position, là où le client la refuse.** « Position du personnage
+indisponible (UnitPosition) » n'était pas une panne : le jeu **refuse**
+`UnitPosition` sur les cartes de type instance — et nos cartes de campagne en
+sont. Necronicon s'arrêtait là. L'addon a maintenant **deux sources** :
+
+* `UnitPosition`, des yards du monde, précis, pris en premier ;
+* à défaut la **carte** : `C_Map.GetPlayerMapPosition` rend une fraction du
+  rectangle de la carte, que `C_Map.GetMapWorldSize` ramène en yards. Plus
+  grossier, sans altitude — le relief était de toute façon ignoré — et muet si
+  la carte ne déclare pas sa taille (certaines customs rendent 0). Là, le refus
+  nomme les deux sources au lieu d'accuser `UnitPosition` seul.
+
+Une course **garde la source avec laquelle elle a commencé** : mêler des yards
+du monde et des yards de carte en cours de route ferait un bond de plusieurs
+mètres sans que personne n'ait bougé. Le banc sait jouer les trois cas
+(`__positionMonde(false)`, `__carte(id, largeur, hauteur)`, `__carte(nil)`).
+
+**La création, suite.** « Mécanique de compétence » est une **étape à part
+entière**, après Expertises. Les valeurs se lisent dans l'ordre
+**`Racial + ce qu'on dépense = Total`** — racial en gris, dépensé en orange,
+total dans la couleur des titres — et un **clic sur la valeur** permet de la
+taper directement, borné au maximum possible. La fenêtre est passée à
+**1040 × 620** pour que les trois catégories d'expertise tiennent côte à côte, et
+l'**en-tête (points totaux et restants) reste affiché** pendant qu'on fait
+défiler la liste. Le bloc d'introduction « Ci-dessous… personnage » a été
+retiré : il expliquait l'évidence et prenait la place d'une ligne utile.
+
+**La sélection et le menu.** Avec **zéro personnage**, cliquer sur le menu ouvre
+la **création** — il n'y avait rien d'autre à faire de ce clic. Surtout,
+`Entities.Self()` **ne fabrique plus de personnage** : il en naissait un, sans
+race ni points, à la première fenêtre ouverte (le fameux « Reika » apparu tout
+seul). Il rend maintenant `nil`, et chacun des 50 scénarios du banc dit
+explicitement qu'il veut un personnage. À côté du nom, **« éditer l'artwork »**
+permet d'en rechoisir un après la création.
+
+**Les onglets non ouverts passent en grisâtre**, et l'onglet courant a un
+retour visuel plus franc : à cette densité, la différence ne se voyait pas.
+
+**Un joueur n'a pas accès à Vendeur & Ressources** : ce sont des outils de MJ,
+ils ont quitté le menu du joueur.
+
+**Un sac ouvert prend la taille de son nombre d'emplacements**, et recalcule
+quand on bascule entre la grille et la liste — les deux ne tiennent pas dans le
+même rectangle.
+
 ### Ce que la première séance en jeu a corrigé
 
 Le 1er octobre 2026, premier passage dans le jeu. Cinq pannes, et **aucune
@@ -436,6 +493,23 @@ l'addon, donc livrées aux joueurs à chaque publication.
 
 Par ordre de ce qui bloque le plus :
 
+- [ ] **La fiche Statistiques en deux volets** — *la demande la plus
+      substantielle non entamée.* Sommaire des catégories à gauche, contenu à
+      droite. C'est **la même mécanique que les Règles**, qui ont déjà leur
+      sommaire : la pièce existe, il s'agit de la réutiliser et non d'en écrire
+      une seconde.
+- [ ] **Le coût du déplacement : à trancher.** « Augmente le coût pour le
+      déplacement de 2. 2 pts pour avoir 1 de bonus. » Mesuré :
+      `sec_deplacement` coûte **déjà 2** points pour +1 (`Data/Equilibrage.lua`).
+      Soit la demande est satisfaite, soit elle veut dire **doubler** (4 points
+      pour +1). Rien n'a été changé en attendant la réponse.
+- [ ] **Combien d'unités de `UnitPosition` font un mètre ?** Le module de
+      déplacement compte **1** (comme `Deplacement.lua` de Necronicon), mais la
+      grille tactique de Necronicon (`GroundGrid.lua`) a mesuré **2,20** unités
+      par yard visible sur ce client Epsilon. Les deux ne peuvent pas avoir
+      raison : si les mètres comptés en jeu paraissent **deux fois trop
+      courts**, c'est ce facteur-là. À vérifier une fois, en jeu, mètre à la
+      main.
 - [x] **Les fenêtres du menu** (organisation du template). Branchées : Règles,
       Fiche, Santé (Physique, États, Maladies, Intangible),
       Expertises, Pénétration & Résistances, Statistiques (récapitulatif),

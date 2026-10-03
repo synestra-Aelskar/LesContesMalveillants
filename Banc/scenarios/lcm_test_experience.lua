@@ -8,6 +8,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local X = LCM.Experience
 local moi = LCM.Entities.Self()
 LCM.Entities.Set_Value(moi, "niveau", 5)

@@ -13,6 +13,7 @@ end
 local function dernierEnvoi() return __envois[#__envois] end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local A, E, B = LCM.Actions, LCM.Entities, LCM.Body
 local U = LCM.UI.Resolution
 local moi = E.Self()

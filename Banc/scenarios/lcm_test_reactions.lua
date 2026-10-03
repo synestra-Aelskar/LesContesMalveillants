@@ -19,6 +19,7 @@ local function chatDit(motif)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local A, E, R = LCM.Actions, LCM.Entities, LCM.Reactions
 local U = LCM.UI.Resolution
 local moi = E.Self()

@@ -164,4 +164,29 @@ attendu("aucune carte", f.cartes[0]:IsShown(), false)
 attendu("pas de bouton Jouer", f.jouer:IsShown(), false)
 attendu("on invite a creer", f.vide:GetText():find("Créer un personnage") ~= nil, true)
 
+dire("== changer l'artwork depuis la carte")
+-- Le scenario finit sans personnage : on en remet un pour avoir une carte.
+LCM.Personnages.Creer("Alba", { race = "humain", niveau = 5 })
+local f2 = LCM.UI.Personnages.Fenetre()
+f2:Montrer()
+local carte = f2.cartes[0]
+attendu("la carte centrale a son bouton", carte.editerArtwork:IsShown(), true)
+attendu("les voisines non", f2.cartes[1].editerArtwork:IsShown(), false)
+local qui = carte.entity
+attendu("elle porte bien un personnage", qui ~= nil, true)
+carte.editerArtwork:Click()
+if #LCM.Portraits.list > 0 then
+    attendu("le choix s'ouvre", carte.portraitMenu:IsShown(), true)
+    local premier
+    for _, b in ipairs(carte.portraitMenu.lignes) do
+        if b:IsShown() and b.choix ~= "" and not premier then premier = b end
+    end
+    premier:Click()
+    attendu("l'artwork est retenu sur le personnage",
+        LCM.Entities.Get_Value(qui, "portrait"), premier.choix)
+else
+    attendu("sans artwork livre, on le dit",
+        __sansCouleur(__sorties[#__sorties]):find("aucun artwork") ~= nil, true)
+end
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

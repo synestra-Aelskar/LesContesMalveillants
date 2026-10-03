@@ -167,6 +167,11 @@ Fenetre.Flux = Flux
 
 local cartes = {}
 
+-- Le plancher d'une carte : de quoi montrer l'en-tete, la ligne d'etat et le
+-- bandeau « Statistiques » replie, et rien de plus. A 150, une carte repliee
+-- gardait une bande vide sous le bandeau.
+local HAUTEUR_MINI = 96
+
 local function NouvelleCarte()
     local p = CreateFrame("Frame", nil, UIParent)
     p:SetSize(435, 360)
@@ -215,16 +220,26 @@ local function NouvelleCarte()
     p.basculeStats.label:SetPoint("LEFT", p.basculeStats, "LEFT", 4, 0)
     p.basculeStats.label:SetJustifyH("LEFT")
     Peindre(p.basculeStats.label, UI.C.accent)
+    -- Deplier les statistiques AGRANDIT la carte, et la replier la referme
+    -- jusque sous le bandeau. Avant, la hauteur ne bougeait pas : depliee on
+    -- lisait par un hublot, repliee on regardait du vide.
+    --
+    -- Sauf si on l'a redimensionnee soi-meme (`placee`) : la, c'est la taille
+    -- choisie qui vaut, et le defilement fait le reste.
     p.basculeStats:SetScript("OnClick", function()
         p.statsRepliees = not p.statsRepliees
-        p:Disposer()
+        local hauteur = p:Disposer()
+        if not p.placee then
+            p:SetHeight(math.min(560, math.max(HAUTEUR_MINI, hauteur)))
+            p:Disposer()
+        end
     end)
 
     p.filetPied = UI.Filet(p, true)
     p.pied = UI.Texte(p, "", UI.C.discret, "GameFontNormalSmall")
     p.pied:SetWordWrap(true)
 
-    UI.Redimensionner(p, 180, 150, function() p.placee = true p:Disposer() end)
+    UI.Redimensionner(p, 180, HAUTEUR_MINI, function() p.placee = true p:Disposer() end)
 
     -- Met la carte en page ; renvoie la hauteur que demande son contenu.
     function p:Disposer()
@@ -424,7 +439,7 @@ local function NouvelleCarte()
         if not self.placee then self:SetWidth(435) end
         local hauteur = self:Disposer()
         if not self.placee then
-            self:SetHeight(math.min(560, math.max(150, hauteur)))
+            self:SetHeight(math.min(560, math.max(HAUTEUR_MINI, hauteur)))
             self:Disposer()
             if ancre then
                 self:ClearAllPoints()

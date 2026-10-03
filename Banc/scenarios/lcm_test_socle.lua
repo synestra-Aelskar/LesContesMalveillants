@@ -10,6 +10,7 @@ end
 
 -- Connexion simulee
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== schema")
 -- 156 depuis le 2 octobre 2026 : la jauge de l'armure portee (« armure_portee »).

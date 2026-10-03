@@ -29,6 +29,10 @@ Creation.ETAPES = {
     { id = "generale",     label = "Générale" },
     { id = "statistiques", label = "Statistiques" },
     { id = "expertises",   label = "Expertises" },
+    -- Les mecaniques ont leur propre etape depuis le 3 octobre 2026 : elles
+    -- ont leur budget, leurs vingt lignes, et elles passaient inapercues en
+    -- bas de la page des expertises.
+    { id = "mecaniques",   label = "Mécaniques" },
     { id = "penetrations", label = "Pénétrations" },
     { id = "resistances",  label = "Résistances" },
     { id = "traits",       label = "Traits" },

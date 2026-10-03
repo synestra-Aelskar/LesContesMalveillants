@@ -14,6 +14,7 @@ local function aDit(motif)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local A = LCM.Actions
 local E = LCM.Entities
 local moi = E.Self()

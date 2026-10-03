@@ -21,6 +21,7 @@ local function dernierEnvoi()
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local C = LCM.Combat
 local I = LCM.Incarnation
 local B = LCM.UI.Combat

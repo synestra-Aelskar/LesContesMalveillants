@@ -39,11 +39,59 @@ local RELIEF_IGNORE = 1
 -- /reload, et c'est tant mieux — on ne reprend pas une poussee a froid.
 local course = nil
 
-local function Position()
+-- Ou se tient le personnage. DEUX sources, parce qu'une seule ne suffit pas :
+--
+--   * `UnitPosition` donne des yards du monde, c'est le bon outil. Mais le
+--     client le REFUSE sur les cartes de type instance et rend nil — et nos
+--     cartes de campagne en sont. C'est tout le « Position du personnage
+--     indisponible (UnitPosition) » de Necronicon, qui s'arretait la ;
+--   * la carte repond quand UnitPosition se tait :
+--     `C_Map.GetPlayerMapPosition` rend une fraction (0..1) du rectangle de la
+--     carte, que `C_Map.GetMapWorldSize` ramene en yards. Plus grossier, et
+--     muet si la carte ne declare pas sa taille (certaines customs rendent 0).
+--
+-- Une course garde la source avec laquelle elle a commence : melanger des
+-- yards du monde et des yards de carte au milieu d'un deplacement ferait un
+-- bond de plusieurs metres sans que personne n'ait bouge.
+
+local function PositionMonde()
     if type(UnitPosition) ~= "function" then return nil end
     local ok, x, y, z = pcall(UnitPosition, "player")
     if not ok or type(x) ~= "number" or type(y) ~= "number" then return nil end
     return x, y, tonumber(z) or 0
+end
+
+local function PositionCarte()
+    if type(C_Map) ~= "table" then return nil end
+    local ok, carte = pcall(C_Map.GetBestMapForUnit, "player")
+    if not ok or not tonumber(carte) then return nil end
+    local ok2, point = pcall(C_Map.GetPlayerMapPosition, carte, "player")
+    if not ok2 or type(point) ~= "table" then return nil end
+    local x, y = point.x, point.y
+    if type(point.GetXY) == "function" then
+        local ok3, a, b = pcall(point.GetXY, point)
+        if ok3 then x, y = a, b end
+    end
+    if type(x) ~= "number" or type(y) ~= "number" then return nil end
+    local ok4, largeur, hauteur = pcall(C_Map.GetMapWorldSize, carte)
+    largeur, hauteur = ok4 and tonumber(largeur) or 0, ok4 and tonumber(hauteur) or 0
+    if largeur <= 0 or hauteur <= 0 then return nil end
+    -- La fraction se compte depuis le coin haut-gauche. L'altitude n'existe pas
+    -- par ce chemin : z reste a 0, et le relief etait deja ignore.
+    return x * largeur, y * hauteur, 0
+end
+
+-- `source` : « monde » ou « carte » pour rester sur celle d'une course en
+-- cours ; rien pour prendre la meilleure disponible. Rend x, y, z, source.
+local function Position(source)
+    if source ~= "carte" then
+        local x, y, z = PositionMonde()
+        if x then return x, y, z, "monde" end
+        if source == "monde" then return nil end
+    end
+    local x, y, z = PositionCarte()
+    if x then return x, y, z, "carte" end
+    return nil
 end
 
 -- Le cadre qui bat la mesure. OnUpdate plutot que C_Timer : il existe toujours,
@@ -77,11 +125,25 @@ end
 
 function DeplacementForce.Mesurer()
     if not course then return end
-    local x, y, z = Position()
+    local x, y, z = Position(course.source)
     if not x then return end
-    local dx, dy, dz = x - course.x0, y - course.y0, z - course.z0
-    if math.abs(dz) < RELIEF_IGNORE then dz = 0 end
-    course.distance = math.sqrt(dx * dx + dy * dy + dz * dz) / UNITES_PAR_METRE
+
+    if course.cumule then
+        -- Deplacement ORDINAIRE : on compte le chemin parcouru, pas la distance
+        -- au depart. Faire le tour d'un pilier use son allocation, et c'est bien
+        -- ce qu'on veut — c'est le mouvement qui coute, pas le resultat.
+        local dx, dy, dz = x - course.x, y - course.y, z - course.z
+        if math.abs(dz) < RELIEF_IGNORE then dz = 0 end
+        course.x, course.y, course.z = x, y, z
+        course.distance = course.distance + math.sqrt(dx * dx + dy * dy + dz * dz) / UNITES_PAR_METRE
+    else
+        -- Deplacement FORCE : la distance au point de depart, a vol d'oiseau.
+        -- Tourner en rond n'avance a rien, c'est tout l'interet d'une poussee.
+        local dx, dy, dz = x - course.x0, y - course.y0, z - course.z0
+        if math.abs(dz) < RELIEF_IGNORE then dz = 0 end
+        course.distance = math.sqrt(dx * dx + dy * dy + dz * dz) / UNITES_PAR_METRE
+    end
+
     if course.distance >= course.limite then
         DeplacementForce.Arreter("fini")
         return
@@ -90,16 +152,24 @@ function DeplacementForce.Mesurer()
 end
 
 -- `metres` : ce qu'il faut franchir. `raison` : ce qui te pousse, pour l'ecrire.
-function DeplacementForce.Demarrer(metres, raison)
+-- `options.cumule` : compter le chemin parcouru (deplacement ordinaire) plutot
+-- que la distance au depart (poussee). `options.mode` : le mode de deplacement,
+-- pour l'afficher.
+function DeplacementForce.Demarrer(metres, raison, options)
     metres = tonumber(metres) or 0
     if metres <= 0 then return false, "distance nulle." end
-    local x, y, z = Position()
-    if not x then return false, "position indisponible (UnitPosition)." end
+    local x, y, z, source = Position()
+    if not x then
+        return false, "position indisponible : ni UnitPosition ni la carte ne la donnent ici."
+    end
     -- Une poussee en remplace une autre : on ne cumule pas deux dettes de
     -- metres, la seconde est celle qui compte.
     course = {
         limite = metres, distance = 0, raison = tostring(raison or "Déplacement forcé"),
-        x0 = x, y0 = y, z0 = z, debut = (GetTime and GetTime()) or 0,
+        x0 = x, y0 = y, z0 = z, x = x, y = y, z = z, source = source,
+        cumule = type(options) == "table" and options.cumule == true or false,
+        mode = type(options) == "table" and options.mode or nil,
+        debut = (GetTime and GetTime()) or 0,
     }
     Horloge():Show()
     LCM.Alerte(string.format("%s : éloigne-toi de %s m de ton point de départ.",
@@ -125,4 +195,84 @@ function DeplacementForce.Arreter(cause)
     if DeplacementForce.onFin then DeplacementForce.onFin(termine, fini) end
     if DeplacementForce.onChange then DeplacementForce.onChange() end
     return true
+end
+
+-- ===== Le deplacement ordinaire ===========================================
+-- Celui qu'on fait de son propre chef, pendant un tour : la fiche dit combien
+-- de metres on a, et la jauge les decompte pendant qu'on marche.
+
+local EXPERTISES = { terrestre = "course", nage = "nage", vol = nil }
+
+-- Ce que la fiche autorise dans ce mode, expertise comprise.
+function DeplacementForce.Allocation(entity, mode)
+    entity = entity or LCM.Entities.Self()
+    if not entity then return 0 end
+    return LCM.Deplacement(entity, mode, EXPERTISES[mode])
+end
+
+local NOMS = { terrestre = "Terrestre", nage = "Nage", vol = "Vol" }
+
+-- ===== Le round ===========================================================
+-- Regle de Necronicon : UN deplacement gratuit par round, puis un
+-- supplementaire a 1 PA + 1 PF. Au-dela, on ne bouge plus avant le round
+-- suivant. Le compteur vit en memoire vive : un round ne survit pas a un
+-- /reload, et c'est tres bien — on en ouvre un nouveau.
+local mouvements = 0
+
+local function Regle() return LCM.Equilibrage.deplacement end
+
+function DeplacementForce.Mouvements() return mouvements end
+
+function DeplacementForce.MaxParRound()
+    return math.max(1, math.floor(tonumber(Regle().parRound) or 2))
+end
+
+-- Le prochain deplacement est-il gratuit, payant, ou impossible ?
+function DeplacementForce.Prochain()
+    if mouvements >= DeplacementForce.MaxParRound() then return "fini" end
+    return mouvements == 0 and "gratuit" or "payant"
+end
+
+function DeplacementForce.NouveauRound()
+    mouvements = 0
+    if DeplacementForce.onChange then DeplacementForce.onChange() end
+    LCM.Ok("Nouveau round : ton déplacement gratuit est rendu.")
+    return true
+end
+
+-- Demarre un deplacement ordinaire dans ce mode.
+function DeplacementForce.DemarrerMode(mode, entity)
+    mode = tostring(mode or "terrestre")
+    if not NOMS[mode] then return false, "mode inconnu." end
+    entity = entity or LCM.Entities.Self()
+    if not entity then return false, "aucun personnage." end
+
+    local etat = DeplacementForce.Prochain()
+    if etat == "fini" then
+        return false, string.format("plus de déplacement ce round (%d / %d).",
+            mouvements, DeplacementForce.MaxParRound())
+    end
+
+    local metres = DeplacementForce.Allocation(entity, mode)
+    if metres <= 0 then
+        return false, string.format("aucun déplacement %s sur cette fiche.", NOMS[mode]:lower())
+    end
+
+    -- Le supplementaire se paie AVANT de partir, et seulement si on peut : on
+    -- ne part pas a credit.
+    if etat == "payant" then
+        local pa = math.max(0, math.floor(tonumber(Regle().supplementPA) or 1))
+        local pf = math.max(0, math.floor(tonumber(Regle().supplementPF) or 1))
+        local jaugePA = LCM.Entities.Gauge(entity, "pa")
+        local jaugePF = LCM.Entities.Gauge(entity, "fatigue")
+        if (jaugePA and jaugePA.current or 0) < pa then return false, string.format("il faut %d PA.", pa) end
+        if (jaugePF and jaugePF.current or 0) < pf then return false, string.format("il faut %d PF.", pf) end
+        LCM.Entities.SetGauge(entity, "pa", jaugePA.current - pa)
+        LCM.Entities.SetGauge(entity, "fatigue", jaugePF.current - pf)
+        LCM.Info(string.format("Déplacement supplémentaire : %d PA et %d PF.", pa, pf))
+    end
+
+    local ok, raison = DeplacementForce.Demarrer(metres, NOMS[mode], { cumule = true, mode = mode })
+    if ok then mouvements = mouvements + 1 end
+    return ok, raison
 end

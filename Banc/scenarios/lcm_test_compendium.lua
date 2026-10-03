@@ -372,4 +372,23 @@ f:Hide()
 h.carte:Click()
 attendu("la carte ouvre le compendium", f:IsShown(), true)
 
+dire("== la carte s'ouvre et se referme sur son contenu")
+local trait = LCM.Traits.list[1]
+local carteT = LCM.UI.Compendium.Voir(C.Get("traits"), trait)
+attendu("la carte s'ouvre", carteT:IsShown(), true)
+attendu("les statistiques sont repliees", carteT.statsRepliees, true)
+local repliee = carteT:GetHeight()
+carteT.basculeStats:Click()
+attendu("depliee", carteT.statsRepliees, false)
+local depliee = carteT:GetHeight()
+attendu("la carte s'agrandit", depliee > repliee, true)
+carteT.basculeStats:Click()
+attendu("et se referme a sa taille d'avant", carteT:GetHeight(), repliee)
+-- Une carte qu'on a redimensionnee garde SA taille.
+carteT.placee = true
+carteT:SetHeight(300)
+carteT.basculeStats:Click()
+attendu("une carte redimensionnee garde sa hauteur", carteT:GetHeight(), 300)
+carteT:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

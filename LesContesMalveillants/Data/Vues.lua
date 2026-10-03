@@ -179,7 +179,6 @@ do
         id = "statistiques", titre = "Statistiques",
         largeur = 336, hauteur = 460,
         blocs = {
-            { texte = "Ci-dessous, vous retrouverez le total de l'ensemble des statistiques de votre personnage." },
             { label = "Statistiques", recap = "total", replie = true,
               champs = { "force", "mystique", "perception", "adresse", "esprit", "constitution" } },
             { label = "Pénétrations", recap = "total", replie = false, champs = Types("pen_") },

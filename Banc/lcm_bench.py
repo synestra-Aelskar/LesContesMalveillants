@@ -100,9 +100,48 @@ function __avancerTemps(secondes) horloge = horloge + secondes end
 -- verifier une jauge qui compte des metres sans courir dans le jeu.
 local posX, posY, posZ = 0, 0, 0
 function _G.__position(x, y, z) posX, posY, posZ = x or 0, y or 0, z or 0 end
+local posMonde = true
 function UnitPosition(unite)
     if unite ~= "player" then return nil end
+    if not posMonde then return nil end
     return posX, posY, posZ
+end
+
+-- Le client REFUSE UnitPosition sur les cartes de type instance : il rend nil,
+-- et l'addon doit alors passer par la carte. `__positionMonde(false)` reproduit
+-- ce refus ; `__carte(id, largeur, hauteur)` dit ce que la carte declare, et
+-- `__carte(nil)` une carte muette (certaines customs ne declarent pas leur
+-- taille, et la il n'y a vraiment plus rien a mesurer).
+function _G.__positionMonde(actif) posMonde = actif ~= false end
+
+local carteId, carteL, carteH = 1, 1000, 1000
+function _G.__carte(id, largeur, hauteur)
+    carteId = id
+    carteL, carteH = largeur or 0, hauteur or 0
+end
+
+C_Map = {
+    GetBestMapForUnit = function() return carteId end,
+    GetMapWorldSize = function(id)
+        if id ~= carteId then return 0, 0 end
+        return carteL, carteH
+    end,
+    -- La fraction du rectangle de la carte, comptee depuis le coin haut-gauche.
+    GetPlayerMapPosition = function(id, unite)
+        if id ~= carteId or unite ~= "player" then return nil end
+        if carteL <= 0 or carteH <= 0 then return { x = 0, y = 0 } end
+        return { x = posX / carteL, y = posY / carteH }
+    end,
+}
+
+-- Le personnage du joueur. L'addon ne le fabrique plus tout seul (il naissait
+-- sans race ni points des qu'on ouvrait une fenetre) : un scenario qui a besoin
+-- d'un personnage le dit, et c'est plus honnete ainsi.
+function _G.__personnage()
+    local id = LCM.PlayerId()
+    if id == "" then return nil end
+    return LCM.Entities.Get(id)
+        or LCM.Entities.Create(id, (UnitName and UnitName("player")) or id, "player")
 end
 
 local addonsCharges = {}

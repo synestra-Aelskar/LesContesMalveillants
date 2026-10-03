@@ -25,7 +25,7 @@ attendu("fenetre ouverte", f:IsShown(), true)
 local noms = {}
 for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
 attendu("les onglets du template", table.concat(noms, ", "),
-    "Bienvenue, Générale, Statistiques, Expertises, Pénétrations, Résistances, Traits")
+    "Bienvenue, Générale, Statistiques, Expertises, Mécaniques, Pénétrations, Résistances, Traits")
 attendu("on demarre sur Bienvenue", f.etape, "bienvenue")
 attendu("brouillon neuf", f.brouillon.nom, "")
 attendu("les textes du template", f.pages.bienvenue.blocs[1].paragraphe:GetText():find("Syn ou Talyah") ~= nil, true)
@@ -223,8 +223,57 @@ end
 local forceC = compteurDe("force")
 attendu("le total existe", forceC.total ~= nil, true)
 local investi = LCM.Creation.Valeur(f.brouillon, "force")
-attendu("sans bonus, total = investi", forceC.total:GetText(), tostring(investi))
+-- La colonne finit toujours par le total, en dore, bonus ou pas.
+attendu("sans bonus, total = investi",
+    __sansCouleur(forceC.total:GetText()), "= " .. tostring(investi))
 attendu("le cout n'est plus ecrit sur la ligne", forceC.bonus, 0)
+
+dire("   on peut taper la valeur au lieu de cliquer dix fois")
+-- Ce bloc change la Force : on note sa valeur pour la remettre apres, sinon
+-- tout ce qui suit comptera sur un budget qui n'est plus le sien.
+local forceAvant = LCM.Creation.Valeur(f.brouillon, "force")
+attendu("le chiffre est cliquable", forceC.saisieValeur ~= nil, true)
+local demande = LCM.UI.Demande()
+forceC.saisieValeur:Click()
+attendu("la saisie s'ouvre", demande:IsShown(), true)
+local plafond = LCM.Creation.Maximum(f.brouillon, "primaires", "force")
+-- Au-dela du plafond : refuse, et on dit la borne.
+demande.saisie:Saisir(tostring(plafond + 5))
+demande.valider:Click()
+attendu("au-dessus du plafond : refus", demande:IsShown(), true)
+attendu("et la borne est dite",
+    __sansCouleur(demande.message:GetText()):find(tostring(plafond) .. " au maximum") ~= nil, true)
+-- Une valeur acceptable passe.
+demande.saisie:Saisir(tostring(plafond))
+demande.valider:Click()
+attendu("une valeur valable est posee", LCM.Creation.Valeur(f.brouillon, "force"), plafond)
+attendu("et la saisie se referme", demande:IsShown(), false)
+-- Pas de nombre du tout.
+forceC.saisieValeur:Click()
+demande.saisie:Saisir("beaucoup")
+demande.valider:Click()
+attendu("un mot n'est pas un nombre", demande:IsShown(), true)
+demande:Hide()
+LCM.Creation.Definir(f.brouillon, "primaires", "force", forceAvant)
+f:Actualiser()
+attendu("la Force est rendue a ce qu'elle etait",
+    LCM.Creation.Valeur(f.brouillon, "force"), forceAvant)
+
+dire("   avec un bonus de race, le calcul est ecrit en entier")
+-- La race insgardienne donne de la perception.
+f.brouillon.race = "insgardienne"
+f:Actualiser()
+local perception = compteurDe("perception")
+if perception and (perception.bonus or 0) ~= 0 then
+    local mis = LCM.Creation.Valeur(f.brouillon, "perception")
+    attendu("on lit « racial + depense = total »",
+        __sansCouleur(perception.total:GetText()),
+        string.format("%d + %d = %d", perception.bonus, mis, mis + perception.bonus))
+else
+    dire("  (cette race ne touche pas la perception : rien a verifier)")
+end
+f.brouillon.race = "humain"
+f:Actualiser()
 -- Le cout est passe en infobulle sur le « + ».
 attendu("une infobulle sur le +", forceC.plus:GetScript("OnEnter") ~= nil, true)
 
@@ -284,8 +333,13 @@ local n = 0
 for _, c in ipairs(ex.compteurs) do if c.categorie == "expertises" then n = n + 1 end end
 attendu("25 expertises", n, 25)
 attendu("budget 18 + 3 x 2", budget(ex, "expertises").budget:GetText(), "24 / 24")
-local soin = compteur(ex, "meca_soin")
-attendu("les mecaniques dans le meme onglet", soin ~= nil, true)
+-- Les mecaniques ont leur propre etape depuis le 3 octobre 2026.
+attendu("elles ne sont plus avec les expertises", compteur(ex, "meca_soin"), nil)
+f.barre.boutons[5]:Click()
+local meca = f.pages.mecaniques
+attendu("l'etape Mecaniques", f.etape, "mecaniques")
+local soin = compteur(meca, "meca_soin")
+attendu("avec ses lignes", soin ~= nil, true)
 attendu("plafond d'une mecanique", soin.plafond, 10)
 for _ = 1, 4 do soin.plus:Click() end
 attendu("quatre points de soin", f.brouillon.valeurs.meca_soin, 4)
@@ -297,7 +351,7 @@ end
 attendu("aucune ligne ne deborde de sa colonne", deborde, 0)
 
 dire("== Penetrations")
-f.barre.boutons[5]:Click()
+f:Afficher("penetrations")
 local pen = f.pages.penetrations
 attendu("15 types", #pen.compteurs, 15)
 local tranchant = compteur(pen, "pen_tranchant")
@@ -307,7 +361,7 @@ for _ = 1, 7 do tranchant.plus:Click() end
 attendu("sept points poses", f.brouillon.valeurs.pen_tranchant, 7)
 
 dire("== Resistances")
-f.barre.boutons[6]:Click()
+f:Afficher("resistances")
 local res = f.pages.resistances
 attendu("15 types", #res.compteurs, 15)
 attendu("plafond 3 + Constitution / 0,25 (sans constitution)", compteur(res, "resi_feu").plafond, 3)
@@ -317,11 +371,11 @@ f.barre.boutons[3]:Click()
 for _ = 1, 8 do compteur(st, "force").moins:Click() end
 attendu("la creation est bloquee", f.valider:IsEnabled(), false)
 attendu("le debordement est nomme", f.probleme:GetText():find("Tranchant") ~= nil, true)
-f.barre.boutons[5]:Click()
+f:Afficher("penetrations")
 attendu("la ligne est marquee", tranchant.valeur > tranchant.plafond, true)
 
 dire("== Traits : des emplacements, pas de liste a prendre ou laisser")
-f.barre.boutons[7]:Click()
+f:Afficher("traits")
 local tr = f.pages.traits
 attendu("traits totaux : 2 + 5/5", budget(tr, "traits").budget:GetText(), "3 / 3")
 attendu("plus de liste de traits", tr.traits, nil)
@@ -389,8 +443,12 @@ attendu("la case redevient un emplacement", case1.nom:GetText(), "Emplacement")
 
 dire("== la page defile quand elle depasse")
 attendu("la zone rogne", f.zone:DoesClipChildren(), true)
-f.barre.boutons[4]:Click()
-attendu("la page expertises est longue", ex.hauteur > 400, true)
+f:Afficher("expertises")
+-- On ne compare plus a une hauteur ecrite d'avance : elle change des qu'on
+-- ajoute une colonne ou qu'on deplace un bloc. Ce qui compte, c'est que la
+-- zone de defilement connaisse toute la page.
+attendu("la page a une hauteur", ex.hauteur > 0, true)
+attendu("et la zone la connait en entier", f.zone.hauteurContenu, ex.hauteur)
 attendu("et la zone le sait", f.zone.hauteurContenu, ex.hauteur)
 
 dire("== tout remettre a zero, avec confirmation")

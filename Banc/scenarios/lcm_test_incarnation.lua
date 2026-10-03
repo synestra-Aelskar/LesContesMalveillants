@@ -8,6 +8,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local I = LCM.Incarnation
 local moi = LCM.Entities.Self()
 local modele = LCM.PNJ.list[1]

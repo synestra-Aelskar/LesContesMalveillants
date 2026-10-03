@@ -20,6 +20,7 @@ for i = 1, 6 do
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local O = LCM.Objets
 local moi = LCM.Entities.Self()
 

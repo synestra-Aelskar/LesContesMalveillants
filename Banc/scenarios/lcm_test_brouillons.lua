@@ -19,6 +19,7 @@ LCM.Brouillons.Set("traits", {
 LCM.Brouillons.Set("races", { id = "gobelin", label = "Gobelin", morphology = "humanoide" })
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== les brouillons sont jouables tout de suite")
 attendu("le trait existe", LCM.Traits.Get("oeil_du_faucon") ~= nil, true)

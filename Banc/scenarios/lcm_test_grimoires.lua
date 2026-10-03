@@ -9,6 +9,7 @@ end
 local function dernierMessage() return __sansCouleur(__sorties[#__sorties] or "") end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local G = LCM.Grimoires
 local moi = LCM.Entities.Self()
 

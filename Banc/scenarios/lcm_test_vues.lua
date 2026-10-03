@@ -10,6 +10,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local V = LCM.Vues
 local M = LCM.UI.Menu
 
@@ -168,7 +169,9 @@ LCM.Objets.Equiper(moi, "gantelets")
 M.Trouver("statistiques").onClick()
 local fst = LCM.UI.Vues.frames.statistiques
 local page = fst.page
-attendu("un paragraphe d'introduction", page.blocs[1].paragraphe ~= nil, true)
+-- Le paragraphe d'introduction a ete retire le 3 octobre 2026 : la fenetre
+-- s'appelle « Statistiques », elle n'a pas besoin de dire qu'elle en contient.
+attendu("pas de paragraphe d'introduction", page.blocs[1].paragraphe, nil)
 local function bloc(titre)
     for _, b in ipairs(page.blocs) do if b.titre and b.titre:GetText() == titre then return b end end
 end

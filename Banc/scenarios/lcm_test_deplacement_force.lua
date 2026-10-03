@@ -76,4 +76,68 @@ SlashCmdList.LCM("pousse 12")
 attendu("elle lance une course", select(2, DF.Etat()), 12)
 DF.Arreter("interrompu")
 
+dire("== le round : un gratuit, un paye, puis plus rien")
+local moi = __personnage()
+__position(0, 0, 0)
+DF.NouveauRound()
+attendu("le premier est gratuit", DF.Prochain(), "gratuit")
+LCM.Entities.SetGauge(moi, "pa", 5)
+LCM.Entities.SetGauge(moi, "fatigue", 5)
+-- Les jauges sont plafonnees par la fiche (les PA s'arretent plus bas que 5) :
+-- on compare donc des ECARTS, pas des valeurs qu'on ne choisit pas.
+local function reserve()
+    return LCM.Entities.Gauge(moi, "pa").current, LCM.Entities.Gauge(moi, "fatigue").current
+end
+local pa0, pf0 = reserve()
+attendu("il part", select(1, DF.DemarrerMode("terrestre")), true)
+local pa1, pf1 = reserve()
+attendu("sans rien coûter", (pa0 - pa1) .. "/" .. (pf0 - pf1), "0/0")
+DF.Arreter("interrompu")
+attendu("le second se paie", DF.Prochain(), "payant")
+attendu("il part aussi", select(1, DF.DemarrerMode("terrestre")), true)
+local pa2, pf2 = reserve()
+attendu("1 PA de moins", pa1 - pa2, 1)
+attendu("1 PF de moins", pf1 - pf2, 1)
+DF.Arreter("interrompu")
+attendu("et c'est tout", DF.Prochain(), "fini")
+local ok3, raison3 = DF.DemarrerMode("terrestre")
+attendu("le troisieme est refuse", ok3, false)
+attendu("en disant pourquoi", tostring(raison3):find("plus de déplacement") ~= nil, true)
+DF.NouveauRound()
+attendu("le round suivant rend le gratuit", DF.Prochain(), "gratuit")
+
+dire("== on ne part pas a credit")
+LCM.Entities.SetGauge(moi, "pa", 0)
+DF.DemarrerMode("terrestre")
+DF.Arreter("interrompu")
+local _, pfAvant = reserve()
+local ok4, raison4 = DF.DemarrerMode("terrestre")
+attendu("sans PA, le supplementaire est refuse", ok4, false)
+attendu("et on dit qu'il faut des PA", tostring(raison4):find("PA") ~= nil, true)
+-- Le refus doit etre complet : rien ne se preleve sur un depart qui n'a pas eu
+-- lieu. C'est pour ca que les deux jauges sont verifiees AVANT de debiter.
+attendu("la fatigue n'a pas ete prelevee pour rien", select(2, reserve()), pfAvant)
+DF.NouveauRound()
+
+dire("== la position : UnitPosition refuse, la carte repond")
+-- Sur nos cartes de campagne, le client rend nil : c'est la ou Necronicon
+-- s'arretait sur « Position du personnage indisponible ».
+__positionMonde(false)
+__carte(1, 1000, 1000)
+__position(0, 0, 0)
+attendu("la course demarre quand meme", DF.Demarrer(6, "Répulsion"), true)
+attendu("par la carte", DF.EnCours().source, "carte")
+__position(4, 0, 0)
+DF.Mesurer()
+attendu("et elle mesure", math.floor(select(1, DF.Etat()) + 0.5), 4)
+DF.Arreter("interrompu")
+
+dire("== une carte muette : la on ne peut vraiment rien mesurer")
+__carte(nil)
+local ok5, raison5 = DF.Demarrer(6, "Répulsion")
+attendu("refus", ok5, false)
+attendu("et on nomme les deux sources", tostring(raison5):find("carte") ~= nil, true)
+__positionMonde(true)
+__carte(1, 1000, 1000)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

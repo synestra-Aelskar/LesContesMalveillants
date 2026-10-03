@@ -42,10 +42,33 @@ local function Carte(parent)
 
     c.nom = UI.Texte(c, "", UI.C.titre, "GameFontNormal")
     c.nom:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 6, 8)
-    c.nom:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -6, 8)
+    c.nom:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -24, 8)
     c.nom:SetJustifyH("CENTER")
     c.nom:SetHeight(16)
     c.nom:SetWordWrap(false)
+
+    -- Changer d'artwork apres coup : on choisit son portrait a la creation, et
+    -- on n'avait plus aucun moyen d'en changer. Le crayon est a cote du nom,
+    -- sur la carte de celui qu'on regarde.
+    c.portraitMenu = UI.Choix("portrait_carte", "Artwork")
+    c.editerArtwork = UI.Bouton(c, "A", 18, 16, function(self)
+        local entity = self:GetParent().entity
+        if not entity then return end
+        local options = { { id = "", label = "Aucun" } }
+        for _, portrait in ipairs(LCM.Portraits.list) do
+            options[#options + 1] = { id = portrait.id, label = portrait.label }
+        end
+        if #options == 1 then
+            LCM.Alerte("aucun artwork n'est livré pour l'instant.")
+            return
+        end
+        self:GetParent().portraitMenu:Proposer(self, options, function(choix)
+            LCM.Entities.Set_Value(entity, "portrait", choix ~= "" and choix or nil)
+            if Ecran.frame then Ecran.frame:Afficher() end
+        end)
+    end)
+    c.editerArtwork:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -5, 7)
+    UI.Bulle(c.editerArtwork, "Artwork", "Clic : choisir l'image de ce personnage.")
 
     -- Le niveau, en haut a gauche, dans son propre cadre.
     c.niveau = CreateFrame("Frame", nil, c)
@@ -76,6 +99,10 @@ local function Carte(parent)
         self:SetSize(centrale and CARTE.largeur or VOISINE.largeur,
                      centrale and CARTE.hauteur or VOISINE.hauteur)
         self:SetAlpha(centrale and 1 or 0.72)
+        -- Le bouton d'artwork n'est que sur la carte du milieu : sur les
+        -- voisines, reduites et a demi transparentes, il serait illisible et on
+        -- cliquerait a cote.
+        self.editerArtwork:SetShown(centrale and entity ~= nil)
         if not entity then self:Hide() return end
 
         local mode = Portraits.Appliquer(self.art, entity)

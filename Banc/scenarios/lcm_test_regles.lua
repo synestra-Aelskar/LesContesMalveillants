@@ -14,6 +14,7 @@ LCM.Brouillons.Set("objets", { id = "gantelets", label = "Gantelets de force", c
 LCM.Brouillons.Set("traits", { id = "coureur", label = "Coureur", cout = 1, bonus = { course = 2 } })
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 local F = LCM.Formules
 local E = LCM.Entities
 local moi = E.Self()
@@ -116,10 +117,25 @@ vu = proposeForce("objets")
 attendu("objet : Force proposee", vu, true)
 
 dire("== la fenetre Deplacement")
+-- Depuis le 3 octobre 2026, l'entree du menu ouvre la JAUGE : elle montre
+-- l'allocation de la fiche et la decompte pendant qu'on marche, au lieu de
+-- lire deux nombres qu'on ne pouvait pas utiliser.
 LCM.UI.Menu.Trouver("deplacement").onClick()
-local fd = LCM.UI.Vues.frames.deplacement
+local fd = LCM.UI.DeplacementForce.frame
 attendu("ouverte", fd:IsShown(), true)
-attendu("deux lignes", #fd.page.lignes, 2)
-attendu("terrestre affiche", fd.page.lignes[1].valeur:GetText(), "14")
+attendu("trois modes", #fd.modes, 3)
+attendu("terrestre par defaut", fd.mode, "terrestre")
+attendu("elle montre l'allocation de la fiche",
+    fd.compteur:GetText(), string.format("0.0 / %.1f m", LCM.DeplacementForce.Allocation(nil, "terrestre")))
+fd.partir:Click()
+attendu("on part", LCM.DeplacementForce.EnCours() ~= nil, true)
+attendu("et les modes se verrouillent", fd.modes[2]:IsEnabled(), false)
+__position(3, 0, 0)
+LCM.DeplacementForce.Mesurer()
+__position(0, 0, 0)
+LCM.DeplacementForce.Mesurer()
+attendu("le chemin parcouru compte, aller ET retour",
+    select(1, LCM.DeplacementForce.Etat()), 6)
+LCM.DeplacementForce.Arreter("interrompu")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

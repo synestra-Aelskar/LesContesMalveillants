@@ -162,6 +162,11 @@ E.deplacement = {
     nage = 5,
     vol = 0,
     parSecondaire = 1,
+    -- Regle de Necronicon (Deplacement.lua) : UN deplacement gratuit par round,
+    -- puis un supplementaire qui coute 1 PA et 1 PF. Au-dela, plus rien.
+    parRound = 2,
+    supplementPA = 1,
+    supplementPF = 1,
 }
 
 -- Facultes (template, fenetre Equilibrage › Quotidien et Deplacement) :

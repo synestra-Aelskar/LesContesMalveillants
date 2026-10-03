@@ -16,6 +16,7 @@ LCM.Brouillons.Set("traits", {
 })
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 local moi = LCM.Entities.Self()
 

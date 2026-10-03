@@ -40,7 +40,11 @@ local VARIANTES = {
         -- mesure sur l'alpha de l'atlas (3 octobre 2026) : en bas, l'equerre
         -- doree des coins (40) depasse le liseré (34) ; sur les cotes, pres
         -- des coins, la bande et sa ferrure (30). Voir UI.AelEmprise.
-        emprise = { bas = 40, cote = 30 },
+        -- `coinHaut` : jusqu'ou l'ornement clair du coin HAUT s'etend vers le
+        -- centre, mesure sur la luminosite de l'atlas (3 octobre 2026). Ce qui
+        -- se pose dans l'en-tete (la croix, la pastille de canal) doit commencer
+        -- apres, sinon ca mord sur la tour d'angle.
+        emprise = { bas = 40, cote = 30, coinHaut = 70 },
         fixes = {
             {   0,   0, 230, 330,    0,   0, "TOPLEFT" },
             { 232,   0, 236, 330, 1300,   0, "TOPRIGHT" },
@@ -67,7 +71,7 @@ local VARIANTES = {
         coupeHaut = 158,
         -- Meme mesure que pour « leger » : equerre des coins du bas (30), bande
         -- de cote (5).
-        emprise = { bas = 30, cote = 5 },
+        emprise = { bas = 30, cote = 5, coinHaut = 0 },  -- pas de tour d'angle ici
         fixes = {
             {   0,   0, 175, 225,    0,    0, "TOPLEFT" },
             { 180,   0, 168, 225, 1165,    0, "TOPRIGHT" },
@@ -159,6 +163,15 @@ function UI.AelEmprise(cadre)
     return { bas = V.emprise.bas * decor.echelle, cote = V.emprise.cote * decor.echelle }
 end
 
+-- Ce que l'ornement du coin haut prend, en pixels d'ecran. Zero sans atlas :
+-- il n'y a alors rien a eviter.
+function UI.AelRetraitCoin(cadre)
+    local decor = cadre and cadre.decor
+    local V = decor and decor.theme and VARIANTES[decor.theme]
+    if not V or not V.emprise or not decor.echelle then return 0 end
+    return (V.emprise.coinHaut or 0) * decor.echelle
+end
+
 -- Les pieces d'un habillage, fabriquees a la demande : on ne paie un atlas que
 -- si on l'affiche.
 local function Jeu(decor, nom)
@@ -225,6 +238,8 @@ function UI.Cadre(cadre)
             Poser(t, V, "BOTTOMRIGHT", r[9], r[10], r[11], cadre, k)
             t:Show()
         end
+        -- L'echelle vient de changer : ce qui doit eviter les coins se replace.
+        if cadre.PlacerCoinsHaut then cadre:PlacerCoinsHaut() end
     end
 
     decor:Disposer()
@@ -510,12 +525,21 @@ function UI.HabillerOnglet(b)
     b.fondOnglet:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 3)
     b.cadreOnglet = UI.AelCadre(b, "onglet")
     UI.Police(b.label, math.max(11, 24 * (b:GetHeight() / 55)))
+    -- L'ecart entre l'onglet ouvert et les autres etait trop faible pour se
+    -- voir d'un coup d'oeil : meme or sur le cadre, presque le meme texte. Les
+    -- onglets fermes passent maintenant au GRIS — teinte desaturee sur le
+    -- cadre, texte eteint, fond plus sombre — et l'ouvert garde seul la
+    -- couleur de l'habillage.
     function b:Selectionner(actif)
         self.__selectionne = actif and true or false
-        self.fondOnglet:SetColorTexture(actif and 0.13 or 0.025, actif and 0.095 or 0.023, actif and 0.045 or 0.02, 0.95)
-        if actif then self.label:SetTextColor(0.98, 0.87, 0.60) else self.label:SetTextColor(0.90, 0.86, 0.78) end
-        for _, t in ipairs(self.cadreOnglet.morceaux) do
-            t:SetVertexColor(actif and 1 or 0.74, actif and 0.94 or 0.68, actif and 0.78 or 0.56, 1)
+        if actif then
+            self.fondOnglet:SetColorTexture(0.16, 0.115, 0.055, 0.98)
+            self.label:SetTextColor(1, 0.90, 0.62)
+            for _, t in ipairs(self.cadreOnglet.morceaux) do t:SetVertexColor(1, 0.94, 0.78, 1) end
+        else
+            self.fondOnglet:SetColorTexture(0.045, 0.043, 0.040, 0.95)
+            self.label:SetTextColor(0.52, 0.50, 0.47)
+            for _, t in ipairs(self.cadreOnglet.morceaux) do t:SetVertexColor(0.42, 0.41, 0.39, 1) end
         end
     end
     b:Selectionner(false)

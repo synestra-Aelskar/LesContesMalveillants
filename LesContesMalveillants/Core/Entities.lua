@@ -70,9 +70,16 @@ function Entities.Self()
     if incarne then return incarne end
     local actif = LCM.Personnages and LCM.Personnages.Actif and LCM.Personnages.Actif()
     if actif then return actif end
+    -- Et sinon, RIEN. On ne fabrique plus un personnage au nom du personnage
+    -- WoW parce qu'une fenetre s'est ouverte (3 octobre 2026) : un personnage
+    -- se cree a l'ecran de creation, avec sa race, ses points et ses traits.
+    -- Celui qui naissait ici n'avait rien de tout cela et prenait la place.
+    --
+    -- On rend quand meme celui qui existe deja sous cet identifiant : les
+    -- parties d'avant ont ce personnage, et il reste le leur.
     local id = LCM.PlayerId()
     if id == "" then return nil end
-    return Entities.Get(id) or Entities.Create(id, UnitName and UnitName("player") or id, "player")
+    return Entities.Get(id)
 end
 
 -- ===== Valeurs =============================================================

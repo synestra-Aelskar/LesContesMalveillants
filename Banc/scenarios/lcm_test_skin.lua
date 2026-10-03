@@ -8,6 +8,7 @@ local function attendu(libelle, obtenu, voulu)
 end
 
 __declencher("PLAYER_LOGIN")
+__personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== toute fenetre recoit le cadre")
 local fiche = LCM.UI.Fiche.Fenetre()
@@ -22,8 +23,8 @@ attendu("et centre sur le haut (en-tete Necronicon)", point, "CENTER")
 
 dire("== l'echelle suit la largeur, entre deux bornes")
 local creation = LCM.UI.Creation.Fenetre()
-attendu("fenetre large : 820", creation:GetWidth(), 820)
--- 820 / 1340 x 0,75 = 0,459, borne haute a 0,40.
+attendu("fenetre large : 1040", creation:GetWidth(), 1040)
+-- 1040 / 1340 x 0,75 = 0,582, borne haute a 0,40.
 attendu("echelle bornee en haut", creation.decor.echelle, 0.4)
 local etroite = LCM.UI.Fenetre("banc_etroit", "Etroite", 300, 200)
 attendu("fenetre etroite : 300", etroite:GetWidth(), 300)
