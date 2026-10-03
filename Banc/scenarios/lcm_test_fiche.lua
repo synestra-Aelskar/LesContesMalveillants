@@ -61,7 +61,7 @@ attendu("blocs", table.concat(titres, ", "),
     "GÉNÉRALE, HABILITÉS, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
 local generale = {}
 for _, l in ipairs(page.blocs[1].lignes) do generale[#generale + 1] = l.field.id end
-attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa")
+attendu("Generale", table.concat(generale, ","), "corps,armure,armure_portee,fatigue,pa")
 local corps = page.blocs[1].lignes[1]
 attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")

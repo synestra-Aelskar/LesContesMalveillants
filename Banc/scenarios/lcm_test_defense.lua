@@ -69,7 +69,12 @@ local R = U.repartition
 attendu("la repartition s'ouvre", R:IsShown(), true)
 attendu("le degat critique net", R.montant, 5)
 attendu("le perce-armure impose", R.minimum, 3)
-attendu("#armure n'a pas de jauge : dit", R.aide.texte:GetText():find("#armure", 1, true) ~= nil, true)
+-- #armure vise les pieces portees (2 octobre 2026) : nu, rien a proposer, et
+-- ce n'est plus signale comme une jauge manquante.
+attendu("#armure n'est plus signale", R.aide.texte:GetText():find("#armure", 1, true) ~= nil, false)
+local pieces = 0
+for _, c in ipairs(R.cases) do if c.genre == "piece" then pieces = pieces + 1 end end
+attendu("nu : aucune piece d'armure", pieces, 0)
 attendu("on ne peut pas appliquer sans tout placer", R.appliquer:IsEnabled(), false)
 -- Tout sur les Boucliers (vides) : impossible ; deux en tete, trois au torse.
 local boucliers

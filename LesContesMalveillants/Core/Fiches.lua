@@ -67,6 +67,15 @@ function Fiches.Paquet(entity)
             paquet.v[champ] = tostring(valeur)
         end
     end
+    -- Les jauges calculees (l'armure portee) ne sont pas dans les valeurs, et
+    -- le MJ ne recoit pas l'equipement : on envoie leur lecture.
+    for _, champ in ipairs(LCM.Schema.sheet.order) do
+        local field = LCM.Schema.Field(champ)
+        if field.kind == "gauge" and field.lire then
+            local jauge = LCM.Entities.Gauge(entity, champ)
+            paquet.v[champ] = string.format("%d/%d", jauge.current, jauge.max)
+        end
+    end
     return paquet
 end
 

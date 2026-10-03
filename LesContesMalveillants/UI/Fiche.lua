@@ -184,6 +184,8 @@ Lignes.text = Lignes.stat
 local COULEURS_JAUGE = {
     fatigue = UI.C.fatigue,
     armure = UI.C.armure,
+    -- L'armure portee se remplit de ce qu'elle a encaisse : un bronze terni.
+    armure_portee = { 0.62, 0.48, 0.34 },
     pa = { 0.83, 0.68, 0.33 },
 }
 
@@ -639,6 +641,14 @@ local function Emplacement(conteneur, c)
             self.nom:SetText(element.label .. (element.brouillon and "  |cff99907f·|r" or ""))
             self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
             local effets = Effets(element)
+            -- Une piece d'armure dit ce qui la protege encore : son usure la
+            -- suit (Core/Objets.lua), elle doit se voir la ou on la porte.
+            if element.armure then
+                local usure = math.min(element.armure, LCM.Objets.Usure(conteneur.entity, element.id))
+                local armure = usure > 0 and string.format("Armure %d / %d", element.armure - usure, element.armure)
+                    or string.format("Armure %d", element.armure)
+                effets = effets ~= "" and (armure .. "  ·  " .. effets) or armure
+            end
             self.effets:SetText(effets)
             Bulle(self, element.label, (element.description ~= "" and (element.description .. "\n\n") or "")
                 .. (effets ~= "" and effets or "Aucun effet chiffré."))

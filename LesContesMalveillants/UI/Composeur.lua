@@ -618,7 +618,11 @@ end
 
 LCM.WhenReady(function()
     for _, categorie in ipairs(UI.Radial.STRUCTURE) do
-        for _, entree in ipairs(categorie.entrees or {}) do
+        -- Les actions du MJ vivent dans le compagnon (Genere/Compendium_
+        -- Resolutions_MJ.lua) : chez un joueur, elles n'existent pas, et leur
+        -- categorie ne s'affiche pas. Rien a lier, rien a signaler.
+        local entrees = (categorie.mjSeulement and not LCM.IsMaster()) and {} or categorie.entrees or {}
+        for _, entree in ipairs(entrees) do
             local resolution = entree.resolution
             if resolution and LCM.Resolutions.Get(resolution) then
                 UI.Radial.Lier(entree.id, function() A.Lancer(resolution) end)

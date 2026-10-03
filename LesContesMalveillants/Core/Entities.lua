@@ -124,6 +124,16 @@ function Entities.Gauge(entity, fieldId)
     local field = LCM.Schema.Field(fieldId)
     if not field or field.kind ~= "gauge" then return nil end
     local stored = entity and entity.values[field.id]
+    -- Une jauge calculee (l'armure portee) se lit ailleurs que dans les
+    -- valeurs. Sauf sur une fiche recue par le reseau : elle n'a que ce que le
+    -- joueur a envoye, pas son equipement.
+    if type(field.lire) == "function" and not (entity and entity.distante and type(stored) == "table") then
+        local ok, jauge = pcall(field.lire, entity)
+        if ok and type(jauge) == "table" then
+            return { current = math.floor(tonumber(jauge.current) or 0), max = math.floor(tonumber(jauge.max) or 0) }
+        end
+        return { current = 0, max = 0 }
+    end
     local maximum = (type(stored) == "table" and tonumber(stored.max)) or nil
     if not maximum and type(field.maxFormula) == "function" then
         local ok, value = pcall(field.maxFormula, entity)
@@ -142,6 +152,11 @@ end
 function Entities.SetGauge(entity, fieldId, current, maximum)
     local field = LCM.Schema.Field(fieldId)
     if not field or field.kind ~= "gauge" or type(entity) ~= "table" then return false end
+    -- Calculee : c'est a sa source d'encaisser, rien n'entre dans les valeurs.
+    if type(field.ecrire) == "function" then
+        if entity.distante then return false end
+        return field.ecrire(entity, tonumber(current) or 0) and true or false
+    end
     local gauge = Entities.Gauge(entity, fieldId)
     local newMax = tonumber(maximum) or gauge.max
     local newCurrent = math.max(0, math.min(tonumber(current) or gauge.current, newMax))

@@ -108,7 +108,7 @@ local function CiblesBonus()
         for _, section in ipairs(tab.sections) do
             for _, field in ipairs(section.fields) do
                 local cible = field.kind == "stat" or field.kind == "roll"
-                    or (field.kind == "gauge" and field.id ~= "armure")
+                    or (field.kind == "gauge" and field.id ~= "armure" and not field.lire)
                     or (field.kind == "calc" and field.recoitBonus)
                 if cible then out[#out + 1] = field.id end
             end

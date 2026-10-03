@@ -53,8 +53,12 @@ dire("== le bouton Attaque ouvre son composeur")
 local R = LCM.UI.Radial
 attendu("le bouton est lie", R.EstLiee("attaque_simple"), true)
 attendu("toutes les actions sont liees", (function()
+    -- Chez un joueur, les actions du MJ ne sont pas livrees (compagnon) :
+    -- leur categorie ne se montre pas et n'a rien a lier.
     for _, cat in ipairs(R.STRUCTURE) do
-        for _, e in ipairs(cat.entrees or {}) do if not R.EstLiee(e.id) then return e.id end end
+        if LCM.IsMaster() or not cat.mjSeulement then
+            for _, e in ipairs(cat.entrees or {}) do if not R.EstLiee(e.id) then return e.id end end
+        end
     end
     return true
 end)(), true)
@@ -230,10 +234,15 @@ attendu("sinon", M.choix.titre:GetText(), "branche sinon")
 M.choix.boutons[1]:Click()
 
 dire("== une action MJ est refusee a un joueur")
+-- Depuis le 2 octobre 2026, les actions du MJ sont dans le compagnon : un vrai
+-- joueur (--sans-mj) ne les a meme pas. Avec le compagnon, on simule un
+-- joueur qui les aurait : le registre refuse quand meme.
+local livree = LCM.Resolutions.Get("attaque_mj") ~= nil
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 attendu("refus", A.Lancer("attaque_mj"), nil)
-attendu("dit pourquoi", aDit("Attaque MJ : réservé au maître du jeu."), true)
+attendu("dit pourquoi", aDit(livree and "Attaque MJ : réservé au maître du jeu."
+    or "action inconnue du compendium : attaque_mj"), true)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 

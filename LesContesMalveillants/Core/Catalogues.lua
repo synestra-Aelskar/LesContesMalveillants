@@ -66,13 +66,22 @@ function LCM.Catalogue(def)
         LCM.ChampsCommuns(definition, element, Erreur)
         -- Champs propres a une famille (les places d'un sac) : des entiers,
         -- bornes, avec un defaut, ou des cases a cocher (sac du MJ). Un nombre
-        -- illisible est refuse, pas devine.
+        -- illisible est refuse, pas devine. `categories` limite un champ a
+        -- certaines categories (l'armure d'une piece, pas d'une arme) ; un
+        -- defaut peut etre une fonction, pour le lire dans l'equilibrage,
+        -- qui n'existe pas encore quand Core se charge.
         for _, champ in ipairs(def.champs or {}) do
             local brut = definition[champ.cle]
-            if champ.genre == "case" then
+            -- Une case laissee vide dans l'atelier : le defaut, pas un refus.
+            if brut == "" then brut = nil end
+            local defaut = champ.defaut
+            if type(defaut) == "function" then defaut = defaut() end
+            if champ.categories and not champ.categories[categorie] then
+                -- Hors de ses categories, le champ n'existe pas.
+            elseif champ.genre == "case" then
                 element[champ.cle] = brut == true or brut == 1 or brut == "1" or nil
             else
-                local valeur = brut == nil and champ.defaut or tonumber(brut)
+                local valeur = brut == nil and defaut or tonumber(brut)
                 if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0) then
                     Erreur(string.format("%s : %s invalide (%s)", id, champ.libelle or champ.cle, tostring(brut)))
                 end

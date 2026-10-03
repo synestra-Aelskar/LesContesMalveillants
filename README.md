@@ -378,23 +378,36 @@ Par ordre de ce qui bloque le plus :
       joué, huit au plus.
 - [x] **« Résolution Test MJ »** a laissé sa place à « Dégât MJ » dans
       Animation, sur décision de l'utilisateur.
-- [ ] **La jauge `#armure`** : les attaques citent une zone « armure » que la
-      fiche n'a pas. Aujourd'hui la répartition le signale et se fait en santé
-      et Boucliers. **Relevé du template le 2 octobre 2026** : aucune jauge n'y
-      porte le tag `#armure`. Les jauges taguées sont « Boucliers »
-      (`#bouclier`) et les cinq zones (`#sante #tete`…). Chaque pièce de la
-      catégorie « Armures » a bien une jauge « Etat » (0 à 100), mais **sans
-      tag** : dans Necronicon, `#armure` ne visait rien. Le brancher sur l'état
-      des armures portées serait une règle nouvelle. **À décider.**
+- [x] **La jauge `#armure`** (2 octobre 2026). Dans le template, aucune jauge
+      ne portait ce tag : dans Necronicon, `#armure` ne visait rien. Règle
+      décidée, **écart voulu** commenté dans `Data/Equilibrage.lua` :
+      * nu, on n'a pas d'armure (0 / 0) ;
+      * chaque pièce de la catégorie Armure a sa **valeur d'armure**, saisie
+        dans l'éditeur du compendium (champ « Armure ») ; laissée vide, elle
+        vaut `Equilibrage.armure.parDefaut` (2). Un t-shirt neuf : 0 / 2 ;
+      * la jauge **Armure** de la fiche (`armure_portee`, sous Boucliers)
+        compte les **dégâts encaissés** sur le total des pièces portées ;
+      * **chaque pièce garde son usure** (`entity.usureArmure`, par objet,
+        effacée à zéro) : un t-shirt abîmé qu'on enlève puis remet reste
+        abîmé. La fenêtre Équipements l'affiche (« Armure 9 / 10 ») ;
+      * dans la répartition d'une attaque, `#armure` propose une case par
+        pièce portée ; un gain la répare, le R de la fiche répare tout.
+      L'identifiant `armure` étant celui des Boucliers depuis la première
+      publication, la nouvelle jauge s'appelle `armure_portee`. Elle n'a pas
+      d'icône (le template n'en déclare pas) et ne reçoit pas de bonus.
+      Scénario : `lcm_test_armure.lua`.
 - [x] **La fenêtre Combat dans le Panel MJ** : un bouton « Combat » en haut à
       droite du Panel MJ l'ouvre (2 octobre 2026). Pas d'entrée de menu : le
       menu suit le template, qui n'a pas de fenêtre de combat, et Necronicon
       menait l'initiative depuis sa fenêtre du MJ. `/lcm combat` marche
       toujours.
-- [ ] **Les actions MJ livrées aux joueurs** : `Compendium_Resolutions.lua` est
-      dans l'addon de base, donc « Attaque MJ » & co sont chez les joueurs
-      (ils ne peuvent pas les lancer, mais les ont). À ranger dans le
-      compagnon si c'est un secret.
+- [x] **Les actions MJ livrées aux joueurs** (2 octobre 2026). Les trois
+      actions que seul le MJ **émet** (Dégât MJ, Attaque MJ, Buff / Débuff MJ)
+      sont dans le compagnon : `LesContesMalveillants_MJ/Genere/
+      Compendium_Resolutions_MJ.lua`. Ce que le joueur doit savoir
+      **recevoir** reste chez lui, en particulier « Résolution Test MJ », qui
+      répond à l'épreuve d'un Dégât MJ. Chez un joueur, la catégorie Animation
+      ne lie rien et ne signale rien.
 - [x] **L'objet.** `LCM.Objets` : arme, équipement, accessoire (1 / 5 / 5
       emplacements, `Equilibrage.emplacements`), bonus et avantage comme un
       trait. Créés dans l'atelier, équipés par le MJ dans « Équipement ».
@@ -429,15 +442,17 @@ Par ordre de ce qui bloque le plus :
       bout de ce levier** : à cette largeur le texte des lignes calcule 10,3 px
       et le plancher de lisibilité est à 10. Pour gagner encore, il faut
       enlever quelque chose de la ligne, pas rétrécir.
-- [ ] **Le vide au milieu des lignes de statistique.** Le libellé finit vers
+- [x] **Le vide au milieu des lignes de statistique.** Le libellé finit vers
       110, la valeur est calée à droite vers 336 : deux cents pixels de rien.
       Necronicon a le même trou — la colonne de valeurs est alignée pour qu'on
       la lise d'un trait. Deux sorties : rapprocher la valeur du libellé (la
       fenêtre descend vers 300, on perd l'alignement vertical des chiffres), ou
-      garder l'alignement. **À trancher.**
-- [ ] **Le découpage Habilités / Statistiques dans le récapitulatif.** La fiche
+      garder l'alignement. **Tranché le 2 octobre 2026 : on garde
+      l'alignement**, comme Necronicon.
+- [x] **Le découpage Habilités / Statistiques dans le récapitulatif.** La fiche
       sépare les deux depuis le 2 octobre ; la fenêtre Statistiques garde les
-      six primaires dans un seul dossier. À uniformiser ou non, au choix.
+      six primaires dans un seul dossier. **Tranché le 2 octobre 2026 : elles
+      restent ensemble.**
 - [ ] **Le mode joueur, en jeu.** Le banc sait enfin le jouer (`--sans-mj`),
       mais personne n'a encore ouvert l'addon **sans** le compagnon MJ dans le
       vrai jeu. C'est la moitié du produit. Depuis le 2 octobre 2026,
@@ -491,7 +506,7 @@ Il trouve les dossiers d'addon tout seul — le dépôt lui-même si tu le lance
 depuis un clone, ou le dossier que tu lui donnes avec `--addons`. Voir
 `Banc/LISEZ-MOI.md`.
 
-Les **43 scénarios** de `Banc/scenarios/` (liste dans `Banc/LISEZ-MOI.md`)
+Les **44 scénarios** de `Banc/scenarios/` (liste dans `Banc/LISEZ-MOI.md`)
 couvrent le socle, les règles du template, le corps, les PV, les traits, les
 objets, l'atelier, la fiche, les fenêtres du menu, les personnages, la
 création, les grimoires et les sorts, la bourse, le stock, les points, le
@@ -550,7 +565,10 @@ et modifie les entrées en brouillon depuis la fenêtre (compagnon MJ,
 Le contenu de Necronicon a été importé « en brut » par
 `Outils/importer_necronicon.py`, qui écrit `Data/Genere/Compendium_*.lua` et
 `Data/Genere/Necronicon_Grimoires.lua` — des fichiers distincts de ceux de
-l'export des brouillons. Il lit, sans jamais y écrire, les sauvegardes d'un
+l'export des brouillons. Ce qui n'appartient qu'au MJ part dans le
+compagnon : `LesContesMalveillants_MJ/Genere/Compendium_PNJ.lua` et
+`Compendium_Resolutions_MJ.lua` (en-tête `local LCM = _G.LCM`, le `...`
+d'un compagnon n'étant pas l'addon). Il lit, sans jamais y écrire, les sauvegardes d'un
 compte (`--sauvegardes <SavedVariables>`, par défaut le compte AKRX) : le
 compendium tel que modifié en jeu, les PNJ vivants, les grimoires, et les
 entrées d'un ancien compendium qui ne survivaient qu'en copie. Sans

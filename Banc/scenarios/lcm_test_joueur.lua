@@ -34,11 +34,14 @@ local function Essayer(fn)
     return table.concat(erreurs, " / ")
 end
 
+-- Le repere est pris AVANT la connexion : une erreur a l'ouverture du jeu
+-- est la premiere chose que voit un joueur.
+local depart = #__sorties
 __declencher("PLAYER_LOGIN")
 local mj = LCM.IsMaster()
 dire(mj and "   (compagnon MJ charge : relancer avec --sans-mj pour le vrai joueur)"
         or "   (sans compagnon : c'est ce que voit un joueur)")
-local depart = #__sorties
+attendu("aucune erreur a la connexion", #Erreurs(depart), 0)
 
 dire("== un personnage")
 local P = LCM.Personnages

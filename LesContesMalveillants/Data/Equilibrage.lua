@@ -204,6 +204,18 @@ E.conteneurs = {
     traits = 10,          -- Creation › Traits (conteneur « Traits », 10 places)
 }
 
+-- ===== Armure portee ========================================================
+-- ECART VOULU (decision du 2 octobre 2026) : dans le template, le tag #armure
+-- des attaques ne visait aucune jauge. Ici, chaque piece d'armure equipee
+-- (Equipements › Armures et vetements) apporte sa valeur d'armure, et la
+-- jauge #armure compte les degats que les pieces portees ont encaisses sur
+-- leur total. Sans rien sur le dos : 0 / 0. Un t-shirt : 0 / 2.
+-- `parDefaut` : la valeur d'une armure dont l'atelier n'a pas fixe la sienne.
+
+E.armure = {
+    parDefaut = 2,
+}
+
 -- ===== Inventaires ==========================================================
 -- Les emplacements de la fenetre Inventaires du template, par onglet : deux
 -- sacs, quatre saccoches, un emplacement de devise (inventoryWindows ›

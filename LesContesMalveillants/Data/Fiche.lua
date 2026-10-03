@@ -49,6 +49,14 @@ Schema.AddTab({
                 -- « Boucliers » dans le template : 0 / 1000 au depart.
                 { id = "armure",   kind = "gauge", label = "Boucliers", max = 1000, default = 0,
                   note = "Protection temporaire. Part de zéro ; R la remet à zéro." },
+                -- Ecart voulu (Equilibrage.armure) : l'armure des pieces
+                -- portees, calculee depuis l'equipement. L'identifiant
+                -- « armure » etant celui des Boucliers depuis la premiere
+                -- publication, celle-ci s'appelle « armure_portee ».
+                { id = "armure_portee", kind = "gauge", label = "Armure", default = 0,
+                  lire = function(entity) return LCM.Objets.Protection(entity) end,
+                  ecrire = function(entity, encaisse) return LCM.Objets.PorterProtection(entity, encaisse) end,
+                  note = "Dégâts encaissés par les armures portées, sur leur total. Chaque pièce garde son usure ; R les répare." },
             },
         },
         {

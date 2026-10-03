@@ -113,6 +113,7 @@ vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
 | `lcm_test_combat_joueur.lua` | le combat vu d'un joueur, sans le compagnon MJ (à jouer aussi avec `--sans-mj`) |
 | `lcm_test_scene.lua` | les PNJ en scène : le MJ les met en jeu, les joueurs les ciblent |
 | `lcm_test_presence.lua` | le ping de présence : qui a l'addon, sur tout le serveur |
+| `lcm_test_armure.lua` | l'armure portée : valeur par pièce (défaut d'équilibrage), jauge `armure_portee` (encaissé / total), usure gardée par pièce, répartition `#armure`, réparation, fenêtre Équipements, consultation MJ |
 | `lcm_test_joueur.lua` | **le parcours d'un joueur** : chaque entrée visible du menu et du lanceur s'ouvre sans erreur, rien du MJ n'apparaît. À jouer surtout avec `--sans-mj` |
 
 **Tous doivent être au vert avant de publier.** Pour les lancer d'affilée :

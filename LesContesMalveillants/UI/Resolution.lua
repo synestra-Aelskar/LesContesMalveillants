@@ -680,7 +680,7 @@ function Ecran.Repartir(ctx, fin)
             Placer(l.tout, "RIGHT", l.moins, "LEFT", -6, 0)
             f.lignes[i] = l
         end
-        l.nom:SetText(case.sante and case.nom or (case.nom .. " |cff9fbfdf#bouclier|r"))
+        l.nom:SetText(case.sante and case.nom or (case.nom .. " |cff9fbfdf" .. tostring(case.tag or "#bouclier") .. "|r"))
         l:ClearAllPoints()
         l:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 0, -y)
         l:SetPoint("TOPRIGHT", f.zone.contenu, "TOPRIGHT", 0, -y)

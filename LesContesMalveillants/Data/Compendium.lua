@@ -242,14 +242,19 @@ Generique({ id = "ressources", label = "Ressources", liste = "ressources",
 -- categorie fixe chacun. Le template donne a Armures et Accessoires la
 -- « Liste Armes » pour Type : corrige en « Type Armures » pour les armures ;
 -- les accessoires gardent la liste du template, faute d'une liste a eux.
-local function Objet(id, label, categorie, liste)
+local function Objet(id, label, categorie, liste, extras)
     Generique({ id = id, label = label, liste = liste,
         registre = "Objets", famille = "objets",
         filtre = function(element) return element.categorie == categorie end,
-        defaut = { categorie = categorie } })
+        defaut = { categorie = categorie }, extras = extras })
 end
 Objet("armes", "Armes", "arme", "armes")
-Objet("armures", "Armures", "equipement", "type_armures")
+Objet("armures", "Armures", "equipement", "type_armures", {
+    -- Ajout de l'addon (2 octobre 2026) : ce qu'une piece porte vers la jauge
+    -- #armure. Laisse vide, elle vaut Equilibrage.armure.parDefaut.
+    { cle = "armure", label = "Armure", type = "nombre", emplacement = "meta", min = 0,
+      defaut = LCM.Equilibrage.armure.parDefaut },
+})
 Objet("accessoires", "Accessoires", "accessoire", "armes")
 
 -- Races, traits, etats, maladies, apprentissages : le template leur donne la

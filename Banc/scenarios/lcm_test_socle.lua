@@ -12,7 +12,8 @@ end
 __declencher("PLAYER_LOGIN")
 
 dire("== schema")
-attendu("champs declares", LCM.Schema.Count(), 155)
+-- 156 depuis le 2 octobre 2026 : la jauge de l'armure portee (« armure_portee »).
+attendu("champs declares", LCM.Schema.Count(), 156)
 attendu("onglets", #LCM.Schema.Tabs(), 8)
 attendu("le champ armure existe", LCM.Schema.Field("armure") ~= nil, true)
 attendu("son type", LCM.Schema.Field("armure").kind, "gauge")
@@ -24,7 +25,7 @@ attendu("mon identite", moi.id, "Reika-Apertus")
 attendu("mon type", moi.kind, "player")
 local golem = LCM.Entities.Create("pnj_golem", "Golem de glace", "npc")
 attendu("pnj cree", golem.name, "Golem de glace")
-attendu("meme feuille pour les deux", LCM.Schema.Count(), 155)
+attendu("meme feuille pour les deux", LCM.Schema.Count(), 156)
 
 dire("== valeurs")
 attendu("force par defaut", LCM.Entities.Get_Value(moi, "force"), 0)

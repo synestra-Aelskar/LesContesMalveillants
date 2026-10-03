@@ -85,6 +85,10 @@ function Schema.AddTab(definition)
                 formula = fieldDef.formula,            -- fonction(entite), champ calc
                 maxFormula = fieldDef.maxFormula,      -- fonction(entite), maximum d'une jauge
                 valueFormula = fieldDef.valueFormula,  -- fonction(entite), valeur d'un jet
+                -- Une jauge calculee ailleurs que dans les valeurs (l'armure
+                -- portee) : lire(entite) -> { current, max }, ecrire(entite, courant).
+                lire = fieldDef.lire,
+                ecrire = fieldDef.ecrire,
                 note = fieldDef.note,
                 -- Un champ calcule qui accepte les bonus portes (sa formule les
                 -- lit) : l'atelier le propose comme cible d'un bonus.
