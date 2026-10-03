@@ -78,20 +78,21 @@ vérifie-le toi-même (voir `largeurResolue` dans `lcm_test_parametres.lua`).
 | `lcm_test_objets.lua` | objets : registre, emplacements, effets cumulés avec les traits, fenêtre d'équipement |
 | `lcm_test_inventaires.lua` | l'inventaire du template : onglets Sacs / Saccoches / Devises, sacs posés et repris de l'ancien format, cases, quantités, soldes, refus ; la fenêtre (grille / liste, glisser depuis le compendium) et la fenêtre d'un sac (cases, menu clic droit, déplacer) |
 | `lcm_test_metiers.lua` | les 31 métiers du template, paliers d'XP incrémentaux, bonus de jet, fenêtre Métiers (XP réservée au MJ) |
-| `lcm_test_identite.lua` | l'identité Total RP 3 (nom RP, icône) reprise de Necronicon, bouton du menu, TRP3 absent ou défaillant |
+| `lcm_test_identite.lua` | l'identité Total RP 3 (nom RP, icône) reprise de Necronicon, TRP3 absent ou défaillant |
 | `lcm_test_regles.lua` | les formules du template, vérifiées à la main : apports aux expertises, déplacement, PA, fatigue, initiative, PV |
 | `lcm_test_brouillons.lua` | contenu créé en séance par le MJ |
 | `lcm_test_atelier.lua` | l'atelier MJ : saisie, refus, modification, suppression, doublons |
 | `lcm_test_compendium.lua` | le compendium « Système d'Aelskar » : les 24 catégories, le contenu importé, la fenêtre (types, catégories, sous-catégories, tableau, colonnes, pagination, sélection, carte), l'éditeur MJ (création, refus, publié en lecture, Dup, suppression, modification groupée, connaissance, cheminement), le hub |
 | `lcm_test_fiche.lua` | la fenêtre de fiche, construite depuis le schéma |
 | `lcm_test_fiche_traits.lua` | l'onglet Traits : cartes, ajout / retrait MJ, trait disparu, lecture joueur |
-| `lcm_test_menu.lua` | le lanceur d'actions (radial) et le menu des fenêtres du template |
+| `lcm_test_menu.lua` | le sceau et ses deux couronnes (fenêtres au clic gauche, actions au clic droit), une seule ouverte à la fois |
 | `lcm_test_document.lua` | la documentation en jeu : liste, page défilante, titres du modèle |
 | `lcm_test_vues.lua` | les fenêtres du menu tirées de la fiche : registre, Santé, Expertise |
 | `lcm_test_grimoires.lua` | les grimoires : le hub, la possession (le sien, ceux qu'on reçoit), les sous-grimoires, les sorts et leur jet |
 | `lcm_test_sorts.lua` | les sorts du personnage : sauvegarde, éditeur, lien de chat, découpage sous 255 octets, partage et adoption |
 | `lcm_test_parametres.lua` | les paramètres : sceau, remise en place des fenêtres, traces, état du réseau |
 | `lcm_test_fiches_mj.lua` | la consultation des fiches par le MJ : paquet, droits, groupe, panneau, sens unique |
+| `lcm_test_outils.lua` | le Panel MJ en onglets, et les outils partagés (compteurs, barres, notes, annonces) du MJ jusqu'à l'écran du joueur |
 | `lcm_test_incarnation.lua` | incarner un PNJ : instances indépendantes, bascule, droits MJ, fenêtre |
 | `lcm_test_stock.lua` | le stock partagé : repousse déterministe, fusion de deux copies, réseau |
 | `lcm_test_points.lua` | vendeurs et points de récolte : offres, stock, récolte, achat, fenêtres |

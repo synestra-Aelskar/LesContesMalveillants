@@ -45,6 +45,7 @@ Core\Presence.lua
 Core\Incarnation.lua
 Core\Combat.lua
 Core\Scene.lua
+Core\Outils.lua
 Core\Actions.lua
 Core\DeplacementForce.lua
 Core\Reactions.lua
@@ -98,3 +99,4 @@ UI\Resolution.lua
 UI\Constructeur.lua
 UI\Radial.lua
 UI\Menu.lua
+UI\Outils.lua

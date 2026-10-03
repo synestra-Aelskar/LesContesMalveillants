@@ -195,7 +195,39 @@ local function NouvelleRegion(kind, parent)
     function r:SetRotation(a) self.__rotation = a end
     function r:GetRotation() return self.__rotation or 0 end
     function r:AddMaskTexture(m) self.__masks = self.__masks or {} self.__masks[#self.__masks + 1] = m end
-    function r:GetCenter() return (self.__w or 0) / 2, (self.__h or 0) / 2 end
+    -- Centre a l'ecran, resolu par le PREMIER ancrage (relatif au parent par
+    -- defaut), origine en bas a gauche comme dans le jeu. Assez pour qu'un
+    -- cadre pose au centre d'UIParent, puis decale, sache ou il est ; pas un
+    -- moteur de mise en page. Sans ancrage : la moitie de la taille (vrai pour
+    -- UIParent).
+    local DIRECTIONS = {
+        CENTER = { 0, 0 }, TOP = { 0, 1 }, BOTTOM = { 0, -1 }, LEFT = { -1, 0 }, RIGHT = { 1, 0 },
+        TOPLEFT = { -1, 1 }, TOPRIGHT = { 1, 1 }, BOTTOMLEFT = { -1, -1 }, BOTTOMRIGHT = { 1, -1 },
+    }
+    function r:GetCenter(profondeur)
+        profondeur = profondeur or 0
+        local w, h = self.__w or 0, self.__h or 0
+        local p = self.__points[1]
+        local tout = self.__allPoints
+        if not p and tout and tout ~= self and profondeur < 50 then return tout:GetCenter(profondeur + 1) end
+        if not p or profondeur >= 50 then return w / 2, h / 2 end
+        local point, rel, relPoint, x, y = p[1], nil, nil, 0, 0
+        if type(p[2]) == "number" then
+            x, y = p[2], p[3] or 0
+        else
+            rel = p[2]
+            if type(rel) == "string" then rel = _G[rel] end
+            if type(p[3]) == "string" then relPoint, x, y = p[3], p[4] or 0, p[5] or 0
+            else x, y = p[3] or 0, p[4] or 0 end
+        end
+        rel = rel or self.parent
+        relPoint = relPoint or point
+        if not rel or not rel.GetCenter then return w / 2, h / 2 end
+        local rx, ry = rel:GetCenter(profondeur + 1)
+        local rw, rh = rel:GetWidth(), rel:GetHeight()
+        local a, b = DIRECTIONS[relPoint] or { 0, 0 }, DIRECTIONS[point] or { 0, 0 }
+        return rx + a[1] * rw / 2 + x - b[1] * w / 2, ry + a[2] * rh / 2 + y - b[2] * h / 2
+    end
     function r:SetDrawLayer() end
     function r:SetWordWrap() end
     -- Mesure approchee d'un texte qui passe a la ligne : 6 px par caractere,

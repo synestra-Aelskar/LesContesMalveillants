@@ -36,6 +36,11 @@ local VARIANTES = {
         largeur = 1340,
         facteur = 0.75, min = 0.26, max = 0.40,
         coupeHaut = 102,  -- le motif du haut est rogne quand un titre est centre
+        -- Ce que le dessin mange A L'INTERIEUR de la fenetre, en unites source,
+        -- mesure sur l'alpha de l'atlas (3 octobre 2026) : en bas, l'equerre
+        -- doree des coins (40) depasse le liseré (34) ; sur les cotes, pres
+        -- des coins, la bande et sa ferrure (30). Voir UI.AelEmprise.
+        emprise = { bas = 40, cote = 30 },
         fixes = {
             {   0,   0, 230, 330,    0,   0, "TOPLEFT" },
             { 232,   0, 236, 330, 1300,   0, "TOPRIGHT" },
@@ -60,6 +65,9 @@ local VARIANTES = {
         largeur = 1121,
         facteur = 0.7, min = 0.22, max = 0.40,
         coupeHaut = 158,
+        -- Meme mesure que pour « leger » : equerre des coins du bas (30), bande
+        -- de cote (5).
+        emprise = { bas = 30, cote = 5 },
         fixes = {
             {   0,   0, 175, 225,    0,    0, "TOPLEFT" },
             { 180,   0, 168, 225, 1165,    0, "TOPRIGHT" },
@@ -137,6 +145,18 @@ local function Poser(t, V, point, relatif, sx, sy, cadre, k)
     local rx = relatif:find("LEFT") and V.L or (relatif:find("RIGHT") and V.R or centreX)
     local ry = relatif:find("TOP") and V.T or V.B
     t:SetPoint(point, cadre, relatif, (sx - rx) * k, -(sy - ry) * k)
+end
+
+-- Ce que l'habillage de `cadre` recouvre a l'interieur de la fenetre, en
+-- pixels : { bas, cote }. Une rangee de boutons posee au ras du contenu
+-- passait sur le liseré et l'equerre du coin (Creation, 3 octobre 2026) ; un
+-- ecran qui pose quelque chose contre le bas lit ceci plutot que de deviner.
+-- Sans habillage (Incritas), rien.
+function UI.AelEmprise(cadre)
+    local decor = cadre and cadre.decor
+    local V = decor and decor.theme and VARIANTES[decor.theme]
+    if not V or not V.emprise or not decor.echelle then return { bas = 0, cote = 0 } end
+    return { bas = V.emprise.bas * decor.echelle, cote = V.emprise.cote * decor.echelle }
 end
 
 -- Les pieces d'un habillage, fabriquees a la demande : on ne paie un atlas que
@@ -440,17 +460,24 @@ function UI.AelColonnes(largeur)
     local b2 = b3 - ecart - boutonL
     local b1 = b2 - ecart - boutonL
 
+    -- Icone, separateur, nom : a la suite, sur la taille REELLE de l'icone
+    -- (plafonnee, et rognee a la hauteur de ligne comme dans Fiche.Icone). Le
+    -- gabarit posait le separateur a 72 unites, derriere une icone de 50 ;
+    -- garde tel quel une fois l'icone plafonnee a 16, il tombait au milieu du
+    -- nom (« Emp|lacement », 3 octobre 2026).
+    local ligne = math.min(LIGNE_MAX, 62 * s)
+    local iconeReelle = math.min(iconeTaille, ligne - 4)
+    local separateur = 8 * s + iconeReelle + 2 + 4  -- 2 : le cadre de l'icone
+    local nom = separateur + 12 * s + 6             -- 12 * s : le separateur
+
     return {
         echelle = s,
-        ligne = math.min(LIGNE_MAX, 62 * s),
+        ligne = ligne,
         -- Le texte a un PLAFOND et un PLANCHER : au-dessus il mange l'ecran,
         -- en dessous il ne se lit plus. Entre les deux il suit la fenetre.
         police = math.max(POLICE_MIN, math.min(POLICE_MAX, 24 * s)),
-        icone = 8 * s, iconeTaille = iconeTaille, separateur = 72 * s,
-        -- Le nom commence apres l'icone REELLE, pas a la place que le gabarit
-        -- lui donnait : l'icone est plafonnee, et garder son ancienne colonne
-        -- laissait un trou a gauche et serrait le libelle a droite.
-        nom = 8 * s + iconeTaille + 10, nomSansIcone = 24 * s, nomLargeur = 205 * s,
+        icone = 8 * s, iconeTaille = iconeTaille, separateur = separateur,
+        nom = nom, nomSansIcone = 24 * s, nomLargeur = 205 * s,
         plage = plage, plageLargeur = plageLargeur,
         valeur = valeur, valeurLargeur = valeurLargeur,
         modificateur = modificateur, modificateurLargeur = modificateurLargeur,

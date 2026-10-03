@@ -234,8 +234,9 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- jamais).
     f.insetHaut = options.enTeteSimple and 38 or m.bandeau
     f.insetBas = 12
-    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -f.insetHaut)
-    f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, f.insetBas)
+    f.insetCote = 12
+    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", f.insetCote, -f.insetHaut)
+    f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -f.insetCote, f.insetBas)
     f.mesures = m
 
     -- Position retenue.

@@ -1,15 +1,16 @@
--- Le lanceur radial des ACTIONS.
+-- Le sceau et ses deux couronnes radiales.
 --
--- Comme dans Necronicon (RadialLauncher.lua), il sert aux actions, pas aux
--- fenetres : ses categories sont les barres du template (Offensives,
--- Supports, Competences, Controles ; Animation pour le MJ). Les fenetres
--- passent par le menu (UI/Menu.lua). Chaque entree joue une resolution du
--- compendium (Core/Actions.lua) ; une entree sans resolution reste eteinte et
--- le dit.
+-- Le sceau est affiche en permanence. Clic gauche : la couronne des FENETRES
+-- (structure de UI/Menu.lua). Clic droit : la couronne des ACTIONS, dont les
+-- categories sont les barres du template (Offensives, Supports, Competences,
+-- Controles ; Animation pour le MJ) et dont chaque entree joue une resolution
+-- du compendium (Core/Actions.lua). Maj + clic gauche : la selection du
+-- personnage. Une seule couronne a la fois : ouvrir l'une ferme l'autre.
 --
--- Il est affiche en permanence. Clic gauche sur le sceau : la couronne des
--- categories se deploie. Clic sur une categorie : ses entrees s'ouvrent en
--- eventail. Clic droit sur le sceau : la selection du personnage.
+-- Jusqu'au 3 octobre 2026, les fenetres avaient leur propre bouton, avec une
+-- colonne d'icones a la Necronicon ; il a ete fondu dans le sceau. Dans une
+-- couronne, clic sur une categorie : ses entrees s'ouvrent
+-- en eventail ; une entree sans rien derriere reste eteinte et le dit.
 --
 -- La structure est FIGEE ici. Un module n'ajoute pas d'entree : il en habille
 -- une qui existe deja, par Radial.Lier(id, fonction). `resolution` dit quelle
@@ -31,11 +32,19 @@ UI.Radial = Radial
 local ART = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\"
 local SCEAU = ART .. "sceau.tga"
 local SIGIL = ART .. "sigil.tga"
-local ICONE = ART .. "icones\\"
+-- Meme famille noire et doree que les categories et sous-menus de Fenetres.
+local ICONE = ART .. "icones\\actions-"
 
 Radial.SCEAU = 58
-Radial.CATEGORIE = 40
-Radial.ACTION = 52 -- actions lisibles ; 61 unites entre deux centres voisins
+Radial.LIVRE_LARGEUR = 76
+-- Une seule taille pour les deux anneaux (categories et eventails) depuis le
+-- 3 octobre 2026 : a 40 contre 52, le menu et son sous-menu ne semblaient pas
+-- du meme jeu. 46 laisse de l'air des deux cotes : 61 unites entre deux
+-- entrees voisines d'un eventail, et la legende d'une categorie du bas
+-- s'arrete avant l'eventail qui s'ouvre sous elle.
+Radial.VIGNETTE = 46
+Radial.CATEGORIE = Radial.VIGNETTE
+Radial.ACTION = Radial.VIGNETTE
 Radial.RAYON_CATEGORIE = 94
 Radial.RAYON_ACTION = 172
 Radial.FOND = 436
@@ -310,7 +319,7 @@ local function ConstruireLivre(f)
         pose:SetTexture(ART .. (i == 7 and "grimoire-ouvert-v2.tga" or
             "grimoire-animation-" .. i .. ".tga"))
         pose:SetPoint("CENTER", f.sceau, "CENTER")
-        pose:SetSize(76, 64)
+        pose:SetSize(Radial.LIVRE_LARGEUR, 64)
         pose:SetAlpha(0)
         livre.images[i] = pose
     end
@@ -377,20 +386,11 @@ local function HabillerMagie(b, taille)
     nombreMagies = nombreMagies + 1
     local magie = { phase = nombreMagies * 1.7, points = {} }
     b.magie = magie
-    -- Les icones ont un fond opaque : une teinte additive tres faible colore
-    -- surtout leurs noirs, sans masquer le dessin ni les details dores.
-    magie.fond = b:CreateTexture(nil, "ARTWORK", nil, 1)
-    magie.fond:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
-    magie.fond:SetPoint("CENTER", b, "CENTER")
-    magie.fond:SetSize(taille - 6, taille - 6)
-    magie.fond:SetVertexColor(0.34, 0.07, 0.52)
-    magie.fond:SetBlendMode("ADD")
-    magie.fond:SetAlpha(0.12)
-
+    -- Le fond noir de l'icone reste intact ; seules les gravures dorees vivent.
     magie.runes = Surface(b, "sigil", taille * 1.13, "OVERLAY")
-    magie.runes:SetVertexColor(0.85, 0.55, 1)
+    magie.runes:SetVertexColor(0.90, 0.72, 0.42)
     magie.runes:SetBlendMode("ADD")
-    magie.runes:SetAlpha(0.22)
+    magie.runes:SetAlpha(0.08)
     for i = 1, 3 do
         local point = b:CreateTexture(nil, "OVERLAY")
         point:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask")
@@ -411,8 +411,7 @@ local function ActualiserMagie(b, temps)
     local phase = temps + magie.phase
     local pulse = 0.5 + 0.5 * math.sin(phase)
     local intensite = b.disponible == false and 0.22 or (b.survole and 1.5 or (b.choisi and 1.25 or 1))
-    magie.fond:SetAlpha((0.10 + 0.035 * pulse) * intensite)
-    magie.runes:SetAlpha((0.16 + 0.10 * pulse) * intensite)
+    magie.runes:SetAlpha((0.06 + 0.04 * pulse) * intensite)
     -- Un tour en 48 secondes ; les points restent fixes sur le pourtour.
     magie.runes:SetRotation(temps * 0.1 + magie.phase)
     for i, point in ipairs(magie.points) do
@@ -445,9 +444,11 @@ local function AnimerSceau(f)
     local function Actualiser(_, ecoule)
         ActualiserLivre(f, ecoule)
         tempsMagie = (tempsMagie + ecoule * (2 * math.pi / 4.8)) % (20 * math.pi)
-        if f.orbite and f.orbite:IsShown() then
-            for _, b in ipairs(f.boutonsCategorie) do ActualiserMagie(b, tempsMagie) end
-            for _, b in ipairs(f.boutonsEntree) do ActualiserMagie(b, tempsMagie) end
+        for _, c in ipairs(f.couronnes) do
+            if c.orbite:IsShown() then
+                for _, b in ipairs(c.boutonsCategorie) do ActualiserMagie(b, tempsMagie) end
+                for _, b in ipairs(c.boutonsEntree) do ActualiserMagie(b, tempsMagie) end
+            end
         end
         -- SetRotation utilise les radians positifs dans le sens antihoraire.
         angle = (angle + ecoule * tour / 48) % tour
@@ -522,8 +523,11 @@ local function Bulle(bouton, titre, detail)
     end)
 end
 
-local function Vignette(parent, taille, legendeAuSurvol, magique)
+-- `niveau` : le niveau d'affichage du bouton, pose AVANT ses enfants (le
+-- halo) pour qu'ils le suivent.
+local function Vignette(parent, taille, legendeAuSurvol, magique, niveau)
     local b = CreateFrame("Button", nil, parent)
+    if niveau then b:SetFrameLevel(niveau) end
     b:SetSize(taille, taille)
     Surface(b, "button", taille * 64 / 48)
     b.icone = b:CreateTexture(nil, "ARTWORK")
@@ -540,91 +544,151 @@ local function Vignette(parent, taille, legendeAuSurvol, magique)
     return b
 end
 
+-- ===== Les deux couronnes ==================================================
+-- Le sceau porte deux menus, dessines de la meme facon (categories en
+-- couronne, entrees en eventail) : les FENETRES au clic gauche (la structure
+-- de UI/Menu.lua, qui n'a plus de bouton a elle depuis le 3 octobre 2026) et
+-- les ACTIONS au clic droit (la structure ci-dessus). Les deux entourent le
+-- sceau, une seule a la fois : ouvrir l'une referme l'autre. (Du 3 octobre
+-- 2026, quelques heures : les deux pouvaient etre ouvertes cote a cote, et se
+-- replacaient pres des bords. Abandonne : une seule suffit, et c'est plus
+-- simple a lire.)
+
+Radial.COURONNES = {
+    {
+        id = "fenetres", label = "Fenêtres", nom = "LCM_RadialFenetres",
+        Categories = function() return UI.Menu.Visibles() end,
+        -- Un dossier s'ouvre en eventail ; une fenetre seule s'ouvre au clic.
+        Entrees = function(categorie)
+            local out = {}
+            for i, noeud in ipairs(categorie.enfants and UI.Menu.Visibles(categorie.enfants) or {}) do
+                if i > Radial.MAX_ENTREES then break end
+                out[i] = noeud
+            end
+            return out
+        end,
+    },
+    {
+        id = "actions", label = "Actions", nom = "LCM_RadialOrbite",
+        Categories = function() return Radial.Categories() end,
+        Entrees = function(categorie) return Radial.Entrees(categorie.id) end,
+    },
+}
+
 -- ===== Le lanceur ==========================================================
 
-local function Fond(f, t)
-    f.fond:SetAlpha(t)
+local function Fond(c, t)
+    c.fond:SetAlpha(t)
     local phase, echelle = -(1 - t) * TOURNIS, 0.65 + 0.35 * t
-    if f.fond.surface.SetSize then
-        f.fond.surface:SetSize(Radial.FOND * echelle, Radial.FOND * echelle)
+    if c.fond.surface.SetSize then
+        c.fond.surface:SetSize(Radial.FOND * echelle, Radial.FOND * echelle)
     end
-    if f.fond.surface.SetRotation then f.fond.surface:SetRotation(phase) end
+    if c.fond.surface.SetRotation then c.fond.surface:SetRotation(phase) end
 end
 
-local function Eventail(f, angle, nombre, avancement)
-    f.secteur.surface:SetTexture(ART .. "fan-" .. nombre .. ".tga")
-    if f.secteur.surface.SetRotation then
-        f.secteur.surface:SetRotation(angle - math.pi / 2)
+local function Eventail(c, angle, nombre, avancement)
+    c.secteur.surface:SetTexture(ART .. "grimoire-fan-" .. nombre .. ".tga")
+    if c.secteur.surface.SetRotation then
+        c.secteur.surface:SetRotation(angle - math.pi / 2)
     end
     local taille = Radial.FOND * (0.94 + 0.06 * (avancement or 1))
-    f.secteur.surface:SetSize(taille, taille)
-    f.secteur:Show()
+    c.secteur.surface:SetSize(taille, taille)
+    c.secteur:Show()
+end
+
+-- Le livre du sceau s'ouvre tant qu'une couronne est ouverte.
+local function Etat(f)
+    f.ouvert = false
+    for _, c in ipairs(f.couronnes) do
+        if c.ouvert then f.ouvert = true end
+    end
 end
 
 local Dessiner
 
 -- Replie les entrees vers leur categorie, puis appelle `apres`.
-local function ReplierEntrees(f, apres)
+local function ReplierEntrees(f, c, apres)
     local une = false
-    for i, b in ipairs(f.boutonsEntree) do
+    for i, b in ipairs(c.boutonsEntree) do
         if b:IsShown() then
             une = true
-            Replier(b, f, b.rx, b.ry, f.choisiX or 0, f.choisiY or 0, (i - 1) * 0.012,
+            Replier(b, c.orbite, b.rx, b.ry, c.choisiX or 0, c.choisiY or 0, (i - 1) * 0.012,
                 function() b:Hide() end)
         end
     end
     if not une then if apres then apres() end return end
-    f.replie = true
-    Mouvement(f.secteur, 0.3, 0, function(t) f.secteur:SetAlpha(1 - t) end, function()
-        f.replie = nil
-        f.secteur:Hide()
+    c.replie = true
+    Mouvement(c.secteur, 0.3, 0, function(t) c.secteur:SetAlpha(1 - t) end, function()
+        c.replie = nil
+        c.secteur:Hide()
         if apres then apres() end
     end)
 end
 
-local function Fermer(f, anime)
-    Arreter(f.orbite) Arreter(f.fond) Arreter(f.secteur)
-    for _, liste in ipairs({ f.boutonsCategorie, f.boutonsEntree }) do
+local function Fermer(f, c, anime)
+    Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
+    for _, liste in ipairs({ c.boutonsCategorie, c.boutonsEntree }) do
         for _, b in ipairs(liste) do Arreter(b) end
     end
-    local choisiX, choisiY = f.choisiX, f.choisiY
-    f.ouvert, f.choisi, f.replie = false, nil, nil
-    if not anime or not f.orbite:IsShown() then
-        f.orbite:Hide()
-        f.orbite:SetAlpha(1)
-        Fond(f, 1)
+    local choisiX, choisiY = c.choisiX, c.choisiY
+    c.ouvert, c.choisi, c.replie = false, nil, nil
+    Etat(f)
+    if not anime or not c.orbite:IsShown() then
+        c.orbite:Hide()
+        c.orbite:SetAlpha(1)
+        Fond(c, 1)
         return
     end
-    -- Les entrees rentrent dans leur categorie, les categories rentrent dans le
-    -- sceau, le fond se replie en meme temps.
+    -- Les entrees rentrent dans leur categorie, les categories rentrent au
+    -- centre, le fond se replie en meme temps.
     local attente = 0
-    for i, b in ipairs(f.boutonsEntree) do
+    for i, b in ipairs(c.boutonsEntree) do
         if b:IsShown() then
-            Replier(b, f, b.rx, b.ry, choisiX or 0, choisiY or 0, (i - 1) * 0.012,
+            Replier(b, c.orbite, b.rx, b.ry, choisiX or 0, choisiY or 0, (i - 1) * 0.012,
                 function() b:Hide() end)
             attente = 0.12
         end
     end
-    if f.secteur:IsShown() then
-        Mouvement(f.secteur, 0.25, 0, function(t) f.secteur:SetAlpha(1 - t) end,
-            function() f.secteur:Hide() end)
+    if c.secteur:IsShown() then
+        Mouvement(c.secteur, 0.25, 0, function(t) c.secteur:SetAlpha(1 - t) end,
+            function() c.secteur:Hide() end)
     end
-    for i, b in ipairs(f.boutonsCategorie) do
+    for i, b in ipairs(c.boutonsCategorie) do
         if b:IsShown() then
-            Replier(b, f, b.rx, b.ry, 0, 0, attente + (i - 1) * 0.02)
+            Replier(b, c.orbite, b.rx, b.ry, 0, 0, attente + (i - 1) * 0.02)
         end
     end
-    Mouvement(f.fond, 0.32, attente + 0.05, function(t) Fond(f, 1 - t) end)
-    Mouvement(f.orbite, 0.42 + attente, 0, function() end, function()
-        f.orbite:Hide()
-        f.orbite:SetAlpha(1)
-        Fond(f, 1)
+    Mouvement(c.fond, 0.32, attente + 0.05, function(t) Fond(c, 1 - t) end)
+    Mouvement(c.orbite, 0.42 + attente, 0, function() end, function()
+        c.orbite:Hide()
+        c.orbite:SetAlpha(1)
+        Fond(c, 1)
     end)
 end
 
-local function Lancer(f, cible)
+local function FermerTout(f, anime)
+    for _, c in ipairs(f.couronnes) do
+        if c.ouvert or c.orbite:IsShown() then Fermer(f, c, anime) end
+    end
+end
+
+local function Basculer(f, c)
+    if c.ouvert then
+        Fermer(f, c, true)
+        return
+    end
+    -- Une seule a la fois : l'autre se replie pendant que celle-ci se deploie.
+    for _, autre in ipairs(f.couronnes) do
+        if autre ~= c and autre.ouvert then Fermer(f, autre, true) end
+    end
+    c.ouvert, c.choisi = true, nil
+    Etat(f)
+    Dessiner(f, c, true, false)
+end
+
+local function Lancer(f, c, cible)
     if type(cible.onClick) == "function" then
-        Fermer(f, true)
+        Fermer(f, c, true)
         local ok, err = pcall(cible.onClick)
         if not ok then LCM.Erreur(string.format("%s : %s", tostring(cible.label), tostring(err))) end
         return
@@ -632,85 +696,91 @@ local function Lancer(f, cible)
     LCM.Alerte(string.format("%s : pas encore disponible.", tostring(cible.label)))
 end
 
-Dessiner = function(f, animeCategories, animeEntrees)
-    Arreter(f.orbite) Arreter(f.fond) Arreter(f.secteur)
-    f.orbite:SetAlpha(1)
-    for _, b in ipairs(f.boutonsCategorie) do Arreter(b) b:SetAlpha(1) b:Hide() end
-    for _, b in ipairs(f.boutonsEntree) do Arreter(b) b:SetAlpha(1) b:Hide() end
-    f.secteur:Hide()
-    if not f.ouvert then f.orbite:Hide() return end
-    f.orbite:Show()
+Dessiner = function(f, c, animeCategories, animeEntrees)
+    Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
+    c.orbite:SetAlpha(1)
+    for _, b in ipairs(c.boutonsCategorie) do Arreter(b) b:SetAlpha(1) b:Hide() end
+    for _, b in ipairs(c.boutonsEntree) do Arreter(b) b:SetAlpha(1) b:Hide() end
+    c.secteur:Hide()
+    if not c.ouvert then c.orbite:Hide() return end
+    c.orbite:Show()
     if animeCategories then
-        Mouvement(f.fond, 0.4, 0, function(t) Fond(f, t) end)
+        Mouvement(c.fond, 0.4, 0, function(t) Fond(c, t) end)
     else
-        Fond(f, 1)
+        Fond(c, 1)
     end
 
-    local categories = Radial.Categories()
+    local categories = c.def.Categories()
     local choisie, angleChoisi
     for i, categorie in ipairs(categories) do
-        local b = f.boutonsCategorie[i]
+        local b = c.boutonsCategorie[i]
         if not b then
-            b = Vignette(f.orbite, Radial.CATEGORIE, false, true)
-            f.boutonsCategorie[i] = b
+            b = Vignette(c.orbite, Radial.CATEGORIE, false, true, c.niveauBoutons)
+            c.boutonsCategorie[i] = b
         end
         -- Premiere categorie en haut, puis dans le sens horaire.
         local angle = math.pi / 2 - (i - 1) * 2 * math.pi / #categories
         b.rx, b.ry = math.cos(angle) * Radial.RAYON_CATEGORIE, math.sin(angle) * Radial.RAYON_CATEGORIE
         b.cible = categorie
         b:ClearAllPoints()
-        b:SetPoint("CENTER", f, "CENTER", b.rx, b.ry)
+        b:SetPoint("CENTER", c.orbite, "CENTER", b.rx, b.ry)
         b.icone:SetTexture(categorie.icone)
         b.legende:SetText(categorie.label)
-        b.choisi = (f.choisi == categorie.id)
-        local teinte = b.choisi and 1 or 0.95
+        b.choisi = (c.choisi == categorie.id)
+        -- Une categorie qui s'ouvre directement (une fenetre seule) et que
+        -- rien ne branche reste eteinte, comme une entree.
+        local direct = categorie.direct or #c.def.Entrees(categorie) == 0
+        local prete = not direct or type(categorie.onClick) == "function"
+        b.disponible = prete
+        local teinte = (not prete and 0.42) or (b.choisi and 1) or 0.95
         b.icone:SetVertexColor(teinte, teinte, teinte)
-        Bulle(b, categorie.label, categorie.direct and "Clic : ouvrir." or "Clic : deployer.")
+        Bulle(b, categorie.label, (not prete and "Pas encore disponible.")
+            or (direct and "Clic : ouvrir.") or "Clic : déployer.")
         Eclairer(b, b.choisi, false)
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function(bouton)
             local cat = bouton.cible
-            if cat.direct or #Radial.Entrees(cat.id) == 0 then
-                Lancer(f, cat)
+            if cat.direct or #c.def.Entrees(cat) == 0 then
+                Lancer(f, c, cat)
                 return
             end
-            f.choisi = (f.choisi ~= cat.id) and cat.id or nil
+            c.choisi = (c.choisi ~= cat.id) and cat.id or nil
             -- Un clic pendant le repli : le choix est memorise, le dessin qui
             -- suit la fin du repli l'utilisera.
-            if f.replie then return end
-            ReplierEntrees(f, function() if f.ouvert then Dessiner(f, false, true) end end)
+            if c.replie then return end
+            ReplierEntrees(f, c, function() if c.ouvert then Dessiner(f, c, false, true) end end)
         end)
         b:Show()
-        if animeCategories then Deployer(b, f, b.rx, b.ry, 0, 0, (i - 1) * 0.025) end
-        if f.choisi == categorie.id then choisie, angleChoisi = categorie, angle end
+        if animeCategories then Deployer(b, c.orbite, b.rx, b.ry, 0, 0, (i - 1) * 0.025) end
+        if c.choisi == categorie.id then choisie, angleChoisi = categorie, angle end
     end
-    for i = #categories + 1, #f.boutonsCategorie do f.boutonsCategorie[i]:Hide() end
-    f.nombreCategories = #categories
+    for i = #categories + 1, #c.boutonsCategorie do c.boutonsCategorie[i]:Hide() end
+    c.nombreCategories = #categories
 
     if not choisie then
-        f.choisiX, f.choisiY = nil, nil
-        f.nombreEntrees = 0
+        c.choisiX, c.choisiY = nil, nil
+        c.nombreEntrees = 0
         return
     end
 
-    local entrees = Radial.Entrees(choisie.id)
-    f.choisiX = math.cos(angleChoisi) * Radial.RAYON_CATEGORIE
-    f.choisiY = math.sin(angleChoisi) * Radial.RAYON_CATEGORIE
+    local entrees = c.def.Entrees(choisie)
+    c.choisiX = math.cos(angleChoisi) * Radial.RAYON_CATEGORIE
+    c.choisiY = math.sin(angleChoisi) * Radial.RAYON_CATEGORIE
     if animeEntrees then
-        Mouvement(f.secteur, 0.4, 0, function(t)
-            Eventail(f, angleChoisi - (1 - t) * TOURNIS, #entrees, t)
-            f.secteur:SetAlpha(t)
+        Mouvement(c.secteur, 0.4, 0, function(t)
+            Eventail(c, angleChoisi - (1 - t) * TOURNIS, #entrees, t)
+            c.secteur:SetAlpha(t)
         end)
     else
-        Eventail(f, angleChoisi, #entrees)
-        f.secteur:SetAlpha(1)
+        Eventail(c, angleChoisi, #entrees)
+        c.secteur:SetAlpha(1)
     end
 
     for i, entree in ipairs(entrees) do
-        local b = f.boutonsEntree[i]
+        local b = c.boutonsEntree[i]
         if not b then
-            b = Vignette(f.orbite, Radial.ACTION, true, true)
-            f.boutonsEntree[i] = b
+            b = Vignette(c.orbite, Radial.ACTION, true, true, c.niveauBoutons)
+            c.boutonsEntree[i] = b
         end
         -- Sens horaire : la premiere entree a gauche, la derniere a droite,
         -- comme on lit (Fiche ... Apprentissage).
@@ -718,7 +788,7 @@ Dessiner = function(f, animeCategories, animeEntrees)
         b.rx, b.ry = math.cos(angle) * Radial.RAYON_ACTION, math.sin(angle) * Radial.RAYON_ACTION
         b.cible = entree
         b:ClearAllPoints()
-        b:SetPoint("CENTER", f, "CENTER", b.rx, b.ry)
+        b:SetPoint("CENTER", c.orbite, "CENTER", b.rx, b.ry)
         b:SetSize(Radial.ACTION, Radial.ACTION)
         b.icone:SetTexture(entree.icone)
         b.legende:SetText(entree.label)
@@ -730,14 +800,56 @@ Dessiner = function(f, animeCategories, animeEntrees)
         b.icone:SetVertexColor(teinte, teinte, teinte)
         Bulle(b, entree.label, prete and "Clic : ouvrir." or "Pas encore disponible.")
         b:RegisterForClicks("LeftButtonUp")
-        b:SetScript("OnClick", function(bouton) Lancer(f, bouton.cible) end)
+        b:SetScript("OnClick", function(bouton) Lancer(f, c, bouton.cible) end)
         b:Show()
         if animeEntrees then
-            Deployer(b, f, b.rx, b.ry, f.choisiX, f.choisiY, (i - 1) * 0.018)
+            Deployer(b, c.orbite, b.rx, b.ry, c.choisiX, c.choisiY, (i - 1) * 0.018)
         end
     end
-    for i = #entrees + 1, #f.boutonsEntree do f.boutonsEntree[i]:Hide() end
-    f.nombreEntrees = #entrees
+    for i = #entrees + 1, #c.boutonsEntree do c.boutonsEntree[i]:Hide() end
+    c.nombreEntrees = #entrees
+end
+
+local function ConstruireCouronne(f, def)
+    local c = { def = def, id = def.id, boutonsCategorie = {}, boutonsEntree = {},
+                ouvert = false }
+    c.orbite = CreateFrame("Frame", def.nom, f)
+    c.orbite:SetSize(Radial.SCEAU, Radial.SCEAU)
+    c.orbite:SetPoint("CENTER", f, "CENTER", 0, 0)
+    c.orbite:Hide()
+
+    -- Les niveaux d'affichage sont poses a la main : fond, puis eventail, puis
+    -- boutons. Laisses au jeu, l'eventail et les boutons tombaient au meme
+    -- niveau, empiles dans un ordre arbitraire — le cuir de certains
+    -- eventails passait alors SUR le cadre dore des boutons (dessine sous
+    -- l'icone) : des icones avec cadre, d'autres sans (3 octobre 2026).
+    local base = c.orbite:GetFrameLevel()
+    c.niveauBoutons = base + 3
+    c.fond = CreateFrame("Frame", nil, c.orbite)
+    c.fond:SetFrameLevel(base)
+    c.fond:SetAllPoints()
+    c.fond:EnableMouse(false)
+    c.fond.surface = Surface(c.fond, "background", Radial.FOND)
+
+    c.secteur = CreateFrame("Frame", nil, c.orbite)
+    c.secteur:SetFrameLevel(base + 1)
+    c.secteur:SetAllPoints()
+    c.secteur:EnableMouse(false)
+    c.secteur.surface = Surface(c.secteur, "grimoire-fan-1", Radial.FOND)
+    c.secteur:Hide()
+    Fond(c, 1)
+
+    -- Echap referme la couronne (UISpecialFrames).
+    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = def.nom end
+    c.orbite:SetScript("OnHide", function()
+        Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
+        for _, liste in ipairs({ c.boutonsCategorie, c.boutonsEntree }) do
+            for _, b in ipairs(liste) do Arreter(b) end
+        end
+        c.ouvert, c.choisi = false, nil
+        Etat(f)
+    end)
+    return c
 end
 
 local function Construire()
@@ -746,7 +858,6 @@ local function Construire()
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
     f:SetMovable(true)
-    f.boutonsCategorie, f.boutonsEntree = {}, {}
 
     f.sceau = Vignette(f, Radial.SCEAU, false)
     f.sceau:SetAllPoints(f)
@@ -758,35 +869,20 @@ local function Construire()
     f.sigil:SetPoint("CENTER", f.sceau, "CENTER")
     f.sigil:SetSize(Radial.SCEAU * 1.55, Radial.SCEAU * 1.55)
     f.sigil:SetAlpha(0.62)
+
+    -- Les couronnes, dans l'ordre de Radial.COURONNES, et aussi rangees par
+    -- identifiant.
+    f.couronnes = {}
+    for i, def in ipairs(Radial.COURONNES) do
+        local c = ConstruireCouronne(f, def)
+        f.couronnes[i], f.couronnes[def.id] = c, c
+    end
+    -- Le sceau passe devant les couronnes : il reste cliquable.
+    local niveau = 0
+    for _, c in ipairs(f.couronnes) do niveau = math.max(niveau, c.niveauBoutons) end
+    f.sceau:SetFrameLevel(niveau + 3)
     ConstruireLivre(f)
     AnimerSceau(f)
-
-    f.orbite = CreateFrame("Frame", "LCM_RadialOrbite", f)
-    f.orbite:SetAllPoints()
-    f.orbite:Hide()
-    f.sceau:SetFrameLevel(f.orbite:GetFrameLevel() + 3)
-
-    f.fond = CreateFrame("Frame", nil, f.orbite)
-    f.fond:SetAllPoints()
-    f.fond:EnableMouse(false)
-    f.fond.surface = Surface(f.fond, "background", Radial.FOND)
-
-    f.secteur = CreateFrame("Frame", nil, f.orbite)
-    f.secteur:SetAllPoints()
-    f.secteur:EnableMouse(false)
-    f.secteur.surface = Surface(f.secteur, "fan-1", Radial.FOND)
-    f.secteur:Hide()
-    Fond(f, 1)
-
-    -- Echap referme la couronne.
-    if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = "LCM_RadialOrbite" end
-    f.orbite:SetScript("OnHide", function()
-        Arreter(f.orbite) Arreter(f.fond) Arreter(f.secteur)
-        for _, liste in ipairs({ f.boutonsCategorie, f.boutonsEntree }) do
-            for _, b in ipairs(liste) do Arreter(b) end
-        end
-        f.ouvert, f.choisi = false, nil
-    end)
 
     -- Glisser (clic gauche, sans Maj depuis le 2 octobre 2026) deplace le
     -- sceau ; sa place est retenue.
@@ -814,6 +910,8 @@ local function Construire()
         end
     end)
 
+    -- Clic gauche : les fenetres. Clic droit : les actions. Maj + clic
+    -- gauche : la selection du personnage, d'ou l'on cree aussi.
     f.sceau:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     f.sceau:SetScript("OnClick", function(_, souris)
         if f.glisse then
@@ -821,17 +919,19 @@ local function Construire()
             return
         end
         if souris == "RightButton" then
-            Fermer(f, true)
+            Basculer(f, f.couronnes.actions)
+            return
+        end
+        if IsShiftKeyDown and IsShiftKeyDown() then
+            FermerTout(f, true)
             if UI.Personnages then UI.Personnages.Ouvrir() end
             return
         end
-        if f.ouvert then Fermer(f, true) return end
-        f.ouvert = true
-        f.choisi = nil
-        Dessiner(f, true, false)
+        Basculer(f, f.couronnes.fenetres)
     end)
     Bulle(f.sceau, "Les Contes Malveillants",
-        "Clic : le menu\nClic droit : choisir un personnage\nGlisser : déplacer")
+        "Clic : les fenêtres\nClic droit : les actions\n"
+        .. "Maj + clic : choisir ou créer un personnage\nGlisser : déplacer")
 
     Radial.frame = f
     return f
@@ -853,28 +953,37 @@ function Radial.Placer()
     f:SetPoint("CENTER", UIParent, "CENTER", x, y)
 end
 
-function Radial.Basculer()
+-- Ouvre ou ferme une couronne : "fenetres" ou "actions" (par defaut).
+function Radial.Basculer(id)
     local f = Radial.Fenetre()
-    if f.ouvert then Fermer(f, true) return end
-    f.ouvert = true
-    f.choisi = nil
-    Dessiner(f, true, false)
+    local c = f.couronnes[id or "actions"]
+    if not c then
+        LCM.Erreur(string.format("radial : couronne inconnue « %s »", tostring(id)))
+        return
+    end
+    Basculer(f, c)
 end
 
-function Radial.Fermer() Fermer(Radial.Fenetre(), true) end
+-- Ferme une couronne, ou toutes sans argument.
+function Radial.Fermer(id)
+    local f = Radial.Fenetre()
+    if id == nil then FermerTout(f, true) return end
+    local c = f.couronnes[id]
+    if c and (c.ouvert or c.orbite:IsShown()) then Fermer(f, c, true) end
+end
 
 -- Montre ou cache le sceau lui-meme (il est affiche en permanence par defaut).
 function Radial.Afficher(visible)
     local f = Radial.Fenetre()
     if visible == nil then visible = not f:IsShown() end
-    if not visible then Fermer(f) end
+    if not visible then FermerTout(f) end
     f:SetShown(visible and true or false)
     LCM.EnsureDatabase()
     LCM.db.settings.radialCache = (not visible) and true or nil
 end
 
-LCM.AddCommand("actions", "ouvre le lanceur d'actions", function() Radial.Basculer() end)
-LCM.AddCommand("sceau", "montre ou cache le sceau des actions", function() Radial.Afficher() end)
+LCM.AddCommand("actions", "ouvre le lanceur d'actions", function() Radial.Basculer("actions") end)
+LCM.AddCommand("sceau", "montre ou cache le sceau", function() Radial.Afficher() end)
 
 LCM.WhenReady(function()
     Radial.Placer()
@@ -887,7 +996,7 @@ _G.BINDING_HEADER_LESCONTESMALVEILLANTS = "Les Contes Malveillants"
 _G.BINDING_NAME_LCM_MENU = "Ouvrir le menu des fenêtres"
 _G.BINDING_NAME_LCM_FICHE = "Ouvrir la fiche"
 
-function LCM_ToggleMenu() LCM.UI.Menu.Basculer() end
+function LCM_ToggleMenu() LCM.UI.Radial.Basculer("fenetres") end
 function LCM_ToggleFiche()
     local f = LCM.UI.Fiche.Fenetre()
     if f:IsShown() then f:Hide() else f:Montrer(LCM.Entities.Self()) end

@@ -335,6 +335,58 @@ LCM.Creation.RetirerTrait(f.brouillon, LCM.Traits.list[1].id)
 f:Actualiser()
 attendu("retire : une seule case", tr.emplacements[2]:IsShown(), false)
 
+dire("== Traits : chaque case se choisit comme la race")
+-- Oubli signale par le binome le 3 octobre 2026 : les cases existaient, mais
+-- rien ne permettait d'y mettre un trait.
+local unPoint = {}
+for _, t in ipairs(LCM.Traits.list) do
+    if t.cout == 1 then unPoint[#unPoint + 1] = t end
+end
+attendu("le compendium a deux traits a 1 point", #unPoint >= 2, true)
+local case1 = tr.emplacements[1]
+case1:Click("LeftButton")
+attendu("le menu s'ouvre", tr.menu:IsShown(), true)
+tr.menu.onChoix(unPoint[1].id)
+attendu("trait pris", f.brouillon.traits[1], unPoint[1].id)
+attendu("la case le nomme", case1.nom:GetText(), unPoint[1].label)
+attendu("une case libre suit", tr.emplacements[2]:IsShown() and tr.emplacements[2].nom:GetText(), "Emplacement")
+-- Clic gauche sur une case prise : le trait est remplace, a la meme place.
+case1:Click("LeftButton")
+tr.menu.onChoix(unPoint[2].id)
+attendu("remplace", f.brouillon.traits[1], unPoint[2].id)
+attendu("sans doublon", #f.brouillon.traits, 1)
+-- Un trait trop cher est refuse, et le refus est dit. Deux traits a 1 point
+-- laissent 1 point sur 3 : un trait a 2 ne passe plus.
+local cher
+for _, t in ipairs(LCM.Traits.list) do
+    if t.cout >= 2 then cher = t break end
+end
+attendu("le compendium a un trait a 2 points ou plus", cher ~= nil, true)
+tr.emplacements[2]:Click("LeftButton")
+tr.menu.onChoix(unPoint[1].id)
+attendu("deuxieme trait pris", #f.brouillon.traits, 2)
+local alertes = 0
+local alerteAvant = LCM.Alerte
+LCM.Alerte = function() alertes = alertes + 1 end
+tr.emplacements[3]:Click("LeftButton")
+tr.menu.onChoix(cher.id)
+LCM.Alerte = alerteAvant
+attendu("trop cher : refuse", #f.brouillon.traits, 2)
+attendu("et le refus est dit", alertes, 1)
+-- En remplacement, le point du trait remplace est rendu d'abord : 1 + 1
+-- rendu = 2, le trait a 2 passe, a la place du premier.
+case1:Click("LeftButton")
+tr.menu.onChoix(cher.id)
+attendu("remplace par plus cher", f.brouillon.traits[1], cher.id)
+attendu("a sa place", f.brouillon.traits[2], unPoint[1].id)
+-- Clic droit : retirer.
+LCM.Creation.RetirerTrait(f.brouillon, unPoint[1].id)
+f:Actualiser()
+case1:Click("RightButton")
+tr.menu.onChoix("retirer")
+attendu("retire par clic droit", #f.brouillon.traits, 0)
+attendu("la case redevient un emplacement", case1.nom:GetText(), "Emplacement")
+
 dire("== la page defile quand elle depasse")
 attendu("la zone rogne", f.zone:DoesClipChildren(), true)
 f.barre.boutons[4]:Click()
@@ -395,6 +447,17 @@ f:Afficher(LCM.Creation.ETAPES[1].id)
 attendu("sur la premiere, on ne recule pas", f.precedent:IsEnabled(), false)
 attendu("et « Créer » ne s'y montre pas", f.valider:IsShown(), false)
 attendu("c'est « Suivant » qui occupe la place", f.suivant:IsShown(), true)
+-- Le 3 octobre 2026 : « Précédent » chevauchait son voisin (+8 au lieu d'un
+-- ecart), et restait accroche a « Suivant » cache sur la derniere etape, sous
+-- « Créer le personnage ».
+local _, voisin, _, ecart = f.precedent:GetPoint(1)
+attendu("Precedent s'accroche a Suivant", voisin == f.suivant, true)
+attendu("avec un ecart, sans chevauchement", ecart < 0, true)
+-- La rangee passe au-dessus du liseré et de l'equerre du coin.
+local emprise = LCM.UI.AelEmprise(f)
+local _, _, _, _, basSuivant = f.suivant:GetPoint(1)
+attendu("l'habillage mange le bas de la fenetre", emprise.bas > 0, true)
+attendu("Suivant passe au-dessus", f.insetBas + basSuivant >= emprise.bas, true)
 f.suivant:Click()
 attendu("une etape plus loin", f.etape, LCM.Creation.ETAPES[2].id)
 f.precedent:Click()
@@ -404,6 +467,8 @@ for _ = 1, #LCM.Creation.ETAPES do f.suivant:Click() end
 attendu("arrive a la derniere", f.etape, LCM.Creation.ETAPES[#LCM.Creation.ETAPES].id)
 attendu("on n'avance plus", f.suivant:IsShown(), false)
 attendu("« Créer le personnage » est la", f.valider:IsShown(), true)
+local _, voisinFin = f.precedent:GetPoint(1)
+attendu("Precedent s'accroche alors a Creer", voisinFin == f.valider, true)
 attendu("tout place : creation possible", f.valider:IsEnabled(), true)
 
 dire("   les gestes qui defont sont a gauche, sous le recapitulatif")

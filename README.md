@@ -38,9 +38,9 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm creer      créer un personnage
 /lcm fiche      la fiche du personnage joué
 /lcm personnages  choisir son personnage
-/lcm fenetres   le menu des fenêtres (comme le bouton)
+/lcm fenetres   la couronne des fenêtres (clic gauche sur le sceau)
 /lcm actions    la couronne du lanceur d'actions
-/lcm sceau      montrer / cacher le sceau des actions
+/lcm sceau      montrer / cacher le sceau
 /lcm doc        la documentation en jeu
 /lcm brouillons (MJ) le contenu créé en séance
 /lcm atelier    (MJ) créer traits, races et objets en séance
@@ -51,12 +51,14 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm debug      les traces
 ```
 
-Organisation reprise de Necronicon et de son template :
-- le **bouton** (36 px, déplaçable) : clic gauche, la colonne des fenêtres
-  (dossiers Fiches personnages, Objets, Outils… du template ; les Règles sont
-  dans Outils depuis le 2 octobre 2026) ; clic droit, la sélection du
-  personnage ;
-- le **sceau** : le lanceur radial des **actions** (Offensives, Supports,
+Un seul lanceur, le **sceau** (déplaçable), qui porte deux couronnes radiales
+(depuis le 3 octobre 2026 ; avant, les fenêtres avaient leur propre bouton) :
+- **clic gauche** : la couronne des **fenêtres** (Fiches personnages, Objets,
+  Outils… du template, un dossier s'ouvrant en éventail ; les Règles sont dans
+  Outils depuis le 2 octobre 2026) ;
+- **Maj + clic gauche** : la sélection du personnage (et la création) ;
+- une seule couronne à la fois : ouvrir l'une referme l'autre ;
+- **clic droit** : la couronne des **actions** (Offensives, Supports,
   Compétences, Contrôles ; Animation pour le MJ). Chaque bouton joue sa
   résolution du compendium. **Compétences** est la seule catégorie dont le
   contenu se calcule : ce sont les sorts du personnage joué (`Core/Sorts.lua`),
@@ -133,8 +135,18 @@ récente qui gagne, puis la régénération la plus récente, puis le plus petit
 restant. Un achat **prélève la bourse** — l'onglet « Devises » de l'inventaire
 n'a plus de raison d'être et a été retiré.
 
-**Les outils du MJ.** Le **Panel MJ** consulte la fiche d'un joueur, **à sens
-unique** : un joueur n'a aucun moyen de demander celle d'un autre, et celui
+**Les outils du MJ.** Le **Panel MJ** a été refait le 3 octobre 2026 d'après
+la fenêtre du MJ de Necronicon, en quatre onglets : **Joueurs** (addon présent,
+niveau et PV dès que la fiche est reçue, consulter, donner l'XP avec un motif
+commun), **Combat** (l'ancienne fenêtre de combat, devenue onglet ; `/lcm
+combat` y mène), **PNJ & contenu** (la scène et Incarner, l'Atelier, le
+compendium, les brouillons en attente) et **Outils** : annonces, compteurs,
+barres et notes **partagés avec le groupe** (`Core/Outils.lua`), affichés chez
+le joueur dans une petite fenêtre (`/lcm outils`) avec le nom de qui les envoie.
+Ils vivent en mémoire vive, le temps d'une scène ; un joueur qui recharge les
+redemande. Les onglets Général et Permissions de Necronicon ne sont pas repris
+(pas d'assistants MJ ici), ni ses Documents et Dessins partagés. Le Panel
+consulte la fiche d'un joueur, **à sens unique** : un joueur n'a aucun moyen de demander celle d'un autre, et celui
 qu'on consulte en est prévenu. **Incarner** joue un PNJ : les instances sont
 indépendantes, et toutes les fenêtres suivent la bascule. Le **compendium est
 réservé au MJ** depuis le 1er octobre 2026 — il porte les PNJ, les résolutions
@@ -395,6 +407,22 @@ passent de 34 à 52 px. **Glisser le sceau ne referme plus le menu.**
 « Dégât MJ » n'a pas d'icône à lui : il porte le d20 peint pour « Résolution
 Test MJ », qu'il a remplacé.
 
+**Habillage radial (3 octobre).** Les cinq catégories de Fenêtres ont désormais
+des icônes assorties aux Actions, sur fond noir, ainsi que les 17 entrées de
+leurs sous-menus (Fiches personnages, Objets et Outils, entrées MJ comprises).
+Système d'Aelskar garde son icône. Le voile pourpre des boutons est retiré. Les huit éventails adoptent
+un cuir noir bordé d'or (`grimoire-fan-1..8.tga`). L'imagegen avait raté le
+gabarit des éventails 2 et 3 (anneau plus épais, arc trop ouvert) : ils sont
+refaits à partir des 1 et 4 par `recaler_eventails.py`, à relancer après
+`preparer.py`. Une seule roue s'ouvre à la fois, et ses icônes (catégories et
+entrées) font toutes 46 px. Les sources et les prompts imagegen sont conservés dans
+`output/icones-fenetres/`, avec le script d'export TGA `preparer.py`.
+
+Les 22 icônes fixes d'Actions (cinq catégories et dix-sept entrées) utilisent
+également cette famille d'or lumineux sur fond noir : `icones/actions-*.tga`.
+Sources, prompts et export sont dans `output/icones-actions/`. Les icônes des
+sorts personnels, dans Compétences, restent celles choisies pour ces sorts.
+
 **La sélection de personnage** passe à 820 × 520. La liste de gauche défile
 et montre, sous chaque nom, « Niveau N · En jeu ». Les cartes portent
 « Niv. N » et « EN JEU » ; elles **glissent** d'un personnage à l'autre
@@ -428,7 +456,7 @@ Par ordre de ce qui bloque le plus :
       autres dès qu'il en a ; le MJ ajuste, le joueur lit).
       **Toutes les entrées du menu sont branchées.** « Création » a quitté le
       menu le 1er octobre 2026 : on crée un personnage depuis la sélection
-      (clic droit sur le sceau, « + Créer un personnage »), là où l'on choisit
+      (Maj + clic sur le sceau, « + Créer un personnage »), là où l'on choisit
       déjà qui l'on joue.
 - [x] **Le modèle du compendium.** Traits, races, objets, états, maladies,
       apprentissages : icône, description, bonus et avantage (catalogues,
@@ -485,7 +513,8 @@ Par ordre de ce qui bloque le plus :
       d'icône (le template n'en déclare pas) et ne reçoit pas de bonus.
       Scénario : `lcm_test_armure.lua`.
 - [x] **La fenêtre Combat dans le Panel MJ** : un bouton « Combat » en haut à
-      droite du Panel MJ l'ouvre (2 octobre 2026). Pas d'entrée de menu : le
+      droite du Panel MJ l'ouvre (2 octobre 2026) ; c'est un onglet du panel
+      depuis le 3 octobre 2026. Pas d'entrée de menu : le
       menu suit le template, qui n'a pas de fenêtre de combat, et Necronicon
       menait l'initiative depuis sa fenêtre du MJ. `/lcm combat` marche
       toujours.

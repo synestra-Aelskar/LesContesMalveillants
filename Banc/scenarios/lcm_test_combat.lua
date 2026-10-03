@@ -185,7 +185,9 @@ n = #__envois
 recevoir("Inconnu-Apertus", "combat!", {})
 attendu("pas a quelqu'un qui n'est pas au combat", #__envois, n)
 C.Terminer()
-mj:Hide()
+-- Le combat du MJ est un onglet du Panel MJ depuis le 3 octobre 2026 : on
+-- ferme le panneau, pas l'onglet.
+LCM.UI.PanneauMJ.frame:Hide()
 
 dire("== refuser, ou ne pas repondre")
 __groupe({ "Reika-Apertus", "Nytherah-Apertus", "Bram-Apertus" }, true)
@@ -279,6 +281,8 @@ dire("== les commandes")
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 SlashCmdList["LCM"]("combat")
-attendu("/lcm combat ouvre la fenetre du MJ", LCM.UI.CombatMJ.frame:IsShown(), true)
+local panneau = LCM.UI.PanneauMJ.frame
+attendu("/lcm combat ouvre le Panel MJ sur l'onglet Combat",
+    panneau:IsShown() and panneau.onglet == "combat" and LCM.UI.CombatMJ.frame:IsShown(), true)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

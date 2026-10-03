@@ -1,4 +1,10 @@
--- Mener un combat : la fenetre du maitre du jeu.
+-- Mener un combat : l'onglet Combat du Panel MJ.
+--
+-- C'etait une fenetre a part jusqu'au 3 octobre 2026 ; elle est devenue un
+-- onglet du panneau (LesContesMalveillants_MJ/Panneau.lua), comme le combat
+-- dans la fenetre du MJ de Necronicon. Construire(page, fenetre) remplit la
+-- page que le panneau lui donne ; `/lcm combat` ouvre le panneau sur cet
+-- onglet.
 --
 -- A gauche, qui entre au combat : soi-meme (coche par defaut, comme dans
 -- Necronicon) et les PNJ en jeu (ceux de la fenetre Incarner). A droite, ceux
@@ -19,7 +25,6 @@ local Ecran = {}
 UI.CombatMJ = Ecran
 MJ.Combat = Ecran
 
-local LARGEUR, HAUTEUR = 640, 480
 local COLONNE = 300
 local LIGNE = 26
 
@@ -52,8 +57,13 @@ local function Dire(ok, raison)
     if not ok and raison then LCM.Alerte(tostring(raison)) end
 end
 
-local function Construire()
-    local f = UI.Fenetre("combat_mj", "Combat", LARGEUR, HAUTEUR, { x = 120, y = -40 })
+-- `page` : le cadre de l'onglet, que le panneau dimensionne. `fenetre` : le
+-- panneau lui-meme, qui porte la confirmation (elle se centre dessus).
+function Ecran.Construire(page, fenetre)
+    local f = CreateFrame("Frame", nil, page)
+    f:SetAllPoints(page)
+    -- Le reste du fichier pose tout « dans le contenu » : la page en tient lieu.
+    f.contenu = f
     Ecran.frame = f
     -- Les PNJ coches, par identifiant d'instance.
     f.choisis = {}
@@ -124,7 +134,7 @@ local function Construire()
     f.suivant:SetPoint("LEFT", f.precedent, "RIGHT", 8, 0)
     -- Arreter un combat se confirme : un clic de travers le ferait chez tout
     -- le monde.
-    f.confirmer = UI.Confirmer(f, "", "Terminer")
+    f.confirmer = UI.Confirmer(fenetre or f, "", "Terminer")
     f.terminer = UI.Bouton(f.contenu, "Terminer le combat", 150, 24, function()
         f.confirmer:Demander("Terminer le combat pour tout le monde ?", function()
             Dire(C.Terminer())
@@ -231,27 +241,25 @@ local function Construire()
         self.terminer:SetShown(etat ~= nil)
     end
 
-    function f:Montrer()
-        self:Afficher()
-        self:Show()
-    end
-
     return f
 end
 
+-- Le contenu de l'onglet : construit avec le panneau.
 function Ecran.Fenetre()
-    if not Ecran.frame then Construire() end
+    UI.PanneauMJ.Fenetre()
     return Ecran.frame
 end
 
+-- Ouvre le panneau sur l'onglet Combat, ou le referme s'il y est deja.
 function Ecran.Basculer()
-    local f = Ecran.Fenetre()
-    if f:IsShown() then f:Hide() else f:Montrer() end
-    return f
+    local p = UI.PanneauMJ.Fenetre()
+    if p:IsShown() and p.onglet == "combat" then p:Hide() else p:Montrer("combat") end
+    return Ecran.frame
 end
 
 local function Rafraichir()
-    if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Afficher() end
+    local p = UI.PanneauMJ.frame
+    if p and p:IsShown() and p.onglet == "combat" and Ecran.frame then Ecran.frame:Afficher() end
 end
 
 -- Le bandeau s'abonne deja a onChange : on passe apres lui, sans le remplacer.

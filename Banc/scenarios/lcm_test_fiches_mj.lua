@@ -51,11 +51,20 @@ attendu("ouvert", p:IsShown(), true)
 attendu("le groupe sans moi", p.nombreAffiche, 1)
 attendu("le membre", p.lignes[1].nom:GetText(), "Nytherah-Apertus")
 attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("panneau_mj"), true)
--- Le combat ne s'ouvrait que par « /lcm combat » : le panneau y mene.
-p.combat:Click()
-attendu("le bouton Combat ouvre la fenetre de combat", LCM.UI.CombatMJ.frame:IsShown(), true)
-p.combat:Click()
-attendu("et la referme", LCM.UI.CombatMJ.frame:IsShown(), false)
+-- Le combat est un onglet du panneau depuis le 3 octobre 2026 (c'etait une
+-- fenetre a part, ouverte par un bouton).
+local onglets = {}
+for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
+attendu("quatre onglets", #p.barre.boutons, 4)
+onglets.combat:Click()
+attendu("l'onglet Combat montre le combat", p.onglet == "combat" and p.pages.combat:IsShown(), true)
+attendu("et cache les joueurs", p.pages.joueurs:IsShown(), false)
+attendu("le combat est bien dedans", LCM.UI.CombatMJ.frame.lancer ~= nil, true)
+LCM.UI.CombatMJ.Basculer()
+attendu("Basculer depuis l'onglet Combat ferme le panneau", p:IsShown(), false)
+LCM.UI.CombatMJ.Basculer()
+attendu("et le rouvre sur le combat", p:IsShown() and p.onglet == "combat", true)
+onglets.joueurs:Click()
 
 dire("== demander, recevoir")
 -- La boucle rend l'envoi a son expediteur : on joue les deux bouts.
@@ -74,7 +83,11 @@ attendu("le joueur consulte en est prevenu",
     end)(), true)
 attendu("la fenetre de fiche s'ouvre dessus", LCM.UI.Fiche.frame.entity.name, recue.name)
 p:Afficher()
-attendu("le panneau le marque", p.lignes[1].etat:GetText(), "fiche reçue")
+-- Depuis le 3 octobre 2026, la ligne dit ce que la fiche apprend (niveau,
+-- PV) plutot que « fiche reçue ».
+local detail = p.lignes[1].detail:GetText()
+attendu("le panneau montre son niveau", detail:find("niv%. %d") ~= nil, true)
+attendu("et ses PV", detail:find("PV %-?%d+ / %d+") ~= nil, true)
 
 dire("== une fiche recue ne s'enregistre pas")
 attendu("elle n'est pas dans les entites", LCM.Entities.Get(recue.id) == recue, false)

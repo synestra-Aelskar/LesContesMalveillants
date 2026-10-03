@@ -106,6 +106,29 @@ for _, bloc in ipairs(page.blocs) do
 end
 attendu("des lignes portent une icone", avecIcone > 0, true)
 attendu("aucun libelle sous son icone", chevauche, 0)
+-- Le separateur tombe ENTRE l'icone et le nom, a toutes les largeurs : il
+-- etait reste a la place du gabarit (72 unites) et coupait le nom en deux
+-- (« Emp|lacement », 3 octobre 2026).
+local separateurMal = {}
+for _, largeur in ipairs({ 300, 420, 560, 786, 1000 }) do
+    local cc = LCM.UI.AelColonnes(largeur)
+    local finIcone = cc.icone + math.min(cc.iconeTaille, cc.ligne - 4) + 2
+    if cc.separateur < finIcone or cc.separateur + 12 * cc.echelle > cc.nom then
+        separateurMal[#separateurMal + 1] = largeur
+    end
+end
+attendu("separateur entre icone et nom", table.concat(separateurMal, ","), "")
+local sepDansNom = 0
+for _, bloc in ipairs(page.blocs) do
+    for _, ligne in ipairs(bloc.lignes) do
+        if ligne.separateur and ligne.nom then
+            local _, _, _, xSep = ligne.separateur:GetPoint(1)
+            local _, _, _, xNom = ligne.nom:GetPoint(1)
+            if xSep + ligne.separateur:GetWidth() > xNom then sepDansNom = sepDansNom + 1 end
+        end
+    end
+end
+attendu("aucun separateur sur un nom", sepDansNom, 0)
 attendu("initiative", page.blocs[4].lignes[1].field.id, "initiative")
 attendu("deplacement", #page.blocs[5].lignes, 2)
 

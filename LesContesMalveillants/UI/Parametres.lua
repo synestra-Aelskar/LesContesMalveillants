@@ -270,7 +270,7 @@ LCM.AddCommand("switch", "bascule entre maitre du jeu et joueur", function()
     -- de les refermer. Les fenetres deja ouvertes, elles, ne se redessinent pas
     -- toutes seules — celles reservees au MJ se ferment, les autres se
     -- rafraichissent.
-    if UI.Menu and UI.Menu.FermerVolets then UI.Menu.FermerVolets() end
+    if UI.Radial and UI.Radial.Fermer then UI.Radial.Fermer() end
     for _, fenetre in ipairs(UI.fenetres or {}) do
         if fenetre:IsShown() then
             local noeud = fenetre.cle and UI.Menu and UI.Menu.Trouver and UI.Menu.Trouver(fenetre.cle)

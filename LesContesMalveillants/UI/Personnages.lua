@@ -5,7 +5,7 @@
 -- fenetre de l'addon qui montre des artworks, donc la seule qui a le droit
 -- d'etre large.
 --
--- Ouverte par le clic droit sur le sceau du menu radial.
+-- Ouverte par Maj + clic gauche sur le sceau.
 
 local _, LCM = ...
 local UI = LCM.UI

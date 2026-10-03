@@ -711,9 +711,10 @@ function Pages.resistances(page, f)
 end
 
 -- Traits : le conteneur « Traits » du template (10 places), sous le total.
--- Pas de liste « prendre ou laisser » : le choix des traits se fera
--- autrement. Pour l'instant, les emplacements seulement — les pris, puis une
--- case libre tant qu'il en reste (trente cases vides ne disent rien de plus).
+-- Les emplacements seulement — les pris, puis une case libre tant qu'il en
+-- reste (trente cases vides ne disent rien de plus). Chaque case se remplit
+-- comme celle de la race : clic gauche pour choisir dans le compendium, clic
+-- droit pour voir ou retirer, ou glisser un trait depuis le compendium.
 
 function Pages.traits(page, f)
     Bloc(page, "Traits de votre personnage", TEXTES.traits)
@@ -722,12 +723,117 @@ function Pages.traits(page, f)
     local largeurLigne = LARGEUR_PAGE - 2 * UI.Fiche.MARGE_BLOC
     local c = UI.AelColonnes(largeurLigne)
     page.emplacements = {}
+    -- Une seule liste pour toutes les cases : elle ne s'ouvre qu'une a la fois.
+    page.menu = UI.Choix("creation_trait", "Trait")
+
+    -- Poser `id` dans la case qui porte `ancien` (nil : une case libre). Un
+    -- remplacement qui echoue — budget depasse — remet l'ancien a sa place :
+    -- on ne perd pas un trait parce que le suivant etait trop cher. Le refus
+    -- dit pourquoi.
+    local function Poser(ancien, id)
+        if ancien == id then return end
+        local rang
+        if ancien then
+            for index, porte in ipairs(f.brouillon.traits) do
+                if porte == ancien then rang = index break end
+            end
+            C.RetirerTrait(f.brouillon, ancien)
+        end
+        local ok, raison = C.AjouterTrait(f.brouillon, id)
+        if ok then
+            -- Le remplacant prend le rang du remplace, pas la fin de la liste.
+            if rang then
+                table.remove(f.brouillon.traits)
+                table.insert(f.brouillon.traits, rang, id)
+            end
+        else
+            if rang then table.insert(f.brouillon.traits, rang, ancien) end
+            LCM.Alerte(raison)
+        end
+        f:Actualiser()
+    end
 
     local function Emplacement(index)
-        local l = UI.Fiche.Ligne(bloc, c)
+        -- Un bouton, pas un cadre : on clique dessus (gauche pour choisir,
+        -- droit pour voir ou retirer).
+        local l = UI.Fiche.Ligne(bloc, c, "Button")
         l:SetHeight(math.max(48, c.ligne))
         UI.Fiche.Icone(l, c, VIDE)
         UI.Fiche.Nom(l, c, "Emplacement", true)
+        l.effets = UI.Texte(l, "", UI.C.accent)
+        UI.Police(l.effets, c.police * 0.72)
+        l.effets:SetPoint("LEFT", l, "LEFT", c.plage, 0)
+        l.effets:SetPoint("RIGHT", l, "RIGHT", -12 * c.echelle, 0)
+        l.effets:SetJustifyH("RIGHT")
+        l.effets:SetWordWrap(false)
+        l:EnableMouse(true)
+
+        -- Le trait de la case est lu sur la ligne (`l.traitId`, pose par
+        -- Actualiser) au moment du clic : les cases sont reutilisees, une
+        -- valeur capturee a la creation serait perimee.
+        UI.Glisser.Cible(l, function(objet)
+            if objet.categorie ~= "traits" then
+                return false, "cet emplacement n'accepte qu'un trait (catégorie Traits du compendium)."
+            end
+            return true
+        end, function(objet)
+            Poser(l.traitId, objet.element.id)
+        end)
+        l:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            local t = self.traitId and LCM.Traits.Get(self.traitId)
+            if t then
+                GameTooltip:SetText(t.label)
+                GameTooltip:AddLine(string.format("Coût : %d point%s", t.cout, t.cout > 1 and "s" or ""),
+                    0.83, 0.68, 0.33)
+                if t.description ~= "" then GameTooltip:AddLine(t.description, 0.88, 0.84, 0.76, true) end
+                local effets = UI.Fiche.Effets(t)
+                if effets ~= "" then GameTooltip:AddLine(effets, 0.83, 0.68, 0.33, true) end
+                GameTooltip:AddLine("Clic gauche : remplacer. Clic droit : voir ou retirer.", 0.6, 0.56, 0.5)
+            else
+                GameTooltip:SetText("Emplacement")
+                GameTooltip:AddLine("Clique pour choisir un trait, ou glisse-le depuis le compendium "
+                    .. "(Système d'Aelskar, catégorie Traits).", 0.88, 0.84, 0.76, true)
+            end
+            GameTooltip:Show()
+        end)
+        l:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        l:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        l:SetScript("OnClick", function(self, bouton)
+            local actuel = self.traitId
+            if bouton == "RightButton" then
+                if not actuel then return end
+                local t = LCM.Traits.Get(actuel)
+                local options = { { id = "retirer", label = "Retirer" } }
+                if t then table.insert(options, 1, { id = "voir", label = "Voir" }) end
+                page.menu:Proposer(self, options, function(choix)
+                    if choix == "voir" and t then
+                        UI.Compendium.Voir(LCM.Compendium.Get("traits"), t, f)
+                    elseif choix == "retirer" then
+                        C.RetirerTrait(f.brouillon, actuel)
+                        f:Actualiser()
+                    end
+                end)
+                return
+            end
+            -- Tous les traits non pris, avec leur cout : un trait trop cher
+            -- reste proposé, et son refus dit combien il manque.
+            local options = {}
+            for _, t in ipairs(LCM.Traits.list) do
+                if t.id == actuel or not C.ATrait(f.brouillon, t.id) then
+                    options[#options + 1] = { id = t.id, icone = t.icone,
+                        label = string.format("%s (%d)", t.label, t.cout) }
+                end
+            end
+            if #options == 0 then
+                LCM.Alerte(#LCM.Traits.list == 0 and "aucun trait au compendium."
+                    or "tous les traits du compendium sont déjà pris.")
+                return
+            end
+            page.menu:Proposer(self, options, function(choix)
+                if choix then Poser(actuel, choix) end
+            end)
+        end)
         page.emplacements[index] = l
         return l
     end
@@ -742,14 +848,23 @@ function Pages.traits(page, f)
             local id = pris[index]
             local trait = id and LCM.Traits.Get(id)
             l.traitId = id
-            if id then
+            -- Un trait disparu du compendium reste visible, marque : on ne le
+            -- retire pas en douce, le joueur le retire d'un clic droit.
+            if trait then
+                l.icone:SetTexture(trait.icone)
+                l.nom:SetText(trait.label)
+                l.nom:SetTextColor(UI.Compendium.Couleur(trait.couleurTitre or LCM.COULEUR_TITRE))
+                l.effets:SetText(UI.Fiche.Effets(trait))
+            elseif id then
                 l.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
-                l.nom:SetText(trait and trait.label or ("? " .. tostring(id)))
-                l.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+                l.nom:SetText("? " .. tostring(id))
+                Teinte(l.nom, UI.C.plein)
+                l.effets:SetText("")
             else
                 l.icone:SetTexture(VIDE)
                 l.nom:SetText("Emplacement")
-                l.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+                Teinte(l.nom, UI.C.discret)
+                l.effets:SetText("")
             end
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", bloc, "TOPLEFT", UI.Fiche.MARGE_BLOC, -y)
@@ -778,7 +893,7 @@ local function Construire()
     -- la liste serait illisible.
     f.recap = CreateFrame("Frame", nil, f.contenu)
     f.recap:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.recap:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    -- Le bas se pose dans f:PlacerBas, avec la rangee de boutons.
     f.recap:SetWidth(LARGEUR_RECAP)
     if UI.AelCadre then UI.AelCadre(f.recap, "section") else UI.Bordure(f.recap) end
 
@@ -818,20 +933,18 @@ local function Construire()
     -- « Créer le personnage » tout a droite, et SEULEMENT sur la derniere
     -- etape : c'est l'aboutissement du parcours, pas un bouton qu'on croise
     -- sept fois et sur lequel on finit par cliquer trop tot.
-    f.valider:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
     -- La navigation, au centre : on avance d'une etape a la fois, et on peut
     -- revenir. Les onglets restent, pour sauter directement quelque part.
     f.precedent = UI.Bouton(f.contenu, "< Précédent", 120, 26, function() f:Pas(-1) end)
     f.suivant = UI.Bouton(f.contenu, "Suivant >", 120, 26, function() f:Pas(1) end)
-    f.suivant:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
-    f.precedent:SetPoint("RIGHT", f.suivant, "LEFT", 8, 0)
+    -- « Precedent » s'accroche au bouton de droite VISIBLE (Suivant, ou Creer
+    -- a la derniere etape) : voir Actualiser.
 
     -- Abandonner : la fenetre se ferme et le brouillon part. Avec la remise a
     -- zero, ce sont les deux gestes qui DEFONT : ils vivent sous le
     -- recapitulatif, a gauche, loin de ceux qui font avancer.
     f.abandonner = UI.Bouton(f.contenu, "Abandonner", LARGEUR_RECAP, 26, function() f:Hide() end)
-    f.abandonner:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     -- Tout remettre a zero se confirme : c'est le seul geste qu'on ne peut pas
     -- defaire d'un clic.
     f.confirmation = UI.Confirmer(f, "", "Tout remettre a zero")
@@ -850,13 +963,36 @@ local function Construire()
     -- qu'on regarde quand « Créer le personnage » refuse de s'allumer.
     f.probleme = UI.Texte(f.contenu, "", UI.C.discret)
     UI.Police(f.probleme, 12)
-    f.probleme:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", LARGEUR_RECAP + 12, 32)
-    f.probleme:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 32)
     f.probleme:SetJustifyH("RIGHT")
 
     f.zone = UI.Defilement(f.contenu)
     f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 10))
-    f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 60)
+
+    -- La rangee du bas (et ce qui s'appuie dessus) se pose au-dessus de ce que
+    -- l'habillage mange a l'interieur de la fenetre : au ras du contenu, les
+    -- boutons passaient sur le liseré et l'equerre doree du coin (3 octobre
+    -- 2026). Refait a chaque ouverture : le theme a pu changer entre-temps.
+    function f:PlacerBas()
+        local e = UI.AelEmprise(self)
+        local dy = math.max(0, math.ceil(e.bas + 4 - (self.insetBas or 0)))
+        local dx = math.max(0, math.ceil(e.cote + 4 - (self.insetCote or 0)))
+        self.bas = { dx = dx, dy = dy }
+        self.recap:SetPoint("BOTTOMLEFT", self.contenu, "BOTTOMLEFT", 0, dy)
+        self.valider:ClearAllPoints()
+        self.valider:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", -dx, dy)
+        self.suivant:ClearAllPoints()
+        self.suivant:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", -dx, dy)
+        self.abandonner:ClearAllPoints()
+        -- A gauche, les boutons restent alignes sur le recapitulatif, qu'ils
+        -- prolongent : seul le bas compte.
+        self.abandonner:SetPoint("BOTTOMLEFT", self.contenu, "BOTTOMLEFT", 0, dy)
+        self.probleme:ClearAllPoints()
+        self.probleme:SetPoint("BOTTOMLEFT", self.contenu, "BOTTOMLEFT", LARGEUR_RECAP + 12, dy + 32)
+        self.probleme:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", -dx, dy + 32)
+        self.zone:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", 0, dy + 60)
+    end
+    f:PlacerBas()
+    f:HookScript("OnShow", function(self) self:PlacerBas() end)
 
     f.pages = {}
     for _, etape in ipairs(C.ETAPES) do
@@ -1048,6 +1184,9 @@ local function Construire()
         end
         self.valider:SetShown(rang == dernier)
         self.suivant:SetShown(rang < dernier)
+        -- Un ecart franc entre les deux : colles, leurs cadres se chevauchaient.
+        self.precedent:ClearAllPoints()
+        self.precedent:SetPoint("RIGHT", rang == dernier and self.valider or self.suivant, "LEFT", -6, 0)
         self.precedent:SetEnabled(rang > 1)
 
         local problemes = C.Problemes(self.brouillon)
