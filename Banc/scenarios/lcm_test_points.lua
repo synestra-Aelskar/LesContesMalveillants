@@ -60,7 +60,13 @@ attendu("le stock n'a pas ete entame", LCM.Stock.Restant("filon_cuivre/minerai")
 
 dire("== avec un sac")
 local categorie = LCM.Inventaire.categories[1]
-local sac = LCM.Sacs.list[1]
+-- Le plus grand sac du compendium : ce test recolte une dizaine de fois, il
+-- lui faut de la place. Prendre `list[1]` le rendait dependant de l'ordre du
+-- catalogue — et la sacoche de depart, cinq places, s'y est glissee en tete.
+local sac
+for _, s in ipairs(LCM.Sacs.list) do
+    if not sac or (s.places or 0) > (sac.places or 0) then sac = s end
+end
 attendu("un onglet d'inventaire existe", categorie ~= nil, true)
 attendu("un sac au compendium", sac ~= nil, true)
 attendu("sac pose", (LCM.Inventaire.Poser(moi, categorie.id, 1, sac.id)), true)

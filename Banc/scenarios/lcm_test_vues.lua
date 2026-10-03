@@ -191,6 +191,30 @@ attendu("replier raccourcit la page", page.hauteur < h1, true)
 attendu("les statistiques de combat sont des cibles de bonus",
     LCM.Schema.Field("force_attaque") and LCM.Schema.Field("force_attaque").kind, "stat")
 
+dire("== la fenetre prend la hauteur de son contenu")
+local fiche = LCM.UI.Vues.Fenetre("fiche")
+fiche:Montrer()
+local page = fiche.pages[fiche.onglet]
+-- On compare aux memes grandeurs que le code : le banc ne resout pas les
+-- hauteurs d'ancrage, donc `zone:GetHeight()` y vaut zero et ne prouve rien.
+local chrome = fiche.insetHaut + fiche.insetBas + fiche.hautZone
+attendu("la fenetre fait la taille de son contenu",
+    math.abs(fiche:GetHeight() - (chrome + page.hauteur)) < 1, true)
+attendu("et la zone connait toute la page", fiche.zone.hauteurContenu, page.hauteur)
+
+dire("   une page plus courte raccourcit la fenetre")
+local grande = fiche:GetHeight()
+fiche:Afficher("traits")
+attendu("l'onglet Traits est plus court", fiche:GetHeight() < grande, true)
+
+dire("   tirer la poignee reprend la main")
+fiche:SetHeight(200)
+fiche.hauteurChoisie = true
+fiche:Afficher(fiche.onglet)
+attendu("la hauteur choisie est gardee", fiche:GetHeight(), 200)
+fiche.hauteurChoisie = nil
+fiche:Hide()
+
 dire("== Regles : la fenetre du template")
 M.Trouver("regles").onClick()
 local r = LCM.UI.Vues.frames and LCM.UI.Vues.frames.regles or LCM.UI.Vues.Fenetre("regles")

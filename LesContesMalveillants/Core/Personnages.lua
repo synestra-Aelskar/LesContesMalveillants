@@ -83,6 +83,12 @@ function Personnages.Creer(nom, valeurs, icone)
     for champ, valeur in pairs(valeurs or {}) do
         LCM.Entities.Set_Value(entity, champ, valeur)
     end
+    -- L'equipement de depart : une sacoche dans la premiere sacoche. Un
+    -- personnage neuf doit pouvoir ramasser quelque chose des sa premiere
+    -- seance, sans attendre que le MJ lui donne un sac.
+    if LCM.Inventaire and LCM.Sacs and LCM.Sacs.Get("sacoche_de_depart") then
+        LCM.Inventaire.Poser(entity, "saccoches", 1, "sacoche_de_depart")
+    end
     Personnages.Choisir(entity.id)
     return entity
 end

@@ -136,6 +136,29 @@ end
 
 -- ===== Reception ===========================================================
 
+-- Ce nom est-il dans mon groupe ? C'est la seule verification d'origine qu'on
+-- puisse faire d'un message : un client modifie dit ce qu'il veut, y compris
+-- qu'il est maitre du jeu. Elle vaut ce qu'elle vaut — on ne reçoit que de
+-- gens avec qui on joue — et le reste tient a ce qu'on AFFICHE qui a envoye
+-- quoi, pour que la triche se voie.
+--
+-- Hors groupe et hors jeu (au banc), on accepte : sans API de groupe, refuser
+-- reviendrait a tout bloquer.
+function Reseau.DansLeGroupe(nom)
+    if not (UnitName and GetNumGroupMembers) then return true end
+    local nombre = GetNumGroupMembers() or 0
+    if nombre == 0 then return false end
+    local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
+    for index = 1, nombre do
+        local n, royaume = UnitName(prefixe .. index)
+        if n then
+            local complet = (royaume and royaume ~= "" and (n .. "-" .. royaume)) or n
+            if complet == nom or n == tostring(nom):match("^[^-]+") then return true end
+        end
+    end
+    return false
+end
+
 function Reseau.Ecouter(sujet, handler)
     if type(handler) ~= "function" then return end
     handlers[tostring(sujet)] = handler

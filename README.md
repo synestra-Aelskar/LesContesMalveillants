@@ -91,7 +91,16 @@ code la refuse. La case d'avantage n'apparaît que si un trait l'accorde.
 
 **La création de personnage** (`/lcm creer`). Sept étapes, budgets recalculés au
 niveau courant, plafonds par ligne, boutons `R` / `-` / `+` / `M`, récapitulatif
-repliable à gauche. Le moteur (`Core/Creation.lua`) ne connaît aucune fenêtre :
+repliable à gauche. On avance avec **Précédent / Suivant** (les onglets restent,
+pour sauter directement) ; **Créer le personnage** n'apparaît que sur la
+dernière étape, et **Abandonner** et **Tout remettre à zéro** vivent sous le
+récapitulatif — les gestes qui défont d'un côté, ceux qui font avancer de
+l'autre. On ne crée pas un personnage tant qu'il **reste des points à placer** :
+un personnage qui arrive avec des points en poche est un personnage qu'on
+finira de construire en séance, pendant que tout le monde attend. Un budget
+qu'on ne PEUT plus dépenser ne bloque pas (`Creation.PeutEncoreDepenser`) :
+toutes les lignes au plafond, ou plus aucun trait abordable, sinon l'écran
+serait un cul-de-sac. Le moteur (`Core/Creation.lua`) ne connaît aucune fenêtre :
 les règles sont testables sans rien dessiner.
 
 **Le menu des fenêtres** et le **lanceur d'actions** (organisation du
@@ -201,6 +210,70 @@ déclenche quand il porte `effectForcedMove` ; le paquet le transporte sous
 Ce qu'on n'a **pas** repris : Necronicon finit par des commandes serveur
 (`.mod speed`, `.aura`) pour clouer le personnage. Cela tient à leur serveur et
 à leurs droits ; ici on annonce la fin, le joueur s'arrête.
+
+### Le 3 octobre 2026
+
+**L'inventaire sans onglets.** « Sacs » et « Saccoches » ont disparu de l'écran :
+les six emplacements sont dans une colonne à gauche (deux sacs, quatre
+sacoches), et la droite montre le contenu de celui qu'on regarde. Clic gauche
+pour regarder, clic droit pour ouvrir le sac à part. Un emplacement vide
+s'appelle **« Sac »** ou **« Sacoche »** — « Emplacement » ne disait pas ce
+qu'on pouvait y mettre. Les catégories restent le modèle en coulisses : ce sont
+elles qui disent combien d'emplacements et ce qu'ils acceptent.
+
+**Sac ou sacoche.** Une entrée de sac doit choisir sa nature (champ
+obligatoire), et ce choix commande tout le rangement :
+
+* un **sac** ne se porte que dans un emplacement de sac ; une **sacoche** va
+  dans les deux ;
+* une sacoche ne contient ni sac ni sacoche ;
+* un **sac** en accepte, mais le nouveau venu coûte **sa case plus toutes les
+  siennes** — un sac de 10 occupe 11 cases. Un sac de 10 entre dans un sac de
+  20 ; une sacoche de 15 (16 cases) n'entre pas dans un sac de 10, et le refus
+  dit combien il aurait fallu.
+
+Une entrée sans nature est un **sac** : c'est ce qu'étaient tous les sacs avant
+que la distinction existe. La **migration ne perd rien** — un sac déjà porté
+dans un emplacement de sacoche y reste, la règle vaut pour ce qu'on range
+aujourd'hui.
+
+**La sacoche de départ** (5 places, non empilable) est posée en sacoche 1 à la
+création, livrée avec l'addon (`Data/Sacs.lua`). Un personnage neuf doit pouvoir
+ramasser quelque chose dès sa première séance sans attendre que le MJ lui donne
+un sac.
+
+**`/lcm switch`.** Un MJ qui prend un personnage met le compagnon en veille sans
+toucher à la liste des addons ni relancer le jeu : `IsMaster()` répond faux, le
+menu perd ses entrées MJ, l'envoi d'XP et la demande de fiche sont refusés, et
+une fenêtre MJ ouverte se ferme. C'est un réglage de **compte**, retenu après un
+`/reload` — sinon on croirait jouer et on ne jouerait pas.
+
+**La fiche.** La fenêtre prend la **hauteur de son contenu** (plus de défilement
+par défaut, elle se redimensionne en changeant d'onglet), s'arrête à 85 % de
+l'écran, et une **poignée** en bas à droite rend la main : dès qu'on l'a tirée,
+c'est cette hauteur qui vaut, et elle est retenue. La poignée ne change que la
+hauteur — les colonnes d'une ligne sont calculées à la construction et ne
+sauraient pas suivre un élargissement. Le **canal des jets** est une pastille
+dans l'en-tête, en miroir de la croix : une lettre et une couleur (R orange,
+G bleu, E jaune, L blanc), rouge quand le canal n'est pas disponible.
+
+**La création.** Précédent / Suivant pour avancer (les onglets restent, pour
+sauter directement) ; « Créer le personnage » n'apparaît que sur la dernière
+étape ; Abandonner et Tout remettre à zéro sont passés sous le récapitulatif.
+La **race se choisit** dans le compendium et nulle part ailleurs : la saisie
+libre a été retirée, parce qu'une race tapée à la main n'apportait ni bonus ni
+morphologie tout en ayant l'air d'une vraie race.
+
+Pénétrations et Résistances sont disposées **par groupe**, et un groupe ne se
+coupe plus en deux colonnes. Le premier groupe prend toute la largeur si ses
+lignes y tiennent (mode « serré » : chiffre à 38, libellé à 56) ; sinon il
+retombe en colonne — ce qui protège Expertises, dont le premier groupe a huit
+lignes.
+
+**L'éditeur du compendium.** L'aperçu de l'icône est un **bouton** : un clic
+ouvre le sélecteur, comme dans l'atelier. En lecture seule, il ne propose rien
+et dit quoi faire. La catégorie Sacs n'a plus qu'un onglet (`ongletUnique`) :
+« Textes courts » est fusionné dans Général.
 
 ### Ce que la première séance en jeu a corrigé
 
@@ -370,6 +443,21 @@ Par ordre de ce qui bloque le plus :
       **présence** de l'addon et la **scène** du MJ.
 - [x] **Les boutons du radial** (2 octobre 2026) : les dix-sept jouent leur
       résolution de bout en bout au banc. Voir « Ce qui marche ».
+- [ ] **Les icônes de l'en-tête débordent sur le cadre.** La pastille de canal
+      et la croix de fermeture sont posées en miroir aux deux coins hauts, et
+      elles mordent sur les tours d'angle de l'habillage. Les rentrer vers
+      l'intérieur de la fiche — attention, elles doivent rester en miroir l'une
+      de l'autre (le banc le vérifie).
+- [ ] **Une race réservée au MJ.** Ajouter une option sur une entrée de race
+      pour la rendre MJ seulement : un joueur ne doit ni la voir dans la liste
+      de création, ni pouvoir la choisir. Le compendium est déjà réservé au MJ,
+      mais les races passent par la création, qui est ouverte à tous.
+- [ ] **Pénétrations et Résistances : les types physiques sur UNE ligne.** Le
+      mécanisme existe depuis le 3 octobre 2026 (le premier groupe prend toute
+      la largeur si ses lignes y tiennent, en mode serré), mais à la largeur de
+      page actuelle les trois ne rentrent pas et le groupe retombe en colonne.
+      Il faut gagner de la place sur la ligne — élargir la fenêtre de création,
+      ou raccourcir ce qu'un compteur affiche.
 - [ ] **Une séance de test à deux, en jeu**, sur tout ce qui précède : le banc
       vérifie la logique et les clics, pas l'écran ni le vrai réseau.
 - [x] **Le déplacement forcé** (Répulsion, Attraction, intervention avec
@@ -428,10 +516,25 @@ Par ordre de ce qui bloque le plus :
 - [ ] **Les points eux-mêmes** : `Data/Genere/Points.lua` est vide. Les vendeurs
       et les filons viendront de l'atelier MJ comme le reste du contenu ; la
       forme d'un point est documentée en tête du fichier.
-- [ ] **Un outil MJ pour l'expérience.** Le niveau est fixe à 5 pour les
-      joueurs (seul le compagnon MJ ouvre la saisie) ; monter de niveau doit se
-      gagner en jeu. Reste à écrire : donner de l'XP, et le passage de niveau
-      qui en découle.
+- [x] **Un outil MJ pour l'expérience** (3 octobre 2026). Le MJ donne l'XP
+      depuis le Panel MJ : un montant par joueur, un motif commun pour la
+      tablée. Le palier franchi fait monter le niveau tout seul
+      (`Core/Experience.lua`), et la fiche suit — mais ne **redescend** jamais
+      un niveau posé à la main au-dessus de l'XP (un PNJ du MJ, un personnage
+      d'avant l'outil). L'XP ne se retire pas : un MJ peut se tromper de
+      montant, pas défaire une scène.
+      **La table des paliers est à valider** : le template n'a aucune table
+      d'expérience de personnage, seulement celle des métiers. C'est le seul
+      chiffre de `Data/Equilibrage.lua` qui ne vienne de nulle part.
+      L'origine d'un message vaut ce qu'elle vaut — on ne peut pas prouver
+      qu'un expéditeur est MJ, un client modifié dirait l'être. Même règle que
+      la consultation de fiche : il doit être dans le groupe, et **on affiche
+      qui a donné**, pour que la triche se voie.
+- [ ] **Dépenser les points gagnés en montant de niveau.** Le budget suit le
+      niveau, donc monter donne des points — mais il n'existe aucun écran pour
+      les placer après la création. **À trancher** : rouvrir la création sur un
+      personnage existant en verrouillant ce qui est déjà placé, ou permettre
+      de tout redistribuer.
 - [ ] **Les portraits** : deux livrés (Moon, ReikaShira) plus la silhouette de
       repli. En ajouter : déposer l'image dans `Portraits\`, lancer l'outil,
       publier.

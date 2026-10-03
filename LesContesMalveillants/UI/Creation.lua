@@ -150,33 +150,54 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
     colonnes = colonnes or 1
     local lignes = C.Lignes(categorie)
     local marge = UI.Fiche.MARGE_BLOC + 6
-    local largeurColonne = (LARGEUR_PAGE - 2 * marge) / colonnes
-    local parColonne = math.ceil(#lignes / colonnes)
-    -- Ce qui tient dans une colonne : le libelle, les boutons (136), puis le
-    -- total. En deux colonnes il n'y a plus la place du total — il est de
-    -- toute facon dans le recapitulatif, a gauche — alors on rend au libelle
-    -- ce qu'on lui prenait, plutot que de laisser la colonne deborder sur sa
-    -- voisine.
-    -- 6 : la marge avant le libelle. 136 : R, -, le chiffre, + et M.
-    local dispo = (largeurColonne - 12) - 6 - 136
-    local largeurLabel = math.min(LARGEUR_LABEL, math.max(76, dispo - 8 - 96))
-    local largeurTotal = math.min(96, math.max(0, dispo - largeurLabel - 8))
-    if largeurTotal < 30 then
-        largeurLabel = math.max(76, dispo)
-        largeurTotal = 0
-    end
+    local largeurUtile = LARGEUR_PAGE - 2 * marge
     local haut = Haut(bloc)
-    local y, colonne, index, groupeCourant, hauteurMax = haut, 0, 0, nil, 0
 
+    -- Ce qui tient dans une ligne de largeur donnee : le libelle, les boutons
+    -- (136), puis le total. Quand il n'y a plus la place du total, on le rend
+    -- au libelle — le total est de toute facon dans le recapitulatif.
+    -- 6 : la marge avant le libelle.
+    local function Mesures(largeur, serre)
+        local boutons = serre and 122 or 136
+        local dispo = (largeur - 12) - 6 - boutons
+        local label = math.min(LARGEUR_LABEL, math.max(serre and 56 or 76, dispo - 8 - 96))
+        local total = math.min(96, math.max(0, dispo - label - 8))
+        if total < 30 then label, total = math.max(serre and 56 or 76, dispo), 0 end
+        return label, total
+    end
+
+    -- La place minimale d'un compteur serre : sa marge, son libelle le plus
+    -- court lisible, et ses boutons.
+    local MINIMUM_SERRE = 6 + 56 + 122 + 12
+
+    -- Les lignes, par groupe, dans l'ordre. Un groupe ne se coupe jamais en
+    -- deux : une categorie qui se deverse sur la colonne d'a cote ne se lit
+    -- plus, on ne sait plus ou elle commence.
+    local groupes, parNom = {}, {}
     for _, ligne in ipairs(lignes) do
-        if ligne.groupe and ligne.groupe ~= groupeCourant then
-            groupeCourant = ligne.groupe
-            local t = UI.Texte(bloc, UI.Majuscules(ligne.groupe), UI.C.accent)
-            UI.Police(t, 12)
-            t:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
-            y = y + 20
+        local nom = ligne.groupe or ""
+        local g = parNom[nom]
+        if not g then
+            g = { nom = nom, lignes = {} }
+            parNom[nom] = g
+            groupes[#groupes + 1] = g
         end
+        g.lignes[#g.lignes + 1] = ligne
+    end
+
+    local function Titre(nom, x, y, largeur)
+        if nom == "" then return 0 end
+        local t = UI.Texte(bloc, UI.Majuscules(nom), UI.C.accent)
+        UI.Police(t, 12)
+        t:SetPoint("TOPLEFT", bloc, "TOPLEFT", x, -y)
+        t:SetWidth(largeur)
+        return 20
+    end
+
+    local function Poser(ligne, x, y, largeur, serre)
+        local largeurLabel, largeurTotal = Mesures(largeur, serre)
         local compteur = UI.Compteur(bloc, ligne.label, largeurLabel, {
+            serre = serre,
             change = function(valeur)
                 local ok, raison = C.Definir(f.brouillon, categorie, ligne.id, valeur)
                 if not ok then
@@ -188,8 +209,8 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
             max = function() return C.Maximum(f.brouillon, categorie, ligne.id) end,
         })
         compteur:SetHeight(LIGNE - 2)
-        compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT", marge + colonne * largeurColonne, -y)
-        compteur:SetWidth(largeurColonne - 12)
+        compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT", x, -y)
+        compteur:SetWidth(largeur - 12)
         compteur.champ, compteur.categorie = ligne.id, categorie
 
         -- A droite de la ligne : le TOTAL que donnera la fiche, race comprise.
@@ -215,14 +236,66 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
                 return table.concat(morceaux, "\n")
             end)
         page.compteurs[#page.compteurs + 1] = compteur
-        y = y + LIGNE
-        index = index + 1
-        hauteurMax = math.max(hauteurMax, y)
-        if colonnes > 1 and index % parColonne == 0 and index < #lignes then
-            colonne = colonne + 1
-            y, groupeCourant = haut, nil
+    end
+
+    local hauteurMax = haut
+
+    if colonnes <= 1 or #groupes <= 1 then
+        -- Une seule colonne : tout a la suite.
+        local y = haut
+        for _, g in ipairs(groupes) do
+            y = y + Titre(g.nom, marge, y, largeurUtile)
+            for _, ligne in ipairs(g.lignes) do
+                Poser(ligne, marge, y, largeurUtile)
+                y = y + LIGNE
+            end
+        end
+        hauteurMax = y
+    else
+        -- Le PREMIER groupe prend toute la largeur, ses lignes cote a cote :
+        -- trois types physiques tiennent sur un rang, les empiler sur une
+        -- demi-largeur gachait la moitie de la place.
+        local y = haut
+        local premier = groupes[1]
+        local n = #premier.lignes
+        local part = largeurUtile / n
+        local debut = 1
+        -- ... a condition que ses lignes y tiennent. Au-dela, on ne gagne rien
+        -- a les serrer : les libelles se couperaient.
+        if part >= MINIMUM_SERRE then
+            y = y + Titre(premier.nom, marge, y, largeurUtile)
+            for index, ligne in ipairs(premier.lignes) do
+                Poser(ligne, marge + (index - 1) * part, y, part, true)
+            end
+            y = y + LIGNE + 6
+            debut = 2
+        end
+        hauteurMax = y
+
+        -- Les suivants : un groupe par colonne, a tour de role, et jamais
+        -- coupe. Chaque colonne garde son propre fil vertical.
+        local largeurColonne = largeurUtile / colonnes
+        local yColonne = {}
+        for c = 1, colonnes do yColonne[c] = y end
+        for rang = debut, #groupes do
+            local g = groupes[rang]
+            -- La colonne la moins remplie : deux groupes inegaux ne laissent
+            -- pas un trou d'un cote.
+            local choisie = 1
+            for c = 2, colonnes do
+                if yColonne[c] < yColonne[choisie] then choisie = c end
+            end
+            local x = marge + (choisie - 1) * largeurColonne
+            yColonne[choisie] = yColonne[choisie] + Titre(g.nom, x, yColonne[choisie], largeurColonne)
+            for _, ligne in ipairs(g.lignes) do
+                Poser(ligne, x, yColonne[choisie], largeurColonne)
+                yColonne[choisie] = yColonne[choisie] + LIGNE
+            end
+            yColonne[choisie] = yColonne[choisie] + 6
+            hauteurMax = math.max(hauteurMax, yColonne[choisie])
         end
     end
+
     bloc.hauteurContenu = hauteurMax - haut
     return bloc
 end
@@ -355,11 +428,14 @@ function Pages.generale(page, f)
     end
     -- « Autre » demande de preciser : un bouton qui ne dit rien de plus qu'il
     -- n'est ni l'un ni l'autre n'apprend rien a la table.
-    page.sexeAutre = UI.Champ(identite, 150, 22, function(texte)
+    -- Aussi large que les trois boutons reunis, et pose juste dessous : c'est
+    -- la precision de l'un d'eux, pas un champ qui flotte a cote.
+    local LARGEUR_SEXES = 3 * 90 + 2 * 4
+    page.sexeAutre = UI.Champ(identite, LARGEUR_SEXES, 22, function(texte)
         f.brouillon.sexeAutre = texte ~= "" and texte or nil
         f:Actualiser()
     end)
-    page.sexeAutre:SetPoint("TOPLEFT", identite, "TOPLEFT", LARGEUR_LABEL, -(y + 26))
+    page.sexeAutre:SetPoint("TOPLEFT", identite, "TOPLEFT", x + LARGEUR_LABEL, -(y + 28))
     page.sexeAutre:Hide()
 
     -- La tabulation passe d'un champ a l'autre, dans l'ordre de lecture.
@@ -454,18 +530,6 @@ function Pages.generale(page, f)
             f:Actualiser()
         end)
     end)
-    -- Une race qui n'est pas au compendium : on la saisit. Elle n'apporte aucun
-    -- bonus et aucune morphologie (repli sur humanoide) — c'est un nom, et
-    -- c'est dit. Le MJ la cree ensuite dans l'atelier s'il veut qu'elle compte.
-    race.libreLabel = UI.Texte(race, "ou saisis-la", UI.C.discret)
-    UI.Police(race.libreLabel, 11)
-    race.libreLabel:SetPoint("TOPLEFT", race, "TOPLEFT", UI.Fiche.MARGE_BLOC, -Haut(race) - 56)
-    race.libre = UI.Champ(race, 200, 22, function(texte)
-        f.brouillon.raceLibre = texte ~= "" and texte or nil
-        f:Actualiser()
-    end)
-    race.libre:SetPoint("LEFT", race.libreLabel, "RIGHT", 10, 0)
-    page.raceLibre = race.libre
 
     race.hauteurContenu = slot:GetHeight() + 32
 
@@ -581,8 +645,6 @@ function Pages.generale(page, f)
         if autre and self.sexeAutre:GetText() ~= (b.sexeAutre or "") then
             self.sexeAutre:SetText(b.sexeAutre or "")
         end
-        local libre = b.raceLibre or ""
-        if self.raceLibre:GetText() ~= libre then self.raceLibre:SetText(libre) end
 
         -- L'apercu de l'artwork. Sans choix, la silhouette de repli : on voit
         -- ce qu'on aura, pas une case vide.
@@ -753,10 +815,23 @@ local function Construire()
         end
         UI.Fiche.Fenetre():Montrer(entity)
     end)
-    f.valider:SetPoint("BOTTOMLEFT", f.recap, "BOTTOMRIGHT", 12, 0)
-    -- Abandonner : la fenetre se ferme et le brouillon part.
-    f.abandonner = UI.Bouton(f.contenu, "Abandonner", 120, 26, function() f:Hide() end)
-    f.abandonner:SetPoint("LEFT", f.valider, "RIGHT", 8, 0)
+    -- « Créer le personnage » tout a droite, et SEULEMENT sur la derniere
+    -- etape : c'est l'aboutissement du parcours, pas un bouton qu'on croise
+    -- sept fois et sur lequel on finit par cliquer trop tot.
+    f.valider:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+
+    -- La navigation, au centre : on avance d'une etape a la fois, et on peut
+    -- revenir. Les onglets restent, pour sauter directement quelque part.
+    f.precedent = UI.Bouton(f.contenu, "< Précédent", 120, 26, function() f:Pas(-1) end)
+    f.suivant = UI.Bouton(f.contenu, "Suivant >", 120, 26, function() f:Pas(1) end)
+    f.suivant:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.precedent:SetPoint("RIGHT", f.suivant, "LEFT", 8, 0)
+
+    -- Abandonner : la fenetre se ferme et le brouillon part. Avec la remise a
+    -- zero, ce sont les deux gestes qui DEFONT : ils vivent sous le
+    -- recapitulatif, a gauche, loin de ceux qui font avancer.
+    f.abandonner = UI.Bouton(f.contenu, "Abandonner", LARGEUR_RECAP, 26, function() f:Hide() end)
+    f.abandonner:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     -- Tout remettre a zero se confirme : c'est le seul geste qu'on ne peut pas
     -- defaire d'un clic.
     f.confirmation = UI.Confirmer(f, "", "Tout remettre a zero")
@@ -768,11 +843,16 @@ local function Construire()
                 f:Actualiser()
             end)
     end)
-    f.remiseTotale:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.remiseTotale:SetPoint("BOTTOMLEFT", f.abandonner, "TOPLEFT", 0, 6)
+    f.remiseTotale:SetWidth(LARGEUR_RECAP)
+
+    -- Ce qui bloque, a droite au-dessus des boutons qui font avancer : c'est la
+    -- qu'on regarde quand « Créer le personnage » refuse de s'allumer.
     f.probleme = UI.Texte(f.contenu, "", UI.C.discret)
     UI.Police(f.probleme, 12)
-    f.probleme:SetPoint("BOTTOMLEFT", f.valider, "TOPLEFT", 0, 8)
-    f.probleme:SetPoint("BOTTOMRIGHT", f.remiseTotale, "TOPRIGHT", 0, 8)
+    f.probleme:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", LARGEUR_RECAP + 12, 32)
+    f.probleme:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 32)
+    f.probleme:SetJustifyH("RIGHT")
 
     f.zone = UI.Defilement(f.contenu)
     f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 10))
@@ -805,7 +885,7 @@ local function Construire()
         if categorie == "identite" then
             local race = brouillon.race ~= "" and LCM.Races.Get(brouillon.race)
             out[#out + 1] = { "Nom", brouillon.nom ~= "" and brouillon.nom or "—" }
-            out[#out + 1] = { "Race", (race and race.label) or brouillon.raceLibre or "—" }
+            out[#out + 1] = { "Race", (race and race.label) or "—" }
             out[#out + 1] = { "Niveau", tostring(brouillon.niveau) }
             if brouillon.valeurs.sexe then
                 out[#out + 1] = { "Sexe", tostring(brouillon.sexeAutre or brouillon.valeurs.sexe) }
@@ -897,6 +977,18 @@ local function Construire()
         self.recapZone:Regler(y)
     end
 
+    -- Avancer ou reculer d'une etape. On s'arrete aux extremites plutot que de
+    -- boucler : revenir a « Bienvenue » depuis « Traits » en cliquant Suivant
+    -- donnerait l'impression d'avoir perdu son travail.
+    function f:Pas(sens)
+        local rang = 1
+        for index, etape in ipairs(C.ETAPES) do
+            if etape.id == self.etape then rang = index end
+        end
+        local cible = C.ETAPES[rang + sens]
+        if cible then self:Afficher(cible.id) end
+    end
+
     function f:Afficher(etapeId)
         self.etape = etapeId
         self.barre:Selectionner(etapeId)
@@ -947,6 +1039,16 @@ local function Construire()
         if page.Actualiser then page:Actualiser() end
         page:Disposer()
         self.zone:Regler(page.hauteur)
+
+        -- La derniere etape est la seule qui propose de creer ; partout
+        -- ailleurs, c'est « Suivant » qui occupe cette place.
+        local rang, dernier = 1, #C.ETAPES
+        for index, etape in ipairs(C.ETAPES) do
+            if etape.id == self.etape then rang = index end
+        end
+        self.valider:SetShown(rang == dernier)
+        self.suivant:SetShown(rang < dernier)
+        self.precedent:SetEnabled(rang > 1)
 
         local problemes = C.Problemes(self.brouillon)
         self.probleme:SetText(problemes[1] or "")

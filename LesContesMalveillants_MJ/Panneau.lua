@@ -64,6 +64,14 @@ local function Construire()
     f.zone = UI.Defilement(f.contenu)
     f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -30)
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    -- Pourquoi on donne : le meme pour tout le monde a la fin d'une scene, donc
+    -- une seule case pour la tablee plutot qu'une par joueur.
+    f.raisonLabel = UI.Texte(f.contenu, "Motif :", UI.C.discret)
+    UI.Police(f.raisonLabel, 11)
+    f.raison = UI.Champ(f.contenu, 220, 20, nil)
+    f.raison:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -28)
+    f.raisonLabel:SetPoint("RIGHT", f.raison, "LEFT", -6, 0)
+
     f.lignes = {}
 
     f.vide = UI.Texte(f.contenu, "", UI.C.discret)
@@ -98,6 +106,26 @@ local function Construire()
                     LCM.Info(string.format("fiche demandee a %s…", cible))
                 end)
                 l.consulter:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+                -- Donner de l'experience : le montant se tape a cote du nom,
+                -- et le bouton l'envoie. Pas de menu, pas de fenetre a part —
+                -- c'est un geste de fin de scene, repete, sur plusieurs
+                -- joueurs d'affilee.
+                l.xp = UI.Champ(l, 48, 18, nil)
+                l.xp:SetPoint("RIGHT", l.consulter, "LEFT", -6, 0)
+                l.xp:SetNumeric(true)
+                l.donner = UI.Bouton(l, "+ XP", 50, 18, function()
+                    local ligne = self.lignes[rang]
+                    local montant = tonumber(ligne.xp:GetText())
+                    if not montant or montant <= 0 then
+                        LCM.Alerte("indique d'abord combien d'expérience.")
+                        return
+                    end
+                    local ok, raison = LCM.Experience.Envoyer(ligne.joueur, montant, f.raison:GetText())
+                    if not ok then LCM.Alerte(tostring(raison)) return end
+                    LCM.Ok(string.format("%d XP envoyés à %s.", montant, ligne.joueur))
+                    ligne.xp:SetText("")
+                end)
+                l.donner:SetPoint("RIGHT", l.xp, "LEFT", -4, 0)
                 self.lignes[rang] = l
             end
             l.joueur = joueur

@@ -99,41 +99,52 @@ M.Trouver("inventaires").onClick()
 local f = LCM.UI.Inventaires.frame
 attendu("ouverte", f:IsShown(), true)
 attendu("titre", f.titre:GetText(), "INVENTAIRES")
-attendu("deux onglets", #f.onglets, 2)
-attendu("onglet Sacs", f.onglets[1].label:GetText(), "Sacs")
-attendu("occupation", f.occupation:GetText(), "1 / 2")
+-- Plus d'onglets depuis le 3 octobre 2026 : les six emplacements sont dans une
+-- colonne a gauche, deux sacs puis quatre sacoches.
+attendu("plus de bande d'onglets", f.onglets, nil)
+attendu("six emplacements", #f.cartes, 6)
 attendu("le sac (nom et remplissage)", f.cartes[1].nom:GetText(), "Gros sac (0/12)")
-attendu("l'emplacement libre", f.cartes[2].nom:GetText(), "Emplacement")
+attendu("un emplacement de sac libre se nomme Sac", f.cartes[2].nom:GetText(), "Sac")
+attendu("et une sacoche libre, Sacoche", f.cartes[3].nom:GetText(), "Sacoche")
 attendu("pas de boutons en vue (template)", f.cartes[1].action, nil)
-attendu("en grille : la deuxieme a droite",
-    select(4, f.cartes[2]:GetPoint(1)) > select(4, f.cartes[1]:GetPoint(1)), true)
-f.vue:Click()
-attendu("en liste : l'une sous l'autre", select(5, f.cartes[2]:GetPoint(1)) < select(5, f.cartes[1]:GetPoint(1)), true)
-f.vue:Click()
+attendu("ils sont l'un sous l'autre",
+    select(5, f.cartes[2]:GetPoint(1)) < select(5, f.cartes[1]:GetPoint(1)), true)
+attendu("et tous a la meme abscisse",
+    select(4, f.cartes[2]:GetPoint(1)) == select(4, f.cartes[1]:GetPoint(1)), true)
+
+dire("   clic gauche : le contenu s'affiche a droite")
+f.cartes[1]:Click("LeftButton")
+attendu("c'est lui qu'on regarde", f.choisi, 1)
+attendu("son nom est en haut", f.titreContenu:GetText(), "Gros sac")
+attendu("occupation du sac", f.occupation:GetText(), "0 / 12")
+attendu("douze lignes de contenu", #f.lignes, 12)
+attendu("toutes vides pour l'instant", f.lignes[1].nom:GetText(), "Vide")
 
 -- Clic sur l'emplacement libre : le MJ choisit un sac.
 f.cartes[2]:Click("LeftButton")
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "sacs/sac_d_essai" then b:Click() end end
 attendu("sac pose depuis la liste", I.Emplacement(moi, "sacs", 2).sac, "sac_d_essai")
 
--- Glisser un sac du compendium sur une saccoche.
-f.onglets[2]:Click()
-attendu("quatre emplacements de saccoche", f.cartes[4]:IsShown(), true)
+-- Glisser un sac du compendium sur une saccoche (les rangs 3 a 6).
+attendu("quatre emplacements de saccoche", f.cartes[6]:IsShown(), true)
 local Comp = LCM.UI.Compendium.Ouvrir("sacs")
 local ligne
 for _, r in ipairs(Comp.rangees) do if r.element and r.element.id == "sac_de_gros" then ligne = r end end
 __souris.LeftButton = true
 ligne:GetScript("OnDragStart")(ligne)
-f.cartes[1].__survol = true
+f.cartes[3].__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
-f.cartes[1].__survol = nil
-attendu("sac glisse dans la saccoche", I.Emplacement(moi, "saccoches", 1) and I.Emplacement(moi, "saccoches", 1).sac, "sac_de_gros")
+f.cartes[3].__survol = nil
+-- Un SAC ne se porte pas dans un emplacement de sacoche : le glisser la est
+-- refuse depuis le 3 octobre 2026.
+attendu("un sac refuse l'emplacement de sacoche",
+    I.Emplacement(moi, "saccoches", 1) == nil
+    or I.Emplacement(moi, "saccoches", 1).sac ~= "sac_de_gros", true)
 Comp:Hide()
 
-dire("== un sac ouvert")
-f.onglets[1]:Click()
-f.cartes[1]:Click("LeftButton")
+dire("== un sac ouvert : clic DROIT")
+f.cartes[1]:Click("RightButton")
 local s = LCM.UI.Inventaires.sacs["sacs_1"]
 attendu("fenetre du sac", s and s:IsShown(), true)
 attendu("son titre", s.titre:GetText(), "GROS SAC")
@@ -168,17 +179,26 @@ menu.sousLignes[1]:Click()
 attendu("deplacee hors du gros sac", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
 attendu("dans le sac d'essai", I.Case(I.Emplacement(moi, "sacs", 2), 1).ref, "ressources/eau")
 
-dire("== deux onglets, l'un des trois du template ayant ete retire")
-attendu("Sacs et Saccoches", #f.onglets, 2)
+dire("== deux categories pour six emplacements")
+-- Les categories restent le modele (combien d'emplacements, ce qu'ils
+-- acceptent) ; c'est leur bande d'onglets qui a disparu.
+attendu("Sacs et Saccoches", #LCM.Inventaire.categories, 2)
+attendu("deux sacs et quatre sacoches", #f.cartes, 6)
 
 dire("== le joueur voit, n'y touche pas")
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
-f.onglets[1]:Click()
+f:Rafraichir()
+-- Un emplacement OCCUPE s'ouvre au clic droit, joueur comme MJ : il n'y a plus
+-- de menu a cet endroit.
+LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
 f.cartes[1]:Click("RightButton")
-libelles = {}
-for _, l in ipairs(menu.lignes) do if l:IsShown() then libelles[#libelles + 1] = l.texte:GetText() end end
-attendu("menu joueur", table.concat(libelles, ","), "Ouvrir,Voir")
+attendu("le sac s'ouvre", LCM.UI.Inventaires.sacs["sacs_1"]:IsShown(), true)
+LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
+-- Un emplacement VIDE garde son menu : il n'y a rien a ouvrir, et c'est la
+-- qu'on choisit quoi y mettre.
+f.cartes[4]:Click("RightButton")
+attendu("rien a ouvrir, rien a proposer au joueur", menu:IsShown(), false)
 menu:Hide()
 local Comp2 = LCM.UI.Compendium.Ouvrir("ressources")
 __souris.LeftButton = true

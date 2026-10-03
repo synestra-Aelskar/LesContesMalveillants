@@ -18,11 +18,15 @@ LCM.Canal = Canal
 -- Quatre, et pas davantage : ce sont ceux ou l'on joue. Un canal retire d'ici
 -- et retrouve dans une vieille sauvegarde retombe sur Local — `Get` rend le
 -- premier quand il ne connait pas.
+-- `lettre` et `couleur` : la pastille de la fiche. Une lettre et une teinte
+-- suffisent a dire ou part un jet, et tiennent dans un coin — un bouton large
+-- avec « Raid » ecrit dedans prenait la moitie de l'en-tete pour une chose
+-- qu'on regle une fois par seance.
 Canal.LISTE = {
-    { id = "local", label = "Local" },
-    { id = "emote", label = "Emote",  type = "EMOTE" },
-    { id = "party", label = "Groupe", type = "PARTY" },
-    { id = "raid",  label = "Raid",   type = "RAID" },
+    { id = "local", label = "Local",  lettre = "L", couleur = { 1.00, 1.00, 1.00 } },
+    { id = "emote", label = "Emote",  type = "EMOTE", lettre = "E", couleur = { 0.98, 0.86, 0.30 } },
+    { id = "party", label = "Groupe", type = "PARTY", lettre = "G", couleur = { 0.38, 0.62, 0.98 } },
+    { id = "raid",  label = "Raid",   type = "RAID",  lettre = "R", couleur = { 0.98, 0.60, 0.20 } },
 }
 
 function Canal.Get(id)

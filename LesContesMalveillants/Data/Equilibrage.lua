@@ -172,6 +172,26 @@ E.sauts = {
     vertical   = { diviseurForce = 2, diviseurAdresse = 4 },
 }
 
+-- ===== Experience =========================================================
+-- A VALIDER. Le template n'a AUCUNE table d'experience de personnage : il n'a
+-- que celle des metiers, juste en dessous. Ces paliers sont donc le seul
+-- chiffre de ce fichier qui ne vienne de nulle part — a trancher en jeu.
+--
+-- Les paliers sont CUMULATIFS : `xp` est le total qu'il faut avoir amasse pour
+-- etre de ce niveau. La forme suit celle des metiers (chaque palier coute a
+-- peu pres le double du precedent), parce qu'on sait deja qu'elle tient a
+-- l'usage dans cette campagne.
+E.experience = {
+    niveauDepart = 5,
+    paliers = {
+        { niveau = 6,  xp = 100 },
+        { niveau = 7,  xp = 250 },
+        { niveau = 8,  xp = 500 },
+        { niveau = 9,  xp = 1000 },
+        { niveau = 10, xp = 2000 },
+    },
+}
+
 -- ===== Metiers ============================================================
 -- Table « XP METIER » du template : l'XP pour PASSER au palier suivant
 -- (incrementale). La couleur suit le nom du palier.

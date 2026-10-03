@@ -150,9 +150,13 @@ end
 local function Construire(vue, rang)
     local f = UI.Fenetre("vue_" .. vue.id, vue.titre, vue.largeur, vue.hauteur,
         { x = 180 + rang * DECALAGE, y = -rang * DECALAGE },
-        { redimensionnable = vue.sommaire })
+        { redimensionnable = true })
     f.vue = vue
     f.nom = f.sousTitre
+    -- Une hauteur deja retenue en sauvegarde est un choix du joueur : on ne la
+    -- recalcule pas sous ses yeux a la premiere ouverture.
+    local memoire = LCM.db and LCM.db.fenetres and LCM.db.fenetres["vue_" .. vue.id]
+    f.hauteurChoisie = type(memoire) == "table" and tonumber(memoire.hauteur) ~= nil or nil
     local largeurContenu = vue.largeur - 24
 
     -- Le canal des jets, en haut a droite comme dans le modele. Il ne regarde
@@ -160,9 +164,10 @@ local function Construire(vue, rang)
     -- a lancer.
     local haut = 0
     if not vue.sansPersonnage then
-        f.canalLabel = UI.Texte(f.contenu, "Canal :", UI.C.discret)
-        UI.Police(f.canalLabel, 11)
-        f.canal = UI.Bouton(f.contenu, "", 110, 20, function(self)
+        -- Une pastille dans l'EN-TETE, a gauche, en miroir de la croix de
+        -- fermeture : meme taille, meme retrait du coin. Elle est ainsi sur la
+        -- ligne du titre, et ne prend rien au contenu.
+        f.canal = UI.Bouton(f, "", 20, 20, function(self)
             local options = {}
             for _, canal in ipairs(LCM.Canal.LISTE) do
                 options[#options + 1] = { id = canal.id, label = canal.label }
@@ -172,20 +177,24 @@ local function Construire(vue, rang)
                 f:ActualiserCanal()
             end)
         end)
-        f.canal:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 0)
-        f.canalLabel:SetPoint("RIGHT", f.canal, "LEFT", -6, 0)
+        local qCanal = (vue.largeur or 420) / 845
+        f.canal:SetSize(f.fermer:GetWidth(), f.fermer:GetHeight())
+        f.canal:SetPoint("TOPLEFT", f, "TOPLEFT", 6 * qCanal, -6 * qCanal)
+        -- Au-dessus de l'habillage, comme la croix : l'ornement du coin passait
+        -- sinon par-dessus.
+        f.canal:SetFrameLevel(f:GetFrameLevel() + 6)
         f.canalMenu = UI.Choix("canal_" .. vue.id, "Canal des jets")
 
         function f:ActualiserCanal()
             local canal = LCM.Canal.Actuel()
-            self.canal.label:SetText(canal.label)
-            -- Un canal indisponible (pas de groupe, pas de guilde) se voit :
-            -- sinon on lance dans le vide sans comprendre.
-            local teinte = LCM.Canal.Disponible(canal) and UI.C.titre or UI.C.plein
+            self.canal.label:SetText(canal.lettre or "?")
+            -- Sa couleur, sauf s'il n'est pas disponible (pas de groupe, pas de
+            -- raid) : rouge, pour qu'on ne lance pas dans le vide sans le voir.
+            local teinte = LCM.Canal.Disponible(canal) and (canal.couleur or UI.C.titre) or UI.C.plein
             self.canal.label:SetTextColor(teinte[1], teinte[2], teinte[3])
+            UI.Bulle(self.canal, "Canal des jets", canal.label)
         end
         f:ActualiserCanal()
-        haut = 26
     end
 
     -- Une vue en sommaire (les Regles) range ses chapitres a gauche plutot que
@@ -208,10 +217,11 @@ local function Construire(vue, rang)
         f.barre = UI.BandeauOnglets(f.contenu, onglets, function(id) f:Afficher(id) end)
         f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
         f.barre:SetWidth(largeurContenu)
-        haut = haut + f.barre:Disposer(largeurContenu, f.mesures.onglet) + 10
+        haut = haut + f.barre:Disposer(largeurContenu, f.mesures.onglet) + 6
     end
 
     f.zone = UI.Defilement(f.contenu)
+    f.hautZone = haut
     f.zone:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", gauche, -haut)
     f.zone:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
     if f.sommaire then
@@ -240,6 +250,27 @@ local function Construire(vue, rang)
         -- Apres la page : le sommaire lit la place des blocs, qui n'est connue
         -- qu'une fois la page disposee.
         if self.sommaire then self.sommaire:Actualiser() end
+        self:AjusterHauteur()
+    end
+
+    -- La fenetre prend la hauteur de son contenu : on ne fait pas defiler une
+    -- fiche, on la lit. Elle s'arrete a 85 % de l'ecran — au-dela, le
+    -- defilement reprend son role, c'est pour ca qu'il reste.
+    --
+    -- Des que le joueur a tire la poignee, c'est SA hauteur qui vaut : on ne
+    -- vient pas corriger derriere lui a chaque changement d'onglet.
+    function f:AjusterHauteur()
+        if vue.sommaire or self.hauteurChoisie then return end
+        local page = self.onglet and self.pages[self.onglet]
+        if not page then return end
+        -- Ce que l'habillage prend, plus ce qui est pose au-dessus de la zone
+        -- (pastille de canal, bande d'onglets). Calcule, pas mesure : les
+        -- hauteurs d'ancrage ne sont pas lisibles partout.
+        local chrome = (self.insetHaut or 0) + (self.insetBas or 0) + (self.hautZone or 0)
+        local voulue = chrome + page.hauteur
+        local plafond = (UIParent and UIParent:GetHeight() or 1080) * 0.85
+        self:SetHeight(math.max(160, math.min(voulue, plafond)))
+        self.zone:Regler(page.hauteur)
     end
 
     function f:Montrer(entity)
@@ -268,6 +299,18 @@ local function Construire(vue, rang)
     -- regles n'a pas de raison de tenir dans la fenetre que j'ai choisie.
     -- Reserve au sommaire : les pages de fiche gardent les colonnes du depart
     -- (voir page:Largeur), les etirer ferait mentir leurs mesures.
+    -- Une vue de fiche se tire en HAUTEUR seulement : ses colonnes sont
+    -- calculees a la construction et ne sauraient pas suivre un elargissement
+    -- (voir page:Largeur). Tirer vers le haut rend le defilement a ce qui
+    -- depasse ; c'est a ca qu'il sert une fois la hauteur automatique en place.
+    if not vue.sommaire then
+        UI.Redimensionner(f, vue.largeur, 160, function()
+            f.hauteurChoisie = true
+            local page = f.onglet and f.pages[f.onglet]
+            if page then f.zone:Regler(page.hauteur) end
+        end, vue.largeur)
+    end
+
     if vue.sommaire then
         UI.Redimensionner(f, 420, 320, function()
             local l = f.contenu:GetWidth() - gauche

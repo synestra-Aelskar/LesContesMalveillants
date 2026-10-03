@@ -60,7 +60,7 @@ attendu("creation bloquee", f.valider:IsEnabled(), false)
 attendu("et on dit pourquoi", f.probleme:GetText(), "il faut un nom.")
 g.nom:Saisir("Ysolde")
 attendu("nom retenu", f.brouillon.nom, "Ysolde")
-attendu("il manque encore la race", f.probleme:GetText(), "il faut choisir une race, ou la saisir.")
+attendu("il manque encore la race", f.probleme:GetText(), "il faut choisir une race.")
 -- On la glisse depuis le compendium : un trait est refuse, une race acceptee.
 local Comp = LCM.UI.Compendium.Ouvrir("traits")
 local ligne = Comp.rangees[1]
@@ -82,7 +82,10 @@ g.race.__survol = nil
 attendu("race retenue", f.brouillon.race, "humain")
 attendu("la case la montre", g.race.nom:GetText(), "Humain")
 Comp:Hide()
-attendu("creation possible", f.valider:IsEnabled(), true)
+-- Depuis le 3 octobre 2026, un nom et une race ne suffisent plus : tant qu'il
+-- reste des points a placer, le bouton reste eteint, et il dit lequel.
+attendu("creation refusee : des points trainent", f.valider:IsEnabled(), false)
+attendu("et on dit pourquoi", f.probleme:GetText():find("il reste") ~= nil, true)
 g.age:Saisir("28")
 attendu("age retenu", f.brouillon.valeurs.age, 28)
 g.poids:Saisir("64")
@@ -104,7 +107,7 @@ g.niveau.saisie:Saisir("7")
 attendu("niveau 7 retenu", f.brouillon.niveau, 7)
 attendu("budget au niveau 7 (17 + 3 x 7)", g.infos[1].valeur:GetText(), "38")
 g.niveau.saisie:Saisir("5")
-attendu("creation de nouveau possible", f.valider:IsEnabled(), true)
+attendu("toujours refusee tant qu'il reste des points", f.valider:IsEnabled(), false)
 
 dire("== Generale : la tabulation passe d'un champ a l'autre")
 local g = f.pages.generale
@@ -136,12 +139,10 @@ LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 f:Actualiser()
 
-dire("== Generale : une race hors compendium se saisit")
-attendu("le champ est la", g.raceLibre ~= nil, true)
-g.raceLibre:Saisir("Sylvain des cimes")
-attendu("retenue", f.brouillon.raceLibre, "Sylvain des cimes")
-g.raceLibre:Saisir("")
-attendu("effacee", f.brouillon.raceLibre, nil)
+dire("== Generale : la race se choisit, elle ne se tape pas")
+-- La saisie libre a ete retiree le 3 octobre 2026 : une race tapee a la main
+-- n'apportait ni bonus ni morphologie, et laissait croire le contraire.
+attendu("plus de champ libre", g.raceLibre, nil)
 
 dire("== Generale : choisir sa race dans le compendium")
 local slot = f.pages.generale.race
@@ -357,7 +358,60 @@ attendu("la race aussi", f.brouillon.race, "humain")
 
 dire("== creer le personnage")
 attendu("plus de debordement", #LCM.Creation.Debordements(f.brouillon), 0)
-attendu("creation possible", f.valider:IsEnabled(), true)
+-- Tant qu'il reste un point quelque part, non.
+attendu("refusee avec des points en poche", f.valider:IsEnabled(), false)
+
+local C2 = LCM.Creation
+for _, categorie in ipairs(C2.CATEGORIES) do
+    if categorie == "traits" then
+        while C2.PeutEncoreDepenser(f.brouillon, "traits") do
+            local pris = false
+            for _, trait in ipairs(LCM.Traits.list) do
+                if (trait.cout or 1) <= C2.Budget(f.brouillon, "traits").reste
+                    and not C2.ATrait(f.brouillon, trait.id) then
+                    C2.AjouterTrait(f.brouillon, trait.id) pris = true break
+                end
+            end
+            if not pris then break end
+        end
+    else
+        while C2.PeutEncoreDepenser(f.brouillon, categorie) do
+            local pose = false
+            for _, ligne in ipairs(C2.Lignes(categorie)) do
+                local id = ligne.id or ligne
+                if C2.Maximum(f.brouillon, categorie, id) > C2.Valeur(f.brouillon, id) then
+                    C2.Definir(f.brouillon, categorie, id, C2.Maximum(f.brouillon, categorie, id))
+                    pose = true break
+                end
+            end
+            if not pose then break end
+        end
+    end
+end
+f:Actualiser()
+
+dire("   la navigation d'une etape a l'autre")
+f:Afficher(LCM.Creation.ETAPES[1].id)
+attendu("sur la premiere, on ne recule pas", f.precedent:IsEnabled(), false)
+attendu("et « Créer » ne s'y montre pas", f.valider:IsShown(), false)
+attendu("c'est « Suivant » qui occupe la place", f.suivant:IsShown(), true)
+f.suivant:Click()
+attendu("une etape plus loin", f.etape, LCM.Creation.ETAPES[2].id)
+f.precedent:Click()
+attendu("et on revient", f.etape, LCM.Creation.ETAPES[1].id)
+-- Jusqu'au bout : « Suivant » disparait, « Créer » apparait.
+for _ = 1, #LCM.Creation.ETAPES do f.suivant:Click() end
+attendu("arrive a la derniere", f.etape, LCM.Creation.ETAPES[#LCM.Creation.ETAPES].id)
+attendu("on n'avance plus", f.suivant:IsShown(), false)
+attendu("« Créer le personnage » est la", f.valider:IsShown(), true)
+attendu("tout place : creation possible", f.valider:IsEnabled(), true)
+
+dire("   les gestes qui defont sont a gauche, sous le recapitulatif")
+local _, ancre = f.abandonner:GetPoint(1)
+attendu("Abandonner est ancre au contenu", ancre == f.contenu, true)
+attendu("et large comme le recapitulatif", f.abandonner:GetWidth(), f.recap:GetWidth())
+local _, ancreRemise = f.remiseTotale:GetPoint(1)
+attendu("la remise a zero est au-dessus", ancreRemise == f.abandonner, true)
 f.valider:Click()
 attendu("la fenetre se ferme", f:IsShown(), false)
 attendu("le personnage existe", LCM.Personnages.Compte(), 1)

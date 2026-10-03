@@ -61,7 +61,10 @@ attendu("blocs", table.concat(titres, ", "),
     "GÉNÉRALE, HABILITÉS, STATISTIQUES, CARACTÉRISTIQUES, DÉPLACEMENT")
 local generale = {}
 for _, l in ipairs(page.blocs[1].lignes) do generale[#generale + 1] = l.field.id end
-attendu("Generale", table.concat(generale, ","), "corps,armure,armure_portee,fatigue,pa")
+attendu("Generale", table.concat(generale, ","), "corps,armure,fatigue,pa")
+-- La jauge d'armure portee existe toujours dans le schema : c'est la ligne de
+-- la fiche qu'on a retiree le 3 octobre 2026, pas la mecanique.
+attendu("le champ existe encore", LCM.Schema.Field("armure_portee") ~= nil, true)
 local corps = page.blocs[1].lignes[1]
 attendu("les PV seuls (les zones sont dans Sante)", #corps.zones, 0)
 attendu("jauge des PV", corps.total.barre.label:GetText(), "42 / 42")

@@ -27,6 +27,10 @@ local Brouillons = MJ.Brouillons
 
 local Editeur = {}
 MJ.CompendiumEditeur = Editeur
+-- Expose comme LCM.Brouillons l'est : le compagnon vit dans son propre espace,
+-- mais ce qu'il ouvre doit etre atteignable depuis l'addon de base (et depuis
+-- le banc, qui ne connait que LCM).
+LCM.CompendiumEditeur = Editeur
 
 local LARGEUR, HAUTEUR, MIN_L, MIN_H = 760, 640, 650, 500
 
@@ -355,16 +359,38 @@ local function Construire(parent)
     UI.BordureFine(ic, 0.2)
     ic.lbl = Libelle(ic, "Icone")
     ic.lbl:SetPoint("TOPLEFT", ic, "TOPLEFT", 12, -8)
-    ic.apercu = ic:CreateTexture(nil, "ARTWORK")
-    ic.apercu:SetSize(26, 26)
-    ic.apercu:SetPoint("TOPLEFT", ic, "TOPLEFT", 16, -26)
-    UI.BordureFine(CreateFrame("Frame", nil, ic), 0.4)
+    -- L'apercu est un BOUTON : on clique dessus et on choisit, comme dans
+    -- Necronicon et comme dans l'atelier. Taper un chemin a la main reste
+    -- possible — c'est plus rapide quand on connait deja le nom — mais ce ne
+    -- peut pas etre le seul moyen.
+    ic.apercuBouton = CreateFrame("Button", nil, ic)
+    ic.apercuBouton:SetSize(26, 26)
+    ic.apercuBouton:SetPoint("TOPLEFT", ic, "TOPLEFT", 16, -26)
+    UI.BordureFine(ic.apercuBouton, 0.4)
+    ic.apercu = ic.apercuBouton:CreateTexture(nil, "ARTWORK")
+    ic.apercu:SetPoint("TOPLEFT", ic.apercuBouton, "TOPLEFT", 1, -1)
+    ic.apercu:SetPoint("BOTTOMRIGHT", ic.apercuBouton, "BOTTOMRIGHT", -1, 1)
+    ic.apercu:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    ic.apercuBouton.survol = UI.Aplat(ic.apercuBouton, UI.C.survol, "HIGHLIGHT")
+    ic.apercuBouton.survol:SetAllPoints(ic.apercuBouton)
+    UI.Bulle(ic.apercuBouton, "Icône", "Clic : choisir dans la liste.")
+    ic.selecteur = UI.SelecteurIcone("compendium_entree")
+    ic.apercuBouton:SetScript("OnClick", function(self)
+        -- En lecture seule (contenu publie), on ne propose rien : l'entree se
+        -- duplique d'abord.
+        if f.lecture then LCM.Alerte("contenu publié : duplique-le pour le modifier.") return end
+        ic.selecteur:Proposer(self, function(chemin)
+            f.travail.e.icone = Texte(chemin) ~= "" and chemin or nil
+            ic.chemin:SetText(chemin or "")
+            ic.apercu:SetTexture(LCM.Icone(chemin))
+        end)
+    end)
     ic.chemin = UI.Champ(ic, 300, 20, function(texte)
         f.travail.e.icone = Texte(texte) ~= "" and texte or nil
         ic.apercu:SetTexture(LCM.Icone(texte))
     end)
     ic.chemin:SetMaxLetters(160)
-    ic.chemin:SetPoint("LEFT", ic.apercu, "RIGHT", 12, 0)
+    ic.chemin:SetPoint("LEFT", ic.apercuBouton, "RIGHT", 12, 0)
     ic.aide = UI.Texte(ic, "nom court (INV_Sword_05) ou chemin complet", UI.C.discret, "GameFontNormalSmall")
     ic.aide:SetPoint("LEFT", ic.chemin, "RIGHT", 10, 0)
 
@@ -429,6 +455,9 @@ function Editeur.Comportement(f)
     -- Les onglets presents : General, puis un par genre de champ.
     function f:Onglets()
         local out = { { id = "general", label = "Général" } }
+        -- Une categorie peut tout tenir dans « Général » : deux onglets pour
+        -- trois champs, c'est un clic pour rien. C'est le cas des sacs.
+        if self.travail.categorie and self.travail.categorie.ongletUnique then return out end
         local presents = {}
         for _, champ in ipairs(Champs(self.travail.categorie)) do
             local genre = GenreDe(champ)
@@ -551,7 +580,15 @@ function Editeur.Comportement(f)
         else
             self.zoneOnglets:Show()
             hauteurOnglets = self:RangerOnglets()
-            if self.onglet ~= "general" then
+            -- Onglet unique : l'identite ET tous les champs sur la meme page.
+            -- Ce n'est pas « on cache les autres onglets », c'est « il n'y en a
+            -- qu'un, et il porte tout ».
+            if categorie.ongletUnique then
+                for _, champ in ipairs(Champs(categorie)) do
+                    champsVisibles[#champsVisibles + 1] = champ
+                end
+                self.zoneDossiers:Hide()
+            elseif self.onglet ~= "general" then
                 local duGenre = {}
                 for _, champ in ipairs(Champs(categorie)) do
                     if GenreDe(champ) == self.onglet then duGenre[#duGenre + 1] = champ end

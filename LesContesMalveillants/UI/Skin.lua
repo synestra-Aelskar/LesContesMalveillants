@@ -406,7 +406,7 @@ end
 -- 26, texte de 12, icones de 20, dans une fenetre de ~390. C'est la densite a
 -- laquelle on joue ; au-dessus, la meme fiche demande deux fois plus d'ecran
 -- pour dire la meme chose.
-local LIGNE_MAX, ICONE_MAX = 26, 20
+local LIGNE_MAX, ICONE_MAX, POLICE_MIN = 24, 16, 10
 
 -- Les colonnes de DROITE sont calees sur le bord droit de la ligne, pas sur
 -- leurs coordonnees du gabarit.
@@ -422,6 +422,7 @@ function UI.AelColonnes(largeur)
     local s = (tonumber(largeur) or 786) / 786
     local fin = tonumber(largeur) or 786
     local ecart = 4
+    local iconeTaille = math.min(ICONE_MAX, 50 * s)
 
     local actionLargeur = 110 * s
     local modificateurLargeur = 85 * s
@@ -442,9 +443,14 @@ function UI.AelColonnes(largeur)
     return {
         echelle = s,
         ligne = math.min(LIGNE_MAX, 62 * s),
-        police = math.min(POLICE_MAX, 24 * s),
-        icone = 8 * s, iconeTaille = math.min(ICONE_MAX, 50 * s), separateur = 72 * s,
-        nom = 96 * s, nomSansIcone = 24 * s, nomLargeur = 205 * s,
+        -- Le texte a un PLAFOND et un PLANCHER : au-dessus il mange l'ecran,
+        -- en dessous il ne se lit plus. Entre les deux il suit la fenetre.
+        police = math.max(POLICE_MIN, math.min(POLICE_MAX, 24 * s)),
+        icone = 8 * s, iconeTaille = iconeTaille, separateur = 72 * s,
+        -- Le nom commence apres l'icone REELLE, pas a la place que le gabarit
+        -- lui donnait : l'icone est plafonnee, et garder son ancienne colonne
+        -- laissait un trou a gauche et serrait le libelle a droite.
+        nom = 8 * s + iconeTaille + 10, nomSansIcone = 24 * s, nomLargeur = 205 * s,
         plage = plage, plageLargeur = plageLargeur,
         valeur = valeur, valeurLargeur = valeurLargeur,
         modificateur = modificateur, modificateurLargeur = modificateurLargeur,

@@ -80,6 +80,15 @@ function LCM.Catalogue(def)
                 -- Hors de ses categories, le champ n'existe pas.
             elseif champ.genre == "case" then
                 element[champ.cle] = brut == true or brut == 1 or brut == "1" or nil
+            elseif champ.genre == "choix" then
+                -- Un choix parmi des valeurs nommees : la nature d'un sac, par
+                -- exemple. Hors de la liste, c'est une faute de saisie, pas une
+                -- valeur a garder.
+                local valeur = brut == nil and defaut or tostring(brut)
+                if not (champ.valeurs and champ.valeurs[valeur]) then
+                    Erreur(string.format("%s : %s invalide (%s)", id, champ.libelle or champ.cle, tostring(brut)))
+                end
+                element[champ.cle] = valeur
             else
                 local valeur = brut == nil and defaut or tonumber(brut)
                 if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0) then

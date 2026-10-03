@@ -255,6 +255,36 @@ end
 
 LCM.AddCommand("parametres", "ouvre les parametres", function() Ecran.Basculer() end)
 
+-- Jouer, ce soir, comme tout le monde. Un MJ qui prend un personnage veut voir
+-- ce que ses joueurs voient : la commande met le compagnon en veille sans
+-- toucher a la liste des addons ni relancer le jeu.
+LCM.AddCommand("switch", "bascule entre maitre du jeu et joueur", function()
+    local ok, resultat = LCM.BasculerModeJoueur()
+    if not ok then LCM.Alerte(tostring(resultat)) return end
+    if resultat then
+        LCM.Ok("Mode joueur : le compagnon du maître du jeu est en veille.")
+    else
+        LCM.Ok("Mode maître du jeu : le compagnon répond de nouveau.")
+    end
+    -- Le menu et le lanceur relisent les droits a chaque ouverture : il suffit
+    -- de les refermer. Les fenetres deja ouvertes, elles, ne se redessinent pas
+    -- toutes seules — celles reservees au MJ se ferment, les autres se
+    -- rafraichissent.
+    if UI.Menu and UI.Menu.FermerVolets then UI.Menu.FermerVolets() end
+    for _, fenetre in ipairs(UI.fenetres or {}) do
+        if fenetre:IsShown() then
+            local noeud = fenetre.cle and UI.Menu and UI.Menu.Trouver and UI.Menu.Trouver(fenetre.cle)
+            if noeud and noeud.mjSeulement and not LCM.IsMaster() then
+                fenetre:Hide()
+            elseif fenetre.Rafraichir then
+                pcall(fenetre.Rafraichir, fenetre)
+            elseif fenetre.Actualiser then
+                pcall(fenetre.Actualiser, fenetre)
+            end
+        end
+    end
+end)
+
 LCM.WhenReady(function()
     UI.Menu.Lier("parametres", Ecran.Basculer)
 end)

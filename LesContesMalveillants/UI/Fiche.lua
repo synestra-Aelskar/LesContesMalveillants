@@ -20,7 +20,13 @@ local UI = LCM.UI
 local Fiche = {}
 UI.Fiche = Fiche
 
-local ECART_LIGNES = 6
+-- Les lignes se touchent, et les blocs aussi : Necronicon n'aere pas, et c'est
+-- ce qui lui permet de tenir la meme fiche dans moins de place. Le filet de
+-- chaque ligne suffit a les separer.
+-- Ce qu'on laisse entre la derniere valeur et le bord de la ligne.
+local MARGE_VALEUR = 8
+local ECART_LIGNES = 0
+local ECART_BLOCS = 4
 
 local function Nombre(valeur)
     local n = tonumber(valeur)
@@ -161,7 +167,9 @@ function Lignes.stat(parent, field, c)
     Nom(l, c, field.label, icone ~= nil)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police)
-    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur, 0)
+    -- Une marge a droite : calee pile sur le bord, la valeur touchait le filet
+    -- du bloc et se lisait mal.
+    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur - MARGE_VALEUR, 0)
     l.valeur:SetJustifyH("RIGHT")
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
@@ -582,7 +590,9 @@ function Lignes.recap(parent, field, c, mode)
     UI.Police(l.nom, c.police * 0.85)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police * 0.85)
-    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur, 0)
+    -- Une marge a droite : calee pile sur le bord, la valeur touchait le filet
+    -- du bloc et se lisait mal.
+    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur - MARGE_VALEUR, 0)
     l.valeur:SetJustifyH("RIGHT")
     function l:Actualiser(e)
         local total = Fiche.Total(e, field, mode)
@@ -847,7 +857,7 @@ function Fiche.Bloc(parent, section, largeur)
             b.gemme:SetSize(9, 9)
             b.gemme:SetPoint("TOP", b, "TOP", 0, 5)
         end
-        b.titre = UI.Texte(b, UI.Majuscules(section.label), UI.C.titre)
+        b.titre = UI.Texte(b, UI.Majuscules(section.label), UI.C.titreBloc)
         UI.Police(b.titre, m.titre * 0.8)
         b.titre:SetPoint("TOPLEFT", b, "TOPLEFT", math.max(14, 26 * m.echelle), -(b.hautTitre - 4) / 2 + 2)
         if UI.AelRef then
@@ -996,9 +1006,9 @@ function Fiche.Page(parent, sections, largeur)
             bloc:ClearAllPoints()
             bloc:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             bloc:SetSize(largeur, hauteur)
-            y = y + hauteur + 14
+            y = y + hauteur + ECART_BLOCS
         end
-        self.hauteur = math.max(1, y - 14)
+        self.hauteur = math.max(1, y - ECART_BLOCS)
         if self.onHauteur then self.onHauteur(self.hauteur) end
     end
 

@@ -13,6 +13,7 @@ Core\Commands.lua
 Core\Schema.lua
 Core\Entities.lua
 Core\Personnages.lua
+Core\Experience.lua
 Core\Identite.lua
 Core\Portraits.lua
 Core\Effets.lua
@@ -62,6 +63,7 @@ Data\Documents.lua
 Data\Vues.lua
 Data\Grimoires.lua
 Data\Compendium.lua
+Data\Sacs.lua
 Data\Inventaire.lua
 # Contenu genere par loutil dexport (voir Data\Genere)
 Data\Genere\Races.lua

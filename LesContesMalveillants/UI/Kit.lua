@@ -16,6 +16,9 @@ UI.C = {
     fondClair   = { 1, 1, 1, 0.04 },
     bordure     = { 0.78, 0.64, 0.36, 0.55 },
     titre       = { 0.95, 0.85, 0.63 },
+    -- Le titre d'un bloc de fiche : #CCB366, releve sur Necronicon. Il est plus
+    -- sourd que `titre`, qui sert aux valeurs et aux en-tetes de fenetre.
+    titreBloc   = { 0.80, 0.70, 0.40 },
     texte       = { 0.88, 0.84, 0.76 },
     discret     = { 0.60, 0.56, 0.50 },
     accent      = { 0.83, 0.68, 0.33 },
@@ -209,7 +212,7 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- Plafonnee a 32 : a 54 unites de l'atlas, une fenetre large porte une
     -- croix de 46 px qui mange l'en-tete et vient mordre sur le titre. Une
     -- croix n'a pas besoin de grandir avec la fenetre, on sait ce qu'elle fait.
-    local cote = math.max(18, math.min(24, 54 * q))
+    local cote = math.max(14, math.min(18, 54 * q))
     f.fermer:SetSize(cote, cote)
     f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -6 * q, -6 * q)
     -- Au-dessus de l'habillage : l'ornement du coin passait par-dessus la croix
@@ -225,8 +228,14 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
 
     -- Le contenu commence sous le filet, la ou le modele pose ses onglets.
     f.contenu = CreateFrame("Frame", nil, f)
-    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, options.enTeteSimple and -38 or -m.bandeau)
-    f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, 12)
+    -- Les marges sont retenues : une fenetre qui veut prendre la hauteur de son
+    -- contenu doit savoir ce que son habillage lui prend, et le DEDUIRE des
+    -- ancrages demande une geometrie d'ecran qu'on n'a pas toujours (au banc,
+    -- jamais).
+    f.insetHaut = options.enTeteSimple and 38 or m.bandeau
+    f.insetBas = 12
+    f.contenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -f.insetHaut)
+    f.contenu:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -12, f.insetBas)
     f.mesures = m
 
     -- Position retenue.
@@ -567,6 +576,10 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     if type(rappels) == "function" then rappels = { change = rappels } end
     rappels = rappels or {}
 
+    -- `rappels.serre` : le chiffre a l'etroit (« 0 / 3 » tient dans 38). Sert
+    -- quand plusieurs compteurs se partagent une ligne.
+    local largeurChiffre = rappels.serre and 38 or 52
+
     local l = CreateFrame("Frame", nil, parent)
     l:SetHeight(20)
     l.valeur, l.plafond = 0, 0
@@ -583,7 +596,7 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
 
     -- Ce que la ligne occupe apres le libelle : R, -, le chiffre, +, M.
     -- Utile pour decider ce qui tient encore a droite dans une colonne etroite.
-    l.largeurBoutons = 136
+    l.largeurBoutons = 84 + largeurChiffre
 
     local function Poser(valeur)
         if valeur < 0 then return end
@@ -599,7 +612,7 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
 
     l.chiffre = UI.Texte(l, "0", UI.C.titre, "GameFontNormalSmall")
     l.chiffre:SetPoint("LEFT", l.moins, "RIGHT", 4, 0)
-    l.chiffre:SetWidth(52)
+    l.chiffre:SetWidth(largeurChiffre)
     l.chiffre:SetJustifyH("CENTER")
 
     l.plus = UI.Bouton(l, "+", 16, 16, function() Poser(l.valeur + 1) end)
@@ -962,9 +975,13 @@ end
 -- Poignee de redimensionnement en bas a droite (18 x 18, a 4 du bord). La
 -- taille finale est retenue avec la position de la fenetre ; `onFin` est
 -- appele quand on lache, pour que la fenetre se remette en page une fois.
-function UI.Redimensionner(f, minL, minH, onFin)
+-- `maxL` / `maxH` : des bornes hautes, facultatives. Verrouiller la LARGEUR
+-- (maxL = minL) laisse une poignee qui ne change que la hauteur : c'est ce
+-- qu'il faut pour une fiche, dont les colonnes sont calculees a la
+-- construction et ne sauraient pas suivre un elargissement.
+function UI.Redimensionner(f, minL, minH, onFin, maxL, maxH)
     f:SetResizable(true)
-    if f.SetResizeBounds then f:SetResizeBounds(minL, minH) end
+    if f.SetResizeBounds then f:SetResizeBounds(minL, minH, maxL, maxH) end
     local poignee = CreateFrame("Button", nil, f)
     poignee:SetSize(18, 18)
     poignee:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
@@ -981,9 +998,11 @@ function UI.Redimensionner(f, minL, minH, onFin)
         f.enRedimension = nil
         f:StopMovingOrSizing()
         -- Jamais plus petit que le minimum, meme si le client l'a laisse passer.
-        if f:GetWidth() < minL or f:GetHeight() < minH then
-            f:SetSize(math.max(minL, f:GetWidth()), math.max(minH, f:GetHeight()))
-        end
+        -- Jamais plus petit que le minimum ni plus grand que le maximum, meme
+        -- si le client a laisse passer.
+        local l = math.max(minL, math.min(maxL or math.huge, f:GetWidth()))
+        local h = math.max(minH, math.min(maxH or math.huge, f:GetHeight()))
+        if l ~= f:GetWidth() or h ~= f:GetHeight() then f:SetSize(l, h) end
         if f.cle then
             LCM.EnsureDatabase()
             LCM.db.fenetres = type(LCM.db.fenetres) == "table" and LCM.db.fenetres or {}

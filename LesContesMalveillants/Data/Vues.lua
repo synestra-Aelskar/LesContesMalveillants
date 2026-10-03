@@ -68,12 +68,16 @@ Vues.Add({
 -- Deplacement), FACULTES (Physiques), TRAITS.
 Vues.Add({
     id = "fiche", titre = "Fiche",
-    largeur = 380, hauteur = 500,
+    largeur = 340, hauteur = 470,
     onglets = {
         { id = "statistiques", label = "Statistiques", blocs = {
             -- La jauge des PV seule : les zones sont dans Sante. La surcharge
             -- des PV n'apparait qu'au MJ.
-            { label = "Générale", champs = { { id = "corps", zones = false }, "armure", "armure_portee", "fatigue", "pa" } },
+            -- La jauge « Armure » a quitte la fiche le 3 octobre 2026 : elle n'existe
+            -- pas sur celle de Necronicon. La mecanique, elle, reste (valeur par
+            -- piece, usure conservee, repartition d'une attaque) : c'est la LIGNE
+            -- qu'on retire, pas la regle.
+            { label = "Générale", champs = { { id = "corps", zones = false }, "armure", "fatigue", "pa" } },
             { label = "Habilités", champs = { "adresse", "esprit" } },
             { label = "Statistiques", champs = { "force", "mystique", "perception", "constitution" } },
             { label = "Caractéristiques", champs = { "initiative" } },
@@ -92,7 +96,7 @@ Vues.Add({
 -- Ame et les etats intangibles) — les quatre onglets du template.
 Vues.Add({
     id = "sante", titre = "Santé",
-    largeur = 372, hauteur = 480,
+    largeur = 336, hauteur = 450,
     onglets = {
         { id = "physique", label = "Physique", blocs = {
             { label = "Parties corporelles", champs = { { id = "corps", total = false } } },
@@ -111,7 +115,7 @@ Vues.Add({
 -- Equipements : Armes, Armures, Accessoires (1 / 5 / 5 emplacements).
 Vues.Add({
     id = "equipement", titre = "Équipements",
-    largeur = 380, hauteur = 480,
+    largeur = 340, hauteur = 450,
     onglets = {
         { id = "arme",       label = "Armes",       blocs = { { conteneur = { "objets", "arme" } } } },
         { id = "equipement", label = "Armures",     blocs = { { conteneur = { "objets", "equipement" } } } },
@@ -122,14 +126,14 @@ Vues.Add({
 -- Apprentissage : un conteneur de 60 emplacements.
 Vues.Add({
     id = "apprentissage", titre = "Apprentissage",
-    largeur = 380, hauteur = 490,
+    largeur = 340, hauteur = 460,
     blocs = { { conteneur = { "apprentissages", "apprentissage" }, label = "Apprentissages" } },
 })
 
 -- Expertises : un onglet par domaine.
 Vues.Add({
     id = "expertise", titre = "Expertises",
-    largeur = 380, hauteur = 490,
+    largeur = 340, hauteur = 460,
     onglets = {
         { id = "observations", label = "Observations", blocs = { { section = { "expertises", "observations" } } } },
         { id = "athletisme",   label = "Athlétisme",   blocs = { { section = { "expertises", "athletisme" } } } },
@@ -140,7 +144,7 @@ Vues.Add({
 -- Penetration & Resistances : les resistances d'abord, comme le template.
 Vues.Add({
     id = "penetrations_resistances", titre = "Pénétration & Résistances",
-    largeur = 380, hauteur = 490,
+    largeur = 340, hauteur = 460,
     onglets = {
         { id = "resistances",  label = "Résistances",  blocs = { { onglet = "resistances" } } },
         { id = "penetrations", label = "Pénétrations", blocs = { { onglet = "penetrations" } } },
@@ -151,7 +155,7 @@ Vues.Add({
 -- Necronicon, Deplacement.lua) ; ici, ses deux valeurs en attendant.
 Vues.Add({
     id = "deplacement", titre = "Déplacement",
-    largeur = 360, hauteur = 250,
+    largeur = 330, hauteur = 240,
     blocs = {
         { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
     },
@@ -173,7 +177,7 @@ do
 
     Vues.Add({
         id = "statistiques", titre = "Statistiques",
-        largeur = 372, hauteur = 490,
+        largeur = 336, hauteur = 460,
         blocs = {
             { texte = "Ci-dessous, vous retrouverez le total de l'ensemble des statistiques de votre personnage." },
             { label = "Statistiques", recap = "total", replie = true,

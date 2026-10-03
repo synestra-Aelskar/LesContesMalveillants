@@ -142,7 +142,12 @@ attendu("la repulsion existe", LCM.Schema.Field("meca_repulsion").label, "Répul
 
 dire("== un brouillon incomplet ne cree rien")
 local n = C.Nouveau()
-attendu("sans nom ni race", #C.Problemes(n), 2)
+-- Nom, race, et les sept budgets encore entiers : neuf raisons de refuser.
+local raisons = C.Problemes(n)
+attendu("sans nom ni race", #raisons, 9)
+attendu("la premiere est le nom", raisons[1], "il faut un nom.")
+attendu("et on dit combien de points trainent",
+    table.concat(raisons, " "):find("il reste %d+ points? de statistiques a placer") ~= nil, true)
 attendu("creation refusee", (C.Appliquer(n)), nil)
 
 dire("== creation complete")
@@ -154,6 +159,46 @@ C.Definir(final, "secondaires", "sec_vitalite", 4)
 C.Definir(final, "expertises", "escalade", 3)
 C.Definir(final, "penetration", "pen_tranchant", 3)
 C.AjouterTrait(final, "escalade_jungle")
+-- Il reste des points partout : on ne cree pas un personnage a moitie fait.
+attendu("des points trainent encore", #C.Problemes(final) > 0, true)
+
+dire("== tout placer, jusqu'au dernier point")
+-- On vide chaque budget sur la premiere ligne qui veut bien le prendre.
+-- Les traits sont a part : ce ne sont pas des lignes a incrementer, mais une
+-- liste dans laquelle on pioche tant qu'un trait est abordable.
+for _, categorie in ipairs(C.CATEGORIES) do
+    if categorie == "traits" then
+        while C.PeutEncoreDepenser(final, "traits") do
+            local pris = false
+            for _, trait in ipairs(LCM.Traits.list) do
+                if (trait.cout or 1) <= C.Budget(final, "traits").reste
+                    and not C.ATrait(final, trait.id) then
+                    C.AjouterTrait(final, trait.id) pris = true break
+                end
+            end
+            if not pris then break end
+        end
+    else
+        while C.PeutEncoreDepenser(final, categorie) do
+            local pose = false
+            for _, ligne in ipairs(C.Lignes(categorie)) do
+                local id = ligne.id or ligne
+                local avant = C.Valeur(final, id)
+                local plafond = C.Maximum(final, categorie, id)
+                if plafond > avant then
+                    C.Definir(final, categorie, id, plafond) pose = true break
+                end
+            end
+            if not pose then break end
+        end
+    end
+end
+local restants = {}
+for _, categorie in ipairs(C.CATEGORIES) do
+    local reste = C.Budget(final, categorie).reste
+    if reste ~= 0 then restants[#restants + 1] = categorie .. "=" .. reste end
+end
+attendu("plus un point en poche", table.concat(restants, ","), "")
 attendu("aucun probleme", #C.Problemes(final), 0)
 local entity = C.Appliquer(final)
 attendu("personnage cree", entity ~= nil, true)
@@ -161,11 +206,15 @@ attendu("il est joue", LCM.Personnages.ActifId(), entity.id)
 attendu("sa race", LCM.Entities.Get_Value(entity, "race"), "humain")
 attendu("son niveau", LCM.Entities.Get_Value(entity, "niveau"), 5)
 attendu("sa constitution", LCM.Entities.Get_Value(entity, "constitution"), 6)
-attendu("sa vitalite", LCM.Entities.Get_Value(entity, "sec_vitalite"), 4)
-attendu("sa penetration tranchante", LCM.Entities.Get_Value(entity, "pen_tranchant"), 3)
+-- Le brouillon a ete rempli jusqu'au dernier point : on compare la fiche a ce
+-- qu'il contient, pas a des nombres ecrits d'avance qui ne survivent pas au
+-- premier changement d'equilibrage.
+attendu("sa vitalite", LCM.Entities.Get_Value(entity, "sec_vitalite"), C.Valeur(final, "sec_vitalite"))
+attendu("sa penetration tranchante", LCM.Entities.Get_Value(entity, "pen_tranchant"), C.Valeur(final, "pen_tranchant"))
 attendu("son trait", LCM.Traits.Has(entity, "escalade_jungle"), true)
--- PV = 2 + 1,5x5 + 0,25x6 + 3x4 = 23
-attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"), 42)
+-- Les PV suivent la formule de la fiche, appliquee aux valeurs transmises.
+attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"),
+    LCM.Schema.Field("pv_max").formula(entity))
 
 dire("== ce qui vaut le defaut n'est pas sauvegarde")
 local ecrits = 0

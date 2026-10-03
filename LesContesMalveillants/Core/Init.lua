@@ -31,9 +31,35 @@ end
 
 -- Vrai quand le compagnon MJ est installe. A n'appeler qu'apres le chargement
 -- des addons (le compagnon se charge APRES nous, il declare une dependance).
+-- « Je joue, ce soir. » Un MJ qui prend un personnage veut voir exactement ce
+-- que ses joueurs voient : pas de compendium, pas de Panel MJ, pas de case de
+-- niveau ouverte. Plutot que de desactiver l'addon compagnon et de relancer le
+-- jeu, on le met en veille — le compagnon reste charge, il ne repond plus.
+--
+-- C'est un reglage de COMPTE : on le retrouve apres un /reload, sinon on
+-- croirait etre joueur et on ne le serait plus.
+function LCM.ModeJoueur()
+    return LCM.db and LCM.db.settings and LCM.db.settings.modeJoueur == true
+end
+
 function LCM.IsMaster()
+    if LCM.ModeJoueur() then return false end
     if LCM._masterCompanion == true then return true end
     return IsAddOnPresent(LCM.MASTER_ADDON)
+end
+
+-- Bascule et rend le nouvel etat. `force` impose la valeur plutot que d'inverser.
+function LCM.BasculerModeJoueur(force)
+    LCM.EnsureDatabase()
+    local voulu = force
+    if voulu == nil then voulu = not LCM.ModeJoueur() end
+    -- Sans le compagnon, il n'y a rien a mettre en veille.
+    if voulu and not IsAddOnPresent(LCM.MASTER_ADDON) and LCM._masterCompanion ~= true then
+        return false, "tu n'as pas le compagnon du maître du jeu."
+    end
+    LCM.db.settings.modeJoueur = voulu or nil
+    if LCM.onModeJoueur then LCM.onModeJoueur(voulu) end
+    return true, voulu
 end
 
 -- ===== Sauvegarde ==========================================================

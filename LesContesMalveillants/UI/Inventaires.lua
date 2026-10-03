@@ -30,6 +30,8 @@ UI.Inventaires = Ecran
 
 local LARGEUR, HAUTEUR, MIN_L, MIN_H = 420, 360, 360, 240
 local CARTE_H_GRILLE, CARTE_H_LISTE, ECART, COLONNE = 112, 60, 8, 180
+-- La colonne des six emplacements, a gauche.
+local COLONNE_SACS, LIGNE_CONTENU = 168, 26
 local CASE, ECART_CASE = 46, 8
 local VIDE = 135956   -- l'icone d'emplacement vide de Necronicon (DEFAULT_EMPTY_ICON)
 
@@ -40,6 +42,27 @@ end
 local function Peindre(fs, c) fs:SetTextColor(c[1], c[2], c[3]) end
 
 local function Entite() return LCM.Entities.Self() end
+
+-- Les six emplacements d'affilee : deux sacs puis quatre sacoches. L'onglet a
+-- disparu de l'ecran le 3 octobre 2026, mais la categorie reste le modele —
+-- c'est elle qui dit combien d'emplacements et ce qu'ils acceptent.
+local function Emplacements()
+    local out = {}
+    for _, categorie in ipairs(Inv.categories) do
+        for index = 1, Inv.Capacite(categorie.id) do
+            out[#out + 1] = { onglet = categorie.id, index = index, categorie = categorie }
+        end
+    end
+    return out
+end
+
+-- Comment on nomme un emplacement vide : « Sac », « Sacoche », au singulier.
+-- « Emplacement » ne disait pas ce qu'on peut y mettre.
+local SINGULIER = { sacs = "Sac", saccoches = "Sacoche" }
+local function NomVide(categorie)
+    if categorie.contient == "devise" then return "Emplacement devise" end
+    return SINGULIER[categorie.id] or categorie.label
+end
 
 local function Refuser(raison) if raison then LCM.Alerte(raison) end end
 
@@ -71,7 +94,7 @@ local function Vue(cle, defaut) return vues[cle] or defaut end
 -- ===== Une carte d'emplacement ============================================
 
 local function Carte(f)
-    local c = CreateFrame("Button", nil, f.zone.contenu)
+    local c = CreateFrame("Button", nil, f.colonne.contenu)
     c:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     c.fond = UI.Aplat(c, { 0, 0, 0, 0.2 })
     c.fond:SetAllPoints(c)
@@ -86,16 +109,16 @@ local function Carte(f)
     -- On y depose un sac (ou une devise) glisse depuis le compendium.
     UI.Glisser.Cible(c, function(objet)
         if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
-        local categorie = Inv.Get(f.onglet)
+        local categorie = Inv.Get(c.onglet or Inv.categories[1].id)
         local voulu = categorie.contient == "sac" and "sacs" or "devises"
         if not tostring(objet.ref or ""):match("^" .. voulu .. "/") then
             return false, categorie.contient == "sac" and "cet emplacement n'accepte qu'un sac."
                 or "cet emplacement n'accepte qu'une devise."
         end
-        if Inv.Emplacement(Entite(), f.onglet, c.index) then return false, "cet emplacement est déjà occupé." end
+        if Inv.Emplacement(Entite(), c.onglet, c.index) then return false, "cet emplacement est déjà occupé." end
         return true
     end, function(objet)
-        local ok, raison = Inv.Poser(Entite(), f.onglet, c.index, objet.element.id)
+        local ok, raison = Inv.Poser(Entite(), c.onglet, c.index, objet.element.id)
         if not ok then Refuser(raison) end
         f:Rafraichir()
     end)
@@ -116,46 +139,35 @@ local function Construire()
     local f = UI.Fenetre("inventaires", "Inventaires", LARGEUR, HAUTEUR, { x = 240, y = 20 },
         { enTeteSimple = true, redimensionnable = true })
     Ecran.frame = f
-    f.onglet = Inv.categories[1].id
+    -- L'emplacement qu'on regarde. Plus d'onglets : les six sont la, et c'est
+    -- celui qu'on choisit qui remplit la droite.
+    f.choisi = 1
     f.choix = UI.Choix("inventaire", "")
-
-    f.vue = Action(f, "Liste", 44, 18)
-    f.vue:SetPoint("RIGHT", f.fermer, "LEFT", -8, 0)
-    f.vue:SetFrameLevel(f:GetFrameLevel() + 6)
-    f.vue:SetScript("OnClick", function()
-        local categorie = Inv.Get(f.onglet)
-        vues[f.onglet] = Vue(f.onglet, categorie.vue) == "grille" and "liste" or "grille"
-        f:Rafraichir()
-    end)
 
     f.filet = UI.Filet(f)
     f.filet:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -36)
     f.filet:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -36)
 
-    -- Les onglets : un par categorie du template, crees une fois.
-    f.bandeau = CreateFrame("Frame", nil, f)
-    f.bandeau:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -36)
-    f.bandeau:SetPoint("TOPRIGHT", f, "TOPRIGHT", -12, -36)
-    f.bandeau:SetHeight(24)
-    f.onglets = {}
-    for index, categorie in ipairs(Inv.categories) do
-        local b = UI.Bouton(f.bandeau, categorie.label, 84, 22, function(bouton)
-            f.onglet = bouton.categorieId
-            f.zone:Aller(0)
-            f:Rafraichir()
-        end)
-        if UI.HabillerOnglet then UI.HabillerOnglet(b) end
-        UI.Police(b.label, 12)
-        b.categorieId = categorie.id
-        f.onglets[index] = b
-    end
-
-    f.zone = UI.Defilement(f)
+    -- A gauche, les six emplacements en colonne ; a droite, ce que contient
+    -- celui qu'on a choisi. Les onglets « Sacs » et « Saccoches » ont disparu
+    -- le 3 octobre 2026 : deux onglets pour six cases, c'etait un clic de plus
+    -- pour voir la moitie de ce qu'on porte.
+    f.colonne = UI.Defilement(f)
+    f.colonne:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -46)
+    f.colonne:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 16)
+    f.colonne:SetWidth(COLONNE_SACS)
     f.cartes = {}
 
-    -- Le compte « occupes / total » de l'onglet, a droite du bandeau.
+    f.titreContenu = UI.Texte(f, "", UI.C.titre, "GameFontNormalSmall")
+    f.titreContenu:SetPoint("TOPLEFT", f, "TOPLEFT", 12 + COLONNE_SACS + 16, -46)
+    f.titreContenu:SetJustifyH("LEFT")
+
+    f.zone = UI.Defilement(f)
+    f.lignes = {}
+
+    -- Le compte « occupes / total » du sac ouvert, en face de son nom.
     f.occupation = UI.Texte(f, "", UI.C.titre, "GameFontNormalSmall")
-    f.occupation:SetPoint("BOTTOMRIGHT", f.bandeau, "BOTTOMRIGHT", 0, 6)
+    f.occupation:SetPoint("TOPRIGHT", f, "TOPRIGHT", -28, -46)
     f.occupation:SetJustifyH("RIGHT")
 
     UI.Redimensionner(f, MIN_L, MIN_H, function() f:Rafraichir() end)
@@ -163,70 +175,101 @@ local function Construire()
     f:HookScript("OnShow", function() f:Rafraichir() end)
     f:HookScript("OnHide", function() f.choix:Hide() end)
 
-    -- Les onglets passent a la ligne si la fenetre est etroite (70 a 116 de
-    -- large selon le nom, 6 d'ecart, 24 par rangee).
-    function f:Onglets()
-        local largeur = self.bandeau:GetWidth()
-        if not largeur or largeur <= 0 then largeur = self:GetWidth() - 24 end
-        local x, y = 0, 0
-        for _, b in ipairs(self.onglets) do
-            local w = math.max(70, math.min(116, #b.label:GetText() * 7 + 16))
-            if x > 0 and x + w > largeur - 80 then x, y = 0, y + 24 end
-            b:SetSize(w, 22)
-            b:ClearAllPoints()
-            b:SetPoint("TOPLEFT", self.bandeau, "TOPLEFT", x, -y)
-            if b.Selectionner then b:Selectionner(b.categorieId == self.onglet) end
-            x = x + w + 6
+    -- La colonne de gauche : les six emplacements, deux sacs puis quatre
+    -- sacoches, chacun avec son nom et ce qu'il porte.
+    function f:Colonne()
+        local entity = Entite()
+        local liste = Emplacements()
+        for rang, place in ipairs(liste) do
+            local c = self.cartes[rang]
+            if not c then
+                c = Carte(self)
+                self.cartes[rang] = c
+            end
+            c.rang, c.onglet, c.index = rang, place.onglet, place.index
+            c:SetSize(COLONNE_SACS - 10, CARTE_H_LISTE)
+            c:ClearAllPoints()
+            c:SetPoint("TOPLEFT", self.colonne.contenu, "TOPLEFT", 0, -(rang - 1) * (CARTE_H_LISTE + 4))
+            self:HabillerCarte(c, entity, place.categorie,
+                Inv.Emplacement(entity, place.onglet, place.index), "liste")
+            -- Celui qu'on regarde se voit.
+            c.fond:SetColorTexture(0, 0, 0, rang == self.choisi and 0.55 or 0.2)
+            c:Show()
         end
-        local hauteur = y + 24
-        self.bandeau:SetHeight(hauteur)
-        return hauteur
+        for rang = #liste + 1, #self.cartes do self.cartes[rang]:Hide() end
+        self.colonne:Regler(#liste * (CARTE_H_LISTE + 4))
+        return liste
+    end
+
+    -- La droite : le contenu du sac choisi, ligne par ligne.
+    function f:Contenu(place)
+        local entity = Entite()
+        local e = place and Inv.Emplacement(entity, place.onglet, place.index)
+        local sac = e and e.sac and LCM.Sacs.Get(e.sac)
+        self.titreContenu:SetText(sac and sac.label or (e and e.devise and "Devise") or "")
+        local total = e and Inv.Cases(e) or 0
+        self.occupation:SetText(total > 0 and string.format("%d / %d",
+            Inv.Occupees and Inv.Occupees(e) or self:CompterCases(e, total), total) or "")
+
+        local y = 0
+        for n = 1, total do
+            local l = self.lignes[n]
+            if not l then
+                l = CreateFrame("Button", nil, self.zone.contenu)
+                l:SetHeight(LIGNE_CONTENU)
+                if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+                l.icone = l:CreateTexture(nil, "ARTWORK")
+                l.icone:SetSize(20, 20)
+                l.icone:SetPoint("LEFT", l, "LEFT", 4, 0)
+                l.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                l.nom = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
+                l.nom:SetPoint("LEFT", l.icone, "RIGHT", 8, 0)
+                l.nom:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+                l.nom:SetJustifyH("LEFT")
+                l.nom:SetWordWrap(false)
+                l.survol = UI.Aplat(l, UI.C.survol, "HIGHLIGHT")
+                l.survol:SetAllPoints(l)
+                self.lignes[n] = l
+            end
+            local c = Inv.Case(e, n)
+            local element = c and LCM.Compendium.Resoudre(c.ref)
+            l.icone:SetTexture(element and element.icone or VIDE)
+            if element then
+                local quantite = tonumber(c.quantite) or 1
+                l.nom:SetText(quantite > 1 and (element.label .. "  x" .. quantite) or element.label)
+                Peindre(l.nom, UI.C.texte)
+            else
+                l.nom:SetText(Inv.EstCaseDevise(e, n) and "Case de devise" or "Vide")
+                Peindre(l.nom, UI.C.discret)
+            end
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+            l:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
+            l:Show()
+            y = y + LIGNE_CONTENU
+        end
+        for n = total + 1, #self.lignes do self.lignes[n]:Hide() end
+        self.zone:Regler(math.max(1, y))
+    end
+
+    -- Combien de cases occupees : la fonction du noyau si elle existe, sinon on
+    -- compte. (Elle n'existe pas aujourd'hui ; le jour ou elle arrive, elle
+    -- gagne.)
+    function f:CompterCases(e, total)
+        local n = 0
+        for index = 1, (total or 0) do if Inv.Case(e, index) then n = n + 1 end end
+        return n
     end
 
     function f:Rafraichir()
         if not self:IsShown() then return end
-        local entity = Entite()
-        local categorie = Inv.Get(self.onglet)
-        local vue = Vue(self.onglet, categorie.vue)
-        self.vue.label:SetText(vue == "grille" and "Liste" or "Grille")
-        local hauteurBandeau = self:Onglets()
         self.zone:ClearAllPoints()
-        self.zone:SetPoint("TOPLEFT", self, "TOPLEFT", 12, -42 - hauteurBandeau)
+        self.zone:SetPoint("TOPLEFT", self, "TOPLEFT", 12 + COLONNE_SACS + 16, -64)
         self.zone:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -28, 16)
 
-        local capacite = Inv.Capacite(self.onglet)
-        self.occupation:SetText(string.format("%d / %d", Inv.Occupes(entity, self.onglet), capacite))
-
-        local largeur = self.zone:GetWidth()
-        if not largeur or largeur <= 0 then largeur = self:GetWidth() - 40 end
-        largeur = math.max(280, largeur)
-        local colonnes, largeurCarte, hauteurCarte = 1, largeur - 2, CARTE_H_LISTE
-        if vue == "grille" then
-            colonnes = math.max(1, math.floor((largeur + ECART) / COLONNE))
-            largeurCarte = math.floor((largeur - (colonnes - 1) * ECART) / colonnes)
-            hauteurCarte = CARTE_H_GRILLE
-        end
-        for index = 1, capacite do
-            local c = self.cartes[index]
-            if not c then
-                c = Carte(self)
-                self.cartes[index] = c
-            end
-            c.index = index
-            c:SetSize(largeurCarte, hauteurCarte)
-            c:ClearAllPoints()
-            if vue == "grille" then
-                local col, rang = (index - 1) % colonnes, math.floor((index - 1) / colonnes)
-                c:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", col * (largeurCarte + ECART), -rang * (hauteurCarte + ECART))
-            else
-                c:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -(index - 1) * (hauteurCarte + ECART))
-            end
-            self:HabillerCarte(c, entity, categorie, Inv.Emplacement(entity, self.onglet, index), vue)
-            c:Show()
-        end
-        for index = capacite + 1, #self.cartes do self.cartes[index]:Hide() end
-        local rangs = vue == "grille" and math.ceil(capacite / colonnes) or capacite
-        self.zone:Regler(math.max(1, rangs * (hauteurCarte + ECART) - ECART))
+        local liste = self:Colonne()
+        if self.choisi > #liste then self.choisi = 1 end
+        self:Contenu(liste[self.choisi])
         Ecran.RafraichirSacs()
     end
 
@@ -256,7 +299,7 @@ local function Construire()
         c.emplacement = e
         if not e then
             c.icone:SetTexture(VIDE)
-            c.nom:SetText(categorie.contient == "devise" and "Emplacement devise" or "Emplacement")
+            c.nom:SetText(NomVide(categorie))
             Peindre(c.nom, UI.C.discret)
             c.description:SetText("Emplacement disponible")
             c.aide = LCM.IsMaster()
@@ -290,10 +333,19 @@ local function Construire()
     -- Clic : ouvrir un sac, ou (MJ) choisir ce qu'on pose dans un vide.
     -- Clic droit : le menu de l'emplacement.
     function f:CliquerEmplacement(c, bouton)
-        local entity, onglet, index = Entite(), self.onglet, c.index
+        local entity, onglet, index = Entite(), c.onglet, c.index
         local e = c.emplacement
         local categorie = Inv.Get(onglet)
+        -- Clic gauche : on regarde ce qu'il y a dedans, a droite.
+        if bouton ~= "RightButton" and e and e.sac then
+            self.choisi = c.rang
+            self.zone:Aller(0)
+            self:Rafraichir()
+            return
+        end
         if bouton == "RightButton" then
+            -- Clic droit sur un sac : il s'ouvre dans sa fenetre, comme avant.
+            if e and e.sac then Ecran.OuvrirSac(onglet, index) return end
             if not e then return end
             local options = {}
             if e.sac then

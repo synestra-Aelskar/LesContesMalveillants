@@ -31,21 +31,7 @@ end
 
 -- Qui a le droit de demander. Le groupe sert de garde-fou : on ne repond pas a
 -- quelqu'un qui n'est meme pas avec nous.
-local function DansLeGroupe(nom)
-    if not (UnitName and GetNumGroupMembers) then return true end
-    local nombre = GetNumGroupMembers() or 0
-    if nombre == 0 then return false end
-    local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
-    for index = 1, nombre do
-        local unite = prefixe .. index
-        local n, royaume = UnitName(unite)
-        if n then
-            local complet = (royaume and royaume ~= "" and (n .. "-" .. royaume)) or n
-            if complet == nom or n == tostring(nom):match("^[^-]+") then return true end
-        end
-    end
-    return false
-end
+local function DansLeGroupe(nom) return LCM.Reseau.DansLeGroupe(nom) end
 Fiches.DansLeGroupe = DansLeGroupe
 
 -- ===== Cote joueur : repondre ==============================================

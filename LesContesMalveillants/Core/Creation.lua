@@ -297,6 +297,36 @@ end
 Creation.CATEGORIES = { "primaires", "secondaires", "expertises", "mecaniques",
     "penetration", "resistance", "traits" }
 
+-- Reste-t-il quelque chose a ACHETER dans cette categorie ? Un budget qu'on ne
+-- peut plus depenser ne doit pas interdire la creation : si toutes les lignes
+-- sont a leur plafond, ou si plus aucun trait n'est abordable, le point qui
+-- traine est impossible a placer, et bloquer dessus serait un cul-de-sac.
+function Creation.PeutEncoreDepenser(brouillon, categorie)
+    local reste = Creation.Budget(brouillon, categorie).reste
+    if reste <= 0 then return false end
+    if categorie == "traits" then
+        for _, trait in ipairs(LCM.Traits.list) do
+            if (tonumber(trait.cout) or 1) <= reste and not Creation.ATrait(brouillon, trait.id) then
+                return true
+            end
+        end
+        return false
+    end
+    for _, ligne in ipairs(Creation.Lignes(categorie)) do
+        local id = ligne.id or ligne
+        if Creation.Maximum(brouillon, categorie, id) > Creation.Valeur(brouillon, id) then return true end
+    end
+    return false
+end
+
+-- Ce qu'on en dit au joueur : « il reste 3 points de statistiques », pas
+-- « il reste 3 points de primaires ».
+Creation.LIBELLES = {
+    primaires = "statistiques", secondaires = "statistiques secondaires",
+    expertises = "expertises", mecaniques = "mécaniques de compétence",
+    penetration = "pénétrations", resistance = "résistances", traits = "traits",
+}
+
 function Creation.RemettreTout(brouillon)
     for _, categorie in ipairs(Creation.CATEGORIES) do
         Creation.RemettreCategorie(brouillon, categorie)
@@ -304,12 +334,18 @@ function Creation.RemettreTout(brouillon)
     return true
 end
 
+-- Ce trait est-il deja pris ? La liste est courte, la boucle suffit.
+function Creation.ATrait(brouillon, id)
+    for _, porte in ipairs(brouillon.traits or {}) do
+        if porte == id then return true end
+    end
+    return false
+end
+
 function Creation.AjouterTrait(brouillon, id)
     local trait = LCM.Traits.Get(id)
     if not trait then return false, "trait inconnu." end
-    for _, porte in ipairs(brouillon.traits) do
-        if porte == id then return false, "trait deja choisi." end
-    end
+    if Creation.ATrait(brouillon, id) then return false, "trait deja choisi." end
     local budget = Creation.Budget(brouillon, "traits")
     if trait.cout > budget.reste then
         return false, string.format("%s coute %d point%s, il en reste %d.",
@@ -333,11 +369,11 @@ function Creation.Problemes(brouillon)
     if tostring(brouillon.nom or ""):gsub("%s+", "") == "" then
         out[#out + 1] = "il faut un nom."
     end
-    if tostring(brouillon.race or "") == "" and tostring(brouillon.raceLibre or "") == "" then
-        out[#out + 1] = "il faut choisir une race, ou la saisir."
-    elseif tostring(brouillon.race or "") == "" then
-        -- Une race saisie a la main : rien a verifier, c'est un nom. Elle
-        -- n'apporte ni bonus ni morphologie tant que le MJ ne l'a pas creee.
+    -- La race se CHOISIT dans le compendium, et nulle part ailleurs : une race
+    -- tapee a la main n'apportait ni bonus ni morphologie, et laissait croire
+    -- le contraire. Si elle manque, c'est au MJ de la creer.
+    if tostring(brouillon.race or "") == "" then
+        out[#out + 1] = "il faut choisir une race."
     elseif not LCM.Races.Get(brouillon.race) then
         out[#out + 1] = string.format("la race « %s » n'existe pas dans cette version.", tostring(brouillon.race))
     end
@@ -351,10 +387,17 @@ function Creation.Problemes(brouillon)
         out[#out + 1] = string.format("%s depasse son plafond (%d pour %d).",
             debordement.label, debordement.valeur, debordement.plafond)
     end
+    -- Les points doivent etre TOUS places, pas seulement ne pas deborder.
+    -- Un personnage qui arrive avec des points en poche, c'est un personnage
+    -- qu'on finira de construire en seance, au moment ou tout le monde attend.
+    -- Les traits comptent comme le reste : ce sont des points.
     for _, categorie in ipairs(Creation.CATEGORIES) do
         local budget = Creation.Budget(brouillon, categorie)
         if budget.reste < 0 then
             out[#out + 1] = string.format("budget %s depasse de %d.", categorie, -budget.reste)
+        elseif budget.reste > 0 and Creation.PeutEncoreDepenser(brouillon, categorie) then
+            out[#out + 1] = string.format("il reste %d point%s de %s a placer.",
+                budget.reste, budget.reste > 1 and "s" or "", Creation.LIBELLES[categorie] or categorie)
         end
     end
     return out
@@ -368,7 +411,7 @@ function Creation.Appliquer(brouillon)
     -- Une race du compendium est rangee par son identifiant ; une race saisie,
     -- telle qu'elle a ete ecrite. Le champ `race` de la fiche porte les deux.
     local valeurs = {
-        race = (tostring(brouillon.race or "") ~= "" and brouillon.race) or brouillon.raceLibre,
+        race = brouillon.race,
         niveau = brouillon.niveau,
     }
     -- « Autre » precise : c'est la precision qu'on garde, pas le mot « Autre ».

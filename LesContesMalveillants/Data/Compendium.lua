@@ -221,9 +221,16 @@ C.Categorie({
     id = "sacs", label = "Sacs", type = "container",
     registre = "Sacs", famille = "sacs",
     dossiers = { "Général" },
+    -- Tout dans un seul onglet : un sac a trois champs, les repartir sur deux
+    -- onglets demandait un clic pour voir la moitie de si peu.
+    ongletUnique = true,
     champs = {
         Icone(),
         -- « Slotcount » dans le template : libelle traduit.
+        -- Sac ou sacoche : il faut choisir, et ce choix commande tout le
+        -- rangement (ou l'on peut l'equiper, et ce qu'il peut contenir).
+        { cle = "nature", label = "Nature", type = "choix", emplacement = "meta", obligatoire = true,
+          options = { { id = "sac", label = "Sac" }, { id = "sacoche", label = "Sacoche" } } },
         { cle = "places", label = "Emplacements", type = "nombre", emplacement = "meta", min = 1 },
         { cle = "placesDevise", label = "Emplacements devise", type = "nombre", emplacement = "meta", min = 0 },
     },

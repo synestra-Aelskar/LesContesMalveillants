@@ -124,7 +124,10 @@ local function Verifier(entity, categorieId, index)
 end
 
 -- Pose un sac (ou une devise, selon l'onglet) dans un emplacement libre.
-function Inventaire.Poser(entity, categorieId, index, id)
+-- `forcer` : poser sans verifier la nature. Reserve a la MIGRATION — un sac
+-- deja porte avant que la regle existe reste porte. La regle vaut pour ce qu'on
+-- range aujourd'hui, pas pour reprendre ce qui etait la hier.
+function Inventaire.Poser(entity, categorieId, index, id, forcer)
     local categorie, i = Verifier(entity, categorieId, index)
     if not categorie then return false, i end
     if Inventaire.Emplacement(entity, categorieId, i) then
@@ -133,6 +136,11 @@ function Inventaire.Poser(entity, categorieId, index, id)
     if categorie.contient == "sac" then
         local sac = LCM.Sacs.Get(id)
         if not sac then return false, "cet emplacement n'accepte qu'un sac." end
+        -- Un SAC se porte dans un emplacement de sac ; une SACOCHE va dans les
+        -- deux. On ne met pas un sac de voyage dans une poche de ceinture.
+        if not forcer and categorieId == "saccoches" and not LCM.Sacs.EstSacoche(sac) then
+            return false, "un sac ne se porte que dans un emplacement de sac."
+        end
         RangeePourEcrire(entity, categorieId)[i] = { sac = sac.id }
     else
         local devise = LCM.Devises.Get(id)
@@ -205,7 +213,42 @@ function Inventaire.Accepte(emplacement, index, ref)
     elseif not RANGEABLES[famille] then
         return false, "un sac accepte des objets, des ressources ou des sacs."
     end
+    -- Un contenant dans un contenant : seul un SAC en accepte, et il faut que
+    -- le nouveau venu tienne — il occupe sa case plus toutes les siennes.
+    if famille == "sacs" then
+        local hote = LCM.Sacs.Get(emplacement and emplacement.sac)
+        if not hote then return false, "aucun sac ici." end
+        if LCM.Sacs.EstSacoche(hote) then
+            return false, "une sacoche ne contient ni sac ni sacoche."
+        end
+        local range = LCM.Compendium.Resoudre(ref)
+        local encombrement = LCM.Sacs.Encombrement(range and range.id)
+        local libres = Inventaire.CasesLibres(emplacement)
+        if encombrement > libres then
+            return false, string.format("il faut %d places libres, il en reste %d.", encombrement, libres)
+        end
+    end
     return true
+end
+
+-- Combien de cases restent libres dans un sac, en comptant ce que les sacs
+-- qu'il contient deja lui prennent.
+function Inventaire.CasesLibres(emplacement)
+    local total = Inventaire.Cases(emplacement)
+    local pris = 0
+    for index = 1, total do
+        local c = Inventaire.Case(emplacement, index)
+        if c then
+            local famille = tostring(c.ref or ""):match("^([%w_]+)/")
+            if famille == "sacs" then
+                local dedans = LCM.Compendium.Resoudre(c.ref)
+                pris = pris + LCM.Sacs.Encombrement(dedans and dedans.id)
+            else
+                pris = pris + 1
+            end
+        end
+    end
+    return math.max(0, total - pris)
 end
 
 -- Range une entree dans une case libre d'un sac.
@@ -267,7 +310,7 @@ LCM.WhenReady(function()
                 local place = false
                 for _, categorieId in ipairs({ "sacs", "saccoches" }) do
                     for index = 1, Inventaire.Capacite(categorieId) do
-                        if not place and Inventaire.Poser(entity, categorieId, index, id) then place = true end
+                        if not place and Inventaire.Poser(entity, categorieId, index, id, true) then place = true end
                     end
                 end
                 if not place then restants[#restants + 1] = id end
