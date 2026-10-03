@@ -60,13 +60,19 @@ dire("== la croix et la pastille de canal evitent les coins, en miroir")
 -- Mesure de l'atlas (alpha, 3 octobre 2026) : sous le rail, la draperie du
 -- coin « leger » est opaque jusqu'au bord de sa piece, 132 unites depuis le
 -- bord interieur a gauche, 138 a droite ; l'equerre du « lourd » entre de 68.
--- On verifie la mesure, pas la constante qui la recopie.
+--
+-- Depuis le 3 octobre 2026, chacun s'ecarte ENCORE de sa propre largeur vers
+-- le bord : poses pile apres l'ornement ils avaient l'air au milieu de la
+-- feuille. On verifie donc qu'ils restent en miroir et dans le cadre, et non
+-- plus qu'ils commencent apres l'ornement.
 local function coins(f, piece)
     local _, _, _, xc, yc = f.coinGauche:GetPoint(1)
     local _, _, _, xf, yf = f.fermer:GetPoint(1)
     attendu("  miroir horizontal", xc, -xf)
     attendu("  meme hauteur", yc, yf)
-    attendu("  apres l'ornement (" .. piece .. " unites)", xc >= piece * f.decor.echelle, true)
+    attendu("  ecarte de sa largeur (" .. piece .. " unites)",
+        xc <= piece * f.decor.echelle, true)
+    attendu("  mais toujours dans le cadre", xc >= 0 and xf <= 0, true)
 end
 local fv = LCM.UI.Vues.Fenetre("fiche")
 coins(fv, 138)

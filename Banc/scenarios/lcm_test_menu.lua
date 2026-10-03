@@ -79,7 +79,10 @@ attendu("dans le sens horaire", premier.rx * dernier.ry - premier.ry * dernier.r
 attendu("la premiere est Repulsion", A.boutonsEntree[1].cible.id, "repulsion")
 A.boutonsEntree[1]:Click("LeftButton")
 attendu("elle ouvre le composeur", LCM.UI.Composeur.frame:IsShown(), true)
-attendu("et la couronne se referme", A.ouvert, false)
+-- La couronne ne se referme PLUS sur un clic (3 octobre 2026) : on consulte
+-- rarement une seule feuille, et il fallait rouvrir le sceau puis redescendre
+-- dans la categorie entre chaque. Elle se ferme au sceau, ou par Radial.Fermer.
+attendu("et la couronne reste ouverte", A.ouvert, true)
 LCM.UI.Composeur.frame:Hide()
 __avancer(1)
 
@@ -101,7 +104,10 @@ dire("   " .. table.concat(noms, " | "))
 -- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont
 -- pas repris. « Creation Personnage » est parti le 2 octobre 2026 : le
 -- dossier ne contenait plus que les Regles, qui ont rejoint Outils.
-attendu("six entrees de premier niveau", #M.STRUCTURE, 6)
+-- Sept depuis le 3 octobre 2026 : le hub du compendium est remonte d'un cran
+-- pour liberer une branche dans « Outils », qui en avait deja huit (le maximum
+-- qu'un eventail sait dessiner) et devait accueillir l'Atelier.
+attendu("sept entrees de premier niveau", #M.STRUCTURE, 7)
 attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 attendu("Outils : sept fenetres (les Regles s'y sont ajoutees)", #M.Trouver("outils").enfants, 7)
@@ -141,7 +147,7 @@ attendu("eventail a 6 branches",
     tostring(F.secteur.surface.__texture):find("fan%-6%.tga") ~= nil, true)
 F.boutonsEntree[1]:Click("LeftButton")
 attendu("la Fiche s'ouvre", LCM.UI.Vues.frames.fiche and LCM.UI.Vues.frames.fiche:IsShown(), true)
-attendu("la couronne se referme", F.ouvert, false)
+attendu("la couronne reste ouverte", F.ouvert, true)
 LCM.UI.Vues.frames.fiche:Hide()
 __avancer(1)
 
@@ -160,7 +166,7 @@ __avancer(1)
 local grimoires = categorie(F, "grimoires")
 attendu("Grimoires est une categorie", grimoires ~= nil, true)
 grimoires:Click("LeftButton")
-attendu("pas d'eventail, la couronne se referme", F.ouvert, false)
+attendu("pas d'eventail, et la couronne reste ouverte", F.ouvert, true)
 __avancer(1)
 for _, fenetre in ipairs(LCM.UI.fenetres or {}) do fenetre:Hide() end
 

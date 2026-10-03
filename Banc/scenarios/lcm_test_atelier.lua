@@ -131,9 +131,46 @@ attendu("publie : avantage charge", f.edition.avantage[1], "escalade")
 attendu("publie : pas de suppression", f.supprimer:IsShown(), false)
 doublon:Click()
 attendu("doublon : brouillon ouvert", f.edition.label, "Correction")
-attendu("doublon : pas d'enregistrement", f.enregistrer:IsShown(), false)
+-- 3 octobre 2026 : un brouillon qui porte l'identifiant d'un publie le
+-- REMPLACE au lieu d'etre ignore. Le refus pur rendait l'atelier inutile en
+-- seance : on ouvrait une entree, on corrigeait une faute, et aucun bouton ne
+-- permettait d'enregistrer.
+attendu("doublon : enregistrement possible", f.enregistrer:IsShown(), true)
 attendu("doublon : suppression possible", f.supprimer:IsShown(), true)
-attendu("doublon : explique", (f.message:GetText() or ""):find("déjà publié") ~= nil, true)
+attendu("doublon : dit qu'il remplace", (f.message:GetText() or ""):find("REMPLACE") ~= nil, true)
+attendu("doublon : dit de le reporter", (f.message:GetText() or ""):find("fichier") ~= nil, true)
+
+-- Et depuis un contenu PUBLIE, on peut le reprendre en brouillon.
+trouve:Click()
+attendu("publie : un bouton pour le reprendre", f.reprendre:IsShown(), true)
+f.reprendre:Click()
+attendu("repris : plus en lecture seule", f.edition.publie, false)
+attendu("repris : enregistrement offert", f.enregistrer:IsShown(), true)
+attendu("repris : marque comme remplacant", f.edition.remplace, true)
+-- On n'enregistre PAS ici : ca remplacerait le trait publie dont la suite du
+-- scenario a besoin. Le coeur est verifie a part, sur une entree jetable.
+f:Nouveau()
+
+-- Une entree publiee QUI N'A PAS DEJA DE BROUILLON : en prendre une qui en a
+-- un detruirait celui du scenario.
+local idPublie
+for _, t in ipairs(LCM.Traits.list) do
+    if not t.brouillon and not LCM.Brouillons.Get("traits", t.id) then idPublie = t.id break end
+end
+if idPublie then
+    local avant = LCM.Traits.Get(idPublie).label
+    attendu("sans « remplacer », le fichier fait foi",
+        select(1, LCM.Brouillons.Enregistrer("traits",
+            { id = idPublie, label = "Essai", cout = 1 }, false)), false)
+    attendu("avec, on peut corriger en seance",
+        select(1, LCM.Brouillons.Enregistrer("traits",
+            { id = idPublie, label = "Essai", cout = 1 }, false, true)), true)
+    attendu("et c'est marque", LCM.Brouillons.Get("traits", idPublie).remplacePublie, true)
+    -- On remet tout en place pour la suite.
+    LCM.Brouillons.Supprimer("traits", idPublie)
+    local revenu = LCM.Traits.Get(idPublie)
+    attendu("le publie revient apres suppression", revenu ~= nil and revenu.label, avant)
+end
 
 dire("== Atelier : choisir une icone sans la taper")
 -- Les icones proposees sont celles qui servent deja dans la campagne.
@@ -320,7 +357,7 @@ for _, b in ipairs(f.liste.lignes) do
     if b:IsShown() then statuts[b.entreeId .. (b.publie and ":publie" or "")] = b.label:GetText() end
 end
 attendu("fautif marque refuse", (statuts.triche or ""):find("refusé") ~= nil, true)
-attendu("doublon marque", (statuts.escalade_jungle or ""):find("déjà publié") ~= nil, true)
+attendu("doublon marque", (statuts.escalade_jungle or ""):find("remplace le publié") ~= nil, true)
 attendu("publie marque", (statuts["escalade_jungle:publie"] or ""):find("· publié") ~= nil, true)
 
 dire("== Supprimer un doublon laisse le publie en place")

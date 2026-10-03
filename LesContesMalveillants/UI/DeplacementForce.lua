@@ -20,78 +20,146 @@ local NOMS_MODE = { terrestre = "Terrestre", nage = "Nage", vol = "Vol" }
 local Ecran = {}
 UI.DeplacementForce = Ecran
 
-local LARGEUR, HAUTEUR = 280, 300
+local LARGEUR, HAUTEUR = 260, 374
 local MODES = { { id = "terrestre", label = "Terrestre" },
                 { id = "nage",      label = "Nage" },
                 { id = "vol",       label = "Vol" } }
 
+-- L'anneau de Necronicon (`MakeRing`), repris tel quel : un Cooldown RETOURNE
+-- dont on fige le balayage a la fraction voulue, un disque sombre par-dessus
+-- pour creuser l'anneau, et le chiffre au milieu. Le Cooldown peut manquer
+-- (client ancien, modele absent) : la barre horizontale sous l'anneau prend le
+-- relais, et c'est le repli de Necronicon, pas une invention.
+local ANNEAU = 132
+local MASQUE = "Interface\\CHARACTERFRAME\\TempPortraitAlphaMask"
+
+local function Anneau(parent)
+    local a = CreateFrame("Frame", nil, parent)
+    a:SetSize(ANNEAU, ANNEAU)
+    a.fond = a:CreateTexture(nil, "BACKGROUND")
+    a.fond:SetAllPoints()
+    a.fond:SetTexture(MASQUE)
+    a.fond:SetVertexColor(0.10, 0.10, 0.10, 0.92)
+
+    local ok, cd = pcall(CreateFrame, "Cooldown", nil, a, "CooldownFrameTemplate")
+    if ok and cd and cd.SetCooldown then
+        cd:SetAllPoints()
+        if cd.SetSwipeTexture then cd:SetSwipeTexture(MASQUE) end
+        if cd.SetSwipeColor then cd:SetSwipeColor(0.85, 0.70, 0.25, 0.85) end
+        if cd.SetDrawEdge then cd:SetDrawEdge(false) end
+        if cd.SetDrawBling then cd:SetDrawBling(false) end
+        if cd.SetHideCountdownNumbers then cd:SetHideCountdownNumbers(true) end
+        if cd.SetReverse then cd:SetReverse(true) end
+        if cd.SetDrawSwipe then cd:SetDrawSwipe(true) end
+        a.cd = cd
+    end
+
+    a.dedans = CreateFrame("Frame", nil, a)
+    a.dedans:SetPoint("CENTER")
+    a.dedans:SetSize(ANNEAU - 34, ANNEAU - 34)
+    a.dedans:SetFrameLevel(a:GetFrameLevel() + 5)
+    a.dedans.tex = a.dedans:CreateTexture(nil, "ARTWORK")
+    a.dedans.tex:SetAllPoints()
+    a.dedans.tex:SetTexture(MASQUE)
+    a.dedans.tex:SetVertexColor(0.06, 0.06, 0.07, 1)
+
+    a.valeur = UI.Texte(a.dedans, "0", UI.C.titre)
+    UI.Police(a.valeur, 20)
+    a.valeur:SetPoint("CENTER", a.dedans, "CENTER", 0, 8)
+    a.sur = UI.Texte(a.dedans, "/ 0 m", UI.C.discret)
+    UI.Police(a.sur, 11)
+    a.sur:SetPoint("TOP", a.valeur, "BOTTOM", 0, -2)
+
+    a.barre = UI.Barre(a, UI.C.accent, ANNEAU, 6)
+    a.barre:SetPoint("TOPLEFT", a, "BOTTOMLEFT", 0, -6)
+    a.barre:SetPoint("TOPRIGHT", a, "BOTTOMRIGHT", 0, -6)
+    a.barre:SetShown(a.cd == nil)
+
+    function a:Regler(distance, limite, enCours)
+        distance, limite = tonumber(distance) or 0, tonumber(limite) or 0
+        local part = limite > 0 and math.max(0, math.min(1, distance / limite)) or 0
+        if self.cd then
+            -- Duree enorme : la position ne bouge pas entre deux mesures.
+            local D = 100000
+            local maintenant = (GetTime and GetTime()) or 0
+            self.cd:SetCooldown(maintenant - part * D, D)
+            if self.cd.SetSwipeColor then
+                if part >= 1 then self.cd:SetSwipeColor(0.90, 0.25, 0.20, 0.9)
+                elseif part >= 0.8 then self.cd:SetSwipeColor(0.95, 0.55, 0.20, 0.88)
+                else self.cd:SetSwipeColor(0.85, 0.70, 0.25, 0.85) end
+            end
+        end
+        self.barre:Regler(part, 1)
+        self.valeur:SetText(string.format("%.1f", distance))
+        self.sur:SetText(string.format("/ %s m", tostring(limite)))
+        -- Les couleurs de Necronicon : rouge arrive, ambre en marche, eteint
+        -- a l'arret.
+        if part >= 1 then self.valeur:SetTextColor(1, 0.35, 0.3)
+        elseif enCours then self.valeur:SetTextColor(1, 0.85, 0.35)
+        else self.valeur:SetTextColor(0.85, 0.85, 0.8) end
+    end
+    return a
+end
+
 local function Construire()
     local f = UI.Fenetre("deplacement_force", "Déplacement", LARGEUR, HAUTEUR, { x = 260, y = 60 })
-    -- Le contenu : 256 de large (LARGEUR moins les deux marges de 12).
-    local DEDANS = LARGEUR - 24
     Ecran.frame = f
+    local DEDANS = LARGEUR - 24
 
-    f.raison = UI.Texte(f.contenu, "", UI.C.accent)
-    UI.Police(f.raison, 12)
-    f.raison:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -26)
-    f.raison:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -26)
-    f.raison:SetJustifyH("CENTER")
-
-    f.barre = UI.Barre(f.contenu, UI.C.accent, DEDANS, 16)
-    f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -46)
-    f.barre:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -46)
-    UI.Police(f.barre.label, 12, "OUTLINE")
-
-    f.compteur = UI.Texte(f.contenu, "", UI.C.titre)
-    UI.Police(f.compteur, 16)
-    f.compteur:SetPoint("TOP", f.barre, "BOTTOM", 0, -8)
-
-    f.consigne = UI.Texte(f.contenu, "", UI.C.discret)
-    UI.Police(f.consigne, 11)
-    f.consigne:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -130)
-    f.consigne:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -130)
-    f.consigne:SetJustifyH("CENTER")
-    f.consigne:SetWordWrap(true)
-
-    -- Les trois modes, comme dans Necronicon : on choisit avant de partir, et
-    -- la fiche donne la distance. Pendant une course, on ne change plus.
+    -- Les trois modes en haut, comme des onglets : 70 de large, 6 d'ecart.
     f.modes = {}
     for index, mode in ipairs(MODES) do
-        local b = UI.Bouton(f.contenu, mode.label, 80, 20, function()
+        local b = UI.Bouton(f.contenu, mode.label, 70, 20, function()
             if DF.EnCours() then return end
             f.mode = mode.id
             f:Actualiser()
         end)
         b.modeId = mode.id
-        b:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", (index - 1) * 86, 0)
+        b:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 7 + (index - 1) * 76, 0)
         f.modes[index] = b
     end
     f.mode = "terrestre"
 
-    f.partir = UI.Bouton(f.contenu, "Se déplacer", 180, 22, function()
+    -- L'anneau et ses deux lignes vivent dans l'espace libre entre les modes et
+    -- les boutons, et sont CENTRES dedans. Accroche en haut, l'anneau laissait
+    -- un grand vide sous lui des que la ligne de round se taisait (hors
+    -- combat), et la fenetre avait l'air cassee.
+    f.centre = CreateFrame("Frame", nil, f.contenu)
+    f.centre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -26)
+    f.centre:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -26)
+
+    f.anneau = Anneau(f.contenu)
+    f.anneau:SetPoint("CENTER", f.centre, "CENTER", 0, 0)
+
+    -- Le compteur du round, puis la consigne : l'ordre de Necronicon.
+    f.round = UI.Texte(f.contenu, "", UI.C.accent)
+    UI.Police(f.round, 12)
+    f.round:SetPoint("TOP", f.anneau, "BOTTOM", 0, -12)
+    f.round:SetJustifyH("CENTER")
+
+    f.consigne = UI.Texte(f.contenu, "", UI.C.discret)
+    UI.Police(f.consigne, 11)
+    f.consigne:SetPoint("TOP", f.round, "BOTTOM", 0, -3)
+    f.consigne:SetPoint("LEFT", f.contenu, "LEFT", 0, 0)
+    f.consigne:SetPoint("RIGHT", f.contenu, "RIGHT", 0, 0)
+    f.consigne:SetJustifyH("CENTER")
+    f.consigne:SetWordWrap(true)
+
+    f.partir = UI.Bouton(f.contenu, "Se déplacer", DEDANS, 24, function()
         if DF.EnCours() then DF.Arreter("interrompu") return end
         local ok, raison = DF.DemarrerMode(f.mode)
         if not ok then LCM.Alerte(tostring(raison)) end
     end)
-    f.partir:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 30)
+    f.partir:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
 
-    -- Le compte du round, et la regle en toutes lettres : « 1 / 2 ce round »
-    -- ne dit pas ce qu'on paie, et c'est ce qu'on veut savoir avant de partir.
-    f.round = UI.Texte(f.contenu, "", UI.C.accent)
-    UI.Police(f.round, 11)
-    f.round:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -96)
-    f.round:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -96)
-    f.round:SetJustifyH("CENTER")
-    f.round:SetWordWrap(true)
-
-    f.nouveauRound = UI.Bouton(f.contenu, "Nouveau round", 110, 22, function()
-        DF.NouveauRound()
+    -- Marquer l'emplacement : l'aura qui montre ou l'on s'est arrete. Elle se
+    -- pose toute seule a l'arrivee ; ce bouton sert a la garder, ou a la poser
+    -- sans avoir couru.
+    f.marquer = UI.Bouton(f.contenu, "Marquer l'emplacement", DEDANS, 24, function()
+        DF.BasculerMarqueur()
         f:Actualiser()
     end)
-    f.nouveauRound:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 4)
-
-    f.arreter = UI.Bouton(f.contenu, "Interrompre", 120, 22, function() f:Hide() end)
-    f.arreter:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 4)
+    f.marquer:SetPoint("BOTTOMLEFT", f.partir, "TOPLEFT", 0, 6)
 
     -- Fermer, c'est interrompre. On passe par Arreter pour que le module le
     -- sache, et le drapeau evite que Arreter -> Hide -> Arreter tourne en rond.
@@ -104,18 +172,21 @@ local function Construire()
 
     function f:Actualiser()
         local distance, limite, enCours = DF.Etat()
-        -- Hors course, la jauge montre ce que la fiche autorise dans le mode
-        -- choisi : on voit son allocation avant de partir, pas seulement en
-        -- marchant.
+        -- Hors course, l'anneau montre ce que la fiche autorise dans le mode
+        -- choisi : on voit son allocation avant de partir.
         if not enCours then limite = DF.Allocation(nil, self.mode) end
         for _, b in ipairs(self.modes) do
             b:Selectionner(b.modeId == self.mode)
-            b:SetEnabled(not enCours)
+            -- Un mode que la fiche ne permet pas (le vol, le plus souvent)
+            -- reste visible mais eteint : le menu ne ment pas sur ce qui existe.
+            b:SetEnabled(not enCours and DF.Allocation(nil, b.modeId) > 0)
         end
-        -- Le bouton dit ce que le prochain depart coutera.
+
         local prochain = DF.Prochain()
         if enCours then
             self.partir.label:SetText("Arrêter")
+        elseif not DF.EnCombat() then
+            self.partir.label:SetText("Se déplacer")
         elseif prochain == "gratuit" then
             self.partir.label:SetText("Se déplacer (gratuit)")
         elseif prochain == "payant" then
@@ -124,27 +195,37 @@ local function Construire()
             self.partir.label:SetText("Plus de déplacement")
         end
         self.partir:SetEnabled(enCours or prochain ~= "fini")
+
+        -- Hors combat, aucune limite : compter les deplacements de quelqu'un
+        -- qui traverse une ville n'a pas de sens. La ligne du round ne parle
+        -- donc qu'en combat, et le reste du temps elle se tait au lieu
+        -- d'annoncer une regle qui ne s'applique pas.
         local regle = LCM.Equilibrage.deplacement
-        self.round:SetText(string.format(
-            "Déplacement %d / %d ce round\n1 gratuit par round, puis 1 supplémentaire à %d PA + %d PF.",
-            DF.Mouvements(), DF.MaxParRound(), regle.supplementPA or 1, regle.supplementPF or 1))
-        for _, b in ipairs(self.modes) do
-            -- Un mode que la fiche ne permet pas (le vol, le plus souvent) reste
-            -- visible mais eteint : le menu ne ment pas sur ce qui existe.
-            b:SetEnabled(not enCours and DF.Allocation(nil, b.modeId) > 0)
+        local enCombat = DF.EnCombat()
+        self.round:SetShown(enCombat)
+        self.consigne:SetShown(enCombat)
+        if enCombat then
+            self.round:SetText(string.format("Déplacement %d / %d ce round",
+                DF.Mouvements(), DF.MaxParRound()))
+            self.consigne:SetText(string.format(
+                "1 déplacement gratuit par round,\npuis 1 supplémentaire à %d PA + %d PF.",
+                regle.supplementPA or 1, regle.supplementPF or 1))
         end
-        self.barre:Regler(math.min(distance, limite), limite > 0 and limite or 1)
-        self.compteur:SetText(string.format("%.1f / %.1f m", distance, limite))
-        self.raison:SetText(DF.EnCours() and DF.EnCours().raison or NOMS_MODE[self.mode] or "")
-        local course = DF.EnCours()
-        if enCours and course and course.cumule then
-            self.consigne:SetText("Chaque mètre parcouru compte, même en revenant sur tes pas.")
-        elseif enCours then
-            self.consigne:SetText("Éloigne-toi de ton point de départ : la distance compte à vol d'oiseau.")
-        else
-            self.consigne:SetText("Choisis un mode, puis « Se déplacer ».")
+
+        -- Le groupe entier est centre : quand les deux lignes se taisent,
+        -- l'anneau redescend au milieu au lieu de rester accroche en haut.
+        self.centre:SetPoint("BOTTOM", self.marquer, "TOP", 0, 6)
+        local basTextes = 0
+        if enCombat then
+            basTextes = 12 + (self.round:GetStringHeight() or 14)
+                      + 3 + (self.consigne:GetStringHeight() or 28)
         end
-        self.arreter:SetEnabled(enCours)
+        self.anneau:ClearAllPoints()
+        self.anneau:SetPoint("CENTER", self.centre, "CENTER", 0, basTextes / 2)
+
+        self.anneau:Regler(distance, limite, enCours)
+        self.marquer.label:SetText(DF.Marqueur() and "Retirer l'emplacement" or "Marquer l'emplacement")
+        self.marquer:Selectionner(DF.Marqueur())
     end
 
     function f:Montrer()

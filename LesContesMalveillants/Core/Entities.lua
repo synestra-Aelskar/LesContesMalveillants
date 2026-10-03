@@ -104,6 +104,20 @@ function Entities.Get_Value(entity, fieldId)
     return stored
 end
 
+-- Une valeur vient de changer sur ce personnage. L'interface ouverte s'en sert
+-- pour se remettre a jour toute seule : une action qui coute 2 PA se voyait sur
+-- la fiche seulement apres l'avoir fermee et rouverte, ce qui revient a ne pas
+-- l'afficher. Le drapeau evite qu'une actualisation qui ecrirait a son tour
+-- reparte en boucle.
+local enNotification = false
+function Entities.Changed(entity, fieldId)
+    if enNotification or type(Entities.onChange) ~= "function" then return end
+    enNotification = true
+    local ok, err = pcall(Entities.onChange, entity, fieldId)
+    enNotification = false
+    if not ok then LCM.Debug("onChange : " .. tostring(err)) end
+end
+
 function Entities.Set_Value(entity, fieldId, value)
     local field = LCM.Schema.Field(fieldId)
     if not field then
@@ -122,6 +136,7 @@ function Entities.Set_Value(entity, fieldId, value)
     else
         entity.values[field.id] = value
     end
+    Entities.Changed(entity, field.id)
     return true
 end
 
@@ -162,7 +177,9 @@ function Entities.SetGauge(entity, fieldId, current, maximum)
     -- Calculee : c'est a sa source d'encaisser, rien n'entre dans les valeurs.
     if type(field.ecrire) == "function" then
         if entity.distante then return false end
-        return field.ecrire(entity, tonumber(current) or 0) and true or false
+        local ecrit = field.ecrire(entity, tonumber(current) or 0) and true or false
+        if ecrit then Entities.Changed(entity, field.id) end
+        return ecrit
     end
     local gauge = Entities.Gauge(entity, fieldId)
     local newMax = tonumber(maximum) or gauge.max
@@ -173,5 +190,6 @@ function Entities.SetGauge(entity, fieldId, current, maximum)
     else
         entity.values[field.id] = { current = newCurrent, max = newMax }
     end
+    Entities.Changed(entity, field.id)
     return true
 end

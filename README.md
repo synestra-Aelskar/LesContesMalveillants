@@ -344,6 +344,148 @@ ils ont quitté le menu du joueur.
 quand on bascule entre la grille et la liste — les deux ne tiennent pas dans le
 même rectangle.
 
+### Le 3 octobre 2026, deuxième passe
+
+**Le menu radial ne se referme plus** quand on clique sur une feuille. Il
+fallait rouvrir le sceau et redescendre dans la catégorie entre deux fenêtres,
+alors qu'on en consulte rarement une seule. Il se ferme au sceau, ou par
+`Radial.Fermer()`.
+
+**L'écart entre le nom et la valeur.** Mesuré au banc avant de toucher quoi que
+ce soit : dans un bloc de 312, la valeur était posée à **x = 284**. Elle
+n'utilisait pas la colonne `c.valeur` du tout — elle était ancrée au **bord
+droit de la ligne**. D'où les deux cents pixels de vide, et dans le volet
+étroit des Statistiques elle sortait carrément du cadre visible : on lisait les
+noms et aucun chiffre. Elle est calée sur la colonne, ramenée contre le nom
+(284 → 149), toujours alignée à droite pour que les chiffres restent les uns
+sous les autres. **Ceci annule « on garde l'alignement » du 2 octobre**, qui ne
+tenait que sur une page pleine largeur.
+
+**Les entrées équipables.** Icône **doublée** (bornée par la hauteur de ligne,
+elle ne peut pas déborder), nom **entier** sur sa propre ligne, **description**
+dessous — plus les chiffres, qui disent ce que l'objet fait et non ce qu'il
+est. Le tour doré **mord d'un pixel sur l'image** : posé autour, il laissait
+voir le liseré gris que le jeu dessine au bord de ses icônes. **Clic droit**
+ouvre la fiche de l'objet ; la ligne était un `Frame`, donc le clic droit ne
+pouvait pas exister. **Le survol ouvre une carte** — icône, nom, description,
+chiffres **groupés par section de fiche et alignés** : « Ombre +2 ·
+Perce-armure +1 · Perforant +4 » mélangeait deux pénétrations et une mécanique
+sur une ligne alphabétique.
+
+**La fiche s'actualise en direct.** Une action qui coûtait 2 PA ne se voyait
+qu'après avoir fermé et rouvert la fiche — autant dire qu'elle ne s'affichait
+pas. `Entities.Changed` prévient maintenant à chaque écriture, et les vues
+ouvertes se recalculent — seulement celles qui regardent **ce** personnage.
+
+**Les cartes du compendium.** Icône à 42 avec son tour doré, en-tête posé selon
+l'**emprise réelle du cadre** et non à douze pixels forfaitaires (l'habillage
+mord bien plus, et l'icône passait sous la draperie du coin), « État » aligné
+**sous le nom**, et le rectangle des statistiques qui va jusqu'au bout. Surtout :
+**déplier agrandit la carte même après un redimensionnement manuel**. La règle
+d'avant se mordait la queue — on retaillait parce que déplier n'agrandissait
+pas, et retailler posait un drapeau qui empêchait d'agrandir à jamais.
+
+**La croix et la pastille de canal** s'écartent chacune de sa propre largeur
+vers le bord. **Le titre de bloc** gagne 2 points : à cette densité il se
+confondait avec ses lignes.
+
+**Le bandeau de pool est figé.** Titre, ornement, filet, compte et bouton R sur
+la même ligne, au-dessus de la liste qui défile — avec la **description de
+l'étape**, qui est la consigne de ce qu'on est en train de faire et n'a pas à
+disparaître dès qu'on descend. **Et les intitulés ne sont plus tronqués** : la
+première rangée passait la largeur du plus long libellé, les groupes en
+colonnes ne la passaient pas et retombaient sur un calcul qui réserve d'abord
+la place du total (68 px pour le libellé, d'où « Odorat… », « Investi… »).
+
+**Le déplacement.** La fenêtre est celle de Necronicon : 260 × 374, modes en
+onglets, **anneau de 132** (le Cooldown retourné figé à la fraction, avec la
+barre horizontale en repli), ses couleurs (rouge arrivé, ambre en marche). Le
+**marqueur** et le **ralentissement** sont portés — `.mod speed` + `.aura` à
+l'arrivée, retour à la normale après deux secondes, et un marqueur posé **à la
+main** survit à ce retour. **« Nv round » est supprimé** : le combat sait quand
+le tour revient. **Hors combat, aucune limite** — on se déplace, point, et la
+ligne de round se tait au lieu d'annoncer une règle qui ne s'applique pas. En
+combat, le compteur repart **quand l'initiative nous revient**, pas au
+changement de round : un round n'est pas un tour.
+
+**La position, là où le client la refuse.** Le jeu refuse `UnitPosition` sur
+les cartes de type instance — et les nôtres en sont. Deux sources désormais :
+`UnitPosition`, puis **la carte** (`C_Map.GetPlayerMapPosition` ramenée en
+yards par `GetMapWorldSize`). Une course **garde sa source** : mêler des yards
+du monde et des yards de carte ferait un bond de plusieurs mètres sans que
+personne n'ait bougé.
+
+**Communication** est une expertise d'Observations (26 au total). Elle existait
+comme *mécanique de compétence* ; la mécanique a été retirée, c'est une
+expertise. **Ses apports sont à valider** : le relevé du template ne les donne
+pas, on a mis Esprit 0,33 + Perception 0,25 sur le patron d'Investigation.
+
+**L'Atelier a quitté le Panel MJ** pour « Outils » : c'est l'outil qu'on ouvre
+le plus en séance et il était à trois clics. « Outils » avait déjà huit
+branches (le maximum qu'un éventail sait dessiner), donc le **hub du
+Compendium** est remonté au premier niveau, à côté de « Système d'Aelskar ».
+
+**Le sélecteur d'icônes.** Deux onglets, **Addon** (ce qui sert déjà dans la
+campagne) et **WoW** (tout le reste). Les icônes d'**Epsilon** y sont :
+`GetNumMacroIcons` ne rend que ce que l'interface des macros montre et rate
+celles du serveur, alors **LibRPMedia** tient la base complète — c'est par elle
+que SpellCreator liste les siennes. Bouton de **zoom x2 / x4 / x6 / x8**, grille
+recalculée sur la largeur, 900 vignettes dessinées au plus et une ligne qui dit
+combien d'autres répondent.
+
+**On ne retire plus ses propres traits** : ils se choisissent à la création et
+font le personnage. Le MJ garde la main sur la fiche d'un autre, et un trait
+**fantôme** (brouillon supprimé) reste retirable, sinon il resterait collé sans
+rien donner.
+
+### Le constructeur de buff et de débuff, repris
+
+Les neuf écarts avec le composeur de Necronicon, relevés en séance :
+
+- **Les familles sont groupées par SENS**, plus par prix. « Cout 3 », « Stat 5 »
+  ne disaient pas ce qu'on achetait et faisaient se côtoyer six « Force » sans
+  contexte. On reprend le découpage de la fiche — onglet puis section, donc
+  « Pénétrations — Élémentaires » et « Résistances — Élémentaires » ne se
+  ressemblent plus trait pour trait — et l'en-tête donne le nombre de champs.
+- **Les durées et puissances en double** étaient un vrai bug : la fiche porte
+  `duree_buff` **et** `duree_debuff`, et les règles nommaient les deux. En
+  construisant un buff on voyait aussi la durée du débuff, sans pouvoir deviner
+  laquelle comptait. La section du mode opposé est écartée.
+- **État / Maladie / Intangible** se choisit **en premier** : c'est ce qui dit
+  où l'effet atterrit dans la fenêtre Santé. Le choix traverse jusqu'à la pose
+  (clé `ct` dans le paquet, deux lettres — les 255 octets ne sont pas loin), et
+  les **trois volets de Santé** reçoivent enfin leurs états temporaires. Un état
+  posé avant cette règle compte comme « État », là où il s'affichait déjà.
+- **La fenêtre s'ouvre repliée** ; « Configurer » déplie, « Réduire » referme.
+  On ne déroule quatre-vingts champs que si on compose vraiment.
+- **La description a une vraie boîte** (quatre lignes) au lieu d'une ligne de
+  22 px où l'on n'écrivait rien.
+- **L'icône se choisit au clic**, dans le sélecteur ci-dessus.
+- **Les réserves sont deux carrés collés**, PA vert et PF bleu, et le chiffre
+  passe en rouge quand on dépasse — c'est ce qui bloque la déclaration.
+- **Les options portent leur prix en carrés** collés au rectangle du nom. Écrit
+  dans le libellé (« Monocible (2 PA 1 PF) »), il mangeait la place du nom.
+- **La bibliothèque** enregistre un effet composé et le recharge. Elle vit dans
+  la base du **compte**, pas du personnage. On garde **ce qu'on a saisi et
+  choisi, pas le résultat** : une règle qui change doit se répercuter au
+  rechargement, sinon un vieux modèle contournerait l'équilibrage sans qu'on le
+  voie. Les points se **rejouent champ par champ**, et un modèle qui ne rentre
+  plus se charge en partie **en le disant**.
+
+### L'Atelier : on peut enfin enregistrer une modification
+
+Le contenu publié vient d'un fichier généré, et **un brouillon portant un
+identifiant publié était refusé**. On ouvrait une entrée, on corrigeait une
+faute, aucun bouton ne permettait d'enregistrer. Un bouton **« Modifier
+(brouillon) »** en fait une version jouable tout de suite, qui **prend le pas
+sur le fichier** jusqu'à ce qu'on l'y reporte — marqué dans la liste
+(« remplace le publié ») et dit à chaque ouverture.
+
+**Le banc a attrapé une perte de données** au passage : écraser une entrée
+publiée se faisait sur place, donc supprimer le brouillon ensuite **emportait
+le contenu publié avec lui**. L'original est mis de côté avant d'être recouvert,
+et la suppression le **rend** au lieu de retirer l'entrée.
+
 ### Ce que la première séance en jeu a corrigé
 
 Le 1er octobre 2026, premier passage dans le jeu. Cinq pannes, et **aucune
@@ -493,16 +635,35 @@ l'addon, donc livrées aux joueurs à chaque publication.
 
 Par ordre de ce qui bloque le plus :
 
-- [x] **La fiche Statistiques en deux volets** (3 octobre 2026). Les dix-huit
-      familles du récapitulatif sont à gauche, dans le **sommaire des Règles**
-      (même pièce, `sommaire = true` dans `Data/Vues.lua`), et la famille
-      choisie s'affiche seule à droite. **Écart voulu au template** : ses
-      dossiers repliés ou ouverts ne se replient plus, puisque replier la seule
-      chose qu'une page montre ne cacherait que la page. Le libellé d'une famille
-      de combat vient de sa section (`Core/Vues.lua` reprend le libellé du
-      premier bloc quand l'onglet n'en donne pas). La fenêtre passe à 509 de
-      large, la page garde ses 312, et elle ne s'étire qu'en hauteur : seule une
-      vue de pur texte (les Règles) s'élargit.
+- [ ] **La Forge : jeu d'équilibrage pour la création d'entrées.** On fabrique
+      races, objets, états et traits **sans aucun garde-fou**. Il faut le
+      barème par catégorie (raretés, min / max de budget, coûts globaux,
+      verrou) de la Forge de Necronicon (`Forge.lua`). **Chantier d'Akriaxx**
+      — tranché le 3 octobre 2026. À décider en le portant : le barème
+      **bloque** l'enregistrement ou **alerte** seulement ?
+- [ ] **Toute la partie XP.** Le module existe (`Core/Experience.lua`, paliers
+      marqués *à valider*), mais il n'y a **aucun endroit où la voir**. Il faut
+      un écran qui montre l'**artwork**, le **niveau**, l'**XP en cours** et ce
+      qu'il reste avant le palier suivant.
+- [ ] **Le réseau des fiches, pour le MJ.** Consulter la fiche des autres en
+      séance : le transport existe, l'usage reste à finir.
+- [ ] **Les outils du Panel MJ** (compteurs, barres, notes, annonces) : à
+      terminer.
+- [ ] **Alléger le Panel MJ.** Il est trop gros pour s'en servir **en plein
+      combat** — à repenser pour que l'essentiel soit atteignable vite.
+- [ ] **La synchronisation des compendiums entre les deux MJ.** Aujourd'hui
+      chacun a le sien, et rien ne les rapproche.
+- [ ] **Un outil pour figer les entrées créées en séance** dans le compendium
+      en dur de l'addon : le chemin brouillon → fichier généré se fait encore à
+      la main.
+- [ ] **Renommer le thème en Ael'Raz'kah → A'hell'Raz'kah.** C'est le lore des
+      **deux**, le nom doit le dire.
+- [ ] **Recoder les actions en dur** — ou vérifier que ça l'est déjà.
+- [ ] **La fiche Statistiques en deux volets** — *la demande la plus
+      substantielle non entamée.* Sommaire des catégories à gauche, contenu à
+      droite. C'est **la même mécanique que les Règles**, qui ont déjà leur
+      sommaire : la pièce existe, il s'agit de la réutiliser et non d'en écrire
+      une seconde.
 - [ ] **Le coût du déplacement : à trancher.** « Augmente le coût pour le
       déplacement de 2. 2 pts pour avoir 1 de bonus. » Mesuré :
       `sec_deplacement` coûte **déjà 2** points pour +1 (`Data/Equilibrage.lua`).
@@ -550,42 +711,21 @@ Par ordre de ce qui bloque le plus :
       **présence** de l'addon et la **scène** du MJ.
 - [x] **Les boutons du radial** (2 octobre 2026) : les dix-sept jouent leur
       résolution de bout en bout au banc. Voir « Ce qui marche ».
-- [x] **Les icônes de l'en-tête débordent sur le cadre** (3 octobre 2026). Le
-      retrait existait (`coinHaut`), mais il avait été mesuré sur la
-      luminosité de l'atlas, qui ne voit que la ferrure dorée. Remesuré sur
-      l'**alpha** : sous le rail, la draperie sombre du coin « léger » est
-      opaque jusqu'au bord de sa pièce, soit 132 unités à gauche et 138 à
-      droite. `coinHaut` passe de 70 à 140. L'habillage « lourd », déclaré sans
-      tour d'angle (0), a une équerre qui entre de 68 unités : il passe à 70.
-      Passer sans habillage remet les deux boutons au bord (avant, ils
-      gardaient le retrait de l'habillage quitté). Un titre trop long pour
-      garder ses ornements entre les deux boutons (« Pénétration &
-      Résistances » sur 340) les perd, et garde son texte. Le banc vérifie
-      maintenant le miroir et le retrait contre la mesure (`lcm_test_skin.lua`).
-- [x] **Une race réservée au MJ** (3 octobre 2026). La case « Réservée au
-      MJ » existe dans l'éditeur du compendium (ajout de l'addon,
-      `Data/Compendium.lua`) et dans l'Atelier. L'Atelier ne recopiait que les
-      clés qu'il connaissait : y modifier une race aurait effacé l'option en
-      silence. Pour un joueur, la race n'est pas proposée dans la création ;
-      s'il la désigne quand même, la création la **refuse en le disant** (« la
-      race « X » est réservée au MJ. ») et ne la retire pas.
-      **Ce n'est pas un secret** : la race est livrée avec l'addon, et son nom,
-      sa description et ses bonus sont sur la machine du joueur. Une race à
-      cacher va dans le compagnon MJ. À vérifier au prochain export :
-      `Exporter les brouillons.bat` n'est pas dans le dépôt, donc rien ne
-      garantit encore qu'il recopie le champ `mjSeulement`.
-- [x] **Pénétrations et Résistances : les types physiques sur UNE ligne.** Les
-      trois tiennent sur un rang depuis le passage de la création à 1040. Mais
-      le calcul gardait 37 px de total au prix du libellé : « Contondant »
-      était coupé. Sur ce rang, le libellé reçoit maintenant la largeur de son
-      texte, mesurée dans la police du compteur, et les compteurs ne laissent
-      que 4 px entre eux au lieu de 12. Le total garde 38 px. **Reste
-      serré** : « 4 + 3 = 7 », un total avec apport racial, en demande
-      environ 42. Plusieurs races donnent des pénétrations et des résistances
-      physiques, et l'écran le montrera. Pour y gagner, il faudrait compacter
-      l'écriture du total en mode serré (« 4+3=7 »), ce qui touche aussi les
-      grilles à trois colonnes (Expertises, Mécaniques) : à décider avec
-      celui qui a posé ce format.
+- [ ] **Les icônes de l'en-tête débordent sur le cadre.** La pastille de canal
+      et la croix de fermeture sont posées en miroir aux deux coins hauts, et
+      elles mordent sur les tours d'angle de l'habillage. Les rentrer vers
+      l'intérieur de la fiche — attention, elles doivent rester en miroir l'une
+      de l'autre (le banc le vérifie).
+- [ ] **Une race réservée au MJ.** Ajouter une option sur une entrée de race
+      pour la rendre MJ seulement : un joueur ne doit ni la voir dans la liste
+      de création, ni pouvoir la choisir. Le compendium est déjà réservé au MJ,
+      mais les races passent par la création, qui est ouverte à tous.
+- [ ] **Pénétrations et Résistances : les types physiques sur UNE ligne.** Le
+      mécanisme existe depuis le 3 octobre 2026 (le premier groupe prend toute
+      la largeur si ses lignes y tiennent, en mode serré), mais à la largeur de
+      page actuelle les trois ne rentrent pas et le groupe retombe en colonne.
+      Il faut gagner de la place sur la ligne — élargir la fenêtre de création,
+      ou raccourcir ce qu'un compteur affiche.
 - [ ] **Une séance de test à deux, en jeu**, sur tout ce qui précède : le banc
       vérifie la logique et les clics, pas l'écran ni le vrai réseau.
 - [x] **Le déplacement forcé** (Répulsion, Attraction, intervention avec

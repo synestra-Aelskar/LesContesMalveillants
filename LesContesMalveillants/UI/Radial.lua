@@ -689,7 +689,10 @@ end
 
 local function Lancer(f, c, cible)
     if type(cible.onClick) == "function" then
-        Fermer(f, c, true)
+        -- La couronne RESTE ouverte. Elle se refermait a chaque clic, et il
+        -- fallait rouvrir le sceau puis redescendre dans la categorie pour
+        -- regarder une deuxieme feuille — alors qu'on en consulte rarement une
+        -- seule. On la ferme au sceau, ou par Radial.Fermer().
         local ok, err = pcall(cible.onClick)
         if not ok then LCM.Erreur(string.format("%s : %s", tostring(cible.label), tostring(err))) end
         return

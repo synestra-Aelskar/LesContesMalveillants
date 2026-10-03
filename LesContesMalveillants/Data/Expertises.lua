@@ -1,4 +1,4 @@
--- Expertises : trois domaines, 25 competences.
+-- Expertises : trois domaines, 26 competences.
 --
 -- Chacune se lance (des 0-15) et peut recevoir un bonus de trait. Les
 -- identifiants sont sans accent et definitifs ; seuls les libelles s'affichent.
@@ -27,6 +27,7 @@ Schema.AddTab({
                 expertise("elementaire",   "Élémentaire"),
                 expertise("cosmique",      "Cosmique"),
                 expertise("pistage",       "Pistage"),
+                expertise("communication", "Communication"),
             },
         },
         {

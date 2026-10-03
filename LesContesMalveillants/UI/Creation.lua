@@ -139,6 +139,10 @@ end
 -- fait defiler, et c'est precisement en bas de liste qu'on a besoin de savoir
 -- ce qu'il reste. Le bloc, lui, garde son titre.
 local function Budget(page, f, bloc, categorie)
+    -- Le titre voyage : il s'affiche dans le bandeau fige (f.bandeau), au meme
+    -- niveau que le pool. Le bloc, lui, n'est plus que la liste.
+    bloc.titreFige = bloc.titreFige or ""
+
     bloc.budget = UI.Texte(f.contenu, "", UI.C.titre)
     UI.Police(bloc.budget, 14)
     bloc.remise = UI.Bouton(f.contenu, "R", 22, 20, function()
@@ -156,7 +160,13 @@ end
 -- Une grille de repartition : un compteur par ligne de la categorie, sur une
 -- ou deux colonnes, avec un intertitre quand le groupe change.
 local function Grille(page, f, titre, texte, categorie, colonnes)
-    local bloc = Bloc(page, titre, texte)
+    -- Bloc SANS titre : le titre et le pool vivent ensemble dans le bandeau
+    -- fige au-dessus de la liste. Les avoir dans la liste voulait dire les
+    -- perdre des qu'on faisait defiler — et c'est en bas de liste qu'on a le
+    -- plus besoin de savoir ce qu'il reste (3 octobre 2026).
+    local bloc = Bloc(page, "", nil)
+    bloc.titreFige = titre or ""
+    bloc.texteFige = texte or ""
     Budget(page, f, bloc, categorie)
     colonnes = colonnes or 1
     local lignes = C.Lignes(categorie)
@@ -331,9 +341,20 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
                 if yColonne[c] < yColonne[choisie] then choisie = c end
             end
             local x = marge + (choisie - 1) * largeurColonne
+            -- Le plus long libelle du groupe commande la largeur de la colonne
+            -- de libelles. Sans ca, chacun retombait sur la part calculee
+            -- (« dispo - 8 - 96 ») qui reserve d'abord la place du total : on
+            -- lisait « = 0 » a cote d'« Odorat… » et d'« Investi… ». Un
+            -- intitule coupe ne dit pas de quoi il parle ; le total, lui, se
+            -- deduit de la ligne.
+            local vouluGroupe = 0
+            for _, ligne in ipairs(g.lignes) do
+                -- +4 : l'arrondi d'une police qu'on mesure au banc, pas en jeu.
+                vouluGroupe = math.max(vouluGroupe, LargeurTexte(ligne.label) + 4)
+            end
             yColonne[choisie] = yColonne[choisie] + Titre(g.nom, x, yColonne[choisie], largeurColonne)
             for _, ligne in ipairs(g.lignes) do
-                Poser(ligne, x, yColonne[choisie], largeurColonne, serreColonne)
+                Poser(ligne, x, yColonne[choisie], largeurColonne, serreColonne, vouluGroupe)
                 yColonne[choisie] = yColonne[choisie] + LIGNE
             end
             yColonne[choisie] = yColonne[choisie] + 6
@@ -1017,11 +1038,55 @@ local function Construire()
     UI.Police(f.probleme, 12)
     f.probleme:SetJustifyH("RIGHT")
 
+    -- ----- le bandeau fige -------------------------------------------------
+    -- Le titre de l'etape et son pool, sur la MEME ligne, au-dessus de la liste
+    -- et hors du defilement. On reprend l'habillage d'un titre de bloc (meme
+    -- couleur, meme ornement, meme filet) pour que ca reste le bandeau du bloc
+    -- et pas une barre de plus.
+    local HAUT_BANDEAU = 30
+    f.bandeau = CreateFrame("Frame", nil, f.contenu)
+    f.bandeau:SetHeight(HAUT_BANDEAU)
+    f.bandeau:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 34))
+    f.bandeau:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -(hauteurBandeau + 34))
+    f.bandeau.titre = UI.Texte(f.bandeau, "", UI.C.titreBloc)
+    UI.Police(f.bandeau.titre, 15)
+    f.bandeau.titre:SetPoint("LEFT", f.bandeau, "LEFT", 14, 0)
+    if UI.AelRef then
+        f.bandeau.ornement = UI.AelRef(f.bandeau, 347, 344, 45, 17, "ARTWORK")
+        f.bandeau.ornement:SetSize(45, 17)
+        f.bandeau.ornement:SetPoint("LEFT", f.bandeau.titre, "RIGHT", 12, 0)
+    end
+    f.bandeau.filet = UI.Aplat(f.bandeau, { 0.48, 0.36, 0.19, 0.8 }, "ARTWORK")
+    f.bandeau.filet:SetHeight(1)
+    f.bandeau.filet:SetPoint("TOPLEFT", f.bandeau, "TOPLEFT", 10, -HAUT_BANDEAU)
+    f.bandeau.filet:SetPoint("TOPRIGHT", f.bandeau, "TOPRIGHT", -10, -HAUT_BANDEAU)
+    -- La description de l'etape est figee elle aussi : c'est la consigne de ce
+    -- qu'on est en train de faire, elle n'a pas a disparaitre des qu'on
+    -- descend dans la liste.
+    f.bandeau.texte = UI.Texte(f.bandeau, "", UI.C.texte)
+    UI.Police(f.bandeau.texte, 11)
+    f.bandeau.texte:SetPoint("TOPLEFT", f.bandeau, "TOPLEFT", 20, -(HAUT_BANDEAU + 8))
+    f.bandeau.texte:SetPoint("TOPRIGHT", f.bandeau, "TOPRIGHT", -20, -(HAUT_BANDEAU + 8))
+    f.bandeau.texte:SetJustifyH("LEFT")
+    f.bandeau.texte:SetWordWrap(true)
+
+    -- Le bandeau se mesure : titre, filet, puis la description si elle existe.
+    function f:MesurerBandeau()
+        local haut = HAUT_BANDEAU
+        local texte = self.bandeau.texte:GetText() or ""
+        if texte ~= "" then
+            haut = haut + 8 + (self.bandeau.texte:GetStringHeight() or 14) + 8
+        end
+        self.bandeau:SetHeight(haut)
+        return haut
+    end
+
     f.zone = UI.Defilement(f.contenu)
-    -- Ce qui est pose AU-DESSUS de la zone : la rangee d'onglets, puis la ligne
-    -- de budget epinglee.
+    -- Ce qui est pose AU-DESSUS de la zone : la rangee d'onglets, puis le
+    -- bandeau fige (titre + pool).
     f.hautZoneCreation = hauteurBandeau + 10
-    f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 34))
+    f.zone:SetPoint("TOPLEFT", f.bandeau, "BOTTOMLEFT", 0, -6)
+    f.zone:SetPoint("TOPRIGHT", f.bandeau, "BOTTOMRIGHT", 0, -6)
 
     -- La rangee du bas (et ce qui s'appuie dessus) se pose au-dessus de ce que
     -- l'habillage mange a l'interieur de la fenetre : au ras du contenu, les
@@ -1175,9 +1240,22 @@ local function Construire()
     -- la zone qui defile.
     function f:PlacerBudget()
         local page = self.pages[self.etape]
+        local avecBudget = page and page.budgets and page.budgets[1]
+        -- Le bandeau ne s'affiche que pour une etape qui a un pool : sur
+        -- « Bienvenue » il n'y a rien a y mettre, et un bandeau vide prendrait
+        -- la place de ce qu'on lit.
+        self.bandeau:SetShown(avecBudget ~= nil)
+        if avecBudget then
+            self.bandeau.titre:SetText(UI.Majuscules(avecBudget.titreFige or ""))
+            self.bandeau.texte:SetText(avecBudget.texteFige or "")
+            self:MesurerBandeau()
+        end
         for _, bloc in ipairs((page and page.budgets) or {}) do
+            -- Ancres sur le bandeau, a la hauteur du titre : c'est la ligne
+            -- du bloc. Pas besoin de les reparenter, ils vivent deja dans le
+            -- meme contenu et suivent donc le bandeau fige.
             bloc.remise:ClearAllPoints()
-            bloc.remise:SetPoint("TOPRIGHT", self.contenu, "TOPRIGHT", -12, -(self.hautZoneCreation or 0) + 2)
+            bloc.remise:SetPoint("RIGHT", self.bandeau, "RIGHT", -12, 0)
             bloc.budget:ClearAllPoints()
             bloc.budget:SetPoint("RIGHT", bloc.remise, "LEFT", -8, 0)
             bloc.remise:Show()

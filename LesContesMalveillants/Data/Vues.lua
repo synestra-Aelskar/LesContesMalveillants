@@ -103,11 +103,14 @@ Vues.Add({
         } },
         -- Ajout a la structure du template : les etats qu'une action a poses
         -- (Immobilise, un buff...), avec leur duree.
-        { id = "etats", label = "États", blocs = { { conteneur = { "etats", "etat" } }, { temporaires = true } } },
-        { id = "maladies", label = "Maladies", blocs = { { conteneur = { "etats", "maladie" } } } },
+        { id = "etats", label = "États", blocs = {
+            { conteneur = { "etats", "etat" } }, { temporaires = "etat" } } },
+        { id = "maladies", label = "Maladies", blocs = {
+            { conteneur = { "etats", "maladie" } }, { temporaires = "maladie" } } },
         { id = "intangible", label = "Intangible", blocs = {
             { section = { "general", "existence" } },
             { conteneur = { "etats", "intangible" } },
+            { temporaires = "intangible" },
         } },
     },
 })

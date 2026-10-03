@@ -167,6 +167,22 @@ E.deplacement = {
     parRound = 2,
     supplementPA = 1,
     supplementPF = 1,
+
+    -- L'arrivee, reprise de Necronicon : on ralentit le personnage le temps
+    -- qu'il s'arrete, et on lui pose une aura qui MARQUE sa position. Sans ca,
+    -- « c'est fait » arrive quand on court encore, et on finit trois metres
+    -- plus loin que la ou on avait le droit d'aller.
+    --
+    -- Ce sont des commandes serveur (`.mod speed`, `.aura`) envoyees par le
+    -- chat, comme MoveMaster : le client ne laisse pas un addon les taper
+    -- autrement. `aura = 0` les desactive entierement.
+    aura = 333403,
+    vitesseArret = 0.1,
+    vitesseNormale = 0.8,
+    secondesArret = 2,
+    -- « auto » : guilde, sinon raid, sinon groupe. Rien en dehors : le client
+    -- refuse le /dire d'un addon.
+    canalCommandes = "auto",
 }
 
 -- Facultes (template, fenetre Equilibrage › Quotidien et Deplacement) :
@@ -367,7 +383,6 @@ E.mecaniques = {
     { id = "buff",             label = "Buff" },
     { id = "debuff",           label = "Debuff" },
     { id = "attraction",       label = "Attraction" },
-    { id = "communication",    label = "Communication" },
     { id = "repulsion",        label = "Répulsion" },
     { id = "immobilisation",   label = "Immobilisation" },
     { id = "entrave",          label = "Entrave" },
@@ -427,6 +442,11 @@ E.apportsExpertises = {
                       pen_lumiere = PEN_GROUPE, pen_ombre = PEN_GROUPE, pen_ordre = PEN_GROUPE,
                       pen_desordre = PEN_GROUPE, pen_vie = PEN_GROUPE, pen_mort = PEN_GROUPE },
     pistage       = { perception = 0.5, resi_vie = 0.1 },
+    -- A VALIDER : Communication a ete ajoutee aux Observations le 3 octobre
+    -- 2026, et le releve du template n'en donne pas les apports. On part sur
+    -- Esprit en tete (c'est une expertise de lecture et d'echange, pas de
+    -- sens) avec un appoint de Perception, sur le patron d'Investigation.
+    communication = { esprit = 0.33, perception = 0.25 },
     -- Athletisme
     puissance     = { force = 0.5, adresse = 0.25 },
     projection    = { force = 1, adresse = 0.25, perception = 0.25, constitution = 0.25 },

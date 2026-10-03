@@ -116,7 +116,15 @@ attendu("toujours liste", fantome ~= nil, true)
 attendu("marque inconnu", __sansCouleur(fantome.nom:GetText()), "? oeil_du_faucon")
 attendu("pas d'effet annonce", fantome.effets:IsShown(), false)
 attendu("ne compte pas dans le cout", LCM.Traits.CoutTotal(moi), 2)
-attendu("le MJ peut le retirer", fantome.retirer:IsShown(), true)
+-- 3 octobre 2026 : on ne retire plus SES PROPRES traits — ils se choisissent a
+-- la creation et font le personnage. Un trait FANTOME fait exception : sans
+-- cette porte il resterait colle a la fiche sans rien donner.
+attendu("le fantome reste retirable", fantome.retirer:IsShown(), true)
+local vrai
+for _, carte in ipairs(ligne.cartes) do
+    if carte:IsShown() and carte.elementId ~= "oeil_du_faucon" then vrai = carte break end
+end
+attendu("mais pas un vrai trait a soi", vrai and vrai.retirer:IsShown(), false)
 fantome.retirer:Click()
 attendu("retire", LCM.Traits.Has(moi, "oeil_du_faucon"), false)
 

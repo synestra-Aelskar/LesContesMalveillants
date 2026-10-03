@@ -169,4 +169,24 @@ dire("== fermeture")
 SlashCmdList.LCM("fiche")
 attendu("la fenetre se referme", f:IsShown(), false)
 
+dire("== la fiche ouverte suit les jauges en direct")
+-- Une action qui coute des PA se voyait seulement apres avoir ferme et rouvert
+-- la fiche : autant dire qu'elle ne s'affichait pas (3 octobre 2026).
+SlashCmdList.LCM("fiche")
+attendu("la fiche est ouverte", f:IsShown(), true)
+local moi = LCM.Entities.Self()
+local function texteJauge()
+    for _, ligne in ipairs(f.pages[f.onglet].lignes) do
+        if ligne.barre and ligne.nom and ligne.nom:GetText() == "PA" then
+            return ligne.barre.label:GetText()
+        end
+    end
+end
+local avant = texteJauge()
+attendu("les PA sont affiches", avant ~= nil, true)
+local jauge = LCM.Entities.Gauge(moi, "pa")
+LCM.Entities.SetGauge(moi, "pa", math.max(0, jauge.current - 1))
+attendu("l'affichage a suivi sans rouvrir", texteJauge() ~= avant, true)
+SlashCmdList.LCM("fiche")
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

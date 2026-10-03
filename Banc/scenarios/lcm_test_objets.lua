@@ -115,6 +115,45 @@ attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_Quest
 attendu("ses effets", ligne.effets:GetText(), "Eau +2")
 attendu("bouton retirer (MJ)", ligne.action.label:GetText(), "Retirer")
 
+-- 3 octobre 2026 : la ligne d'un objet porte se lit sans la souris.
+attendu("l'icone est doublee", ligne.iconeCote, 32)
+attendu("et tient dans sa ligne", ligne.iconeCote <= ligne:GetHeight() - 4, true)
+attendu("le nom n'est plus tronque", __sansCouleur(ligne.nom:GetText()):find("^Lame de givre") ~= nil, true)
+attendu("la description est sous le nom", ligne.description:GetText() ~= "", true)
+-- Clic droit : la fiche de l'objet. C'est un BOUTON, sinon le clic n'existe pas.
+attendu("la ligne est cliquable", type(ligne.Click), "function")
+local avant = 0
+for _, c in ipairs(LCM.UI.Compendium.cartes) do if c:IsShown() then avant = avant + 1 end end
+ligne:Click("RightButton")
+local apres = 0
+for _, c in ipairs(LCM.UI.Compendium.cartes) do if c:IsShown() then apres = apres + 1 end end
+attendu("clic droit : la fiche s'ouvre", apres > avant, true)
+
+-- Survol : la carte de l'objet, pas une infobulle de deux lignes.
+ligne:GetScript("OnEnter")(ligne)
+local survol = LCM.UI.Fiche.carteSurvol
+attendu("le survol ouvre une carte", survol ~= nil and survol:IsShown(), true)
+attendu("elle nomme l'objet", survol.nom:GetText(), "Lame de givre")
+-- Ranges par section de fiche, avec la valeur a part : « Ombre +2 · Perce-
+-- armure +1 » melangeait une penetration et une mecanique sur une ligne.
+local titres, valeurs = {}, {}
+for _, t in ipairs(survol.titres) do if t:IsShown() then titres[#titres + 1] = t:GetText() end end
+for _, c in ipairs(survol.cases) do
+    if c:IsShown() then valeurs[#valeurs + 1] = c.label:GetText() .. "=" .. c.valeur:GetText() end
+end
+attendu("les effets sont categorises", #titres > 0, true)
+attendu("et chiffres a part", table.concat(valeurs, " "), "Eau=+2")
+ligne:GetScript("OnLeave")(ligne)
+attendu("elle se retire", survol:IsShown(), false)
+-- Une case vide n'a pas de carte : elle garde l'infobulle.
+local vide
+for _, e in ipairs(armes.conteneur.emplacements) do if not e.elementId then vide = e end end
+if vide then
+    vide:GetScript("OnEnter")(vide)
+    attendu("case vide : pas de carte", survol:IsShown(), false)
+    vide:GetScript("OnLeave")(vide)
+end
+
 f.barre.boutons[2]:Click()
 local armures = f.pages.equipement.blocs[1]
 attendu("bloc Armures et vetements", armures.titre:GetText(), "ARMURES ET VÊTEMENTS")

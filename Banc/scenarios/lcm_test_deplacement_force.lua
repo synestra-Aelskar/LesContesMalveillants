@@ -39,16 +39,28 @@ __position(1, 0, 0.9)
 DF.Mesurer()
 attendu("une marche n'avance a rien", select(1, DF.Etat()), 1)
 
-dire("== la jauge suit")
+dire("== l'anneau suit")
+-- Depuis le 3 octobre 2026 la fenetre est celle de Necronicon : un anneau qui
+-- se remplit, le chiffre au centre et la limite dessous.
 local f = LCM.UI.DeplacementForce.frame
-attendu("le compteur", f.compteur:GetText(), "1.0 / 6.0 m")
-attendu("la raison est dite", f.raison:GetText(), "Répulsion")
+attendu("la distance au centre", f.anneau.valeur:GetText(), "1.0")
+attendu("la limite dessous", f.anneau.sur:GetText(), "/ 6 m")
+attendu("la ligne du round existe", f.round ~= nil, true)
+attendu("le bouton de marqueur existe", f.marquer ~= nil, true)
 
 dire("== arrivee")
 __position(6, 0, 0)
 DF.Mesurer()
 attendu("plus rien en cours", DF.EnCours(), nil)
-attendu("et on le dit", __sansCouleur(__sorties[#__sorties]):find("c'est fait") ~= nil, true)
+-- Pas forcement la DERNIERE ligne : l'arrivee envoie aussi les commandes
+-- serveur, qui se plaignent quand on n'est ni en guilde ni en groupe.
+local function dansLesSorties(motif, combien)
+    for i = #__sorties, math.max(1, #__sorties - (combien or 4)), -1 do
+        if __sansCouleur(__sorties[i]):find(motif) then return true end
+    end
+    return false
+end
+attendu("et on le dit", dansLesSorties("c'est fait"), true)
 attendu("la fenetre se retire", f:IsShown(), false)
 
 dire("== fermer la fenetre interrompt la course")
@@ -76,17 +88,42 @@ SlashCmdList.LCM("pousse 12")
 attendu("elle lance une course", select(2, DF.Etat()), 12)
 DF.Arreter("interrompu")
 
-dire("== le round : un gratuit, un paye, puis plus rien")
+dire("== hors combat : aucune limite")
 local moi = __personnage()
+__position(0, 0, 0)
+attendu("pas en combat", DF.EnCombat(), false)
+for _ = 1, 4 do
+    attendu("on repart toujours", select(1, DF.DemarrerMode("terrestre")), true)
+    DF.Arreter("interrompu")
+end
+attendu("et toujours gratuitement", DF.Prochain(), "gratuit")
+local f0 = LCM.UI.DeplacementForce.frame
+f0:Montrer()
+attendu("la ligne du round se tait", f0.round:IsShown(), false)
+attendu("il n'y a plus de bouton « Nv round »", f0.nouveauRound, nil)
+f0:Hide()
+
+dire("== en combat : un gratuit, un paye, puis plus rien")
+-- La regle ne vaut qu'en combat : c'est la que compter a un sens.
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+__groupe({})
+local garde = LCM.Incarnation.Instancier(LCM.PNJ.list[1].id, "Garde")
+LCM.Combat.Inviter({ pnj = { garde.id } })
+attendu("le combat est lance", DF.EnCombat(), true)
 __position(0, 0, 0)
 DF.NouveauRound()
 attendu("le premier est gratuit", DF.Prochain(), "gratuit")
-LCM.Entities.SetGauge(moi, "pa", 5)
-LCM.Entities.SetGauge(moi, "fatigue", 5)
+LCM.Entities.SetGauge(LCM.Entities.Self(), "pa", 5)
+LCM.Entities.SetGauge(LCM.Entities.Self(), "fatigue", 5)
 -- Les jauges sont plafonnees par la fiche (les PA s'arretent plus bas que 5) :
 -- on compare donc des ECARTS, pas des valeurs qu'on ne choisit pas.
 local function reserve()
-    return LCM.Entities.Gauge(moi, "pa").current, LCM.Entities.Gauge(moi, "fatigue").current
+    -- Celui qui est joue maintenant : en combat, le MJ incarne le PNJ dont
+    -- c'est le tour, et c'est lui qui paie.
+    local acteur = LCM.Entities.Self()
+    return LCM.Entities.Gauge(acteur, "pa").current,
+           LCM.Entities.Gauge(acteur, "fatigue").current
 end
 local pa0, pf0 = reserve()
 attendu("il part", select(1, DF.DemarrerMode("terrestre")), true)
@@ -103,11 +140,23 @@ attendu("et c'est tout", DF.Prochain(), "fini")
 local ok3, raison3 = DF.DemarrerMode("terrestre")
 attendu("le troisieme est refuse", ok3, false)
 attendu("en disant pourquoi", tostring(raison3):find("plus de déplacement") ~= nil, true)
+-- Et c'est le combat qui le rend, pas un bouton : quand l'initiative revient
+-- sur nous, les deplacements repartent a zero (demande du 3 octobre 2026).
+attendu("plus rien avant notre tour", DF.Prochain(), "fini")
+-- On avance jusqu'a retrouver la main (quelques tours au plus).
+for _ = 1, 8 do
+    if LCM.Combat.Courant() and LCM.Combat.Courant().id == LCM.PlayerId() then break end
+    LCM.Combat.Avancer(1)
+end
+attendu("l'initiative nous est revenue", LCM.Combat.Courant().id, LCM.PlayerId())
+attendu("et le deplacement est rendu", DF.Mouvements(), 0)
+attendu("donc de nouveau gratuit", DF.Prochain(), "gratuit")
+
 DF.NouveauRound()
 attendu("le round suivant rend le gratuit", DF.Prochain(), "gratuit")
 
 dire("== on ne part pas a credit")
-LCM.Entities.SetGauge(moi, "pa", 0)
+LCM.Entities.SetGauge(LCM.Entities.Self(), "pa", 0)
 DF.DemarrerMode("terrestre")
 DF.Arreter("interrompu")
 local _, pfAvant = reserve()
@@ -139,5 +188,19 @@ attendu("refus", ok5, false)
 attendu("et on nomme les deux sources", tostring(raison5):find("carte") ~= nil, true)
 __positionMonde(true)
 __carte(1, 1000, 1000)
+
+dire("== le marqueur d'emplacement")
+__groupe({ "Nytherah" })
+attendu("pose au depart ? non", DF.Marqueur(), false)
+DF.BasculerMarqueur()
+attendu("pose", DF.Marqueur(), true)
+attendu("la commande part", dansLesSorties("aura", 6) or #__chats > 0, true)
+local f2 = LCM.UI.DeplacementForce.frame
+f2:Actualiser()
+attendu("le bouton le dit", f2.marquer.label:GetText(), "Retirer l'emplacement")
+DF.BasculerMarqueur()
+attendu("retire", DF.Marqueur(), false)
+f2:Actualiser()
+attendu("le bouton le redit", f2.marquer.label:GetText(), "Marquer l'emplacement")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

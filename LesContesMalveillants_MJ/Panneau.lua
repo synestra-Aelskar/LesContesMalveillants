@@ -253,7 +253,6 @@ function Pages.contenu(page, f)
         end
     end
     local boutons = {
-        { "atelier", "Atelier (créer en séance)", function() if UI.Atelier then UI.Atelier.Basculer() end end },
         { "systeme", "Système d'Aelskar", Entree("systeme_aelskar") },
         { "compendium", "Compendium", Entree("compendium") },
     }

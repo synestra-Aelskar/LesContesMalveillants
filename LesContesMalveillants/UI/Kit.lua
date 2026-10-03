@@ -227,11 +227,20 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- un bouton mord sur la tour d'angle de l'habillage.
     function f:PlacerCoinsHaut()
         local retrait = math.max(6 * q, (UI.AelRetraitCoin and UI.AelRetraitCoin(self) or 0) + 4)
+        -- Chacun s'ecarte du centre de SA PROPRE largeur. Poses au retrait de
+        -- l'ornement, la croix et la pastille du canal avaient l'air posees au
+        -- milieu de la feuille plutot qu'a son bord. Un plancher les garde
+        -- dans le cadre.
+        local function dehors(element)
+            local largeur = element and element.GetWidth and element:GetWidth()
+            if not largeur or largeur <= 0 then return retrait end
+            return math.max(2 * q, retrait - largeur)
+        end
         self.fermer:ClearAllPoints()
-        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -retrait, -6 * q)
+        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -dehors(self.fermer), -6 * q)
         if self.coinGauche then
             self.coinGauche:ClearAllPoints()
-            self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", retrait, -6 * q)
+            self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", dehors(self.coinGauche), -6 * q)
         end
         self.retraitCoin = retrait
         -- Les coins ont bouge : les ornements du titre tiennent-ils encore ?
@@ -1434,20 +1443,11 @@ end
 -- jeu veut bien nous donner (GetMacroIcons). La saisie a la main reste : une
 -- icone qu'on connait se tape plus vite qu'elle ne se cherche.
 
-local catalogueIcones
+local cataloguesIcones = {}
 
-function UI.CatalogueIcones()
-    if catalogueIcones then return catalogueIcones end
-    local vues, out = {}, {}
-    local function poser(chemin)
-        chemin = tostring(chemin or "")
-        if chemin == "" or vues[chemin:lower()] then return end
-        vues[chemin:lower()] = true
-        out[#out + 1] = chemin
-    end
-    -- Celles de la campagne, livrees avec l'addon, et celles des champs de
-    -- fiche relevees dans le template : la liste finale est triee par nom, la
-    -- recherche fait le reste.
+-- Les icones LIVREES AVEC LA CAMPAGNE : celles qui servent deja quelque part
+-- dans l'addon. C'est la courte liste, celle qu'on veut en premier.
+local function CatalogueAddon(poser)
     for _, chemin in ipairs(LCM.IconesCampagne()) do poser(chemin) end
     for _, chemin in pairs(LCM.ICONES_CHAMPS) do poser(chemin) end
     for _, categorie in ipairs(LCM.Body.CATEGORIES) do poser(categorie.icone) end
@@ -1457,22 +1457,54 @@ function UI.CatalogueIcones()
         for _, element in ipairs((registre and registre.list) or {}) do poser(element.icone) end
     end
     for _, portrait in ipairs((LCM.Portraits and LCM.Portraits.list) or {}) do poser(portrait.texture) end
-    if GetNumMacroIcons and GetMacroIconInfo then
-        for index = 1, math.min(GetNumMacroIcons(), 600) do poser(GetMacroIconInfo(index)) end
+end
+
+-- TOUTES celles du jeu, Epsilon compris.
+--
+-- `GetNumMacroIcons` ne rend que ce que l'interface des macros veut bien
+-- montrer, et manque les icones ajoutees par le serveur. LibRPMedia tient la
+-- base complete — c'est par elle que SpellCreator liste les siennes — et
+-- Epsilon la livre a jour. Si elle n'est pas chargee, on retombe sur les
+-- macros : moins complet, mais present partout.
+local function CatalogueJeu(poser)
+    local lib = LibStub and LibStub("LibRPMedia-1.0", true)
+    if lib and lib.FindAllIcons then
+        local ok = pcall(function()
+            for _, nom in lib:FindAllIcons() do
+                poser("Interface" .. string.char(92) .. "ICONS" .. string.char(92) .. nom)
+            end
+        end)
+        if ok then return end
     end
+    if GetNumMacroIcons and GetMacroIconInfo then
+        for index = 1, GetNumMacroIcons() do poser(GetMacroIconInfo(index)) end
+    end
+end
+
+-- `source` : « addon » (celles de la campagne) ou « wow » (toutes).
+function UI.CatalogueIcones(source)
+    source = (source == "wow") and "wow" or "addon"
+    if cataloguesIcones[source] then return cataloguesIcones[source] end
+    local vues, out = {}, {}
+    local function poser(chemin)
+        chemin = tostring(chemin or "")
+        if chemin == "" or vues[chemin:lower()] then return end
+        vues[chemin:lower()] = true
+        out[#out + 1] = chemin
+    end
+    if source == "addon" then CatalogueAddon(poser) else CatalogueJeu(poser) end
     table.sort(out, function(a, b) return a:lower() < b:lower() end)
-    catalogueIcones = out
+    cataloguesIcones[source] = out
     return out
 end
 
--- Un nom lisible pour une icone : la fin de son chemin.
 function UI.NomIcone(chemin)
     return (tostring(chemin or ""):match("([^\\/]+)$")) or tostring(chemin or "")
 end
 
 function UI.SelecteurIcone(cle)
     local d = CreateFrame("Frame", "LCM_Icones_" .. tostring(cle), UIParent)
-    d:SetSize(340, 300)
+    d:SetSize(420, 380)
     d:SetFrameStrata("FULLSCREEN_DIALOG")
     d:SetClampedToScreen(true)
     d:EnableMouse(true)
@@ -1485,52 +1517,98 @@ function UI.SelecteurIcone(cle)
     d.fermer = UI.Bouton(d, "x", 18, 18, function() d:Hide() end)
     d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -6, -6)
 
-    d.recherche = UI.Champ(d, 300, 22, function(texte) d:Remplir(texte) end)
-    d.recherche:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -28)
+    -- Deux sources, et on dit laquelle on regarde : « Addon » est la courte
+    -- liste de la campagne, « WoW » est tout le reste. Melangees, les quelques
+    -- icones qu'on utilise vraiment se noyaient dans des milliers d'autres.
+    d.source = "addon"
+    d.onglets = {}
+    for index, o in ipairs({ { id = "addon", label = "Addon" }, { id = "wow", label = "WoW" } }) do
+        local b = UI.Bouton(d, o.label, 70, 20, function()
+            d.source = o.id
+            d:Remplir(d.recherche:GetText())
+        end)
+        b.sourceId = o.id
+        b:SetPoint("TOPLEFT", d, "TOPLEFT", 10 + (index - 1) * 74, -30)
+        d.onglets[index] = b
+    end
+
+    -- Le zoom : x2 a x8, comme chez Necronicon. Une planche d'icones de 32 ne
+    -- se regarde pas, on cherche une image, pas un nom.
+    local ZOOMS = { 2, 4, 6, 8 }
+    d.zoom = 2
+    d.boutonZoom = UI.Bouton(d, "x2", 44, 20, function()
+        for index, z in ipairs(ZOOMS) do
+            if z == d.zoom then d.zoom = ZOOMS[index + 1] or ZOOMS[1] break end
+        end
+        d.boutonZoom.label:SetText("x" .. d.zoom)
+        d:Remplir(d.recherche:GetText())
+    end)
+    d.boutonZoom:SetPoint("TOPRIGHT", d, "TOPRIGHT", -10, -30)
+
+    d.recherche = UI.Champ(d, 380, 22, function(texte) d:Remplir(texte) end)
+    d.recherche:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -54)
+
+    d.compte = UI.Texte(d, "", UI.C.discret, "GameFontNormalSmall")
+    d.compte:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 10, 8)
 
     d.zone = UI.Defilement(d)
-    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -56)
-    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -10, 10)
+    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 10, -80)
+    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -10, 24)
     d.cases = {}
 
-    local TAILLE, PAR_RANGEE = 30, 9
+    -- Au-dela, on ne dessine plus : des milliers de boutons figent le jeu. La
+    -- ligne du bas dit combien d'autres repondent, et la recherche les trouve.
+    local PLAFOND = 900
 
     function d:Remplir(filtre)
         filtre = tostring(filtre or ""):lower()
-        local nombre = 0
-        for _, chemin in ipairs(UI.CatalogueIcones()) do
+        for _, b in ipairs(self.onglets) do b:Selectionner(b.sourceId == self.source) end
+        local cote = 16 * self.zoom
+        local largeur = self.zone:GetWidth()
+        if not largeur or largeur < cote then largeur = 380 end
+        local parRangee = math.max(1, math.floor(largeur / cote))
+
+        local nombre, trouves = 0, 0
+        for _, chemin in ipairs(UI.CatalogueIcones(self.source)) do
             if filtre == "" or chemin:lower():find(filtre, 1, true) then
-                nombre = nombre + 1
-                local b = self.cases[nombre]
-                if not b then
-                    b = CreateFrame("Button", nil, self.zone.contenu)
-                    b:SetSize(TAILLE - 2, TAILLE - 2)
-                    b.icone = b:CreateTexture(nil, "ARTWORK")
-                    b.icone:SetAllPoints(b)
-                    b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-                    b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
-                    b.survol:SetAllPoints(b)
-                    b:SetScript("OnClick", function(soi)
-                        self:Hide()
-                        if self.onChoix then self.onChoix(soi.chemin) end
-                    end)
-                    UI.Bulle(b, function(soi) return UI.NomIcone(soi.chemin) end, nil, 0.4)
-                    self.cases[nombre] = b
+                trouves = trouves + 1
+                if nombre < PLAFOND then
+                    nombre = nombre + 1
+                    local b = self.cases[nombre]
+                    if not b then
+                        b = CreateFrame("Button", nil, self.zone.contenu)
+                        b.icone = b:CreateTexture(nil, "ARTWORK")
+                        b.icone:SetAllPoints(b)
+                        b.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
+                        b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
+                        b.survol:SetAllPoints(b)
+                        b:SetScript("OnClick", function(soi)
+                            self:Hide()
+                            if self.onChoix then self.onChoix(soi.chemin) end
+                        end)
+                        UI.Bulle(b, function(soi) return UI.NomIcone(soi.chemin) end, nil, 0.4)
+                        self.cases[nombre] = b
+                    end
+                    b.chemin = chemin
+                    b.icone:SetTexture(chemin)
+                    b:SetSize(cote - 2, cote - 2)
+                    local rangee = math.floor((nombre - 1) / parRangee)
+                    local colonne = (nombre - 1) % parRangee
+                    b:ClearAllPoints()
+                    b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", colonne * cote, -rangee * cote)
+                    b:Show()
                 end
-                b.chemin = chemin
-                b.icone:SetTexture(chemin)
-                local rangee = math.floor((nombre - 1) / PAR_RANGEE)
-                local colonne = (nombre - 1) % PAR_RANGEE
-                b:ClearAllPoints()
-                b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", colonne * TAILLE, -rangee * TAILLE)
-                b:Show()
             end
-            if nombre >= 400 then break end
         end
         for index = nombre + 1, #self.cases do self.cases[index]:Hide() end
         self.zone.decalage = 0
-        self.zone:Regler(math.ceil(nombre / PAR_RANGEE) * TAILLE)
+        self.zone:Regler(math.ceil(nombre / parRangee) * cote)
         self.nombreAffiche = nombre
+        if trouves > nombre then
+            self.compte:SetText(string.format("%d affichées sur %d — affine ta recherche.", nombre, trouves))
+        else
+            self.compte:SetText(string.format("%d icône%s", trouves, trouves > 1 and "s" or ""))
+        end
     end
 
     function d:Proposer(ancre, onChoix)
@@ -1546,3 +1624,4 @@ function UI.SelecteurIcone(cle)
     d:Hide()
     return d
 end
+

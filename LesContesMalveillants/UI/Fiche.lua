@@ -84,20 +84,37 @@ end
 local Nom = Fiche.Nom
 
 -- Icone encadree et son separateur (UI.LayoutAelContainerRow).
-function Fiche.Icone(l, c, texture)
+-- `taille` force la taille de l'icone (les lignes de conteneur la doublent).
+-- Elle est de toute facon bornee par la hauteur REELLE de la ligne : une icone
+-- qui depasse de sa ligne mord sur la voisine.
+function Fiche.Icone(l, c, texture, taille)
+    local hauteur = l:GetHeight()
+    if not hauteur or hauteur <= 0 then hauteur = c.ligne end
+    local cote = math.min(taille or c.iconeTaille, hauteur - 4)
     l.icone = l:CreateTexture(nil, "ARTWORK")
-    l.icone:SetSize(math.min(c.iconeTaille, c.ligne - 4), math.min(c.iconeTaille, c.ligne - 4))
+    l.icone:SetSize(cote, cote)
     l.icone:SetPoint("LEFT", l, "LEFT", c.icone, 0)
     l.icone:SetTexture(texture)
-    l.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    -- Rognee plus franchement : les icones du jeu portent un liseré gris sur
+    -- leur bord, qui jurait avec l'habillage.
+    l.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
+    l.iconeCote = cote
+    -- Ou finit l'icone, cadre compris : ce qui suit s'y accroche.
+    l.apresIcone = c.icone + cote + 2
     if UI.AelCadre then
+        -- Le tour dore mord d'un pixel SUR l'icone au lieu de l'entourer : pose
+        -- autour, il laissait voir le liseré gris du jeu entre lui et l'image.
         local support = CreateFrame("Frame", nil, l)
-        support:SetPoint("TOPLEFT", l.icone, "TOPLEFT", -2, 2)
-        support:SetPoint("BOTTOMRIGHT", l.icone, "BOTTOMRIGHT", 2, -2)
+        support:SetPoint("TOPLEFT", l.icone, "TOPLEFT", -1, 1)
+        support:SetPoint("BOTTOMRIGHT", l.icone, "BOTTOMRIGHT", 1, -1)
         l.cadreIcone = UI.AelCadre(support, "icone")
         l.separateur = UI.AelRef(l, 202, 397, 15, 37, "ARTWORK")
-        l.separateur:SetSize(12 * c.echelle, math.min(37 * c.echelle, c.ligne - 4))
-        l.separateur:SetPoint("LEFT", l, "LEFT", c.separateur, 0)
+        l.separateur:SetSize(12 * c.echelle, math.min(37 * c.echelle, hauteur - 4))
+        -- Calee sur l'icone qu'on vient de poser, pas sur la colonne du
+        -- gabarit : une icone doublee aurait pousse le separateur en plein
+        -- milieu d'elle-meme.
+        l.separateur:SetPoint("LEFT", l, "LEFT", taille and (l.apresIcone + 4) or c.separateur, 0)
+        l.apresIcone = (taille and (l.apresIcone + 4) or c.separateur) + 12 * c.echelle + 6
     end
 end
 local Icone = Fiche.Icone
@@ -167,9 +184,12 @@ function Lignes.stat(parent, field, c)
     Nom(l, c, field.label, icone ~= nil)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police)
-    -- Une marge a droite : calee pile sur le bord, la valeur touchait le filet
-    -- du bloc et se lisait mal.
-    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur - MARGE_VALEUR, 0)
+    -- Calee sur la COLONNE DE VALEUR, pas sur le bord droit de la ligne. Au
+    -- bord, le nom finissait vers 110 et le chiffre vers 300 : deux cents
+    -- pixels de rien entre les deux, et dans un volet etroit le chiffre
+    -- sortait carrement du cadre visible. Toujours alignee a droite, donc les
+    -- chiffres restent les uns sous les autres ; simplement plus pres du nom.
+    l.valeur:SetPoint("RIGHT", l, "LEFT", c.valeur + c.valeurLargeur, 0)
     l.valeur:SetJustifyH("RIGHT")
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
@@ -398,6 +418,75 @@ function Fiche.Effets(element)
     if #avantages > 0 then bonus[#bonus + 1] = "Avantage : " .. table.concat(avantages, ", ") end
     return table.concat(bonus, "  ·  ")
 end
+-- Les memes effets, mais RANGES : par section de la fiche, dans l'ordre de la
+-- fiche, et chacun avec sa valeur a part. La version a plat (`Fiche.Effets`)
+-- jetait tout sur une ligne par ordre alphabetique — « Ombre +2 · Perce-armure
+-- +1 · Perforant +4 » melange une penetration, une mecanique et une autre
+-- penetration, et on ne sait plus ce qu'on lit.
+--
+-- Rend une liste ordonnee de { titre, lignes = { { label, valeur } } }.
+function Fiche.EffetsGroupes(element)
+    -- L'ordre de la fiche, releve une fois : onglet, puis section, puis champ.
+    if not Fiche.rangChamp then
+        Fiche.rangChamp, Fiche.groupeChamp = {}, {}
+        local n = 0
+        for _, tab in ipairs(LCM.Schema.Tabs()) do
+            for _, section in ipairs(tab.sections or {}) do
+                -- Une section dont le nom se suffit n'a pas besoin de celui de
+                -- son onglet ; « Élémentaires » si, sinon penetrations et
+                -- resistances se ressemblent trait pour trait.
+                local titre = section.label or ""
+                local onglet = tab.label or tab.id
+                if titre == "" then titre = onglet
+                elseif onglet and onglet ~= titre then titre = onglet .. " — " .. titre end
+                for _, field in ipairs(section.fields or {}) do
+                    n = n + 1
+                    Fiche.rangChamp[field.id] = n
+                    Fiche.groupeChamp[field.id] = titre
+                end
+            end
+        end
+    end
+
+    local plats = {}
+    for champ, montant in pairs(element.bonus) do
+        local field = LCM.Schema.Field(champ)
+        plats[#plats + 1] = {
+            id = champ,
+            label = (field and field.label) or champ,
+            valeur = Montant(montant),
+            groupe = Fiche.groupeChamp[champ] or "Autres",
+            rang = Fiche.rangChamp[champ] or 9999,
+        }
+    end
+    table.sort(plats, function(a, b) return a.rang < b.rang end)
+
+    local groupes, parNom = {}, {}
+    for _, e in ipairs(plats) do
+        local g = parNom[e.groupe]
+        if not g then
+            g = { titre = e.groupe, lignes = {} }
+            parNom[e.groupe] = g
+            groupes[#groupes + 1] = g
+        end
+        g.lignes[#g.lignes + 1] = { label = e.label, valeur = e.valeur }
+    end
+
+    -- Les avantages ne sont pas chiffres : ils font leur propre paquet, en bout.
+    local avantages = {}
+    for champ in pairs(element.avantage) do
+        local field = LCM.Schema.Field(champ)
+        avantages[#avantages + 1] = (field and field.label) or champ
+    end
+    table.sort(avantages)
+    if #avantages > 0 then
+        local g = { titre = "Avantage", lignes = {} }
+        for _, nom in ipairs(avantages) do g.lignes[#g.lignes + 1] = { label = nom, valeur = "" } end
+        groupes[#groupes + 1] = g
+    end
+    return groupes
+end
+
 local Effets = Fiche.Effets
 
 -- Une carte pour tout ce qui porte des effets (trait, objet) : la fenetre
@@ -536,6 +625,12 @@ function Lignes.traits(parent, field, c)
         self.entity = e
         local mj = LCM.IsMaster()
         self.ajouter:SetShown(mj)
+        -- On ne retire pas SES PROPRES traits : ils se choisissent a la
+        -- creation et font le personnage. La croix restait offerte au MJ sur
+        -- toutes les fiches, la sienne comprise, et un clic de travers effacait
+        -- un trait paye. Sur la fiche d'un AUTRE, le MJ garde la main.
+        local sien = e ~= nil and e == LCM.Entities.Self()
+        local peutRetirer = mj and not sien
 
         local ids = LCM.Traits.Ids(e)
         local y = c.ligne + ECART_LIGNES
@@ -549,7 +644,10 @@ function Lignes.traits(parent, field, c)
             carte:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             carte:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
             local trait = LCM.Traits.Get(id)
-            local hauteur = carte:Habiller(id, trait, mj,
+            -- Exception : un trait qui n'existe plus (brouillon supprime) reste
+            -- retirable, meme sur sa propre fiche. Sinon il y resterait colle,
+            -- sans rien donner, sans moyen de s'en defaire.
+            local hauteur = carte:Habiller(id, trait, peutRetirer or (mj and trait == nil),
                 trait and string.format("%d pt%s", trait.cout, trait.cout > 1 and "s" or ""))
             carte:SetHeight(hauteur)
             carte:Show()
@@ -590,9 +688,12 @@ function Lignes.recap(parent, field, c, mode)
     UI.Police(l.nom, c.police * 0.85)
     l.valeur = UI.Texte(l, "", UI.C.titre)
     UI.Police(l.valeur, c.police * 0.85)
-    -- Une marge a droite : calee pile sur le bord, la valeur touchait le filet
-    -- du bloc et se lisait mal.
-    l.valeur:SetPoint("RIGHT", l, "LEFT", c.action + c.actionLargeur - MARGE_VALEUR, 0)
+    -- Calee sur la COLONNE DE VALEUR, pas sur le bord droit de la ligne. Au
+    -- bord, le nom finissait vers 110 et le chiffre vers 300 : deux cents
+    -- pixels de rien entre les deux, et dans un volet etroit le chiffre
+    -- sortait carrement du cadre visible. Toujours alignee a droite, donc les
+    -- chiffres restent les uns sous les autres ; simplement plus pres du nom.
+    l.valeur:SetPoint("RIGHT", l, "LEFT", c.valeur + c.valeurLargeur, 0)
     l.valeur:SetJustifyH("RIGHT")
     function l:Actualiser(e)
         local total = Fiche.Total(e, field, mode)
@@ -619,22 +720,197 @@ local function Choix()
     return Fiche.choixConteneur
 end
 
+-- La carte au survol : ce que le clic droit ouvre en grand, en lecture seule
+-- et sans habillage. L'infobulle du jeu ne donnait que deux lignes de texte ;
+-- ici on veut voir l'objet — son icone, son nom, ce qu'il est, ses chiffres.
+--
+-- Bordure SIMPLIFIEE a dessein : un survol apparait et disparait sans arret,
+-- et l'habillage complet d'une carte de compendium y clignoterait.
+local function CarteSurvol()
+    if Fiche.carteSurvol then return Fiche.carteSurvol end
+    local p = CreateFrame("Frame", nil, UIParent)
+    p:SetFrameStrata("TOOLTIP")
+    p:SetSize(360, 120)
+    p:EnableMouse(false)
+    p:Hide()
+    p.fond = UI.Aplat(p, { 0.04, 0.04, 0.05, 0.96 })
+    p.fond:SetAllPoints(p)
+    UI.BordureFine(p, 0.45)
+
+    p.icone = p:CreateTexture(nil, "ARTWORK")
+    p.icone:SetSize(40, 40)
+    p.icone:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -10)
+    p.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
+    p.nom = UI.Texte(p, "", UI.C.titre)
+    p.nom:SetPoint("TOPLEFT", p.icone, "TOPRIGHT", 10, -2)
+    p.nom:SetPoint("TOPRIGHT", p, "TOPRIGHT", -10, -10)
+    p.nom:SetJustifyH("LEFT")
+    p.nom:SetWordWrap(true)
+    p.description = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
+    p.description:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -56)
+    p.description:SetPoint("TOPRIGHT", p, "TOPRIGHT", -10, -56)
+    p.description:SetJustifyH("LEFT")
+    p.description:SetWordWrap(true)
+    -- Les effets, ranges : un intertitre par section, puis ses lignes sur
+    -- trois colonnes, libelle a gauche et valeur calee a droite de sa colonne.
+    p.titres, p.cases = {}, {}
+    p.COLONNES, p.LIGNE_H, p.TITRE_H = 3, 15, 17
+
+    function p:Montrer(element, groupes, ancreSur)
+        self.icone:SetTexture(element.icone)
+        self.nom:SetText(element.label or "")
+        local description = element.description or ""
+        self.description:SetText(description)
+        self.description:SetShown(description ~= "")
+        local y = 56
+        if description ~= "" then
+            y = y + (self.description:GetStringHeight() or 14) + 8
+        end
+        local nT, nC = 0, 0
+        local largeurCase = (self:GetWidth() - 20 - (self.COLONNES - 1) * 8) / self.COLONNES
+        for _, groupe in ipairs(groupes or {}) do
+            nT = nT + 1
+            local t = self.titres[nT]
+            if not t then
+                t = UI.Texte(self, "", UI.C.titre, "GameFontNormalSmall")
+                t:SetJustifyH("LEFT")
+                self.titres[nT] = t
+            end
+            t:SetText(groupe.titre)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", self, "TOPLEFT", 10, -y)
+            t:Show()
+            y = y + self.TITRE_H
+
+            for index, ligne in ipairs(groupe.lignes) do
+                nC = nC + 1
+                local c = self.cases[nC]
+                if not c then
+                    c = CreateFrame("Frame", nil, self)
+                    c.label = UI.Texte(c, "", UI.C.texte, "GameFontNormalSmall")
+                    c.label:SetPoint("LEFT", c, "LEFT", 0, 0)
+                    c.label:SetJustifyH("LEFT")
+                    c.label:SetWordWrap(false)
+                    c.valeur = UI.Texte(c, "", UI.C.accent, "GameFontNormalSmall")
+                    c.valeur:SetPoint("RIGHT", c, "RIGHT", 0, 0)
+                    c.valeur:SetJustifyH("RIGHT")
+                    self.cases[nC] = c
+                end
+                local col = (index - 1) % self.COLONNES
+                local rang = math.floor((index - 1) / self.COLONNES)
+                c:SetSize(largeurCase, self.LIGNE_H)
+                c:ClearAllPoints()
+                c:SetPoint("TOPLEFT", self, "TOPLEFT",
+                    14 + col * (largeurCase + 8), -(y + rang * self.LIGNE_H))
+                c.label:SetWidth(largeurCase - 26)
+                c.label:SetText(ligne.label)
+                c.valeur:SetText(ligne.valeur)
+                c:Show()
+            end
+            y = y + math.ceil(#groupe.lignes / self.COLONNES) * self.LIGNE_H + 4
+        end
+        for i = nT + 1, #self.titres do self.titres[i]:Hide() end
+        for i = nC + 1, #self.cases do self.cases[i]:Hide() end
+        self:SetHeight(math.max(62, y + 8))
+        self:ClearAllPoints()
+        self:SetPoint("TOPLEFT", ancreSur, "TOPRIGHT", 12, 0)
+        self:Show()
+    end
+
+    Fiche.carteSurvol = p
+    return p
+end
+
+-- Montre la fiche de l'element porte, comme le clic droit du compendium et de
+-- l'inventaire.
+local function VoirElement(conteneur, id, ancre)
+    if not id or not UI.Compendium then return end
+    local element, categorie = LCM.Compendium.Resoudre(
+        tostring(conteneur.categorie) .. "/" .. tostring(id))
+    -- Sinon on cherche l'entree dans les familles. Le repli evident — prendre
+    -- la categorie du CATALOGUE — est faux : ce n'est pas une categorie de
+    -- compendium, elle n'a pas de champs, et la carte plantait dessus.
+    if not (element and categorie) then
+        for _, cat in ipairs(LCM.Compendium.categories) do
+            for _, e in ipairs(LCM.Compendium.Entrees(cat)) do
+                if tostring(e.id) == tostring(id) then element, categorie = e, cat break end
+            end
+            if element then break end
+        end
+    end
+    if element and categorie then UI.Compendium.Voir(categorie, element, ancre) end
+end
+
 local function Emplacement(conteneur, c)
-    local l = Ligne(conteneur, c)
-    l:SetHeight(math.max(48, c.ligne))
-    Icone(l, c, VIDE)
-    Nom(l, c, "", true)
+    -- Un BOUTON, pas un cadre : seuls les boutons recoivent OnClick, et sans
+    -- ca le clic droit ne part jamais (c'est la panne du 1er octobre).
+    local l = Ligne(conteneur, c, "Button")
+    -- Deux lignes de texte : le nom en entier, la description dessous.
+    l:SetHeight(math.max(52, c.ligne * 2))
+
+    -- L'icone double : une vignette de 16 ne montrait rien d'un objet. Bornee
+    -- par la hauteur de la ligne, elle ne peut pas deborder.
+    Icone(l, c, VIDE, c.iconeTaille * 2)
+    local depart = l.apresIcone or c.nom
+    local finTexte = c.action - 8 * c.echelle
+
+    -- Le nom en ENTIER : il etait coupe des « Capuche de... ». Il a toute la
+    -- largeur jusqu'au bouton, et sa propre ligne.
+    l.nom = UI.Texte(l, "", UI.C.texte)
+    UI.Police(l.nom, c.police)
+    l.nom:SetPoint("TOPLEFT", l, "TOPLEFT", depart, -8)
+    l.nom:SetPoint("TOPRIGHT", l, "TOPLEFT", finTexte, -8)
+    l.nom:SetJustifyH("LEFT")
+    l.nom:SetWordWrap(false)
+    l.label = l.nom
+
+    -- La description dessous, et les effets au bout de la meme ligne : le nom
+    -- garde ainsi sa ligne pour lui seul.
+    l.description = UI.Texte(l, "", UI.C.discret)
+    UI.Police(l.description, c.police * 0.78)
+    l.description:SetPoint("TOPLEFT", l.nom, "BOTTOMLEFT", 0, -3)
+    l.description:SetJustifyH("LEFT")
+    l.description:SetWordWrap(false)
+
+    -- La description prend toute la ligne. Les chiffres (« Perce-armure +1 ·
+    -- Perforant +4 ») etaient affiches ici : ils disent ce que l'objet FAIT,
+    -- pas ce qu'il EST, et la carte au survol les donne deja. Sous le nom, on
+    -- veut savoir de quoi il s'agit.
+    l.description:SetPoint("TOPRIGHT", l, "TOPLEFT", finTexte, -(8 + c.police + 5))
+    -- Garde pour le code qui l'alimente encore : jamais dessine.
     l.effets = UI.Texte(l, "", UI.C.accent)
-    UI.Police(l.effets, c.police * 0.72)
-    l.effets:SetPoint("LEFT", l, "LEFT", c.plage, 0)
-    l.effets:SetPoint("RIGHT", l, "LEFT", c.action - 8 * c.echelle, 0)
-    l.effets:SetJustifyH("RIGHT")
-    l.effets:SetWordWrap(false)
+    l.effets:Hide()
+
     l.action = UI.Bouton(l, "", c.actionLargeur, c.boutonH, function()
         if l.elementId then conteneur:Retirer(l.elementId) else conteneur:Proposer(l.action) end
     end)
     l.action:SetPoint("LEFT", l, "LEFT", c.action, 0)
     UI.Police(l.action.label, c.police * 0.8)
+
+    -- Clic droit : la fiche de l'objet porte. Il manquait — on voyait l'objet
+    -- sur soi sans pouvoir le lire.
+    l:RegisterForClicks("RightButtonUp")
+    l:SetScript("OnClick", function(self, bouton)
+        if bouton == "RightButton" then VoirElement(conteneur, self.elementId, self) end
+    end)
+
+    -- Survol : la carte de l'objet quand il y en a un, l'infobulle sinon (une
+    -- case vide n'a pas de carte a montrer).
+    l:EnableMouse(true)
+    l:SetScript("OnEnter", function(self)
+        if self.survol then
+            CarteSurvol():Montrer(self.survol.element, self.survol.groupes, self)
+        elseif self.bulle and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.bulle.titre)
+            GameTooltip:AddLine(self.bulle.texte, 0.88, 0.84, 0.76, true)
+            GameTooltip:Show()
+        end
+    end)
+    l:SetScript("OnLeave", function()
+        if Fiche.carteSurvol then Fiche.carteSurvol:Hide() end
+        if GameTooltip then GameTooltip:Hide() end
+    end)
 
     function l:Habiller(catalogue, id, mj)
         self.elementId = id
@@ -643,8 +919,10 @@ local function Emplacement(conteneur, c)
             self.icone:SetTexture(VIDE)
             self.nom:SetText("Emplacement")
             self.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+            self.description:SetText("")
             self.effets:SetText("")
-            Bulle(self, "Emplacement", "Emplacement disponible.")
+            self.survol = nil
+            self.bulle = { titre = "Emplacement", texte = "Emplacement disponible." }
             self.action.label:SetText("+  Ajouter")
         elseif element then
             self.icone:SetTexture(element.icone)
@@ -660,8 +938,12 @@ local function Emplacement(conteneur, c)
                 effets = effets ~= "" and (armure .. "  ·  " .. effets) or armure
             end
             self.effets:SetText(effets)
-            Bulle(self, element.label, (element.description ~= "" and (element.description .. "\n\n") or "")
-                .. (effets ~= "" and effets or "Aucun effet chiffré."))
+            -- La description sous le nom : elle n'existait que dans l'infobulle,
+            -- qu'il fallait aller chercher a la souris.
+            self.description:SetText(element.description or "")
+            -- La carte au survol remplace l'infobulle : elle montre l'objet.
+            self.survol = { element = element, groupes = Fiche.EffetsGroupes(element) }
+            self.bulle = nil
             self.action.label:SetText("Retirer")
         else
             -- Disparu : il occupe toujours sa case, et redevient actif s'il
@@ -669,8 +951,11 @@ local function Emplacement(conteneur, c)
             self.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+            self.description:SetText("")
             self.effets:SetText("")
-            Bulle(self, tostring(id), "N'existe pas dans cette version de l'addon : ne donne rien.")
+            self.survol = nil
+            self.bulle = { titre = tostring(id),
+                           texte = "N'existe pas dans cette version de l'addon : ne donne rien." }
             self.action.label:SetText("Retirer")
         end
         self.action:SetShown(mj)
@@ -681,7 +966,7 @@ end
 -- Les etats temporaires (Core/EtatsTemporaires.lua) : une ligne par etat —
 -- icone, nom, effets, duree. Le MJ peut retirer ; un etat qui se guerit par
 -- un jet propose « Guérir ». Aucun : une ligne le dit.
-function Lignes.temporaires(bloc, c)
+function Lignes.temporaires(bloc, c, conteneur)
     local l = CreateFrame("Frame", nil, bloc)
     l.lignes = {}
     l.vide = UI.Texte(l, "Aucun état temporaire.", UI.C.discret)
@@ -690,7 +975,7 @@ function Lignes.temporaires(bloc, c)
     function l:Actualiser(e)
         self.entity = e
         local T = LCM.EtatsTemporaires
-        local liste = T.Liste(e)
+        local liste = T.Liste(e, self.conteneur)
         local y = 0
         for i, etat in ipairs(liste) do
             local r = self.lignes[i]
@@ -858,7 +1143,9 @@ function Fiche.Bloc(parent, section, largeur)
             b.gemme:SetPoint("TOP", b, "TOP", 0, 5)
         end
         b.titre = UI.Texte(b, UI.Majuscules(section.label), UI.C.titreBloc)
-        UI.Police(b.titre, m.titre * 0.8)
+        -- + 2 : a cette densite le titre de bloc se confondait avec ses lignes,
+        -- alors que c'est lui qui dit de quoi parle le paquet (3 octobre 2026).
+        UI.Police(b.titre, m.titre * 0.8 + 2)
         b.titre:SetPoint("TOPLEFT", b, "TOPLEFT", math.max(14, 26 * m.echelle), -(b.hautTitre - 4) / 2 + 2)
         if UI.AelRef then
             b.ornement = UI.AelRef(b, 347, 344, 45, 17, "ARTWORK")
@@ -927,7 +1214,9 @@ function Fiche.Page(parent, sections, largeur)
             end)
         end
         if section.temporaires then
-            local ligne = Lignes.temporaires(bloc, c)
+            local ligne = Lignes.temporaires(bloc, c,
+                type(section.temporaires) == "string" and section.temporaires or nil)
+            ligne.conteneur = type(section.temporaires) == "string" and section.temporaires or nil
             ligne.onChange = function() if not page.enDisposition then page:Disposer() end end
             bloc.lignes[#bloc.lignes + 1] = ligne
             page.lignes[#page.lignes + 1] = ligne

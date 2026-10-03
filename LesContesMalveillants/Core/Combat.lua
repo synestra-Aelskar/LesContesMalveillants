@@ -233,6 +233,20 @@ local function Appliquer(etat)
     if avant and etat and avant.s == etat.s and (etat.t > avant.t or (etat.t == avant.t and etat.r > avant.r)) then
         if LCM.EtatsTemporaires then LCM.EtatsTemporaires.Vieillir() end
     end
+    -- Le deplacement se rend quand c'est DE NOUVEAU a nous de jouer, pas au
+    -- changement de round : un round n'est pas un tour, et c'est en reprenant
+    -- la main qu'on retrouve ses deux deplacements. C'etait un bouton « Nv
+    -- round » que le joueur devait penser a cliquer ; le combat le sait tout
+    -- seul.
+    if LCM.DeplacementForce and etat then
+        local courant = etat.entrees[etat.c]
+        local avantCourant = avant and avant.entrees[avant.c]
+        local aNous = courant and courant.id == Moi()
+        local etaitANous = avantCourant and avantCourant.id == Moi()
+        if aNous and not (etaitANous and avant.s == etat.s) then
+            LCM.DeplacementForce.NouveauRound(true)
+        end
+    end
     Prevenir()
 end
 

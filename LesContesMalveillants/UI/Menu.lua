@@ -53,8 +53,10 @@ Menu.STRUCTURE = {
       enfants = {
           { id = "regles",     label = "Règles",     icone = RADIAL .. "fenetres-regles.tga" },
           { id = "parametres", label = "Paramètres", icone = RADIAL .. "fenetres-parametres.tga" },
-          { id = "compendium", label = "Compendium", icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
           { id = "panneau_mj", label = "Panel MJ",   icone = RADIAL .. "fenetres-panneau_mj.tga", mjSeulement = true },
+          -- L'atelier etait enfoui dans le Panel MJ, a trois clics : c'est
+          -- l'outil qu'on ouvre le plus en seance, il est ici (3 octobre 2026).
+          { id = "atelier",    label = "Atelier",    icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
           -- Reserves au MJ depuis le 3 octobre 2026 : un vendeur et un filon
           -- s'ouvrent quand le MJ les met en jeu, pas quand un joueur decide
           -- d'aller faire ses courses.
@@ -65,6 +67,8 @@ Menu.STRUCTURE = {
     -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,
     -- les resolutions et les actions MJ, et un joueur n'a rien a y lire. Sa
     -- race, il la choisit a la creation, pas ici.
+    { id = "compendium", label = "Compendium", icone = RADIAL .. "fenetres-compendium.tga",
+      mjSeulement = true },
     { id = "systeme_aelskar", label = "Système d'Aelskar", icone = ICONE .. "achievement_zone_stormpeaks_03",
       mjSeulement = true },
     { id = "deplacement", label = "Déplacement", icone = RADIAL .. "fenetres-deplacement.tga" },

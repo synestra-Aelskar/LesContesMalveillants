@@ -194,16 +194,47 @@ local function NouvelleCarte()
     p.fermer:SetFrameLevel(p:GetFrameLevel() + 6)
 
     p.icone = p:CreateTexture(nil, "ARTWORK")
-    p.icone:SetSize(28, 28)
-    p.icone:SetPoint("TOPLEFT", p, "TOPLEFT", 12, -12)
+    -- Plus grande qu'avant (28), sans etre envahissante : a 28 on ne
+    -- reconnaissait pas l'objet qu'on est venu lire.
+    p.icone:SetSize(42, 42)
+    p.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
+    -- Le tour dore de l'habillage, qui mord d'un pixel SUR l'image : sans lui
+    -- on voyait le liseré gris que le jeu dessine au bord de ses icones.
+    if UI.AelCadre then
+        local support = CreateFrame("Frame", nil, p)
+        support:SetPoint("TOPLEFT", p.icone, "TOPLEFT", -1, 1)
+        support:SetPoint("BOTTOMRIGHT", p.icone, "BOTTOMRIGHT", 1, -1)
+        support:SetFrameLevel(p:GetFrameLevel() + 2)
+        p.cadreIcone = UI.AelCadre(support, "icone")
+    end
     p.titre = UI.Texte(p, "", UI.C.titre, "GameFontNormal")
-    p.titre:SetPoint("TOPLEFT", p.icone, "TOPRIGHT", 10, -2)
-    p.titre:SetPoint("TOPRIGHT", p, "TOPRIGHT", -34, -12)
     p.titre:SetWordWrap(false)
     p.sousTitre = UI.Texte(p, "", UI.C.accent, "GameFontNormalSmall")
     p.sousTitre:SetPoint("TOPLEFT", p.titre, "BOTTOMLEFT", 0, -2)
-    p.sousTitre:SetPoint("TOPRIGHT", p, "TOPRIGHT", -34, -48)
     p.sousTitre:SetWordWrap(true)
+
+    -- L'entete se pose DANS le cadre, pas sous son ornement. A douze pixels du
+    -- bord, l'icone et le nom passaient sous la draperie du coin : l'habillage
+    -- mord bien plus que ca, et c'est lui qui dit de combien.
+    function p:PlacerEntete()
+        local e = UI.AelEmprise(self)
+        local cote = math.max(12, (e.cote or 0) + 6)
+        -- En HAUT de la carte : l'ornement du haut est au milieu du bord, pas
+        -- dans le coin gauche ou vit l'icone. Se decaler de sa portee (40 px)
+        -- faisait descendre tout l'entete sur l'etat.
+        local haut = math.max(10, cote - 2)
+        self.margeCote, self.margeHaut = cote, haut
+        self.icone:ClearAllPoints()
+        self.icone:SetPoint("TOPLEFT", self, "TOPLEFT", cote, -haut)
+        self.titre:ClearAllPoints()
+        self.titre:SetPoint("TOPLEFT", self.icone, "TOPRIGHT", 10, -2)
+        self.titre:SetPoint("TOPRIGHT", self, "TOPRIGHT", -(cote + 26), -haut)
+        self.sousTitre:SetPoint("TOPRIGHT", self, "TOPRIGHT", -(cote + 26), 0)
+        self.fermer:ClearAllPoints()
+        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -math.max(8, cote - 4), -haut)
+        -- Ou commence le texte aligne sur le NOM : apres l'icone.
+        self.xTexte = cote + self.icone:GetWidth() + 10
+    end
     p.entete = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
     p.entete:SetWordWrap(true)
     p.filetEntete = UI.Filet(p)
@@ -229,10 +260,13 @@ local function NouvelleCarte()
     p.basculeStats:SetScript("OnClick", function()
         p.statsRepliees = not p.statsRepliees
         local hauteur = p:Disposer()
-        if not p.placee then
-            p:SetHeight(math.min(560, math.max(HAUTEUR_MINI, hauteur)))
-            p:Disposer()
-        end
+        -- La hauteur suit TOUJOURS, meme si on a deplace ou retaille la carte.
+        -- Avant, retailler posait `placee`, et deplier ne faisait plus rien :
+        -- on retaillait parce que ca ne s'agrandissait pas, ce qui garantissait
+        -- que ca ne s'agrandirait plus jamais. La largeur, elle, reste celle
+        -- qu'on a choisie.
+        p:SetHeight(math.min(560, math.max(HAUTEUR_MINI, hauteur)))
+        p:Disposer()
     end)
 
     p.filetPied = UI.Filet(p, true)
@@ -246,11 +280,26 @@ local function NouvelleCarte()
         local d = self.donnees
         if not d then return 0 end
         local largeur = math.max(320, self:GetWidth())
-        local utile = largeur - 24
-        local y = -40
+        self:PlacerEntete()
+        local marge = self.margeCote or 12
+        -- Aligne sur le nom, pas sur le bord : « Etat : 20 / 20 » se lisait
+        -- sous l'icone, decroche du nom auquel il se rapporte — et par-dessus
+        -- elle une fois l'icone agrandie.
+        local xTexte = self.xTexte or 12
+        -- Deux largeurs : celle de l'ENTETE, qui commence apres l'icone, et
+        -- celle du CORPS, qui traverse la carte d'une marge a l'autre. Les
+        -- confondre raccourcissait le rectangle des statistiques de toute la
+        -- largeur de l'icone.
+        local utileEntete = largeur - marge - xTexte
+        local utile = largeur - 2 * marge
+        local haut = self.margeHaut or 12
+        -- Le texte descend sous le NOM ; le bas de l'icone ne compte que pour
+        -- ce qui traverse la carte (les filets).
+        local y = -haut - 22
+        local basIcone = -haut - self.icone:GetHeight() - 4
         if d.sousTitre ~= "" then
             self.sousTitre:SetText(d.sousTitre)
-            self.sousTitre:SetWidth(math.max(largeur - 92, 160))
+            self.sousTitre:SetWidth(math.max(largeur - (self.xTexte or 92) - 40, 160))
             y = -30 - math.max(self.sousTitre:GetStringHeight() or 0, 14)
         end
         self.sousTitre:SetShown(d.sousTitre ~= "")
@@ -260,12 +309,12 @@ local function NouvelleCarte()
             y = y - 3
             self.entete:SetText(d.entete)
             self.entete:ClearAllPoints()
-            self.entete:SetPoint("TOPLEFT", self, "TOPLEFT", 12, y)
-            self.entete:SetWidth(utile)
+            self.entete:SetPoint("TOPLEFT", self, "TOPLEFT", xTexte, y)
+            self.entete:SetWidth(math.max(80, utileEntete))
             y = y - math.max(self.entete:GetStringHeight() or 0, 14) - 5
             self.filetEntete:ClearAllPoints()
-            self.filetEntete:SetPoint("TOPLEFT", self, "TOPLEFT", 12, y)
-            self.filetEntete:SetPoint("TOPRIGHT", self, "TOPRIGHT", -12, y)
+            self.filetEntete:SetPoint("TOPLEFT", self, "TOPLEFT", marge, y)
+            self.filetEntete:SetPoint("TOPRIGHT", self, "TOPRIGHT", -marge, y)
             y = y - 3
         end
         self.meta:SetShown(d.meta ~= "")
@@ -273,8 +322,8 @@ local function NouvelleCarte()
         if d.meta ~= "" then
             self.meta:SetText(d.meta)
             self.meta:ClearAllPoints()
-            self.meta:SetPoint("TOPLEFT", self, "TOPLEFT", 12, y)
-            self.meta:SetWidth(utile)
+            self.meta:SetPoint("TOPLEFT", self, "TOPLEFT", xTexte, y)
+            self.meta:SetWidth(utileEntete)
             y = y - math.max(self.meta:GetStringHeight() or 0, 14) - 4
             self.filetMeta:ClearAllPoints()
             self.filetMeta:SetPoint("TOPLEFT", self, "TOPLEFT", 12, y)
@@ -371,8 +420,8 @@ local function NouvelleCarte()
         for _, c in ipairs(self.puces) do c:Hide() end
         if #d.stats > 0 then
             self.basculeStats:ClearAllPoints()
-            self.basculeStats:SetPoint("TOPLEFT", corps, "TOPLEFT", 2, -yc)
-            self.basculeStats:SetWidth(math.max(60, utile - 14))
+            self.basculeStats:SetPoint("TOPLEFT", corps, "TOPLEFT", 0, -yc)
+            self.basculeStats:SetWidth(math.max(60, utile))
             self.basculeStats.label:SetText((self.statsRepliees and "+ " or "- ") .. "Statistiques")
             yc = yc + 20
             if not self.statsRepliees then

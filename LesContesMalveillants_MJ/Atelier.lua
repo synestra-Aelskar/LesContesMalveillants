@@ -556,6 +556,10 @@ local function Construire()
     f.droite:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 12, 0)
     f.droite:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
+    -- Reprendre un contenu publie : il s'ouvrait en lecture seule, sans aucun
+    -- moyen de corriger une faute en pleine seance. On en fait un brouillon
+    -- qui prend le pas sur le fichier, a reporter entre deux seances.
+    f.reprendre = UI.Bouton(f.droite, "Modifier (brouillon)", 180, 24, function() f:Reprendre() end)
     f.enregistrer = UI.Bouton(f.droite, "Enregistrer le brouillon", 180, 24, function() f:Enregistrer() end)
     f.enregistrer:SetPoint("BOTTOMLEFT", f.droite, "BOTTOMLEFT", 0, 0)
     f.supprimer = UI.Bouton(f.droite, "Supprimer", 110, 24, function() f:Supprimer() end)
@@ -633,7 +637,9 @@ local function Construire()
         brouillon = { suffixe = "",                    couleur = UI.C.accent },
         publie    = { suffixe = "  · publié",          couleur = UI.C.discret },
         refuse    = { suffixe = "  · refusé",          couleur = UI.C.plein },
-        doublon   = { suffixe = "  · déjà publié",     couleur = UI.C.plein },
+        -- Il ne double plus : il REMPLACE. La couleur reste vive, parce que
+        -- c'est un etat a reporter dans le fichier, pas un etat normal.
+        doublon   = { suffixe = "  · remplace le publié", couleur = UI.C.plein },
     }
 
     function f:RemplirListe()
@@ -674,18 +680,21 @@ local function Construire()
         p:Remplir()
         self:MajIdentifiant()
 
-        local editable = Brouillons.Registre(self.famille) ~= nil and not e.publie
-        -- Un brouillon qui double un contenu publie ne peut plus etre
-        -- enregistre (le registre le refuserait) ; il ne reste qu'a le retirer.
-        local doublon = editable and not e.creation and Brouillons.EstPublie(self.famille, e.id)
-        self.enregistrer:SetShown(editable and not doublon)
+        local aRegistre = Brouillons.Registre(self.famille) ~= nil
+        local editable = aRegistre and not e.publie
+        -- Un brouillon qui double un contenu publie se garde : il le REMPLACE,
+        -- c'est ce qu'on vient demander en le modifiant.
+        local remplace = editable and not e.creation and Brouillons.EstPublie(self.famille, e.id)
+        self.enregistrer:SetShown(editable)
+        self.reprendre:SetShown(aRegistre and e.publie == true)
         self.supprimer:SetShown(editable and not e.creation)
         if e.publie then
-            self:Message("Contenu publié : il vient d'un fichier généré, et c'est ce fichier "
-                .. "qui fait foi. Il ne se modifie pas ici.")
-        elseif doublon then
-            self:Message("Ce brouillon porte l'identifiant d'un contenu déjà publié : le fichier "
-                .. "fait foi, et ce brouillon est ignoré. Il ne reste qu'à le supprimer.", UI.C.plein)
+            self:Message("Contenu publié : il vient d'un fichier généré. « Modifier (brouillon) » "
+                .. "en fait une version jouable tout de suite, à reporter dans le fichier ensuite.")
+        elseif remplace or e.remplace then
+            self:Message("Ce brouillon REMPLACE un contenu publié : c'est lui qui s'applique en jeu. "
+                .. "Reporte-le dans le fichier entre deux séances, sinon il restera à part.",
+                UI.C.accent)
         elseif e.creation then
             self:Message("")
         end
@@ -719,6 +728,17 @@ local function Construire()
         self:Nouveau()
     end
 
+    function f:Reprendre()
+        local e = self.edition
+        if not e.publie then return end
+        e.publie = false
+        e.creation = false
+        e.remplace = true
+        self:Afficher()
+        self:Message("Repris en brouillon : enregistre, il prendra le pas sur le fichier publié. "
+            .. "Pense à le reporter dans le fichier entre deux séances.", UI.C.accent)
+    end
+
     function f:Enregistrer()
         local e = self.edition
         local definition, raison = Definition(e)
@@ -726,7 +746,7 @@ local function Construire()
             self:Message("Refusé : " .. raison, UI.C.plein)
             return
         end
-        local ok, refus = Brouillons.Enregistrer(self.famille, definition, e.creation)
+        local ok, refus = Brouillons.Enregistrer(self.famille, definition, e.creation, e.remplace)
         if not ok then
             self:Message("Refusé : " .. tostring(refus), UI.C.plein)
             return
@@ -777,8 +797,15 @@ function Atelier.Basculer()
     if f:IsShown() then f:Hide() else f:Montrer() end
 end
 
--- Le menu (« Compendium », « Systeme d'Aelskar ») ouvre desormais le
--- compendium (UI/Compendium.lua), dont l'editeur MJ (Compendium.lua du
--- compagnon) cree et modifie les memes brouillons. L'atelier reste joignable
--- par sa commande.
+-- Le menu (« Compendium », « Systeme d'Aelskar ») ouvre le compendium
+-- (UI/Compendium.lua), dont l'editeur MJ (Compendium.lua du compagnon) cree et
+-- modifie les memes brouillons.
+--
+-- L'atelier, lui, a sa propre entree dans « Outils » depuis le 3 octobre 2026 :
+-- il etait enfoui dans le Panel MJ, a trois clics, alors que c'est l'outil
+-- qu'on ouvre le plus en seance.
+LCM.WhenReady(function()
+    if LCM.UI and LCM.UI.Menu then LCM.UI.Menu.Lier("atelier", Atelier.Basculer) end
+end)
+
 LCM.AddCommand("atelier", "(MJ) creer traits, races et objets en seance", function() Atelier.Basculer() end, true)

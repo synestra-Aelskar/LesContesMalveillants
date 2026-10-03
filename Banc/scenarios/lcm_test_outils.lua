@@ -41,8 +41,13 @@ LCM.Incarnation.Instancier(LCM.PNJ.list[1].id, "Garde")
 contenu:Afficher()
 attendu("un PNJ mis en scene apparait", contenu.nombreScene, 1)
 attendu("sous son nom", contenu.lignesScene[1].nom:GetText(), "Garde")
-contenu.boutons.atelier:Click()
-attendu("l'Atelier s'ouvre", LCM.UI.Atelier.Fenetre():IsShown(), true)
+-- L'Atelier a quitte le Panel MJ le 3 octobre 2026 : il a sa propre entree
+-- dans « Outils », parce que c'est l'outil qu'on ouvre le plus en seance et
+-- qu'il etait a trois clics.
+attendu("l'Atelier n'est plus dans le Panel MJ", contenu.boutons.atelier, nil)
+attendu("il est dans le menu", LCM.UI.Menu.EstLiee("atelier"), true)
+LCM.UI.Menu.Trouver("atelier").onClick()
+attendu("et il s'ouvre de la", LCM.UI.Atelier.Fenetre():IsShown(), true)
 LCM.UI.Atelier.Fenetre():Hide()
 
 dire("== les outils : ce qui est refuse, et pourquoi")

@@ -355,6 +355,29 @@ function Ecran.Basculer(id)
     return f
 end
 
+-- Remet a jour toutes les vues OUVERTES. Une vue fermee se reconstruit a
+-- l'ouverture : la rafraichir ne servirait qu'a payer le calcul deux fois.
+function Ecran.Rafraichir()
+    for _, f in pairs(Ecran.frames) do
+        if f:IsShown() and f.Actualiser then f:Actualiser() end
+    end
+end
+
+-- Le personnage change (une action vient de prelever des PA, le MJ ajuste une
+-- jauge, un trait tombe) : ce qui est affiche suit, immediatement. Avant, il
+-- fallait fermer la fiche et la rouvrir pour voir ses propres PA descendre.
+LCM.WhenReady(function()
+    LCM.Entities.onChange = function(entity)
+        -- Une fiche montre UN personnage : celle qui regarde quelqu'un d'autre
+        -- n'a aucune raison de se recalculer.
+        for _, f in pairs(Ecran.frames) do
+            if f:IsShown() and f.Actualiser and (f.entity == nil or f.entity == entity) then
+                f:Actualiser()
+            end
+        end
+    end
+end)
+
 -- Chaque vue allume l'entree du menu du meme nom. Une vue sans entree est une
 -- faute d'ecriture : Menu.Lier la signale.
 LCM.WhenReady(function()

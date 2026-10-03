@@ -384,11 +384,18 @@ local depliee = carteT:GetHeight()
 attendu("la carte s'agrandit", depliee > repliee, true)
 carteT.basculeStats:Click()
 attendu("et se referme a sa taille d'avant", carteT:GetHeight(), repliee)
--- Une carte qu'on a redimensionnee garde SA taille.
+-- 3 octobre 2026 : deplier AGRANDIT meme une carte qu'on a retaillee. La
+-- regle d'avant (« elle garde sa taille ») se mordait la queue : on retaillait
+-- justement parce que deplier n'agrandissait pas, et ca garantissait que ca
+-- n'agrandirait plus jamais. La LARGEUR choisie, elle, est respectee.
 carteT.placee = true
+carteT:SetWidth(380)
 carteT:SetHeight(300)
+local avantClic = carteT:GetHeight()
 carteT.basculeStats:Click()
-attendu("une carte redimensionnee garde sa hauteur", carteT:GetHeight(), 300)
+attendu("deplier agrandit quand meme", carteT:GetHeight() ~= avantClic, true)
+attendu("et montre tout le contenu", carteT:GetHeight() >= carteT:Disposer(), true)
+attendu("la largeur choisie est gardee", carteT:GetWidth(), 380)
 carteT:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

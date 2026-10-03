@@ -479,8 +479,6 @@ function UI.AelColonnes(largeur)
     local plageLargeur = 95 * s
     local action = fin - actionLargeur
     local modificateur = action - ecart - modificateurLargeur
-    local valeur = modificateur - ecart - valeurLargeur
-    local plage = valeur - ecart - plageLargeur
 
     -- Les trois boutons d'une jauge, colles a droite eux aussi, et la barre
     -- s'arrete juste avant le premier.
@@ -498,6 +496,20 @@ function UI.AelColonnes(largeur)
     local iconeReelle = math.min(iconeTaille, ligne - 4)
     local separateur = 8 * s + iconeReelle + 2 + 4  -- 2 : le cadre de l'icone
     local nom = separateur + 12 * s + 6             -- 12 * s : le separateur
+    local nomLargeur = 205 * s
+
+    -- La valeur ne s'eloigne pas du nom au-dela de la place reservee au nom.
+    -- Calee au bord droit seul, elle laissait un couloir vide de deux cents
+    -- pixels (« Force .............. 12 »), et surtout, dans un volet etroit —
+    -- la vue Statistiques en deux volets — elle tombait HORS du cadre visible :
+    -- on lisait les noms et pas un seul chiffre. La colonne reste une colonne,
+    -- tous les chiffres restent alignes entre eux ; elle est seulement ramenee
+    -- contre le nom au lieu du bord. (3 octobre 2026 : annule « on garde
+    -- l'alignement » du 2 octobre, qui ne tenait que sur une page pleine
+    -- largeur.)
+    local valeur = math.min(modificateur - ecart - valeurLargeur,
+                            nom + nomLargeur + ecart)
+    local plage = valeur - ecart - plageLargeur
 
     return {
         echelle = s,
@@ -506,7 +518,7 @@ function UI.AelColonnes(largeur)
         -- en dessous il ne se lit plus. Entre les deux il suit la fenetre.
         police = math.max(POLICE_MIN, math.min(POLICE_MAX, 24 * s)),
         icone = 8 * s, iconeTaille = iconeTaille, separateur = separateur,
-        nom = nom, nomSansIcone = 24 * s, nomLargeur = 205 * s,
+        nom = nom, nomSansIcone = 24 * s, nomLargeur = nomLargeur,
         plage = plage, plageLargeur = plageLargeur,
         valeur = valeur, valeurLargeur = valeurLargeur,
         modificateur = modificateur, modificateurLargeur = modificateurLargeur,

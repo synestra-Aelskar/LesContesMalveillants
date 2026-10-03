@@ -16,9 +16,11 @@
 --   * `unitesParMetre` convertit les unites de `UnitPosition` en metres de la
 --     fiche. A 1 chez nous, comme chez Necronicon.
 --
--- Ce qu'on ne reprend PAS : Necronicon finit par des commandes serveur
--- (`.mod speed`, `.aura`) pour clouer le personnage sur place. Ca tient a leur
--- serveur et a leurs droits ; ici on annonce la fin, et le joueur s'arrete.
+-- L'arrivee passe par des commandes serveur (`.mod speed`, `.aura`), comme
+-- Necronicon et comme MoveMaster : annoncer « c'est fait » pendant qu'on court
+-- encore ne sert a rien, on finit trois metres trop loin. Elles partent par le
+-- chat de guilde ou de groupe — le client ne laisse pas un addon les taper
+-- autrement — et `Equilibrage.deplacement.aura = 0` les coupe toutes.
 --
 -- `LCM.Deplacement` est la FONCTION de calcul des deplacements (Data/Fiche.lua).
 -- Ce module s'appelle `LCM.DeplacementForce` : les deux noms se ressemblent, ils
@@ -179,6 +181,100 @@ function DeplacementForce.Demarrer(metres, raison, options)
     return true
 end
 
+-- ===== Les commandes serveur ==============================================
+-- Reprises de Necronicon (`SendDeplacementServerCommand`). Un addon ne peut
+-- pas taper une commande serveur : il la fait passer par un canal de chat.
+-- Guilde d'abord, puis raid, puis groupe. En dehors, on ne peut rien faire, et
+-- on le dit une fois plutot que d'echouer en silence.
+
+local function Reglages() return LCM.Equilibrage.deplacement end
+
+local function CanalCommandes()
+    local voulu = tostring(Reglages().canalCommandes or "auto"):lower()
+    local enGuilde = IsInGuild and IsInGuild()
+    local enRaid = IsInRaid and IsInRaid()
+    local enGroupe = IsInGroup and IsInGroup()
+    if voulu == "guilde" then return enGuilde and "GUILD" or nil end
+    if voulu == "raid" then return enRaid and "RAID" or nil end
+    if voulu == "groupe" then
+        if enRaid then return "RAID" end
+        return (enGroupe and "PARTY") or nil
+    end
+    if enGuilde then return "GUILD" end
+    if enRaid then return "RAID" end
+    if enGroupe then return "PARTY" end
+    return nil
+end
+
+local prevenuSansCanal = false
+
+function DeplacementForce.Commande(commande)
+    commande = tostring(commande or "")
+    if commande == "" then return false end
+    local canal = CanalCommandes()
+    if not canal or type(SendChatMessage) ~= "function" then
+        -- Une seule fois : repete a chaque metre, l'avertissement devient du
+        -- bruit et on cesse de le lire.
+        if not prevenuSansCanal then
+            prevenuSansCanal = true
+            LCM.Alerte(string.format(
+                "« %s » n'a pas pu partir : il faut etre en guilde ou en groupe. Tape-la a la main.",
+                commande))
+        end
+        return false
+    end
+    prevenuSansCanal = false
+    return pcall(SendChatMessage, commande, canal) and true or false
+end
+
+-- ===== Le marqueur ========================================================
+-- Une aura qui montre OU l'on s'est arrete. Elle se pose a l'arrivee, et le
+-- joueur peut la garder (ou la poser lui-meme) par le bouton.
+
+local marqueur = false
+
+function DeplacementForce.Marqueur() return marqueur end
+
+function DeplacementForce.BasculerMarqueur()
+    local aura = math.floor(tonumber(Reglages().aura) or 0)
+    if aura <= 0 then
+        LCM.Alerte("aucune aura de marquage configuree (Equilibrage.deplacement.aura).")
+        return false
+    end
+    if marqueur then
+        DeplacementForce.Commande(string.format(".unaura %d", aura))
+        marqueur = false
+        LCM.Info("Emplacement retire.")
+    else
+        DeplacementForce.Commande(string.format(".aura %d", aura))
+        marqueur = true
+        LCM.Ok("Emplacement marque.")
+    end
+    if DeplacementForce.onChange then DeplacementForce.onChange() end
+    return marqueur
+end
+
+-- L'arrivee : on ralentit, on marque, et on rend la vitesse apres un temps.
+-- Le marqueur pose A LA MAIN survit au retour a la normale : c'est tout son
+-- interet, on l'a pose pour qu'il reste.
+local function Clouer()
+    local r = Reglages()
+    local aura = math.floor(tonumber(r.aura) or 0)
+    local arret = tonumber(r.vitesseArret) or 0.1
+    local normale = tonumber(r.vitesseNormale) or 0.8
+    DeplacementForce.Commande(string.format(".mod speed %s", tostring(arret)))
+    if aura > 0 then DeplacementForce.Commande(string.format(".aura %d", aura)) end
+
+    local function reprendre()
+        if aura > 0 and not marqueur then
+            DeplacementForce.Commande(string.format(".unaura %d", aura))
+        end
+        DeplacementForce.Commande(string.format(".mod speed %s", tostring(normale)))
+    end
+    local delai = math.max(0.2, tonumber(r.secondesArret) or 2)
+    if C_Timer and C_Timer.After then C_Timer.After(delai, reprendre) else reprendre() end
+end
+
 -- `cause` : « fini » (distance atteinte) ou « interrompu » (fenetre fermee).
 function DeplacementForce.Arreter(cause)
     if not course then return false end
@@ -188,6 +284,7 @@ function DeplacementForce.Arreter(cause)
     if horloge then horloge:Hide() end
     if fini then
         LCM.Ok(string.format("%s : %.1f m parcourus, c'est fait.", termine.raison, termine.limite))
+        Clouer()
     else
         LCM.Alerte(string.format("%s interrompu : %.1f / %.1f m.",
             termine.raison, termine.distance, termine.limite))
@@ -219,24 +316,33 @@ local NOMS = { terrestre = "Terrestre", nage = "Nage", vol = "Vol" }
 -- /reload, et c'est tres bien — on en ouvre un nouveau.
 local mouvements = 0
 
-local function Regle() return LCM.Equilibrage.deplacement end
+-- La regle du round ne vaut QU'EN COMBAT. Hors combat, on se deplace, point :
+-- compter les deplacements de quelqu'un qui traverse une ville n'a aucun sens,
+-- et obligeait a cliquer « nouveau round » pour avancer de trois metres.
+function DeplacementForce.EnCombat()
+    return LCM.Combat ~= nil and LCM.Combat.EnCours() == true
+end
 
 function DeplacementForce.Mouvements() return mouvements end
 
 function DeplacementForce.MaxParRound()
-    return math.max(1, math.floor(tonumber(Regle().parRound) or 2))
+    return math.max(1, math.floor(tonumber(Reglages().parRound) or 2))
 end
 
 -- Le prochain deplacement est-il gratuit, payant, ou impossible ?
 function DeplacementForce.Prochain()
+    if not DeplacementForce.EnCombat() then return "gratuit" end
     if mouvements >= DeplacementForce.MaxParRound() then return "fini" end
     return mouvements == 0 and "gratuit" or "payant"
 end
 
-function DeplacementForce.NouveauRound()
+-- Appele par le combat quand le round avance, plus par un bouton : le joueur
+-- n'a pas a declarer lui-meme qu'un round a passe, le combat le sait.
+-- `silencieux` : au changement de round, l'annonce du combat suffit.
+function DeplacementForce.NouveauRound(silencieux)
     mouvements = 0
     if DeplacementForce.onChange then DeplacementForce.onChange() end
-    LCM.Ok("Nouveau round : ton déplacement gratuit est rendu.")
+    if not silencieux then LCM.Ok("Nouveau round : ton déplacement gratuit est rendu.") end
     return true
 end
 
@@ -261,8 +367,8 @@ function DeplacementForce.DemarrerMode(mode, entity)
     -- Le supplementaire se paie AVANT de partir, et seulement si on peut : on
     -- ne part pas a credit.
     if etat == "payant" then
-        local pa = math.max(0, math.floor(tonumber(Regle().supplementPA) or 1))
-        local pf = math.max(0, math.floor(tonumber(Regle().supplementPF) or 1))
+        local pa = math.max(0, math.floor(tonumber(Reglages().supplementPA) or 1))
+        local pf = math.max(0, math.floor(tonumber(Reglages().supplementPF) or 1))
         local jaugePA = LCM.Entities.Gauge(entity, "pa")
         local jaugePF = LCM.Entities.Gauge(entity, "fatigue")
         if (jaugePA and jaugePA.current or 0) < pa then return false, string.format("il faut %d PA.", pa) end
@@ -273,6 +379,6 @@ function DeplacementForce.DemarrerMode(mode, entity)
     end
 
     local ok, raison = DeplacementForce.Demarrer(metres, NOMS[mode], { cumule = true, mode = mode })
-    if ok then mouvements = mouvements + 1 end
+    if ok and DeplacementForce.EnCombat() then mouvements = mouvements + 1 end
     return ok, raison
 end

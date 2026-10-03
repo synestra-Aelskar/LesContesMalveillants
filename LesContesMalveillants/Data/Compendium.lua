@@ -38,7 +38,8 @@ C.BLOC = {
         "resi_esprit", "resi_pourriture", "resi_lumiere", "resi_ombre", "resi_vie", "resi_mort", "resi_ordre", "resi_desordre" } },
     { dossier = "Bonus", champs = { "pa", "fatigue", "depl_terrestre", "depl_nage", "initiative" } },
     { dossier = "Observations", champs = {
-        "vue", "odorat_gout", "ouie", "toucher", "investigation", "elementaire", "cosmique", "pistage" } },
+        "vue", "odorat_gout", "ouie", "toucher", "investigation", "elementaire", "cosmique", "pistage",
+        "communication" } },
     { dossier = "Athlétismes", champs = {
         "puissance", "projection", "prise", "equilibre", "acrobaties", "escalade", "resistance", "endurance", "course", "nage" } },
     { dossier = "Filouteries", champs = {
@@ -62,7 +63,7 @@ C.BLOC = {
         "force_debuff", "mystique_debuff", "perception_debuff", "constitution_debuff", "duree_debuff", "puissance_debuff" } },
     { dossier = "Mécanique de compétence", champs = {
         "meca_attaque_simple", "meca_perce_armure", "meca_brise_armure", "meca_bouclier", "meca_soin", "meca_buff",
-        "meca_debuff", "meca_attraction", "meca_communication", "meca_repulsion", "meca_immobilisation",
+        "meca_debuff", "meca_attraction", "meca_repulsion", "meca_immobilisation",
         "meca_entrave", "meca_deviation", "meca_levitation", "meca_intervention", "meca_permutation",
         "meca_dissipation", "meca_creation", "meca_confusion", "meca_controle_mental", "meca_illusion" } },
 }

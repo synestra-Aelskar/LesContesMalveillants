@@ -25,9 +25,32 @@ LCM.EtatsTemporaires = Temporaires
 
 local VIDE = {}
 
--- Lecture : ne cree rien.
-function Temporaires.Liste(entity)
-    return type(entity) == "table" and type(entity.etatsTemporaires) == "table" and entity.etatsTemporaires or VIDE
+-- Les trois conteneurs de la fenetre Sante (Core/Etats.lua) : un buff ou un
+-- debuff dit lequel le recoit, sinon tout atterrissait dans « Etats » et la
+-- maladie qu'on venait de poser se lisait au milieu des immobilisations.
+Temporaires.CONTENEURS = {
+    { id = "etat",       label = "État" },
+    { id = "maladie",    label = "Maladie" },
+    { id = "intangible", label = "Intangible" },
+}
+
+function Temporaires.ConteneurValide(id)
+    for _, c in ipairs(Temporaires.CONTENEURS) do if c.id == id then return id end end
+    return "etat"
+end
+
+-- Lecture : ne cree rien. `conteneur` filtre sur le volet de Sante demande ;
+-- sans lui, tout. Un etat d'avant cette regle n'en a pas : il compte comme
+-- « etat », la ou il s'affichait deja.
+function Temporaires.Liste(entity, conteneur)
+    local liste = type(entity) == "table" and type(entity.etatsTemporaires) == "table"
+        and entity.etatsTemporaires or VIDE
+    if not conteneur then return liste end
+    local out = {}
+    for _, e in ipairs(liste) do
+        if (e.conteneur or "etat") == conteneur then out[#out + 1] = e end
+    end
+    return out
 end
 
 local function PourEcrire(entity)
@@ -55,6 +78,7 @@ function Temporaires.Poser(entity, etat)
         nom = tostring(etat.nom or "État"), icone = etat.icone, description = etat.description,
         bonus = etat.bonus or {}, restant = etat.rounds, lanceur = etat.lanceur,
         debuff = etat.debuff == true, dissipation = etat.dissipation, cumul = etat.cumul,
+        conteneur = Temporaires.ConteneurValide(etat.conteneur),
         -- Ce que la dissipation doit battre : le jet du lanceur, et sa
         -- competence (la meme est « adaptee », l'autre « inadaptee »).
         id = etat.id, jet = etat.jet,

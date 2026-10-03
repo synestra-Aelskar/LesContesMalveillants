@@ -126,7 +126,7 @@ attendu("ouverte", fd:IsShown(), true)
 attendu("trois modes", #fd.modes, 3)
 attendu("terrestre par defaut", fd.mode, "terrestre")
 attendu("elle montre l'allocation de la fiche",
-    fd.compteur:GetText(), string.format("0.0 / %.1f m", LCM.DeplacementForce.Allocation(nil, "terrestre")))
+    fd.anneau.sur:GetText(), string.format("/ %s m", tostring(LCM.DeplacementForce.Allocation(nil, "terrestre"))))
 fd.partir:Click()
 attendu("on part", LCM.DeplacementForce.EnCours() ~= nil, true)
 attendu("et les modes se verrouillent", fd.modes[2]:IsEnabled(), false)

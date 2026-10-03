@@ -155,6 +155,16 @@ local function Raison(message)
 end
 
 -- Vrai si l'identifiant appartient a du contenu publie (un fichier genere).
+-- Ce qu'un brouillon a recouvert : l'entree publiee, telle qu'elle etait. Elle
+-- vit en memoire vive — au prochain chargement, le fichier la redonne de toute
+-- facon, et c'est lui qui fait foi.
+local originaux = {}
+
+function Brouillons.Original(famille, id)
+    local parFamille = originaux[tostring(famille or "")]
+    return parFamille and parFamille[tostring(id or "")] or nil
+end
+
 function Brouillons.EstPublie(famille, id)
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
@@ -164,7 +174,13 @@ end
 -- Enregistre un brouillon et le rend jouable aussitot. `creation` : le MJ
 -- pense creer une entree neuve, donc un identifiant deja pris est une
 -- collision, pas une modification. Renvoie true, ou false et la raison.
-function Brouillons.Enregistrer(famille, entree, creation)
+--
+-- `remplacer` : le MJ modifie SCIEMMENT du contenu publie. Le refus pur et
+-- simple rendait l'atelier inutilisable en seance — on ouvrait une entree, on
+-- corrigeait une faute, et aucun bouton ne permettait d'enregistrer. Le
+-- brouillon prend alors le pas sur le fichier jusqu'a ce qu'on l'y reporte,
+-- et il est marque pour qu'on sache qu'il reste a reporter.
+function Brouillons.Enregistrer(famille, entree, creation, remplacer)
     famille = tostring(famille or "")
     if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
     local registre = Registre(famille)
@@ -175,19 +191,31 @@ function Brouillons.Enregistrer(famille, entree, creation)
     local ok, neuf = pcall(registre.Construire, entree)
     if not ok then return false, Raison(neuf) end
 
-    if Brouillons.EstPublie(famille, neuf.id) then
+    if Brouillons.EstPublie(famille, neuf.id) and not remplacer then
         return false, string.format("« %s » est deja du contenu publie : le fichier fait foi", neuf.id)
     end
     if creation and Brouillons.Get(famille, neuf.id) then
         return false, string.format("un brouillon porte deja l'identifiant « %s »", neuf.id)
     end
 
+    -- Retenu DANS le brouillon : l'export doit savoir qu'il ecrase un publie,
+    -- et l'atelier doit pouvoir le dire a chaque ouverture.
+    if remplacer then entree.remplacePublie = true end
     Brouillons.Set(famille, entree)
 
     -- Modifie SUR PLACE : les entites designent le trait par son identifiant,
     -- mais les ecrans ouverts tiennent la table elle-meme.
     local existant = registre.Get(neuf.id)
     if existant then
+        -- On ECRASE une entree publiee : il faut en garder une copie, sinon
+        -- supprimer le brouillon ensuite emporterait le contenu publie avec
+        -- lui. Ce n'est pas theorique : le banc l'a attrape immediatement.
+        if remplacer and existant.brouillon ~= true and not Brouillons.Original(famille, neuf.id) then
+            local copie = {}
+            for cle, valeur in pairs(existant) do copie[cle] = valeur end
+            originaux[famille] = originaux[famille] or {}
+            originaux[famille][neuf.id] = copie
+        end
         for cle in pairs(existant) do existant[cle] = nil end
         for cle, valeur in pairs(neuf) do existant[cle] = valeur end
         existant.brouillon = true
@@ -205,7 +233,18 @@ function Brouillons.Supprimer(famille, id)
     if not Brouillons.Remove(famille, id) then return false end
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
-    if existant and existant.brouillon == true then registre.Retirer(id) end
+    local original = Brouillons.Original(famille, id)
+    if existant and original then
+        -- Le brouillon recouvrait du publie : on REND l'original, on ne retire
+        -- pas l'entree. Sinon supprimer son brouillon effacait du contenu qu'on
+        -- n'avait jamais cree.
+        for cle in pairs(existant) do existant[cle] = nil end
+        for cle, valeur in pairs(original) do existant[cle] = valeur end
+        existant.brouillon = nil
+        originaux[tostring(famille)][tostring(id)] = nil
+    elseif existant and existant.brouillon == true then
+        registre.Retirer(id)
+    end
     return true
 end
 

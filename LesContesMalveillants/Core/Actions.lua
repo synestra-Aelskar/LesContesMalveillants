@@ -1596,25 +1596,178 @@ function Actions.Constructeur(etape, ctx)
                              points = {}, dureeAchetee = 0 }, Constructeur)
     c.composeur = Actions.Composeur({ questionsText = etape.questionsText, hideCost = etape.hideCost }, ctx)
     c.debuff = c.regles.mode == "debuff"
+    -- Ou l'effet ira dans la fenetre Sante : Etat, Maladie ou Intangible. Le
+    -- choix se fait AVANT tout le reste — c'est lui qui dit de quoi on parle.
+    c.conteneur = "etat"
     -- Les champs qu'on peut toucher, groupes par famille ; ce que le template
     -- nomme et que notre fiche n'a pas est mis de cote, et dit.
     c.familles, c.absents = {}, {}
-    local vus = {}
+    local vus, retenus = {}, {}
+    -- La section opposee n'a rien a faire ici : « Durée » et « Puissance »
+    -- existent en deux exemplaires sur la fiche (duree_buff / duree_debuff), et
+    -- les regles nommaient les deux. On voyait donc DEUX durees et DEUX
+    -- puissances en construisant un buff, sans pouvoir deviner laquelle servait.
+    local sectionExclue = c.debuff and "Buff" or "Debuff"
     for _, g in ipairs(c.regles.groupes) do
-        local famille = { libelle = g.libelle, cout = g.cout, champs = {} }
         for _, nom in ipairs(g.noms) do
             local champ = ChampDeFamille(nom)
-            if champ and not vus[champ] then
+            local field = champ and LCM.Schema.Field(champ)
+            if champ and field and field.section == sectionExclue then
+                -- Rien : c'est la jumelle de l'autre mode.
+            elseif champ and not vus[champ] then
                 vus[champ] = true
-                local field = LCM.Schema.Field(champ)
-                famille.champs[#famille.champs + 1] = { id = champ, nom = field and field.label or nom, cout = g.cout }
+                retenus[#retenus + 1] = { id = champ, nom = field and field.label or nom, cout = g.cout }
             elseif not champ then
                 c.absents[#c.absents + 1] = nom
             end
         end
-        if #famille.champs > 0 then c.familles[#c.familles + 1] = famille end
     end
+
+    -- Groupes par SENS, pas par cout. Les regles rangent les champs par prix
+    -- (« Cout 3 », « Cout 5 »), ce qui ne dit rien de ce qu'on achete et fait
+    -- se cotoyer six « Force » sans contexte. On reprend le decoupage de la
+    -- fiche — onglet puis section, comme Necronicon affiche « Pénétrations —
+    -- Élémentaire » — et le prix reste porte par chaque champ, qui l'affiche.
+    local ordreOnglet, labelOnglet = {}, {}
+    for rang, tab in ipairs(LCM.Schema.Tabs()) do
+        ordreOnglet[tab.id] = rang
+        labelOnglet[tab.id] = tab.label or tab.id
+    end
+    local parGroupe, ordre = {}, {}
+    for _, ch in ipairs(retenus) do
+        local field = LCM.Schema.Field(ch.id)
+        local onglet = field and field.tab
+        local section = (field and field.section) or ""
+        -- Une section dont le nom se suffit (« Statistiques ») n'a pas besoin
+        -- du nom de son onglet ; « Élémentaires » si, sinon penetrations et
+        -- resistances se ressemblent trait pour trait.
+        local titreOnglet = labelOnglet[onglet]
+        local libelle = section
+        if libelle == "" then libelle = titreOnglet or "Autres"
+        elseif titreOnglet and titreOnglet ~= section then
+            libelle = titreOnglet .. " — " .. section
+        end
+        local groupe = parGroupe[libelle]
+        if not groupe then
+            groupe = { libelle = libelle, cout = ch.cout, champs = {},
+                       rang = ordreOnglet[onglet] or 99 }
+            parGroupe[libelle] = groupe
+            ordre[#ordre + 1] = groupe
+        end
+        groupe.champs[#groupe.champs + 1] = ch
+        -- Le cout de la famille n'est affiche que s'il vaut pour tous.
+        if groupe.cout ~= ch.cout then groupe.cout = nil end
+    end
+    -- L'ordre de la fiche : on retrouve les familles la ou on a l'habitude de
+    -- les lire. `table.sort` n'est pas stable, d'ou le rang de secours.
+    for index, groupe in ipairs(ordre) do groupe.apparition = index end
+    table.sort(ordre, function(a, b)
+        if a.rang ~= b.rang then return a.rang < b.rang end
+        return a.apparition < b.apparition
+    end)
+    c.familles = ordre
     return c
+end
+
+-- ===== La bibliotheque d'effets ==========================================
+-- Un buff qu'on a compose se reutilise : « Vigueur » revient a chaque seance,
+-- et le recomposer champ par champ a chaque fois est du travail perdu.
+--
+-- Les modeles vivent dans la base du COMPTE (LCM_DB) et non sur le
+-- personnage : le MJ comme le joueur s'en sert avec qui il joue ce soir-la.
+-- On garde ce qu'on a saisi et choisi, pas le resultat : une regle qui change
+-- (un cout, une reserve) doit se repercuter au rechargement, sinon un vieux
+-- modele contournerait l'equilibrage sans qu'on le voie.
+
+local function Modeles()
+    LCM.EnsureDatabase()
+    LCM.db.modelesEffets = type(LCM.db.modelesEffets) == "table" and LCM.db.modelesEffets or {}
+    return LCM.db.modelesEffets
+end
+Actions.Modeles = Modeles
+
+-- Ceux qui vont avec cette etape : un modele de debuff n'a rien a faire dans
+-- un constructeur de buff, ses champs n'y existent pas forcement.
+function Actions.ModelesPour(constructeur)
+    local out = {}
+    for _, m in ipairs(Modeles()) do
+        if (m.debuff == true) == (constructeur.debuff == true) then out[#out + 1] = m end
+    end
+    table.sort(out, function(a, b) return tostring(a.nom):lower() < tostring(b.nom):lower() end)
+    return out
+end
+
+function Constructeur:Enregistrer(nom, description, icone)
+    nom = Trim(nom)
+    if nom == "" then return false, "il faut un nom." end
+    local reponses = {}
+    for cle, valeur in pairs(self.composeur.reponses) do
+        if type(valeur) == "table" then
+            local copie = {}
+            for k, v in pairs(valeur) do copie[k] = v end
+            reponses[cle] = copie
+        else
+            reponses[cle] = valeur
+        end
+    end
+    local points = {}
+    for champ, n in pairs(self.points) do points[champ] = n end
+
+    local modele = {
+        nom = nom, description = Trim(description or ""), icone = icone,
+        debuff = self.debuff == true, conteneur = self.conteneur,
+        points = points, reponses = reponses,
+        duree = self.dureeAchetee, illimite = self.illimite == true,
+    }
+    local liste = Modeles()
+    -- Un meme nom remplace : on corrige un modele, on n'en empile pas trois.
+    for index, m in ipairs(liste) do
+        if tostring(m.nom):lower() == nom:lower() and (m.debuff == true) == modele.debuff then
+            liste[index] = modele
+            return true, modele
+        end
+    end
+    liste[#liste + 1] = modele
+    return true, modele
+end
+
+function Constructeur:Charger(modele)
+    if type(modele) ~= "table" then return false end
+    self.conteneur = modele.conteneur
+    self.illimite = modele.illimite == true
+    self.dureeAchetee = tonumber(modele.duree) or 0
+    self.composeur.reponses = {}
+    for cle, valeur in pairs(modele.reponses or {}) do
+        if type(valeur) == "table" then
+            local copie = {}
+            for k, v in pairs(valeur) do copie[k] = v end
+            self.composeur.reponses[cle] = copie
+        else
+            self.composeur.reponses[cle] = valeur
+        end
+    end
+    -- Les points se REJOUENT champ par champ : `Ajouter` refuse ce qui depasse
+    -- la reserve ou le plafond du jour. Les recopier en bloc aurait laisse
+    -- passer un modele devenu trop cher depuis qu'on l'a enregistre.
+    self.points = {}
+    local refuses = {}
+    for champ, n in pairs(modele.points or {}) do
+        for _ = 1, n do
+            if not self:Ajouter(champ, 1) then
+                refuses[#refuses + 1] = champ
+                break
+            end
+        end
+    end
+    return true, refuses
+end
+
+function Actions.SupprimerModele(modele)
+    local liste = Modeles()
+    for index, m in ipairs(liste) do
+        if m == modele then table.remove(liste, index) return true end
+    end
+    return false
 end
 
 -- Les variables de la reserve : celles des choix, en minuscules (la regle
@@ -1751,6 +1904,7 @@ function Constructeur:Valider(nom, description, icone)
     local V = self.ctx.vars
     self.ctx.effet = {
         debuff = self.debuff, nom = Trim(nom) ~= "" and Trim(nom) or (self.debuff and "Débuff" or "Buff"),
+        conteneur = LCM.EtatsTemporaires.ConteneurValide(self.conteneur),
         icone = Trim(icone) ~= "" and icone or self.ctx.icone, description = Trim(description),
         donnees = donnees, rounds = self:Duree(), resistance = table.concat(self.regles.resistSkills, ", "),
         critEcart = 0, critFacteur = 1, narratif = false, texte = "", montant = 0, unite = "",
@@ -2084,6 +2238,9 @@ local function DeclarerEffet(etape, ctx, suite)
         t = Jeton_(), a = LCM.PlayerId(), rp = identite.nom, nom = e.nom, ic = e.icone, desc = e.description,
         deb = e.debuff and 1 or nil, nar = e.narratif and 1 or nil, txt = e.texte, mt = e.montant, u = e.unite,
         r = e.rounds, res = e.resistance, ce = e.critEcart, cf = e.critFacteur, dis = e.dissipation,
+        -- `ct` : le volet de Sante qui recoit. Deux lettres, parce que le
+        -- paquet se decoupe a 255 octets.
+        ct = e.conteneur ~= "etat" and e.conteneur or nil,
         types = table.concat((function()
             local t = {}
             for _, k in ipairs({ "Type Physique", "Type Elementaire", "Type Cosmologie" }) do
@@ -2272,6 +2429,7 @@ function Actions.Subir(recu, ecart)
         LCM.EtatsTemporaires.Poser(recu.entity, { nom = p.nom, icone = p.ic, description = p.desc, bonus = bonus,
             rounds = rounds, lanceur = lanceur, debuff = recu.debuff, dissipation = p.dis, cumul = cumul,
             id = p.t, jet = p.js and { competence = p.js, valeur = tonumber(p.jr) or 0 } or nil,
+            conteneur = p.ct,
             guerison = type(p.gu) == "table" and { mode = p.gu.m, competence = p.gu.c, dc = tonumber(p.gu.d) or 0 } or nil })
         texte = string.format("%s « %s » appliqué à %s (%s)%s.", recu.debuff and "Débuff" or "Buff", tostring(p.nom),
             cible, rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'à retrait",

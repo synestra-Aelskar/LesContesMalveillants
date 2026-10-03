@@ -47,7 +47,7 @@ local n = 0
 for _, o in ipairs(V.Get("expertise").onglets) do
     for _, s in ipairs(o.sections) do n = n + #s.fields end
 end
-attendu("25 expertises", n, 25)
+attendu("26 expertises", n, 26)
 for _, id in ipairs(ids) do attendu("  " .. id .. " : entree du menu allumee", M.EstLiee(id), true) end
 
 dire("== Sante")
@@ -130,7 +130,7 @@ M.Trouver("expertise").onClick()
 local fe = LCM.UI.Vues.frames.expertise
 attendu("ouverte", fe:IsShown(), true)
 attendu("onglet Observations", fe.onglet, "observations")
-attendu("8 observations", #fe.pages.observations.lignes, 8)
+attendu("9 observations", #fe.pages.observations.lignes, 9)
 fe.barre.boutons[2]:Click()
 attendu("10 en athletisme", #fe.pages.athletisme.lignes, 10)
 local escalade

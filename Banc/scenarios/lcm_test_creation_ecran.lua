@@ -231,6 +231,17 @@ attendu("plafond lu du moteur (5 + 4)", force.plafond, 9)
 for _ = 1, 9 do force.plus:Click() end
 attendu("neuf clics, neuf points", f.brouillon.valeurs.force, 9)
 attendu("budget dans le titre du bloc", budget(st, "primaires").budget:GetText(), "23 / 32")
+-- 3 octobre 2026 : le bandeau du bloc (titre + pool + R) est FIGE au-dessus de
+-- la liste. Le pool se perdait des qu'on faisait defiler, alors que c'est en
+-- bas de liste qu'on a le plus besoin de savoir ce qu'il reste.
+local F = LCM.UI.Creation.frame
+attendu("le bandeau est affiche", F.bandeau:IsShown(), true)
+attendu("il porte le titre de l'etape", F.bandeau.titre:GetText() ~= "", true)
+local _, ancreDe = budget(st, "primaires").remise:GetPoint(1)
+attendu("le R est ancre au bandeau, pas a la liste", ancreDe == F.bandeau, true)
+attendu("la liste defile SOUS le bandeau",
+    (select(2, F.zone:GetPoint(1))) == F.bandeau, true)
+attendu("le bloc du pool n'a plus de titre a lui", budget(st, "primaires").aTitre, false)
 force.plus:Click()
 attendu("le dixieme est refuse", f.brouillon.valeurs.force, 9)
 attendu("et il est explique", dernierMessage():find("plafond") ~= nil, true)
@@ -373,7 +384,7 @@ local ex = f.pages.expertises
 attendu("page expertises", f.etape, "expertises")
 local n = 0
 for _, c in ipairs(ex.compteurs) do if c.categorie == "expertises" then n = n + 1 end end
-attendu("25 expertises", n, 25)
+attendu("26 expertises", n, 26)
 attendu("budget 18 + 3 x 2", budget(ex, "expertises").budget:GetText(), "24 / 24")
 -- Les mecaniques ont leur propre etape depuis le 3 octobre 2026.
 attendu("elles ne sont plus avec les expertises", compteur(ex, "meca_soin"), nil)
