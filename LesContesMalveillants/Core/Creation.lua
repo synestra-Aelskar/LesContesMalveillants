@@ -380,6 +380,9 @@ function Creation.Problemes(brouillon)
         out[#out + 1] = "il faut choisir une race."
     elseif not LCM.Races.Get(brouillon.race) then
         out[#out + 1] = string.format("la race « %s » n'existe pas dans cette version.", tostring(brouillon.race))
+    elseif not LCM.Races.Choisissable(LCM.Races.Get(brouillon.race)) then
+        -- Le choix reste affiche : on dit pourquoi, on ne le retire pas.
+        out[#out + 1] = string.format("la race « %s » est réservée au MJ.", LCM.Races.Get(brouillon.race).label)
     end
     -- Une saisie de niveau illisible reste affichee (en rouge) et bloque :
     -- `niveau`, lui, garde la derniere valeur valable pour les calculs.

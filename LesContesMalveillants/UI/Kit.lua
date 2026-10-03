@@ -184,6 +184,14 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
             self.ornementG:SetPoint("RIGHT", self.titre, "CENTER", -demi, 0)
             self.ornementD:ClearAllPoints()
             self.ornementD:SetPoint("LEFT", self.titre, "CENTER", demi, 0)
+            -- Un titre long dans une fenetre etroite (« Pénétration &
+            -- Résistances » sur 340) pousserait ses ornements sous la croix et
+            -- la pastille : ils s'effacent, le titre reste. Ce sont eux le
+            -- decor, pas les boutons.
+            local place = self.fermer and (self:GetWidth() / 2 - (self.retraitCoin or 0) - self.fermer:GetWidth() - 4)
+            local tient = not place or demi + self.ornementD:GetWidth() <= place
+            self.ornementG:SetShown(tient)
+            self.ornementD:SetShown(tient)
         end
     end
     f:Titre(titre)
@@ -226,6 +234,8 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
             self.coinGauche:SetPoint("TOPLEFT", self, "TOPLEFT", retrait, -6 * q)
         end
         self.retraitCoin = retrait
+        -- Les coins ont bouge : les ornements du titre tiennent-ils encore ?
+        self:Titre(self.titre:GetText())
     end
     f:PlacerCoinsHaut()
     -- Au-dessus de l'habillage : l'ornement du coin passait par-dessus la croix

@@ -56,6 +56,34 @@ fiche:Show()
 fiche.fermer:Click()
 attendu("et elle ferme", fiche:IsShown(), false)
 
+dire("== la croix et la pastille de canal evitent les coins, en miroir")
+-- Mesure de l'atlas (alpha, 3 octobre 2026) : sous le rail, la draperie du
+-- coin « leger » est opaque jusqu'au bord de sa piece, 132 unites depuis le
+-- bord interieur a gauche, 138 a droite ; l'equerre du « lourd » entre de 68.
+-- On verifie la mesure, pas la constante qui la recopie.
+local function coins(f, piece)
+    local _, _, _, xc, yc = f.coinGauche:GetPoint(1)
+    local _, _, _, xf, yf = f.fermer:GetPoint(1)
+    attendu("  miroir horizontal", xc, -xf)
+    attendu("  meme hauteur", yc, yf)
+    attendu("  apres l'ornement (" .. piece .. " unites)", xc >= piece * f.decor.echelle, true)
+end
+local fv = LCM.UI.Vues.Fenetre("fiche")
+coins(fv, 138)
+local stats = LCM.UI.Vues.Fenetre("statistiques")
+coins(stats, 138)
+LCM.UI.AppliquerTheme("lourd")
+coins(fv, 68)
+LCM.UI.AppliquerTheme("incritas")
+local _, _, _, xi = fv.coinGauche:GetPoint(1)
+attendu("  sans habillage, plus rien a eviter", xi < 10, true)
+LCM.UI.AppliquerTheme("leger")
+attendu("  un titre court garde ses ornements", fv.ornementG:IsShown(), true)
+local pr = LCM.UI.Vues.Fenetre("penetrations_resistances")
+-- Le texte tient, ses ornements passeraient sous la croix : ils s'effacent.
+attendu("  un titre trop long les perd", pr.ornementG:IsShown() or pr.ornementD:IsShown(), false)
+attendu("  mais garde son texte", pr.titre:GetText(), "PÉNÉTRATION & RÉSISTANCES")
+
 dire("== deux fenetres ne naissent pas au meme endroit")
 local doc = LCM.UI.Document.Fenetre()
 local _, _, _, xf = fiche:GetPoint(1)

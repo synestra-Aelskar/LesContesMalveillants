@@ -113,9 +113,12 @@ local function Sommaire(f, vue)
             b:Show()
             y = y + LIGNE_SOMMAIRE
 
-            if onglet.id == f.onglet then
-                local page = f.pages[onglet.id]
-                for _, bloc in ipairs((page and page.blocs) or {}) do
+            -- Un seul bloc dans la page (une famille des Statistiques) : il
+            -- n'y a nulle part ou aller, et son titre redirait le chapitre.
+            local page = f.pages[onglet.id]
+            local blocs = (page and page.blocs) or {}
+            if onglet.id == f.onglet and #blocs > 1 then
+                for _, bloc in ipairs(blocs) do
                     local titre = bloc.section and tostring(bloc.section.label or "")
                     if titre and titre ~= "" then
                         rang = rang + 1
@@ -299,13 +302,20 @@ local function Construire(vue, rang)
 
     -- Une vue qu'on lit se tire aux dimensions qu'on veut : un chapitre de
     -- regles n'a pas de raison de tenir dans la fenetre que j'ai choisie.
-    -- Reserve au sommaire : les pages de fiche gardent les colonnes du depart
+    -- Reserve au texte : les pages de fiche gardent les colonnes du depart
     -- (voir page:Largeur), les etirer ferait mentir leurs mesures.
     -- Une vue de fiche se tire en HAUTEUR seulement : ses colonnes sont
     -- calculees a la construction et ne sauraient pas suivre un elargissement
     -- (voir page:Largeur). Tirer vers le haut rend le defilement a ce qui
     -- depasse ; c'est a ca qu'il sert une fois la hauteur automatique en place.
-    if not vue.sommaire then
+    -- Un sommaire devant des lignes de fiche (les Statistiques) suit la meme
+    -- regle : seule une vue de pur texte (les Regles) s'elargit.
+    local texteSeul = true
+    for _, page in pairs(f.pages) do
+        if #page.lignes > 0 then texteSeul = false end
+    end
+
+    if not texteSeul then
         UI.Redimensionner(f, vue.largeur, 160, function()
             f.hauteurChoisie = true
             local page = f.onglet and f.pages[f.onglet]
@@ -313,7 +323,7 @@ local function Construire(vue, rang)
         end, vue.largeur)
     end
 
-    if vue.sommaire then
+    if texteSeul then
         UI.Redimensionner(f, 420, 320, function()
             local l = f.contenu:GetWidth() - gauche
             for _, page in pairs(f.pages) do page:Largeur(l) end

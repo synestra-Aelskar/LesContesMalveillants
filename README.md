@@ -493,11 +493,16 @@ l'addon, donc livrées aux joueurs à chaque publication.
 
 Par ordre de ce qui bloque le plus :
 
-- [ ] **La fiche Statistiques en deux volets** — *la demande la plus
-      substantielle non entamée.* Sommaire des catégories à gauche, contenu à
-      droite. C'est **la même mécanique que les Règles**, qui ont déjà leur
-      sommaire : la pièce existe, il s'agit de la réutiliser et non d'en écrire
-      une seconde.
+- [x] **La fiche Statistiques en deux volets** (3 octobre 2026). Les dix-huit
+      familles du récapitulatif sont à gauche, dans le **sommaire des Règles**
+      (même pièce, `sommaire = true` dans `Data/Vues.lua`), et la famille
+      choisie s'affiche seule à droite. **Écart voulu au template** : ses
+      dossiers repliés ou ouverts ne se replient plus, puisque replier la seule
+      chose qu'une page montre ne cacherait que la page. Le libellé d'une famille
+      de combat vient de sa section (`Core/Vues.lua` reprend le libellé du
+      premier bloc quand l'onglet n'en donne pas). La fenêtre passe à 509 de
+      large, la page garde ses 312, et elle ne s'étire qu'en hauteur : seule une
+      vue de pur texte (les Règles) s'élargit.
 - [ ] **Le coût du déplacement : à trancher.** « Augmente le coût pour le
       déplacement de 2. 2 pts pour avoir 1 de bonus. » Mesuré :
       `sec_deplacement` coûte **déjà 2** points pour +1 (`Data/Equilibrage.lua`).
@@ -545,21 +550,42 @@ Par ordre de ce qui bloque le plus :
       **présence** de l'addon et la **scène** du MJ.
 - [x] **Les boutons du radial** (2 octobre 2026) : les dix-sept jouent leur
       résolution de bout en bout au banc. Voir « Ce qui marche ».
-- [ ] **Les icônes de l'en-tête débordent sur le cadre.** La pastille de canal
-      et la croix de fermeture sont posées en miroir aux deux coins hauts, et
-      elles mordent sur les tours d'angle de l'habillage. Les rentrer vers
-      l'intérieur de la fiche — attention, elles doivent rester en miroir l'une
-      de l'autre (le banc le vérifie).
-- [ ] **Une race réservée au MJ.** Ajouter une option sur une entrée de race
-      pour la rendre MJ seulement : un joueur ne doit ni la voir dans la liste
-      de création, ni pouvoir la choisir. Le compendium est déjà réservé au MJ,
-      mais les races passent par la création, qui est ouverte à tous.
-- [ ] **Pénétrations et Résistances : les types physiques sur UNE ligne.** Le
-      mécanisme existe depuis le 3 octobre 2026 (le premier groupe prend toute
-      la largeur si ses lignes y tiennent, en mode serré), mais à la largeur de
-      page actuelle les trois ne rentrent pas et le groupe retombe en colonne.
-      Il faut gagner de la place sur la ligne — élargir la fenêtre de création,
-      ou raccourcir ce qu'un compteur affiche.
+- [x] **Les icônes de l'en-tête débordent sur le cadre** (3 octobre 2026). Le
+      retrait existait (`coinHaut`), mais il avait été mesuré sur la
+      luminosité de l'atlas, qui ne voit que la ferrure dorée. Remesuré sur
+      l'**alpha** : sous le rail, la draperie sombre du coin « léger » est
+      opaque jusqu'au bord de sa pièce, soit 132 unités à gauche et 138 à
+      droite. `coinHaut` passe de 70 à 140. L'habillage « lourd », déclaré sans
+      tour d'angle (0), a une équerre qui entre de 68 unités : il passe à 70.
+      Passer sans habillage remet les deux boutons au bord (avant, ils
+      gardaient le retrait de l'habillage quitté). Un titre trop long pour
+      garder ses ornements entre les deux boutons (« Pénétration &
+      Résistances » sur 340) les perd, et garde son texte. Le banc vérifie
+      maintenant le miroir et le retrait contre la mesure (`lcm_test_skin.lua`).
+- [x] **Une race réservée au MJ** (3 octobre 2026). La case « Réservée au
+      MJ » existe dans l'éditeur du compendium (ajout de l'addon,
+      `Data/Compendium.lua`) et dans l'Atelier. L'Atelier ne recopiait que les
+      clés qu'il connaissait : y modifier une race aurait effacé l'option en
+      silence. Pour un joueur, la race n'est pas proposée dans la création ;
+      s'il la désigne quand même, la création la **refuse en le disant** (« la
+      race « X » est réservée au MJ. ») et ne la retire pas.
+      **Ce n'est pas un secret** : la race est livrée avec l'addon, et son nom,
+      sa description et ses bonus sont sur la machine du joueur. Une race à
+      cacher va dans le compagnon MJ. À vérifier au prochain export :
+      `Exporter les brouillons.bat` n'est pas dans le dépôt, donc rien ne
+      garantit encore qu'il recopie le champ `mjSeulement`.
+- [x] **Pénétrations et Résistances : les types physiques sur UNE ligne.** Les
+      trois tiennent sur un rang depuis le passage de la création à 1040. Mais
+      le calcul gardait 37 px de total au prix du libellé : « Contondant »
+      était coupé. Sur ce rang, le libellé reçoit maintenant la largeur de son
+      texte, mesurée dans la police du compteur, et les compteurs ne laissent
+      que 4 px entre eux au lieu de 12. Le total garde 38 px. **Reste
+      serré** : « 4 + 3 = 7 », un total avec apport racial, en demande
+      environ 42. Plusieurs races donnent des pénétrations et des résistances
+      physiques, et l'écran le montrera. Pour y gagner, il faudrait compacter
+      l'écriture du total en mode serré (« 4+3=7 »), ce qui touche aussi les
+      grilles à trois colonnes (Expertises, Mécaniques) : à décider avec
+      celui qui a posé ce format.
 - [ ] **Une séance de test à deux, en jeu**, sur tout ce qui précède : le banc
       vérifie la logique et les clics, pas l'écran ni le vrai réseau.
 - [x] **Le déplacement forcé** (Répulsion, Attraction, intervention avec

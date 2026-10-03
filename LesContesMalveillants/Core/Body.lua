@@ -134,6 +134,12 @@ function Races.Construire(definition)
     return LCM.ChampsCommuns(definition, {
         id = id, label = tostring(definition.label or id), morphology = morphologyId,
         bonus = bonus, avantage = avantage,
+        -- Une race que seul le MJ peut donner (un PNJ, une race de campagne
+        -- pas encore ouverte) : absente de la creation d'un joueur, et
+        -- refusee s'il la designe quand meme. Ce n'est PAS un secret : la
+        -- race est livree avec l'addon, son texte est sur la machine du
+        -- joueur. Un secret va dans le compagnon MJ.
+        mjSeulement = definition.mjSeulement == true or nil,
     }, Erreur)
 end
 
@@ -147,6 +153,20 @@ end
 
 function Races.Get(id)
     return Races.byId[tostring(id or "")]
+end
+
+-- Ce qu'on peut choisir a la creation : tout pour le MJ, sans les races qui
+-- lui sont reservees pour un joueur.
+function Races.Choisissable(race)
+    return race ~= nil and (not race.mjSeulement or LCM.IsMaster())
+end
+
+function Races.Disponibles()
+    local out = {}
+    for _, race in ipairs(Races.list) do
+        if Races.Choisissable(race) then out[#out + 1] = race end
+    end
+    return out
 end
 
 -- Brouillons supprimes en seance uniquement (voir Traits.Retirer).

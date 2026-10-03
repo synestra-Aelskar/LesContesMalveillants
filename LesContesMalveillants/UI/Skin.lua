@@ -40,11 +40,16 @@ local VARIANTES = {
         -- mesure sur l'alpha de l'atlas (3 octobre 2026) : en bas, l'equerre
         -- doree des coins (40) depasse le liseré (34) ; sur les cotes, pres
         -- des coins, la bande et sa ferrure (30). Voir UI.AelEmprise.
-        -- `coinHaut` : jusqu'ou l'ornement clair du coin HAUT s'etend vers le
-        -- centre, mesure sur la luminosite de l'atlas (3 octobre 2026). Ce qui
-        -- se pose dans l'en-tete (la croix, la pastille de canal) doit commencer
-        -- apres, sinon ca mord sur la tour d'angle.
-        emprise = { bas = 40, cote = 30, coinHaut = 70 },
+        -- `coinHaut` : jusqu'ou l'ornement du coin HAUT s'etend vers le centre,
+        -- compte depuis le bord interieur. Ce qui se pose dans l'en-tete (la
+        -- croix, la pastille de canal) doit commencer apres, sinon ca mord sur
+        -- la tour d'angle.
+        -- Remesure sur l'ALPHA le 3 octobre 2026 : 70, pris sur la luminosite,
+        -- ne voyait que la ferrure doree. Sous le rail, la draperie sombre est
+        -- opaque jusqu'au bord de la piece d'angle (132 a gauche, 138 a droite)
+        -- sur trente unites — exactement la ou la croix se pose. On prend le
+        -- plus large des deux : les coins restent en miroir.
+        emprise = { bas = 40, cote = 30, coinHaut = 140 },
         fixes = {
             {   0,   0, 230, 330,    0,   0, "TOPLEFT" },
             { 232,   0, 236, 330, 1300,   0, "TOPRIGHT" },
@@ -71,7 +76,10 @@ local VARIANTES = {
         coupeHaut = 158,
         -- Meme mesure que pour « leger » : equerre des coins du bas (30), bande
         -- de cote (5).
-        emprise = { bas = 30, cote = 5, coinHaut = 0 },  -- pas de tour d'angle ici
+        -- Pas de tour ici, mais l'equerre du coin haut entre quand meme de 68
+        -- unites a gauche et 62 a droite (alpha, 3 octobre 2026) : a 0, la
+        -- croix se posait dessus.
+        emprise = { bas = 30, cote = 5, coinHaut = 70 },
         fixes = {
             {   0,   0, 175, 225,    0,    0, "TOPLEFT" },
             { 180,   0, 168, 225, 1165,    0, "TOPRIGHT" },
@@ -211,7 +219,13 @@ function UI.Cadre(cadre)
         end
         self.theme = nom
         local jeu = Jeu(self, nom)
-        if not jeu then self.echelle = nil return end
+        if not jeu then
+            self.echelle = nil
+            -- Plus d'ornement : la croix et la pastille reviennent au bord, au
+            -- lieu de garder le retrait de l'habillage qu'on vient de quitter.
+            if cadre.PlacerCoinsHaut then cadre:PlacerCoinsHaut() end
+            return
+        end
         local V = jeu.V
 
         -- L'echelle suit la largeur de la fenetre, entre deux bornes : en

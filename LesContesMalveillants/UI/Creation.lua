@@ -168,10 +168,16 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
     -- (136), puis le total. Quand il n'y a plus la place du total, on le rend
     -- au libelle — le total est de toute facon dans le recapitulatif.
     -- 6 : la marge avant le libelle.
-    local function Mesures(largeur, serre)
+    --
+    -- `voulu` : la largeur du plus long libelle de la rangee. Donnee, le
+    -- libelle passe AVANT le total : « Contondant » coupe en « Contond… » pour
+    -- garder trente pixels de total, c'etait lire le chiffre sans savoir de
+    -- quoi.
+    local function Mesures(largeur, serre, voulu)
         local boutons = serre and 130 or 136
         local dispo = (largeur - 12) - 6 - boutons
         local label = math.min(LARGEUR_LABEL, math.max(serre and 56 or 76, dispo - 8 - 96))
+        if voulu then label = math.min(LARGEUR_LABEL, math.max(serre and 56 or 76, voulu)) end
         local total = math.min(96, math.max(0, dispo - label - 8))
         if total < 30 then label, total = math.max(serre and 56 or 76, dispo), 0 end
         label = math.min(label, math.max(40, (largeur - 12) - 6 - boutons))
@@ -206,8 +212,21 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         return 20
     end
 
-    local function Poser(ligne, x, y, largeur, serre)
-        local largeurLabel, largeurTotal = Mesures(largeur, serre)
+    -- La largeur d'un libelle tel que le compteur l'ecrira (meme police).
+    -- Un seul texte de mesure par grille, cache : il ne sert qu'a construire.
+    local mesureur
+    local function LargeurTexte(texte)
+        if not mesureur then
+            mesureur = UI.Texte(bloc, "", UI.C.texte, "GameFontNormalSmall")
+            UI.Police(mesureur, 12)
+            mesureur:Hide()
+        end
+        mesureur:SetText(texte)
+        return mesureur:GetStringWidth() or 0
+    end
+
+    local function Poser(ligne, x, y, largeur, serre, voulu)
+        local largeurLabel, largeurTotal = Mesures(largeur, serre, voulu)
         local compteur = UI.Compteur(bloc, ligne.label, largeurLabel, {
             serre = serre,
             change = function(valeur)
@@ -272,14 +291,24 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         local y = haut
         local premier = groupes[1]
         local n = #premier.lignes
-        local part = largeurUtile / n
+        -- Quatre pixels entre deux compteurs, et pas les douze d'une colonne :
+        -- sur ce rang, chaque pixel rendu va au libelle ou au total.
+        local ECART_RANG = 4
+        local largeurCompteur = (largeurUtile - (n - 1) * ECART_RANG) / n
+        -- Poser retranche 12 (l'air d'une colonne) : on le lui rend.
+        local part = largeurCompteur + 12
+        local voulu = 0
+        for _, ligne in ipairs(premier.lignes) do
+            -- +4 : l'arrondi d'une police qu'on mesure au banc, pas en jeu.
+            voulu = math.max(voulu, LargeurTexte(ligne.label) + 4)
+        end
         local debut = 1
         -- ... a condition que ses lignes y tiennent. Au-dela, on ne gagne rien
         -- a les serrer : les libelles se couperaient.
         if part >= MINIMUM_SERRE then
             y = y + Titre(premier.nom, marge, y, largeurUtile)
             for index, ligne in ipairs(premier.lignes) do
-                Poser(ligne, marge + (index - 1) * part, y, part, true)
+                Poser(ligne, marge + (index - 1) * (largeurCompteur + ECART_RANG), y, part, true, voulu)
             end
             y = y + LIGNE + 6
             debut = 2
@@ -485,6 +514,9 @@ function Pages.generale(page, f)
         if objet.categorie ~= "races" then
             return false, "cet emplacement n'accepte qu'une race (catégorie Races du compendium)."
         end
+        if not LCM.Races.Choisissable(objet.element) then
+            return false, "cette race est réservée au MJ."
+        end
         return true
     end, function(objet)
         f.brouillon.race = objet.element.id
@@ -531,7 +563,8 @@ function Pages.generale(page, f)
             return
         end
         local options = {}
-        for _, r in ipairs(LCM.Races.list) do
+        -- Sans les races reservees au MJ, pour un joueur : Races.Disponibles.
+        for _, r in ipairs(LCM.Races.Disponibles()) do
             options[#options + 1] = { id = r.id, label = r.label, icone = r.icone }
         end
         if #options == 0 then

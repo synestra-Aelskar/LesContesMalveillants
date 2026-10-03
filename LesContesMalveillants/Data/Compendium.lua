@@ -272,6 +272,9 @@ Generique({ id = "races", label = "Races", liste = "armes",
     extras = {
         -- Ajout de l'addon : une race engendre le corps (Core/Body.lua).
         { cle = "morphology", label = "Morphologie", type = "liste", source = "morphologies", emplacement = "meta" },
+        -- Ajout de l'addon (3 octobre 2026) : une race que seul le MJ donne.
+        -- Un joueur ne la voit pas dans sa creation et ne peut pas la choisir.
+        { cle = "mjSeulement", label = "Réservée au MJ", type = "case", emplacement = "meta" },
     } })
 
 Generique({ id = "traits", label = "Traits", liste = "armes",

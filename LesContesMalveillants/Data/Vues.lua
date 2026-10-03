@@ -163,8 +163,14 @@ Vues.Add({
 
 -- Statistiques : le recapitulatif du template, un dossier par famille, chaque
 -- ligne montrant la valeur TOTALE (race, traits, objets, etats, repartition).
--- Dossiers replies ou ouverts comme dans le template ; « Bonus » ne montre
--- que ce qu'apportent traits et objets.
+-- « Bonus » ne montre que ce qu'apportent traits et objets.
+--
+-- En deux volets depuis le 3 octobre 2026 : les familles a gauche, en sommaire
+-- (la piece des Regles), la famille choisie seule a droite. Ecart voulu au
+-- template, qui empilait dix-huit dossiers replies ou ouverts dans une seule
+-- colonne : on y cherchait sa ligne en faisant defiler. Les dossiers ne se
+-- replient donc plus — replier la seule chose qu'une page montre ne cacherait
+-- que la page.
 do
     local E = LCM.Equilibrage
     local function Types(prefixe)
@@ -175,30 +181,41 @@ do
     local mecaniques = {}
     for _, m in ipairs(E.mecaniques) do mecaniques[#mecaniques + 1] = "meca_" .. m.id end
 
+    -- Une famille du recapitulatif = un chapitre du sommaire. Son libelle est
+    -- celui de son bloc (Core/Vues.lua le reprend quand l'onglet n'en donne pas).
+    local function Famille(id, bloc)
+        bloc.recap = bloc.recap or "total"
+        return { id = id, blocs = { bloc } }
+    end
+    local function Combat(id) return Famille(id, { section = { "combat", id } }) end
+
     Vues.Add({
         id = "statistiques", titre = "Statistiques",
-        largeur = 336, hauteur = 460,
-        blocs = {
-            { label = "Statistiques", recap = "total", replie = true,
-              champs = { "force", "mystique", "perception", "adresse", "esprit", "constitution" } },
-            { label = "Pénétrations", recap = "total", replie = false, champs = Types("pen_") },
-            { label = "Résistances",  recap = "total", replie = false, champs = Types("resi_") },
-            { label = "Bonus", recap = "bonus", replie = false,
-              champs = { "pa", "fatigue", "depl_terrestre", "depl_nage", "initiative" } },
-            { section = { "expertises", "observations" }, label = "Observations", recap = "total", replie = true },
-            { section = { "expertises", "athletisme" },   label = "Athlétismes",  recap = "total", replie = true },
-            { section = { "expertises", "filouterie" },   label = "Filouteries",  recap = "total", replie = true },
-            { section = { "combat", "attaques_defense" }, recap = "total", replie = true },
-            { section = { "combat", "bouclier_soin" },    recap = "total", replie = true },
-            { section = { "combat", "buff" },             recap = "total", replie = true },
-            { section = { "combat", "perce_armure" },     recap = "total", replie = true },
-            { section = { "combat", "brise_armure" },     recap = "total", replie = false },
-            { section = { "combat", "provocation" },      recap = "total", replie = false },
-            { section = { "combat", "intimidation" },     recap = "total", replie = true },
-            { section = { "combat", "saignement" },       recap = "total", replie = true },
-            { section = { "combat", "empoisonnement" },   recap = "total", replie = true },
-            { section = { "combat", "debuff" },           recap = "total", replie = true },
-            { label = "Mécanique de compétence", recap = "total", replie = true, champs = mecaniques },
+        -- La page garde la largeur qu'elle avait seule (312) ; le sommaire et
+        -- sa barre prennent 173 a gauche.
+        largeur = 509, hauteur = 460,
+        sommaire = true,
+        onglets = {
+            Famille("statistiques", { label = "Statistiques",
+                champs = { "force", "mystique", "perception", "adresse", "esprit", "constitution" } }),
+            Famille("penetrations", { label = "Pénétrations", champs = Types("pen_") }),
+            Famille("resistances",  { label = "Résistances",  champs = Types("resi_") }),
+            Famille("bonus", { label = "Bonus", recap = "bonus",
+                champs = { "pa", "fatigue", "depl_terrestre", "depl_nage", "initiative" } }),
+            Famille("observations", { section = { "expertises", "observations" }, label = "Observations" }),
+            Famille("athletisme",   { section = { "expertises", "athletisme" },   label = "Athlétismes" }),
+            Famille("filouterie",   { section = { "expertises", "filouterie" },   label = "Filouteries" }),
+            Combat("attaques_defense"),
+            Combat("bouclier_soin"),
+            Combat("buff"),
+            Combat("perce_armure"),
+            Combat("brise_armure"),
+            Combat("provocation"),
+            Combat("intimidation"),
+            Combat("saignement"),
+            Combat("empoisonnement"),
+            Combat("debuff"),
+            Famille("mecaniques", { label = "Mécanique de compétence", champs = mecaniques }),
         },
     })
 end

@@ -263,6 +263,18 @@ for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "quadrupede"
 attendu("morphologie choisie", f.edition.morphology, "quadrupede")
 f.enregistrer:Click()
 attendu("race creee", LCM.Races.Get("minotaure") and LCM.Races.Get("minotaure").morphology, "quadrupede")
+attendu("ouverte aux joueurs par defaut", LCM.Races.Get("minotaure").mjSeulement, nil)
+pr.mjSeulement:Click()
+f.enregistrer:Click()
+attendu("la case la reserve au MJ", LCM.Races.Get("minotaure").mjSeulement, true)
+-- Rouvrir puis enregistrer sans toucher la case : l'option survit. Le
+-- formulaire ne recopiait que les cles qu'il connaissait.
+f:Ouvrir("minotaure")
+attendu("la case se relit cochee", pr.mjSeulement:EstCochee(), true)
+pr.description.saisie:Saisir("Cornu.")
+f.enregistrer:Click()
+attendu("et l'option survit a une autre modification", LCM.Races.Get("minotaure").mjSeulement, true)
+attendu("la description passe aussi", LCM.Races.Get("minotaure").description, "Cornu.")
 
 dire("== Atelier : un objet")
 f.onglets.boutons[3]:Click()

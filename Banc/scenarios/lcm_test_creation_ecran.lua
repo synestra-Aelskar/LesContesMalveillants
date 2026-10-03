@@ -159,6 +159,48 @@ slot.menu.onChoix("")
 attendu("retiree", f.brouillon.race, "")
 attendu("la case redevient un emplacement", f.pages.generale.race.nom:GetText(), "Emplacement")
 slot.menu:Hide()
+
+dire("== Generale : une race reservee au MJ")
+local function proposees()
+    local out = {}
+    for _, b in ipairs(slot.menu.lignes) do
+        if b:IsShown() then out[b.choix] = true end
+    end
+    return out
+end
+local ok, raison = LCM.Brouillons.Enregistrer("races",
+    { id = "ombre_banc", label = "Ombre", morphology = "humanoide", mjSeulement = true }, true)
+attendu("le MJ la cree", ok, true)
+attendu("elle porte l'option", LCM.Races.Get("ombre_banc").mjSeulement, true)
+slot:Click("LeftButton")
+attendu("le MJ la voit dans la liste", proposees().ombre_banc, true)
+slot.menu:Hide()
+SlashCmdList.LCM("switch")
+attendu("en joueur", LCM.IsMaster(), false)
+slot:Click("LeftButton")
+attendu("un joueur ne la voit pas", proposees().ombre_banc, nil)
+attendu("mais voit les autres", proposees()[LCM.Races.list[1].id], true)
+slot.menu:Hide()
+-- Designee quand meme (un brouillon d'avant, une saisie forcee) : refusee, et
+-- dite, pas retiree dans son dos.
+f.brouillon.race = "ombre_banc"
+f:Actualiser()
+local refusee = false
+for _, p in ipairs(LCM.Creation.Problemes(f.brouillon)) do
+    if p == "la race « Ombre » est réservée au MJ." then refusee = true end
+end
+attendu("la creation la refuse, avec sa raison", refusee, true)
+attendu("le choix reste affiche", f.brouillon.race, "ombre_banc")
+SlashCmdList.LCM("switch")
+attendu("de retour en MJ", LCM.IsMaster(), true)
+local permise = true
+for _, p in ipairs(LCM.Creation.Problemes(f.brouillon)) do
+    if p:find("réservée au MJ") then permise = false end
+end
+attendu("le MJ, lui, peut la donner", permise, true)
+attendu("une race ordinaire n'a pas l'option", LCM.Races.Get("humain").mjSeulement, nil)
+LCM.Brouillons.Supprimer("races", "ombre_banc")
+
 -- On remet celle que la suite du scenario attend.
 f.brouillon.race = raceAvant
 f:Actualiser()
@@ -354,6 +396,25 @@ dire("== Penetrations")
 f:Afficher("penetrations")
 local pen = f.pages.penetrations
 attendu("15 types", #pen.compteurs, 15)
+dire("   les trois types physiques sur UNE ligne, libelles entiers")
+for _, etape in ipairs({ "penetrations", "resistances" }) do
+    local prefixe = etape == "penetrations" and "pen_" or "resi_"
+    local rang, coupes, finRang = {}, 0, 0
+    for _, id in ipairs({ "tranchant", "perforant", "contondant" }) do
+        local c = compteur(f.pages[etape], prefixe .. id)
+        local _, _, _, x, y = c:GetPoint(1)
+        rang[#rang + 1] = y
+        -- Un libelle plus large que sa place est coupe a l'ecran.
+        if c.label:GetStringWidth() > c.label:GetWidth() then coupes = coupes + 1 end
+        finRang = math.max(finRang, x + c:GetWidth())
+        attendu("  " .. etape .. " : le total reste visible (" .. id .. ")", c.total:IsShown(), true)
+    end
+    attendu("  " .. etape .. " : meme rangee", rang[1] == rang[2] and rang[2] == rang[3], true)
+    attendu("  " .. etape .. " : aucun libelle coupe", coupes, 0)
+    -- Le bloc fait la largeur de la page ; la marge interieure est de chaque cote.
+    attendu("  " .. etape .. " : le rang tient dans le bloc",
+        finRang <= f.pages[etape].blocs[1]:GetWidth() - LCM.UI.Fiche.MARGE_BLOC - 6 + 0.5, true)
+end
 local tranchant = compteur(pen, "pen_tranchant")
 -- force 8 -> 8 / 1,75 = 4, plus la base de 3.
 attendu("plafond suivant la force investie", tranchant.plafond, 7)

@@ -139,6 +139,7 @@ local function Charger(famille, source, publie)
     e.description = tostring(source.description or "")
     e.cout = tonumber(source.cout) or 1
     e.morphology = source.morphology
+    e.mjSeulement = source.mjSeulement == true
     e.categorie = source.categorie
     e.icone = tostring(source.icone or "")
     e.places = tostring(source.places or 12)
@@ -180,6 +181,9 @@ local function Definition(e)
         if icone ~= "" then definition.icone = icone end
         if e.famille == "races" then
             definition.morphology = e.morphology
+            -- Recopiee, sinon modifier la race ici effacerait en silence ce
+            -- que l'editeur du compendium avait coche.
+            definition.mjSeulement = e.mjSeulement or nil
         elseif e.famille == "sacs" then
             -- Un sac ne donne rien : pas d'effets, ses places. Un nombre
             -- illisible passe tel quel, le registre le refusera avec sa raison.
@@ -403,6 +407,16 @@ local function PanneauEffets(f, genre)
         p.aideIcone = Libelle(c, "clique l'icône pour choisir")
         p.aideIcone:SetPoint("LEFT", p.apercuBouton, "RIGHT", 8, 0)
     end
+    -- Une race : la case « reservee au MJ », sur sa propre ligne.
+    if genre == "races" then
+        decale = decale + 30
+        p.lblAcces = Libelle(c, "Création")
+        p.lblAcces:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -121)
+        p.mjSeulement = UI.Case(c, "réservée au MJ — un joueur ne la voit pas", function(v)
+            f.edition.mjSeulement = v
+        end)
+        p.mjSeulement:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, -118)
+    end
     p.decale = decale
 
     p.lblDesc = Libelle(c, "Description")
@@ -443,6 +457,7 @@ local function PanneauEffets(f, genre)
             local categorie = registre.Categorie(e.categorie)
             self.categorie.label:SetText(categorie and categorie.label or "|cff99907fChoisir…|r")
         end
+        if self.mjSeulement then self.mjSeulement:Cocher(e.mjSeulement) end
         if self.morphologie then
             local morphologie = LCM.Morphologies.Get(e.morphology)
             if morphologie then

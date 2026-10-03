@@ -168,29 +168,55 @@ LCM.Brouillons.Enregistrer("objets", { id = "gantelets", label = "Gantelets", ca
 LCM.Objets.Equiper(moi, "gantelets")
 M.Trouver("statistiques").onClick()
 local fst = LCM.UI.Vues.frames.statistiques
-local page = fst.page
+-- En deux volets depuis le 3 octobre 2026 : les familles en sommaire a gauche
+-- (la piece des Regles), la famille choisie seule a droite. Avant, dix-huit
+-- dossiers replies ou ouverts s'empilaient dans une colonne.
+attendu("pas de bande d'onglets", fst.barre, nil)
+attendu("un sommaire", fst.sommaire ~= nil, true)
+local function entreesStats()
+    local out = {}
+    for _, e in ipairs(fst.sommaire.entrees) do
+        if e:IsShown() then out[#out + 1] = e end
+    end
+    return out
+end
+attendu("dix-huit familles, pas un sous-chapitre de plus", #entreesStats(), 18)
+attendu("ouverte sur la premiere", fst.onglet, "statistiques")
+attendu("et le sommaire le dit", entreesStats()[1].marque, "ici")
+-- Le libelle d'une famille de combat vient de sa section, pas d'une copie.
+attendu("libelle repris de la section", entreesStats()[8].label:GetText(), "Attaques & Défense")
+attendu("la page garde sa largeur d'avant", fst.pages.statistiques.blocs[1]:GetWidth(), 312)
+
+local function famille(id)
+    for _, e in ipairs(entreesStats()) do
+        if e.ongletId == id then e:Click() end
+    end
+    return fst.pages[id].blocs[1]
+end
+local stats = famille("statistiques")
 -- Le paragraphe d'introduction a ete retire le 3 octobre 2026 : la fenetre
 -- s'appelle « Statistiques », elle n'a pas besoin de dire qu'elle en contient.
-attendu("pas de paragraphe d'introduction", page.blocs[1].paragraphe, nil)
-local function bloc(titre)
-    for _, b in ipairs(page.blocs) do if b.titre and b.titre:GetText() == titre then return b end end
-end
-local stats = bloc("STATISTIQUES")
-attendu("Statistiques replie au depart (template)", stats.replie, true)
-attendu("ses lignes cachees", stats.lignes[1]:IsShown(), false)
-attendu("Penetrations ouvert", bloc("PÉNÉTRATIONS").replie, false)
-stats.bascule:Click()
-attendu("un clic deplie", stats.lignes[1]:IsShown(), true)
+attendu("pas de paragraphe d'introduction", stats.paragraphe, nil)
+attendu("un seul bloc par page", #fst.pages.statistiques.blocs, 1)
+attendu("qui ne se replie plus", stats.bascule, nil)
+attendu("ses lignes visibles", stats.lignes[1]:IsShown(), true)
 attendu("Force totale : 3 + 2 (objet)", stats.lignes[1].valeur:GetText(), "5")
-local attaques = bloc("ATTAQUES & DÉFENSE")
-attaques.bascule:Click()
+local attaques = famille("attaques_defense")
+attendu("cliquer une famille l'affiche", fst.onglet, "attaques_defense")
+attendu("et cache l'autre", fst.pages.statistiques:IsShown(), false)
 attendu("Force d'attaque : l'objet", attaques.lignes[1].valeur:GetText(), "3")
-local bonus = bloc("BONUS")
+local bonus = famille("bonus")
 attendu("Bonus : PA +1", bonus.lignes[1].valeur:GetText(), "+1")
 attendu("Bonus : Fatigue sans bonus", bonus.lignes[2].valeur:GetText(), "0")
-local h1 = page.hauteur
-stats.bascule:Click()
-attendu("replier raccourcit la page", page.hauteur < h1, true)
+for _, e in ipairs(entreesStats()) do
+    if e.ongletId == "bonus" then attendu("la puce suit la famille", e.marque, "ici") end
+end
+LCM.Entities.Set_Value(moi, "force", 4)
+fst:Montrer()
+attendu("rouvrir garde la famille", fst.onglet, "bonus")
+famille("statistiques")
+attendu("et relit le personnage", fst.pages.statistiques.blocs[1].lignes[1].valeur:GetText(), "6")
+fst:Hide()
 attendu("les statistiques de combat sont des cibles de bonus",
     LCM.Schema.Field("force_attaque") and LCM.Schema.Field("force_attaque").kind, "stat")
 

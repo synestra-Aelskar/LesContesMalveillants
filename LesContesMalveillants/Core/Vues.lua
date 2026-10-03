@@ -123,13 +123,16 @@ local function Resoudre(vueId, bloc, sections)
     -- toucher aux sections du schema, partagees par toutes les vues) :
     --   recap = "total" | "bonus" : une ligne compacte par champ, avec sa
     --           valeur totale (toutes sources) ou ses seuls bonus portes ;
-    --   replie = true : le bloc s'ouvre replie (un clic sur son titre).
+    --   replie = true | false : le bloc se replie d'un clic sur son titre, et
+    --           s'ouvre replie (true) ou ouvert (false). Absent : il ne se
+    --           replie pas.
     if bloc.recap or bloc.replie ~= nil then
         for index = premiere, #sections do
             local s = sections[index]
             local copie = {}
             for cle, valeur in pairs(s) do copie[cle] = valeur end
-            copie.recap, copie.repliable, copie.replie = bloc.recap, true, bloc.replie == true
+            copie.recap = bloc.recap
+            copie.repliable, copie.replie = bloc.replie ~= nil, bloc.replie == true
             sections[index] = copie
         end
     end
@@ -168,7 +171,11 @@ function Vues.Add(definition)
             -- Un onglet vide est une erreur de saisie... sauf s'il est dit vide :
             -- le template en a (les Regles n'ont rempli que Fondamentaux).
             if #sections == 0 and not onglet.vide then Erreur(id .. " : onglet vide « " .. ongletId .. " »") end
-            vue.onglets[#vue.onglets + 1] = { id = ongletId, label = tostring(onglet.label or ongletId), sections = sections }
+            -- Sans libelle, l'onglet prend celui de son premier bloc : un
+            -- chapitre du recapitulatif s'appelle comme la section qu'il montre,
+            -- et le recopier ferait deux noms a tenir d'accord.
+            local label = onglet.label or (sections[1] and sections[1].label ~= "" and sections[1].label) or ongletId
+            vue.onglets[#vue.onglets + 1] = { id = ongletId, label = tostring(label), sections = sections }
         end
     else
         local sections = Sections(id, definition.blocs)
