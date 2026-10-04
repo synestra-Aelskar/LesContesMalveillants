@@ -70,6 +70,19 @@ local Ligne = Fiche.Ligne
 -- un peu long continue tout droit et s'ecrit sur la jauge (« Points d'action »
 -- par-dessus sa barre). Coupe plutot que deborde — et si ca coupe souvent,
 -- c'est le libelle qu'il faut raccourcir, comme le template le fait avec PA.
+-- La largeur qu'un libelle prendra REELLEMENT, dans sa police. Un seul texte
+-- de mesure, cache : il ne sert qu'a construire.
+local mesureur
+function Fiche.LargeurTexte(texte, police)
+    if not mesureur then
+        mesureur = UI.Texte(UIParent, "", UI.C.texte)
+        mesureur:Hide()
+    end
+    UI.Police(mesureur, police or 12)
+    mesureur:SetText(tostring(texte or ""))
+    return mesureur:GetStringWidth() or 0
+end
+
 function Fiche.Nom(l, c, texte, avecIcone)
     l.nom = UI.Texte(l, texte, UI.C.texte)
     UI.Police(l.nom, c.police)
@@ -224,6 +237,11 @@ local COULEURS_JAUGE = {
     -- L'armure portee se remplit de ce qu'elle a encaisse : un bronze terni.
     armure_portee = { 0.62, 0.48, 0.34 },
     pa = { 0.83, 0.68, 0.33 },
+    -- Sante > Intangible : l'Esprit et l'Ame avaient le rouge de la vie, qui
+    -- ne veut rien dire pour elles. Bleu clair et violet clair, comme leurs
+    -- icones (4 octobre 2026).
+    existence_esprit = { 0.45, 0.72, 0.95 },
+    existence_ame    = { 0.70, 0.55, 0.92 },
 }
 
 function Lignes.gauge(parent, field, c)
@@ -1285,11 +1303,46 @@ function Fiche.Page(parent, sections, largeur)
                 page.lignes[#page.lignes + 1] = ligne
             end
         end
+        -- Les libelles ne se coupent PAS. La colonne de noms est calee sur le
+        -- gabarit (205 unites), et « Distance de saut horizontal » n'y tient
+        -- pas : on lisait « Distance de… » deux fois de suite, sans pouvoir
+        -- distinguer l'horizontal du vertical. On mesure le plus long du bloc
+        -- et on pousse la valeur d'autant — par BLOC, donc les chiffres
+        -- restent alignes entre eux la ou on les compare.
+        local plusLong = 0
+        for _, ligne in ipairs(bloc.lignes) do
+            if ligne.nom and ligne.valeur and ligne.field then
+                plusLong = math.max(plusLong, Fiche.LargeurTexte(ligne.field.label, c.police) + 6)
+            end
+        end
+        if plusLong > 0 then
+            local depart = c.nom
+            local largeur = math.max(plusLong, c.nomLargeur)
+            for _, ligne in ipairs(bloc.lignes) do
+                if ligne.nom and ligne.valeur and ligne.field then
+                    ligne.nom:SetWidth(largeur)
+                    ligne.valeur:ClearAllPoints()
+                    ligne.valeur:SetPoint("RIGHT", ligne, "LEFT",
+                        depart + largeur + c.valeurLargeur, 0)
+                end
+            end
+            -- Ce qu'il FAUDRAIT a ce bloc pour que rien ne soit coupe ni ne
+            -- flotte : le libelle le plus long, puis la valeur, puis la marge.
+            -- La vue s'en sert pour se tailler a son contenu au lieu de garder
+            -- une largeur fixe ou l'on voit du vide a droite.
+            bloc.largeurVoulue = math.ceil(depart + largeur + c.valeurLargeur + 14)
+        end
+
         if #bloc.lignes > 0 or section.texte then
             page.blocs[#page.blocs + 1] = bloc
         else
             bloc:Hide()
         end
+    end
+
+    page.largeurVoulue = 0
+    for _, bloc in ipairs(page.blocs) do
+        page.largeurVoulue = math.max(page.largeurVoulue, bloc.largeurVoulue or 0)
     end
 
     -- Pose blocs et lignes de haut en bas : certaines lignes (corps, traits)
@@ -1384,14 +1437,20 @@ function Fiche.Artwork(parent, largeur)
     p.niveau:SetShadowColor(0, 0, 0, 1)
     p.niveau:SetShadowOffset(1, -2)
     if UI.AelRef then
+        -- Fondu ADDITIF : ces ornements sont decoupes dans la planche avec un
+        -- fond NOIR. Invisible sur un panneau sombre, il se voyait comme une
+        -- boite noire par-dessus l'artwork. En additif, le noir ne pose rien et
+        -- l'or reste l'or (4 octobre 2026).
         for _, cote in ipairs({ "LEFT", "RIGHT" }) do
             local t = UI.AelRef(pied, cote == "LEFT" and 329 or 635, 119, 63, 19, "ARTWORK")
             t:SetSize(42, 13)
             t:SetPoint(cote, pied, cote, cote == "LEFT" and 20 or -20, 14)
+            if t.SetBlendMode then t:SetBlendMode("ADD") end
         end
         local gemme = UI.AelRef(pied, 501, 656, 27, 25, "OVERLAY")
         gemme:SetSize(15, 14)
         gemme:SetPoint("TOP", pied, "TOP", 0, -9)
+        if gemme.SetBlendMode then gemme:SetBlendMode("ADD") end
     end
     p.jauge = CreateFrame("Frame", nil, pied)
     p.jauge:SetPoint("BOTTOMLEFT", pied, "BOTTOMLEFT", 22, 27)

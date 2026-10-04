@@ -3,8 +3,13 @@ __personnage()
 local e = LCM.Entities.Self()
 local f = LCM.UI.Fiche.Fenetre()
 f:Montrer(e)
-assert(f:GetWidth() == 680, "largeur doublee")
+-- 4 octobre 2026 : l'artwork est un VOLET LATERAL, pose a l'exterieur du bord
+-- gauche. La fenetre ne double plus de largeur et ne saute plus sous la souris
+-- quand on l'ouvre ou qu'on le ferme.
+assert(f:GetWidth() == 340, "la fenetre garde sa largeur")
 assert(f.artwork:IsShown(), "artwork visible")
+local _, ancreVolet = f.artwork:GetPoint(1)
+assert(ancreVolet == f, "le volet est accroche a la fenetre")
 assert(not f.artwork.inconscient:IsShown(), "artwork normal quand le personnage vit")
 local _, _, _, ongletsX = f.barre:GetPoint(1)
 assert(ongletsX == 24 and f.barre:GetWidth() == f:GetWidth() - 72, "onglets rentres dans le cadre")
@@ -18,7 +23,7 @@ if enc then
 end
 assert(f.artwork.niveau:GetText() == "Niveau " .. LCM.Entities.Get_Value(e, "niveau"))
 f:Afficher("traits")
-assert(f:GetWidth() == 340 and not f.artwork:IsShown(), "traits compacts")
+assert(f:GetWidth() == 340 and not f.artwork:IsShown(), "traits : pas de volet, meme largeur")
 assert(f.barre:GetWidth() == 268, "onglets compacts dans le cadre")
 f:Afficher("statistiques")
 local palier = LCM.Equilibrage.experience.paliers[1]
@@ -35,7 +40,8 @@ f.poignee:Click("LeftButton")
 f:Afficher("facultes")
 assert(f:GetWidth() == 340, "facultes compactes")
 f:Afficher("statistiques")
-assert(f:GetWidth() == 680, "retour artwork")
+-- Le volet revient, la fenetre reste a sa largeur : c'est tout l'interet.
+assert(f:GetWidth() == 340 and f.artwork:IsShown(), "retour du volet, largeur inchangee")
 LCM.Entities.Set_Value(e, "race", "humain")
 local pvRestants = select(2, LCM.Body.Totals(e))
 for _, zone in ipairs(LCM.Body.State(e)) do
@@ -58,4 +64,22 @@ end
 assert(select(1, LCM.Body.Totals(e)) < 0 and f.artwork.inconscient:IsShown(), "reste visible sous zero")
 LCM.Body.HealAll(e)
 assert(not f.artwork.inconscient:IsShown(), "voile retire apres soin")
+-- Replier l'artwork (4 octobre 2026). Il prend la moitie de la fenetre et ne
+-- sert pas a tout : quand on vient lire ses chiffres, l'artwork, le niveau et
+-- l'experience sont du decor. Le choix est retenu d'une ouverture a l'autre.
+f:Afficher("statistiques")
+local largeOuvert = f:GetWidth()
+assert(f.artwork:IsShown(), "artwork visible sur Statistiques")
+assert(f.replierArtwork:IsShown(), "la poignee est offerte")
+f.replierArtwork:Click()
+assert(not f.artwork:IsShown(), "replie au clic")
+assert(f:GetWidth() == largeOuvert, "la fenetre ne bouge pas")
+assert(LCM.db.settings.ficheArtworkReplie == true, "le choix est retenu")
+f:Afficher("traits")
+assert(not f.replierArtwork:IsShown(), "pas de poignee hors Statistiques")
+f:Afficher("statistiques")
+f.replierArtwork:Click()
+assert(f.artwork:IsShown(), "redeplie au clic")
+assert(f:GetWidth() == largeOuvert, "et elle n'a toujours pas bouge")
+
 print("TOUT PASSE : artwork, onglets, experience et paliers")

@@ -78,17 +78,20 @@ end
 -- Une ligne lisible, pour le chat.
 function Roll.Describe(resultat)
     if type(resultat) ~= "table" then return "" end
+    -- Chaque part est NOMMEE, « Nom : valeur ». « de 2, valeur +4, stats +4 »
+    -- se lisait comme une phrase, et on ne savait pas ou finissait le libelle
+    -- ni ou commencait le chiffre.
     local morceaux = {}
     if #resultat.jets > 1 then
-        morceaux[#morceaux + 1] = string.format("des %d et %d, on garde %d",
+        morceaux[#morceaux + 1] = string.format("Jets : %d et %d, gardé : %d",
             resultat.jets[1], resultat.jets[2], resultat.garde)
     else
-        morceaux[#morceaux + 1] = string.format("de %d", resultat.garde)
+        morceaux[#morceaux + 1] = string.format("Jets : %d", resultat.garde)
     end
-    if resultat.valeur ~= 0 then morceaux[#morceaux + 1] = string.format("valeur %+d", resultat.valeur) end
-    if (resultat.apport or 0) ~= 0 then morceaux[#morceaux + 1] = string.format("stats %+d", resultat.apport) end
-    if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("bonus %+d", resultat.bonus) end
-    if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("modificateur %+d", resultat.modificateur) end
+    if resultat.valeur ~= 0 then morceaux[#morceaux + 1] = string.format("Base : %+d", resultat.valeur) end
+    if (resultat.apport or 0) ~= 0 then morceaux[#morceaux + 1] = string.format("Stat : %+d", resultat.apport) end
+    if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("Bonus : %+d", resultat.bonus) end
+    if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("Modificateur : %+d", resultat.modificateur) end
     local ligne = string.format("%s : %d  (%s)", resultat.label, resultat.total, table.concat(morceaux, ", "))
     if resultat.avantage and resultat.trait then
         ligne = ligne .. "  — avantage : " .. resultat.trait.label

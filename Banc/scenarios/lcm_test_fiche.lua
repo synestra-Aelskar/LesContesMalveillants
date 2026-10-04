@@ -139,10 +139,12 @@ local fac = f.pages.facultes
 attendu("bloc Physiques", fac.blocs[1].titre:GetText(), "PHYSIQUES")
 local valeurs = {}
 for _, l in ipairs(fac.lignes) do valeurs[l.field.id] = l.valeur:GetText() end
--- 5 + 5 x 4 = 25 ; 4/2 + 3/3 = 3 ; 4/2 + 3/4 = 2,75
+-- 5 + 5 x 4 = 25 ; 4/2 + 3/3 = 3 ; 4/2 + 3/4 = 2,75 -> 2
+-- Les sauts sont ARRONDIS A L'INFERIEUR depuis le 4 octobre 2026 : « 2.75 m »
+-- n'est pas une distance qu'on annonce a une table.
 attendu("poids soulevable", valeurs.poids_soulevable, "25")
 attendu("saut horizontal", valeurs.saut_horizontal, "3")
-attendu("saut vertical", valeurs.saut_vertical, "2.75")
+attendu("saut vertical arrondi a l'inferieur", valeurs.saut_vertical, "2")
 
 dire("== Traits")
 f.barre.boutons[3]:Click()

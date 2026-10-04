@@ -98,11 +98,13 @@ for _, pool in ipairs(LCM.Equilibrage.secondaires) do
     }
 end
 
--- Une distance de saut : Force / a + Adresse / b (template).
+-- Une distance de saut : Force / a + Adresse / b (template), ARRONDIE A
+-- L'INFERIEUR. « 3.33 m » n'est pas une distance qu'on annonce a une table :
+-- on saute trois metres, et la fraction ne sert a rien (4 octobre 2026).
 function LCM.Saut(entity, sens)
     local e = LCM.Equilibrage.sauts[sens]
-    return LCM.Formules.Primaire(entity, "force") / e.diviseurForce
-        + LCM.Formules.Primaire(entity, "adresse") / e.diviseurAdresse
+    return math.floor(LCM.Formules.Primaire(entity, "force") / e.diviseurForce
+        + LCM.Formules.Primaire(entity, "adresse") / e.diviseurAdresse)
 end
 
 -- Un mode de deplacement : base + points investis dans son expertise (et non

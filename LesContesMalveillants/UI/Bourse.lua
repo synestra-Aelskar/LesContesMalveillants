@@ -35,6 +35,24 @@ local function Construire()
         local mj = LCM.IsMaster()
         local y = 0
 
+        -- La fenetre se taille sur le plus long nom de devise. A 420 fixes, on
+        -- avait trois lignes courtes dans un rectangle vide — « Essence
+        -- stelaire » n'en demande pas la moitie (4 octobre 2026).
+        --
+        -- 6 de marge + 24 d'icone + 8 + le nom + 16 + le solde + les deux
+        -- boutons du MJ + la marge de droite.
+        local plusLong = 0
+        for _, devise in ipairs(devises) do
+            plusLong = math.max(plusLong, UI.Fiche.LargeurTexte(devise.label, 12) or 0)
+        end
+        if plusLong > 0 then
+            local boutons = mj and 52 or 8
+            local voulue = math.ceil(6 + 24 + 8 + plusLong + 16 + 44 + boutons + 24)
+            -- Un plancher : sous cette largeur, le titre de la fenetre et ses
+            -- ornements ne tiennent plus.
+            self:SetWidth(math.max(260, voulue))
+        end
+
         for rang, devise in ipairs(devises) do
             local l = self.lignes[rang]
             if not l then

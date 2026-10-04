@@ -132,4 +132,26 @@ attendu("la creation se ferme", creation:IsShown(), false)
 attendu("et la selection revient", selection:IsShown(), true)
 selection:Hide()
 
+dire("== le fond remonte sous la couronne du cadre")
+-- Les pieces du haut debordent du bord de la fenetre (c'est voulu), mais le
+-- fond s'arretait au bord : il restait une bande transparente entre la bordure
+-- doree et le noir, par laquelle on voyait le jeu (4 octobre 2026).
+local fiche = LCM.UI.Vues.Fenetre("fiche")
+fiche:Montrer()
+local debord = LCM.UI.AelDebordHaut(fiche)
+attendu("l'habillage deborde bien vers le haut", debord > 0, true)
+local _, _, _, _, yFond = fiche.fond:GetPoint(1)
+attendu("et le fond monte d'autant", yFond, debord)
+-- Mais pas plus haut que le RAIL : les tours d'angle et l'ornement central
+-- montent au-dessus de lui, et suivre LA piece la plus haute faisait depasser
+-- un bandeau noir par-dessus la bordure.
+local plusHaut = 0
+local jeu = fiche.decor.jeux[fiche.decor.theme]
+for _, t in ipairs(jeu.fixes) do
+    local _, _, rel, _, y = t:GetPoint(1)
+    if tostring(rel):find("TOP") then plusHaut = math.max(plusHaut, y or 0) end
+end
+attendu("le fond ne depasse pas la couronne", debord < plusHaut, true)
+fiche:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

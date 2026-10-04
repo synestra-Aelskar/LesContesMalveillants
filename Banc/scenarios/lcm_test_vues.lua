@@ -185,7 +185,24 @@ attendu("ouverte sur la premiere", fst.onglet, "statistiques")
 attendu("et le sommaire le dit", entreesStats()[1].marque, "ici")
 -- Le libelle d'une famille de combat vient de sa section, pas d'une copie.
 attendu("libelle repris de la section", entreesStats()[8].label:GetText(), "Attaques & Défense")
-attendu("la page garde sa largeur d'avant", fst.pages.statistiques.blocs[1]:GetWidth(), 312)
+-- 4 octobre 2026 : la vue se taille a son contenu. Le sommaire prend ce que
+-- demande son plus long chapitre (« Mécanique de compétence » se lisait
+-- « Mécanique de comp… »), et la fenetre suit la page la plus exigeante au
+-- lieu de garder deux cents pixels de vide a droite.
+attendu("le sommaire tient ses chapitres", fst.sommaire:GetWidth() > 162, true)
+attendu("la fenetre s'est resserree", fst:GetWidth() < 509, true)
+attendu("et la page a ce qu'il lui faut",
+    fst.pages.statistiques.blocs[1]:GetWidth() >= fst.pages.statistiques.largeurVoulue, true)
+-- Aucun libelle coupe : chaque nom a au moins la largeur de son texte.
+local coupes = 0
+for _, ligne in ipairs(fst.pages.statistiques.lignes) do
+    if ligne.nom and ligne.field then
+        if ligne.nom:GetWidth() < LCM.UI.Fiche.LargeurTexte(ligne.field.label, 12) then
+            coupes = coupes + 1
+        end
+    end
+end
+attendu("aucun libelle tronque", coupes, 0)
 
 local function famille(id)
     for _, e in ipairs(entreesStats()) do

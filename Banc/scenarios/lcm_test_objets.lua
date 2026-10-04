@@ -74,8 +74,9 @@ local r = LCM.Roll.Field(moi, "pistage", { avantage = true })
 attendu("jet avec l'avantage de l'objet", #r.jets, 2)
 attendu("le jet nomme l'objet", r.trait.label, "Amulette du guetteur")
 dire("   " .. __sansCouleur(LCM.Roll.Describe(r)))
+-- 4 octobre 2026 : chaque part du jet est nommee (« Bonus : +4 »).
 attendu("le texte parle de bonus, pas de trait",
-    LCM.Roll.Describe(LCM.Roll.Field(moi, "escalade")):find("bonus %+4") ~= nil, true)
+    LCM.Roll.Describe(LCM.Roll.Field(moi, "escalade")):find("Bonus : %+4") ~= nil, true)
 
 dire("== Penetration & Resistances montre le bonus d'une stat")
 local fr = LCM.UI.Vues.Fenetre("penetrations_resistances")

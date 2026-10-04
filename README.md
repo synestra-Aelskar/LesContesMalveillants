@@ -344,6 +344,73 @@ ils ont quitté le menu du joueur.
 quand on bascule entre la grille et la liste — les deux ne tiennent pas dans le
 même rectangle.
 
+### Le 4 octobre 2026 : lisibilité et mesures
+
+**Le détail d'un jet nomme ses parts** : `Jets : 2, Base : +4, Stat : +4,
+Bonus : +1`. « de 2, valeur +4, stats +4 » se lisait comme une phrase, sans
+qu'on sache où finissait le libellé et où commençait le chiffre. Deux dés
+donnent `Jets : 5 et 3, gardé : 5`.
+
+**Les sauts sont arrondis à l'inférieur** (2,75 → 2) : ce n'est pas une
+distance qu'on annonce à une table.
+
+**Esprit et Âme** (Santé › Intangible) ont leurs couleurs — bleu clair et
+violet clair. Elles portaient le rouge de la vie, qui ne veut rien dire pour
+elles.
+
+**Plus aucun libellé n'est tronqué, et les fenêtres ont maigri.** C'est la
+même cause : la colonne de libellés était calée sur le gabarit (205 unités),
+largeur fixe quel que soit le texte. On lisait « Distance de… » deux fois de
+suite sans pouvoir distinguer l'horizontal du vertical, et « Attaque sim… »,
+pendant qu'il restait du vide à droite.
+
+Chaque **bloc mesure maintenant son plus long libellé**, élargit sa colonne de
+noms et pousse la valeur d'autant — par bloc, donc les chiffres restent
+alignés là où on les compare. Puis chaque bloc **annonce la largeur qu'il lui
+faut**, et la vue se taille dessus, **par onglet** : prise une fois pour toutes
+sur la page la plus exigeante, elle laissait du vide sur toutes les autres.
+La hauteur suit le même principe — les vues en sommaire en étaient *exemptées*
+et prenaient donc la hauteur de leur table des matières, d'où trois cents
+pixels de vide sous le bloc.
+
+| | avant | après |
+|---|---|---|
+| Statistiques | 509 × 460 | **394 × 300** |
+| Pénétrations | 509 × 460 | **382 × 396** |
+| Bourse | 420 | **270** |
+
+Le sommaire se taille lui aussi sur son plus long chapitre (« Mécanique de
+compétence » se lisait « Mécanique de comp… »), et la bourse sur son plus long
+nom de devise. Une assertion du banc vérifie qu'**aucun libellé n'est plus
+étroit que son texte** : c'est elle qui empêchera d'y retomber.
+
+**Le trou en haut des fenêtres.** Les pièces du haut de l'habillage débordent
+au-dessus du bord (c'est voulu, la couronne dépasse), mais le fond était posé
+exactement au bord : il restait une bande par laquelle on voyait le jeu, entre
+la bordure dorée et le noir.
+
+Deux essais ratés avant de trouver, et la leçon vaut d'être écrite : j'ai
+d'abord pris le débord **maximum** (les tours d'angle, 24,7), ce qui faisait
+dépasser un bandeau noir par-dessus la bordure ; puis le sommet du **rail**
+(14,3), qui dépassait encore. La bonne mesure ne se devine pas depuis les
+ancrages — elle est **dans l'alpha de la planche** : le rail ne devient opaque
+qu'à sa **7ᵉ ligne sur 80** (thème léger) et sa **34ᵉ sur 110** (thème lourd).
+Au-dessus, l'image est vide. Les deux valeurs sont posées dans le thème
+(`railOpaque`), à côté des autres relevés d'alpha, et le débord est tombé à
+**1,44 px**.
+
+**Les ornements ne traînent plus leur fond noir.** Ils sont découpés dans la
+planche **avec** un fond noir : invisible sur un panneau sombre — c'est
+pourquoi on ne l'avait jamais vu — mais bien visible par-dessus un artwork.
+Passés en fondu **additif** : le noir ne pose plus rien, l'or reste l'or.
+
+**L'artwork est un volet latéral qui glisse.** Il est ancré à l'EXTÉRIEUR du
+bord gauche : la fenêtre ne change plus ni de largeur ni de position quand on
+l'ouvre ou qu'on le ferme. Avant, elle doublait de largeur et sautait sous la
+souris — on perdait la colonne qu'on était en train de lire. La poignée est la
+plaque ornée du cadre, à son rapport, **toujours au même endroit** : sur le
+bord gauche, à mi-hauteur. Le choix est retenu d'une ouverture à l'autre.
+
 ### Le 3 octobre 2026, deuxième passe
 
 **Le menu radial ne se referme plus** quand on clique sur une feuille. Il

@@ -138,6 +138,16 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     f.fond = UI.Aplat(f, UI.C.fond)
     f.fond:SetAllPoints(f)
 
+    -- Le fond remonte sous la couronne du cadre, qui deborde du bord haut.
+    -- Pose au ras du cadre, il laissait une bande transparente entre la
+    -- bordure doree et le noir : on voyait le jeu au travers.
+    function f:AjusterFond()
+        local haut = UI.AelDebordHaut and UI.AelDebordHaut(self) or 0
+        self.fond:ClearAllPoints()
+        self.fond:SetPoint("TOPLEFT", self, "TOPLEFT", 0, math.max(0, haut))
+        self.fond:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+    end
+
     -- En-tete du modele Necronicon (AelWidgets, LayoutFiche) : titre en
     -- capitales entre deux ornements, deux pendentifs, un filet d'or a 63
     -- unites, la croix du modele. Tout suit la largeur (845 unites).

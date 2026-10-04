@@ -29,15 +29,33 @@ local LIGNE_SOMMAIRE = 20
 -- Seul le chapitre ouvert deplie ses sous-chapitres : huit chapitres de cinq
 -- blocs feraient quarante lignes, et une table des matieres qu'on doit faire
 -- defiler pour s'y retrouver ne sert plus a rien.
+-- Ce que le plus long chapitre demande : « Mécanique de compétence » ne tient
+-- pas dans 162 et se lisait « Mécanique de comp… ». On ne tronque pas un
+-- sommaire : c'est lui qui dit ou l'on va.
+local function LargeurSommaire(vue)
+    local large = LARGEUR_SOMMAIRE
+    for _, onglet in ipairs(vue.onglets or {}) do
+        large = math.max(large, (UI.Fiche.LargeurTexte(onglet.label, 12) or 0) + 54)
+        for _, bloc in ipairs(onglet.blocs or {}) do
+            local section = bloc.section and LCM.Schema.Section and LCM.Schema.Section(bloc.section)
+            local titre = bloc.label or (section and section.label)
+            if titre then
+                large = math.max(large, (UI.Fiche.LargeurTexte(titre, 11) or 0) + 64)
+            end
+        end
+    end
+    return math.ceil(math.min(large, 280))
+end
+
 local function Sommaire(f, vue)
     local s = UI.Defilement(f.contenu)
-    s:SetWidth(LARGEUR_SOMMAIRE)
+    s:SetWidth(f.largeurSommaire or LARGEUR_SOMMAIRE)
     s.entrees = {}
 
     local function Entree(rang)
         local b = s.entrees[rang]
         if b then return b end
-        b = UI.Bouton(s.contenu, "", LARGEUR_SOMMAIRE, LIGNE_SOMMAIRE, function(self)
+        b = UI.Bouton(s.contenu, "", s:GetWidth(), LIGNE_SOMMAIRE, function(self)
             f:Afficher(self.ongletId)
             -- Un chapitre repart du haut ; un sous-chapitre va se montrer.
             f.zone:Aller(self.cible or 0)
@@ -104,7 +122,7 @@ local function Sommaire(f, vue)
             b.ongletId, b.cible, b.chapitre = onglet.id, 0, true
             b.label:SetText(onglet.label)
             b.label:SetPoint("LEFT", b, "LEFT", 18, 0)
-            b.label:SetWidth(LARGEUR_SOMMAIRE - 24)
+            b.label:SetWidth(s:GetWidth() - 24)
             UI.Police(b.label, 12)
             b.puce:SetPoint("LEFT", b, "LEFT", 5, 0)
             UI.Police(b.puce, 10)
@@ -130,7 +148,7 @@ local function Sommaire(f, vue)
                         sb.cible = math.max(0, -(dy or 0))
                         sb.label:SetText(titre)
                         sb.label:SetPoint("LEFT", sb, "LEFT", 30, 0)
-                        sb.label:SetWidth(LARGEUR_SOMMAIRE - 34)
+                        sb.label:SetWidth(s:GetWidth() - 34)
                         UI.Police(sb.label, 10)
                         sb.puce:SetPoint("LEFT", sb, "LEFT", 17, 0)
                         UI.Police(sb.puce, 10)
@@ -217,7 +235,8 @@ local function Construire(vue, rang)
     -- 11 = la barre de defilement du sommaire (posee a +3, large de 6) et deux
     -- pixels d'air. Ajouter une marge en plus creusait un couloir vide entre la
     -- table des matieres et le texte.
-    local gauche = vue.sommaire and (LARGEUR_SOMMAIRE + 11) or 0
+    f.largeurSommaire = vue.sommaire and LargeurSommaire(vue) or nil
+    local gauche = vue.sommaire and (f.largeurSommaire + 11) or 0
     local largeurPage = largeurContenu - gauche
 
     if vue.sommaire then
@@ -268,37 +287,107 @@ local function Construire(vue, rang)
         page.onHauteur = function(h) if page:IsShown() then f.zone:Regler(h) end end
         f.pages[onglet.id] = page
     end
+    -- La vue se TAILLE A SON CONTENU : la page la plus exigeante commande, et
+    -- le reste suit. A largeur fixe, on avait deux cents pixels de vide a
+    -- droite des Statistiques pendant que « Attaque simple » se lisait
+    -- « Attaque sim… » (4 octobre 2026). Le sommaire a deja pris sa part.
+    -- La largeur se decide PAR ONGLET, a l'affichage. Prise une fois pour
+    -- toutes sur la page la plus exigeante, elle laissait du vide a droite de
+    -- toutes les autres : « Mécanique de compétence » demande bien plus que
+    -- « Statistiques », et c'est la seconde qu'on regarde le plus souvent.
+    function f:AjusterLargeur()
+        -- Seules les vues en SOMMAIRE se taillent a leur contenu. Une vue a
+        -- onglets a une bande a faire tenir, et la fiche un volet lateral : les
+        -- resserrer sur leur page la plus courte cassait leur en-tete.
+        if not vue.sommaire then return end
+        local page = self.onglet and self.pages[self.onglet]
+        local voulue = page and page.largeurVoulue or 0
+        if voulue <= 0 then return end
+        -- Jamais plus etroite que ce que l'habillage demande.
+        local totale = math.max(260, gauche + voulue + 24)
+        if math.abs(totale - (self:GetWidth() or 0)) < 2 then return end
+        self:SetWidth(totale)
+        local contenu = totale - 24
+        if self.barre then
+            self.barre:SetWidth(contenu)
+            self.barre:Disposer(contenu, self.mesures.onglet)
+        end
+    end
+
     -- Une vue simple : sa page unique, sous le nom qu'on lui a toujours donne.
     f.page = f.pages[vue.onglets[1].id]
     if vue.id == "fiche" then
-        f.artwork = UI.Fiche.Artwork(f.contenu, vue.largeur - 12)
-        f.artwork:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
-        f.artwork:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+        -- Un VOLET LATERAL, pose a l'exterieur du bord gauche : la fenetre ne
+        -- change ni de largeur ni de place quand on l'ouvre ou qu'on le ferme.
+        -- Avant, elle doublait de largeur et sautait sous la souris — on
+        -- perdait la colonne qu'on etait en train de lire (4 octobre 2026).
+        f.artwork = UI.Fiche.Artwork(f, vue.largeur - 12)
+        f.artwork:SetWidth(vue.largeur - 12)
+        f.artwork:SetPoint("TOPRIGHT", f, "TOPLEFT", 6, -(f.insetHaut or 0))
+        f.artwork:SetPoint("BOTTOM", f, "BOTTOM", 0, (f.insetBas or 0))
+
+        -- De quoi replier le volet de gauche. Il prend la moitie de la fenetre
+        -- et ne sert pas a tout : quand on vient lire ses chiffres, l'artwork,
+        -- le niveau et l'experience sont du decor. Le choix est RETENU — on ne
+        -- replie pas la meme chose a chaque ouverture.
+        LCM.EnsureDatabase()
+        f.artworkReplie = LCM.db.settings.ficheArtworkReplie == true
+        f.replierArtwork = CreateFrame("Button", nil, f)
+        -- La plaque fait 385 x 200 dans la planche : ecrasee dans un carre, elle
+        -- ne ressemblait a rien. On garde son rapport.
+        f.replierArtwork:SetSize(62, 32)
+        f.replierArtwork:SetScript("OnClick", function()
+            f.artworkReplie = not f.artworkReplie
+            LCM.db.settings.ficheArtworkReplie = f.artworkReplie or nil
+            f:DisposerArtwork()
+        end)
+        f.replierArtwork:SetFrameLevel(f.contenu:GetFrameLevel() + 20)
+        -- La plaque ornee du bas du cadre, reprise comme poignee : un chevron
+        -- dans une boite ne ressemblait a rien au milieu de cet habillage.
+        -- C'est la meme piece, posee au milieu de la barre qui separe l'artwork
+        -- du contenu — celle qu'elle fait justement coulisser (4 octobre 2026).
+        if UI.AelRef then
+            f.replierArtwork.plaque = UI.AelRef(f.replierArtwork, 0, 256, 385, 200, "OVERLAY")
+            f.replierArtwork.plaque:SetAllPoints(f.replierArtwork)
+            f.replierArtwork.plaque:SetBlendMode("ADD")
+        end
+        f.replierArtwork.survol = UI.Aplat(f.replierArtwork, UI.C.survol, "HIGHLIGHT")
+        f.replierArtwork.survol:SetAllPoints(f.replierArtwork)
+        UI.Bulle(f.replierArtwork, "Artwork",
+            "Replier ou déplier l'artwork, le niveau et l'expérience.")
     end
 
     function f:DisposerArtwork()
         if not self.artwork then return end
-        local ouvert = self.onglet == "statistiques"
-        local largeur = vue.largeur * (ouvert and 2 or 1)
-        if self.SetResizeBounds then self:SetResizeBounds(largeur, 160, largeur) end
-        self:SetWidth(largeur)
-        if self.barre then
-            local largeurOnglets = largeur - 24 - 2 * RETRAIT_ONGLETS_FICHE
-            self.barre:SetWidth(largeurOnglets)
-            self.barre:Disposer(largeurOnglets, self.mesures.onglet, { uneRangee = true })
-        end
+        -- Le volet n'existe que sur l'onglet Statistiques, et seulement si on
+        -- ne l'a pas replie. La FENETRE, elle, ne bouge pas : ni sa largeur, ni
+        -- sa position, ni ce qu'on etait en train d'y lire.
+        local possible = self.onglet == "statistiques"
+        local ouvert = possible and not self.artworkReplie
         self.artwork:SetShown(ouvert)
         self.zone:ClearAllPoints()
-        self.zone:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", ouvert and vue.largeur or 0, -haut)
+        self.zone:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -haut)
         self.zone:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", 0, 0)
         if ouvert and self.entity then
             self.artwork.entity = self.entity
             self.artwork:Actualiser(self.entity)
         end
+        -- Le bouton ne s'offre que la ou il a un sens, et dit dans quel sens il
+        -- va : « ‹ » pour replier vers la gauche, « › » pour redeplier.
+        if self.replierArtwork then
+            self.replierArtwork:SetShown(possible)
+            -- Toujours au meme endroit : sur le bord gauche de la fenetre, a
+            -- mi-hauteur. C'est la limite que le volet longe, et elle ne bouge
+            -- plus — on sait ou retrouver la poignee.
+            self.replierArtwork:ClearAllPoints()
+            self.replierArtwork:SetPoint("CENTER", self, "LEFT", 0, 0)
+            self.replierArtwork:SetFrameLevel(self:GetFrameLevel() + 20)
+        end
     end
 
     function f:Afficher(ongletId)
         self.onglet = ongletId
+        self:AjusterLargeur()
         self:DisposerArtwork()
         if self.barre then self.barre:Selectionner(ongletId) end
         for id, page in pairs(self.pages) do page:SetShown(id == ongletId) end
@@ -322,7 +411,7 @@ local function Construire(vue, rang)
     -- Des que le joueur a tire la poignee, c'est SA hauteur qui vaut : on ne
     -- vient pas corriger derriere lui a chaque changement d'onglet.
     function f:AjusterHauteur()
-        if vue.sommaire or self.hauteurChoisie then return end
+        if self.hauteurChoisie then return end
         local page = self.onglet and self.pages[self.onglet]
         if not page then return end
         -- Ce que l'habillage prend, plus ce qui est pose au-dessus de la zone
@@ -331,7 +420,13 @@ local function Construire(vue, rang)
         local chrome = (self.insetHaut or 0) + (self.insetBas or 0) + (self.hautZone or 0)
         local voulue = chrome + page.hauteur
         local plafond = (UIParent and UIParent:GetHeight() or 1080) * 0.85
-        self:SetHeight(math.max(160, math.min(voulue, plafond)))
+        -- Une vue en sommaire suit son CONTENU elle aussi. Elle en etait
+        -- exemptee, donc elle prenait la hauteur de sa table des matieres :
+        -- dix-huit chapitres a gauche et six statistiques a droite donnaient
+        -- trois cents pixels de vide sous le bloc. Le sommaire defile, lui, et
+        -- un plancher l'empeche de se reduire a deux lignes (4 octobre 2026).
+        local plancher = vue.sommaire and 300 or 160
+        self:SetHeight(math.max(plancher, math.min(voulue, plafond)))
         self.zone:Regler(page.hauteur)
     end
 

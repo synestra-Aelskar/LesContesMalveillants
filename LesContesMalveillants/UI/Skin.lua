@@ -50,6 +50,10 @@ local VARIANTES = {
         -- sur trente unites — exactement la ou la croix se pose. On prend le
         -- plus large des deux : les coins restent en miroir.
         emprise = { bas = 40, cote = 30, coinHaut = 140 },
+        -- Le rail du haut (tranche de 110) ne devient opaque qu'a sa 34e ligne :
+        -- au-dessus, c'est du vide. Le fond de la fenetre doit s'arreter la, pas
+        -- au sommet de la tranche (alpha, 4 octobre 2026).
+        railOpaque = 34 / 110,
         -- Les encoches des coins hauts, ou se posent la pastille (a gauche) et
         -- la croix (a droite) : le centre de chaque petit cadre a boussole, en
         -- unites source, et le cote du bouton qui s'y pose. Mesurees au pixel
@@ -89,6 +93,8 @@ local VARIANTES = {
         -- unites a gauche et 62 a droite (alpha, 3 octobre 2026) : a 0, la
         -- croix se posait dessus.
         emprise = { bas = 30, cote = 5, coinHaut = 70 },
+        -- Tranche de 80, opaque des la 7e ligne (alpha, 4 octobre 2026).
+        railOpaque = 7 / 80,
         fixes = {
             {   0,   0, 175, 225,    0,    0, "TOPLEFT" },
             { 180,   0, 168, 225, 1165,    0, "TOPRIGHT" },
@@ -180,6 +186,12 @@ function UI.AelEmprise(cadre)
     return { bas = V.emprise.bas * decor.echelle, cote = V.emprise.cote * decor.echelle }
 end
 
+-- Ce que l'habillage monte au-dessus du bord haut de la fenetre, en pixels.
+function UI.AelDebordHaut(cadre)
+    local decor = cadre and cadre.decor
+    return (decor and decor.debordHaut) or 0
+end
+
 -- Ce que l'ornement du coin haut prend, en pixels d'ecran. Zero sans atlas :
 -- il n'y a alors rien a eviter.
 -- Ou poser la croix et la pastille : le centre de chaque encoche, en pixels,
@@ -248,6 +260,8 @@ function UI.Cadre(cadre)
             self.echelle = nil
             -- Plus d'ornement : la croix et la pastille reviennent au bord, au
             -- lieu de garder le retrait de l'habillage qu'on vient de quitter.
+            self.debordHaut = 0
+            if cadre.AjusterFond then cadre:AjusterFond() end
             if cadre.PlacerCoinsHaut then cadre:PlacerCoinsHaut() end
             return
         end
@@ -258,6 +272,16 @@ function UI.Cadre(cadre)
         -- l'ecran.
         local k = math.min(V.max, math.max(V.min, cadre:GetWidth() / V.largeur * V.facteur))
         self.echelle = k
+
+        -- Ce que le RAIL du haut monte au-dessus du bord de la fenetre. Le fond
+        -- s'arretait au bord, et il restait une bande transparente entre la
+        -- bordure doree et le noir, par laquelle on voyait le jeu.
+        --
+        -- C'est le rail qu'on suit, PAS les pieces les plus hautes : les tours
+        -- d'angle et l'ornement central montent bien plus haut (24,7 contre
+        -- 14,3 sur le theme leger), et remonter le fond jusqu'a eux faisait
+        -- depasser un bandeau noir au-dessus de la bordure (4 octobre 2026).
+        local debordHaut = 0
 
         for index, r in ipairs(V.fixes) do
             local t = jeu.fixes[index]
@@ -275,8 +299,21 @@ function UI.Cadre(cadre)
             t:ClearAllPoints()
             Poser(t, V, "TOPLEFT", r[6], r[7], r[8], cadre, k)
             Poser(t, V, "BOTTOMRIGHT", r[9], r[10], r[11], cadre, k)
+            -- Les bandes du haut sont les rails. Le fond monte jusqu'a leur
+            -- part OPAQUE, pas jusqu'au sommet de leur tranche : au-dessus du
+            -- liseré l'image est vide, et y pousser du noir faisait depasser un
+            -- bandeau par-dessus la bordure.
+            if r[6]:find("TOP") then
+                local haut = (V.T - r[8]) * k
+                local bas = (V.T - r[11]) * k
+                local creux = (haut - bas) * (V.railOpaque or 0)
+                debordHaut = math.max(debordHaut, haut - creux)
+            end
             t:Show()
         end
+        self.debordHaut = math.max(0, debordHaut)
+        -- Le fond de la fenetre doit monter jusque sous la bordure.
+        if cadre.AjusterFond then cadre:AjusterFond() end
         -- L'echelle vient de changer : ce qui doit eviter les coins se replace.
         if cadre.PlacerCoinsHaut then cadre:PlacerCoinsHaut() end
     end
