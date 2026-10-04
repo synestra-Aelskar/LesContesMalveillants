@@ -635,18 +635,12 @@ l'addon, donc livrées aux joueurs à chaque publication.
 
 Par ordre de ce qui bloque le plus :
 
-- [x] **La Forge : jeu d'équilibrage pour la création d'entrées** (Akriaxx,
-      3 octobre 2026). `Core/Forge.lua` + `LesContesMalveillants_MJ/Forge.lua`.
-      Tout passe par le compendium : la catégorie « Jeux d'équilibrage »
-      crée et règle les jeux, le bouton « Forger » (à droite de la rangée
-      Nouvelle entrée) ouvre la forge d'une catégorie. Un jeu vise une catégorie : raretés
-      (pool, couleur) décidées par le MJ, et par statistique verrou / min /
-      base / max (par rareté si besoin) / coût du point, **propre au jeu**.
-      Le barème **bloque** : dès qu'un jeu vise une catégorie, toute entrée
-      enregistrée doit en choisir un (champ « Forge ») et le respecter.
-      Reste : l'outil d'export ne connaît ni la famille `jeux` ni le champ
-      `forge` des entrées ; l'atelier perd le champ `forge` en rouvrant une
-      entrée forgée (refus à l'enregistrement, pas de contournement).
+- [ ] **La Forge : jeu d'équilibrage pour la création d'entrées.** On fabrique
+      races, objets, états et traits **sans aucun garde-fou**. Il faut le
+      barème par catégorie (raretés, min / max de budget, coûts globaux,
+      verrou) de la Forge de Necronicon (`Forge.lua`). **Chantier d'Akriaxx**
+      — tranché le 3 octobre 2026. À décider en le portant : le barème
+      **bloque** l'enregistrement ou **alerte** seulement ?
 - [ ] **Toute la partie XP.** Le module existe (`Core/Experience.lua`, paliers
       marqués *à valider*), mais il n'y a **aucun endroit où la voir**. Il faut
       un écran qui montre l'**artwork**, le **niveau**, l'**XP en cours** et ce
@@ -918,8 +912,37 @@ Tout l'outillage est dans `F:\WOW EPSILON\LesContesMalveillants` :
 | `Publier - apercu (sans pousser).bat` | prépare tout sans rien envoyer |
 | `Exporter les brouillons.bat` | transforme le contenu créé en séance en fichiers Lua |
 | `Convertir les portraits.bat` | convertit les artworks en textures WoW |
+| `Recuperer.bat` | remet le dépôt dans ton dossier d'addon **et dans ton banc** |
 
 La **version** est lue dans le `.toc` de l'addon : une seule source de vérité.
+
+**L'outillage est publié (4 octobre 2026).** `publier.ps1` et `recuperer.ps1`
+vivaient sur chaque machine séparément : un correctif de l'un ne parvenait
+jamais à l'autre, et un garde-fou réparé d'un côté restait cassé de l'autre,
+en silence. Ils partent maintenant avec le reste, sous `Outils\`, et
+reviennent à la récupération.
+
+`lcm.config.ps1` **ne voyage pas** : il porte les chemins de la machine
+(dossier AddOns, copie de travail du banc). Chacun garde le sien.
+
+Deux correctifs arrivent donc par ce chemin :
+
+* **`recuperer.ps1` ne rendait pas `Banc\`** — ni le moteur, ni les scénarios.
+  On intégrait le code de l'autre **sans ses tests**, et on vérifiait son
+  travail à l'aveugle ; il a fallu recopier les scénarios à la main deux fois
+  de suite. Le retour n'est pas symétrique de l'envoi : le moteur part de
+  `scenarios\lcm_bench.py` et arrive à la racine de `Banc\`, les scénarios
+  gardent leur sous-dossier.
+* **`publier.ps1` effaçait `Banc\` avant de comparer les empreintes**, donc
+  son garde-fou ne pouvait jamais se déclencher — il avait déjà laissé passer
+  une republication qui annulait le mode d'emploi du banc réécrit par l'autre.
+  Le relevé se fait maintenant AVANT l'effacement, et un fichier présent
+  seulement dans le dépôt est rapatrié au lieu de disparaître.
+
+L'outillage est protégé par le même garde-fou que les fichiers de racine : si
+le dépôt a bougé depuis ta dernière publication, la publication s'arrête
+plutôt que d'écraser. **Après avoir récupéré l'outillage, relance
+`Recuperer.bat` une fois** : tu viens de remplacer le script qui tournait.
 
 ### Les artworks
 

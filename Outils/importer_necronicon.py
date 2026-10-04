@@ -2,18 +2,12 @@
 
 Lit le plugin Necronicon_System_Les_contes_Malveillants_MJ (data.lua, bloc
 NECROPACK du compendium « aelskar »), convertit chaque entree vers le format
-des registres de l'addon, et ecrit ses fichiers generes :
+des registres de l'addon, et ecrit trois fichiers generes :
 
     LesContesMalveillants/Data/Genere/Compendium_Contenu.lua
     LesContesMalveillants/Data/Genere/Compendium_Resolutions.lua
+    LesContesMalveillants/Data/Genere/Compendium_PNJ.lua
     LesContesMalveillants/Data/Genere/Necronicon_Grimoires.lua
-    LesContesMalveillants_MJ/Genere/Compendium_PNJ.lua
-    LesContesMalveillants_MJ/Genere/Compendium_Resolutions_MJ.lua
-
-Ce qui n'appartient qu'au MJ (les PNJ, les actions qu'il emet) part dans le
-compagnon, que les joueurs n'installent pas : c'est la seule protection qui
-vaille. Ce que le joueur doit savoir RECEVOIR (la defense, le Test MJ) reste
-dans l'addon de base.
 
 Ce sont des fichiers distincts de ceux de l'export des brouillons
 (Traits.lua, Races.lua, Objets.lua) : l'un ne reecrit jamais l'autre.
@@ -27,8 +21,7 @@ entrees d'un ancien compendium qui ne survivent que par leurs copies.
 
 L'outil ne devine rien : une statistique qu'il ne sait pas placer, une
 reference qu'il ne sait pas resoudre, un doublon, tout est annonce a la fin.
-Il n'ecrit QUE dans les deux dossiers Genere ; il ne touche jamais aux
-SavedVariables.
+Il n'ecrit QUE dans Data/Genere ; il ne touche jamais aux SavedVariables.
 """
 import base64
 import json
@@ -40,25 +33,14 @@ import zlib
 ICI = os.path.dirname(os.path.abspath(__file__))
 DEPOT = os.path.dirname(ICI)
 GENERE = os.path.join(DEPOT, 'LesContesMalveillants', 'Data', 'Genere')
-GENERE_MJ = os.path.join(DEPOT, 'LesContesMalveillants_MJ', 'Genere')
-
-# Les actions que seul le MJ EMET. L'onglet « Actions-MJ » de Necronicon les
-# range toutes sauf une : « Degat MJ. » vit dans l'onglet systeme. Leurs
-# receptions (Defense, Buff, Debuff, Resolution Test MJ) restent chez le joueur.
-EMETTEURS_MJ = {'degat_mj'}
-
-# Les actions des boutons du radial et les receptions : ecrites dans le code
-# depuis le 3 octobre 2026 (Data/ActionsBoutons.lua, et ActionsBoutons.lua du
-# compagnon). Elles ne sont plus des entrees du compendium : l'import les
-# ecarte, sinon il les remettrait.
-EN_DUR = {
-    'attaque_composeur', 'perce_armure_composeur', 'brise_armure_composeur', 'generation_de_debuff_composeur',
-    'generation_de_bouclier', 'generation_de_soin', 'generation_de_buff_composeur', 'dissipation',
-    'repulsion', 'attraction', 'permutation', 'immobilisation', 'entrave', 'levitation',
-    'degat_mj', 'buff_debuff_mj', 'attaque_mj',
-    # Et les receptions (Data/Receptions.lua).
-    'defense_auto_v3', 'reception_de_bouclier', 'reception_de_soin', 'resolution_test_mj',
-}
+# Hors d'un clone du depot (outillage range a part), on ecrit directement dans
+# les addons installes.
+ADDONS = r'F:\WOW EPSILON\Epsilon\Epsilon\_retail_\Interface\AddOns'
+if not os.path.isdir(GENERE):
+    GENERE = os.path.join(ADDONS, 'LesContesMalveillants', 'Data', 'Genere')
+# Le contenu reserve au MJ : son propre dossier, dans le compagnon.
+GENERE_MJ = os.path.join(os.path.dirname(os.path.dirname(GENERE)), '..', 'LesContesMalveillants_MJ', 'Genere')
+GENERE_MJ = os.path.normpath(GENERE_MJ)
 DEFAUT = '/mnt/e/Games/Epsilon/_retail_/Interface/AddOns/Necronicon_System_Les_contes_Malveillants_MJ/data.lua'
 SAUVEGARDES = '/mnt/e/Games/Epsilon/_retail_/WTF/Account/AKRX/SavedVariables'
 
@@ -329,8 +311,9 @@ ENTETE = """-- =================================================================
 local _, LCM = ...
 """
 
-# Dans le compagnon, `...` est la table du compagnon : l'addon se prend par son
-# nom global.
+
+# Dans le compagnon MJ, le second argument d'un fichier d'addon est l'espace du
+# compagnon, pas LCM : on prend le global.
 ENTETE_MJ = ENTETE.replace('local _, LCM = ...', 'local LCM = _G.LCM')
 
 
@@ -446,7 +429,6 @@ def convertir(etat, extra=None):
     tabs = {t['name']: t for t in liste(etat.get('tabs'))}
     ids = Ids()
     contenu, resolutions, pnj, grimoires = [], [], [], []
-    resolutions_mj = []
 
     # Les identifiants Necronicon (« 207 ») des entrees de liste et de metier,
     # traduits une fois pour toutes.
@@ -655,15 +637,12 @@ def convertir(etat, extra=None):
     # ----- Resolutions d'action et calculateurs ------------------------------
     for nom_tab, categorie in (('Systeme-Résolution-Action', 'systeme'), ('Actions-MJ', 'mj')):
         resolutions.append('\n-- ===== %s =====\n' % nom_tab)
-        entete_mj = '\n-- ===== %s =====\n' % nom_tab
         vus = {}
         for e in liste(tabs[nom_tab].get('entries')):
             if doublon(vus, e, nom_tab) is not None:
                 continue
             v = e.get('values') or {}
             d = {'id': ids.donner('resolutions', e['name']), 'label': e['name'], 'categorie': categorie}
-            if d['id'] in EN_DUR:
-                continue
             d.update(identite(e, v))
             if str(v.get('natures') or '').strip():
                 d['natures'] = str(v['natures']).strip()
@@ -676,13 +655,7 @@ def convertir(etat, extra=None):
                 feuilles.append({'id': s.get('id'), 'nom': s.get('name'),
                                  'etapes': tableau(liste(s.get('steps')))})
             d['feuilles'] = feuilles
-            if categorie == 'mj' or d['id'] in EMETTEURS_MJ:
-                if entete_mj:
-                    resolutions_mj.append(entete_mj)
-                    entete_mj = None
-                resolutions_mj.append(bloc('LCM.Resolutions', d))
-            else:
-                resolutions.append(bloc('LCM.Resolutions', d))
+            resolutions.append(bloc('LCM.Resolutions', d))
 
     resolutions.append('\n-- ===== Calculateur =====\n')
     for e in liste(tabs['Calculateur'].get('entries')):
@@ -844,13 +817,19 @@ def convertir(etat, extra=None):
                 sorts.append(so)
             d['onglets'].append({'nom': t.get('name') or 'Grimoire', 'sorts': sorts})
         grimoires.append(bloc('LCM.Grimoires', d))
-    return contenu, resolutions, pnj, grimoires, resolutions_mj
+    return contenu, resolutions, pnj, grimoires
 
 
-def ecrire(nom, morceaux, source, dossier=GENERE):
-    chemin = os.path.join(dossier, nom)
+# Ce qui ne doit PAS partir chez les joueurs va dans le compagnon MJ. Masquer
+# une entree dans l'interface ne protege rien : un addon vit sur la machine du
+# joueur. La seule protection est de ne pas livrer le fichier.
+RESERVE_MJ = {'Compendium_PNJ.lua'}
+
+
+def ecrire(nom, morceaux, source):
+    chemin = os.path.join(GENERE_MJ if nom in RESERVE_MJ else GENERE, nom)
     with open(chemin, 'w', encoding='utf-8', newline='\n') as f:
-        f.write((ENTETE_MJ if dossier == GENERE_MJ else ENTETE) % source)
+        f.write((ENTETE_MJ if nom in RESERVE_MJ else ENTETE) % source)
         for m in morceaux:
             f.write(m)
     return chemin
@@ -937,13 +916,12 @@ def main():
     etat = etat.get('state', etat)
     if os.path.isfile(necro):
         extra = extra_depuis(lire_sauvegarde(necro, 'NecroniconDB'))
-    contenu, resolutions, pnj, grimoires, resolutions_mj = convertir(etat, extra)
-    for nom, morceaux, dossier in (('Compendium_Contenu.lua', contenu, GENERE),
-                                   ('Compendium_Resolutions.lua', resolutions, GENERE),
-                                   ('Necronicon_Grimoires.lua', grimoires, GENERE),
-                                   ('Compendium_PNJ.lua', pnj, GENERE_MJ),
-                                   ('Compendium_Resolutions_MJ.lua', resolutions_mj, GENERE_MJ)):
-        print('ecrit : ' + os.path.relpath(ecrire(nom, morceaux, nom_source, dossier), DEPOT))
+    contenu, resolutions, pnj, grimoires = convertir(etat, extra)
+    for nom, morceaux in (('Compendium_Contenu.lua', contenu),
+                          ('Compendium_Resolutions.lua', resolutions),
+                          ('Compendium_PNJ.lua', pnj),
+                          ('Necronicon_Grimoires.lua', grimoires)):
+        print('ecrit : ' + os.path.relpath(ecrire(nom, morceaux, nom_source), DEPOT))
     if RAPPORT:
         print('\n%d remarque(s) :' % len(RAPPORT))
         for r in RAPPORT:
