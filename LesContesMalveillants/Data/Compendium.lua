@@ -105,6 +105,10 @@ local function Generique(def)
                             emplacement = "meta" }
     def.champs = champs
     def.statistiques = "bonus"
+    -- Ecart au template (4 octobre 2026, demande du MJ) : le tableau ne
+    -- montre que la description apres l'icone, l'ID et le nom, pas une
+    -- colonne par statistique. Les statistiques se lisent dans « Voir ».
+    def.colonnesTableau = def.colonnesTableau or { "description" }
     def.dossiers = DOSSIERS_GENERIQUES
     def.sousCategorie = "type"
     def.type = "generic"

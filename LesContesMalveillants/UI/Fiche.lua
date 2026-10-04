@@ -530,7 +530,7 @@ function Fiche.Carte(parent, onRetirer, largeur)
         self.elementId = id
         local description, effets
         if element then
-            self.nom:SetText(element.label .. (element.brouillon and "  |cff99907f· brouillon|r" or ""))
+            self.nom:SetText(element.label)
             self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
             self.cout:SetText(coin or "")
             description = element.description
@@ -603,8 +603,7 @@ function Lignes.traits(parent, field, c)
             if not LCM.Traits.Has(self.entity, trait.id) then
                 options[#options + 1] = {
                     id = trait.id,
-                    label = string.format("%s  (%d pt%s)%s", trait.label, trait.cout,
-                        trait.cout > 1 and "s" or "", trait.brouillon and "  · brouillon" or ""),
+                    label = string.format("%s  (%d pt%s)", trait.label, trait.cout, trait.cout > 1 and "s" or ""),
                 }
             end
         end
@@ -935,7 +934,7 @@ local function Emplacement(conteneur, c)
             self.action.label:SetText("+  Ajouter")
         elseif element then
             self.icone:SetTexture(element.icone)
-            self.nom:SetText(element.label .. (element.brouillon and "  |cff99907f·|r" or ""))
+            self.nom:SetText(element.label)
             self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
             local effets = Effets(element)
             -- Une piece d'armure dit ce qui la protege encore : son usure la
@@ -1080,7 +1079,7 @@ function Lignes.conteneur(bloc, def, c)
             or self.catalogue.Candidats(self.entity, self.categorie)
         local options = {}
         for _, element in ipairs(candidats) do
-            options[#options + 1] = { id = element.id, label = element.label .. (element.brouillon and "  · brouillon" or "") }
+            options[#options + 1] = { id = element.id, label = element.label }
         end
         if #options == 0 then
             LCM.Alerte(depuisLesSacs

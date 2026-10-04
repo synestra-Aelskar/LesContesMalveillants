@@ -63,7 +63,7 @@ attendu("message vide cache", ligne.vide:IsShown(), false)
 local c = ligne.cartes[1]
 dire("   nom : " .. __sansCouleur(c.nom:GetText()))
 attendu("nom affiche", __sansCouleur(c.nom:GetText()):find("^Oeil du faucon") ~= nil, true)
-attendu("marque brouillon", c.nom:GetText():find("brouillon") ~= nil, true)
+attendu("le nom seul, sans marque brouillon", c.nom:GetText(), "Oeil du faucon")
 attendu("cout", c.cout:GetText(), "2 pts")
 attendu("description", c.description:GetText(), "Repere ce que les autres manquent.")
 attendu("effets", c.effets:GetText(), "Investigation +1  ·  Vue +2  ·  Avantage : Vue")

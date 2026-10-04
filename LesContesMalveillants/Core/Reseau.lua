@@ -112,8 +112,39 @@ local function Expedier(message, canal, cible)
     return true
 end
 
+-- ===== Envoi etale ===========================================================
+-- Le serveur ne laisse passer qu'une rafale de messages d'addon, puis un
+-- filet : au-dela, il les jette sans rien dire. Un gros envoi (un PNJ entier
+-- partage par « Link ») part donc en deux temps : une rafale, puis le reste
+-- a cadence fixe. On bat la mesure avec OnUpdate plutot que C_Timer : il
+-- existe toujours, et le banc sait le faire avancer (__avancer).
+Reseau.RAFALE = 8
+Reseau.CADENCE = 0.25
+local file = {}
+local horloge
+
+local function Horloge()
+    if horloge or not CreateFrame then return end
+    horloge = CreateFrame("Frame")
+    horloge.cumul = 0
+    horloge:SetScript("OnUpdate", function(self, dt)
+        if #file == 0 then return end
+        self.cumul = self.cumul + (dt or 0)
+        while self.cumul >= Reseau.CADENCE and #file > 0 do
+            self.cumul = self.cumul - Reseau.CADENCE
+            local m = table.remove(file, 1)
+            Expedier(m.message, m.canal, m.cible)
+        end
+        if #file == 0 then self.cumul = 0 end
+    end)
+end
+
+-- Combien de morceaux attendent encore de partir.
+function Reseau.FileEnvoi() return #file end
+
 -- Reseau.Envoyer("sort", { ... }, "WHISPER", "Nytherah-Apertus")
-function Reseau.Envoyer(sujet, donnees, canal, cible)
+-- `options.etale` : au-dela d'une rafale, le reste part a cadence fixe.
+function Reseau.Envoyer(sujet, donnees, canal, cible, options)
     canal = canal or "RAID"
     local charge = tostring(sujet) .. "|" .. Reseau.Encoder(donnees)
     compteur = (compteur % 999) + 1
@@ -127,9 +158,17 @@ function Reseau.Envoyer(sujet, donnees, canal, cible)
         morceaux = Decouper(charge, Reseau.LIMITE - entete)
     end
 
+    -- Un envoi etale passe derriere ce qui attend deja, meme sa rafale :
+    -- sinon deux gros envois coup sur coup doubleraient la cadence.
+    local etale = options and options.etale
+    if etale then Horloge() end
     for rang, morceau in ipairs(morceaux) do
         local message = string.format("%s:%d:%d:%s", id, rang, #morceaux, morceau)
-        if not Expedier(message, canal, cible) then return false end
+        if etale and (rang > Reseau.RAFALE or #file > 0) and horloge then
+            file[#file + 1] = { message = message, canal = canal, cible = cible }
+        elseif not Expedier(message, canal, cible) then
+            return false
+        end
     end
     return true, #morceaux
 end

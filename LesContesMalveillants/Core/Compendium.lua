@@ -384,16 +384,37 @@ end
 
 -- ===== La carte d'une entree ==============================================
 
-local function Colonne(champ) return champ.colonne ~= false and champ.cle ~= "avantage" end
+-- L'icone n'est pas une colonne : le tableau la pose a gauche de l'ID.
+local function Colonne(champ)
+    return champ.colonne ~= false and champ.cle ~= "avantage" and champ.type ~= "icone"
+end
 
 -- Les colonnes du tableau : tous les champs sauf le type interne, dans
--- l'ordre des dossiers.
+-- l'ordre des dossiers ; ou, si la categorie le dit (`colonnesTableau`),
+-- ceux-la seulement, dans cet ordre.
 function Compendium.Colonnes(categorie)
     local out = {}
+    if categorie.colonnesTableau then
+        local parCle = {}
+        for _, champ in ipairs(Compendium.Champs(categorie)) do parCle[champ.cle] = champ end
+        for _, cle in ipairs(categorie.colonnesTableau) do
+            local champ = parCle[cle]
+            if champ and Colonne(champ) then out[#out + 1] = champ end
+        end
+        return out
+    end
     for _, champ in ipairs(Compendium.Champs(categorie)) do
         if Colonne(champ) then out[#out + 1] = champ end
     end
     return out
+end
+
+-- La categorie a-t-elle une icone a montrer en tete de ligne ?
+function Compendium.AIcone(categorie)
+    for _, champ in ipairs(categorie.champs) do
+        if champ.type == "icone" then return true end
+    end
+    return false
 end
 
 -- Les statistiques d'un PNJ : ses valeurs, rangees par section du schema.

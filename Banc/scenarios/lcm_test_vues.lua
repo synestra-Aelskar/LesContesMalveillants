@@ -100,7 +100,7 @@ conteneur.emplacements[1].action:Click()
 local choix = LCM.UI.Fiche.choixConteneur
 for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "peste_d_essai" then b:Click() end end
 attendu("etat pose", LCM.Etats.Porte(moi, "peste_d_essai"), true)
-attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Peste d'essai  |cff99907f·|r")
+attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Peste d'essai")
 attendu("ses effets", conteneur.emplacements[1].effets:GetText(), "Force -10")
 attendu("une nouvelle case libre apparait", conteneur.emplacements[2]:IsShown(), true)
 attendu("vide", conteneur.emplacements[2].nom:GetText(), "Emplacement")

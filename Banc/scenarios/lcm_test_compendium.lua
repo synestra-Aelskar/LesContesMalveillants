@@ -175,11 +175,14 @@ for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
 attendu("recherche par nom", lignes, 1)
 f.effacer:Click()
 
--- Le tableau : ID, NOM, colonnes, dessinees seulement si visibles.
+-- Le tableau : ID, NOM, colonnes, dessinees seulement si visibles. Les
+-- categories generiques (traits...) ne montrent plus que la description :
+-- le defilement et le masquage s'essaient sur les connaissances.
 f:SetSize(860, 520)
-f:Rafraichir()
+attendu("traits : la description seule", f.colonnesEntete[1]:GetText(), "DESCRIPTION")
+f:ChoisirCategorie("connaissances")
 attendu("en-tete ID", f.enteteId:GetText(), "ID")
-attendu("premiere colonne (dossier Statistiques)", f.colonnesEntete[1]:GetText(), "FORCE")
+attendu("premiere colonne", f.colonnesEntete[1]:GetText(), "METIER")
 attendu("defilement horizontal propose", f.curseur:IsShown(), true)
 local avant = f.colonnesEntete[1]:GetText()
 f.curseur:Aller(400)
@@ -190,11 +193,22 @@ f.curseur:Aller(0)
 f:OuvrirColonnes()
 local p = f.colonnesPopup
 attendu("une case par colonne", p.cases[1]:IsShown(), true)
-p.cases[1]:Click()                  -- masque FORCE
-attendu("preference retenue", LCM.db.compendium.colonnesMasquees.traits.force, true)
-attendu("FORCE masquee", f.colonnesEntete[1]:GetText(), "MYSTIQUE")
+p.cases[1]:Click()                  -- masque METIER
+attendu("preference retenue", LCM.db.compendium.colonnesMasquees.connaissances.metiers, true)
+attendu("METIER masquee", f.colonnesEntete[1]:GetText(), "NIVEAU")
 p.cases[1]:Click()
 attendu("preference effacee", LCM.db.compendium, nil)
+p:Hide()
+f:ChoisirCategorie("traits")
+attendu("icone en tete de ligne", f.rangees[1].icone:IsShown(), true)
+
+-- Les objets : icone, ID, NOM, DESCRIPTION, et rien d'autre.
+f:ChoisirCategorie("armes")
+attendu("armes : une seule colonne", #LCM.Compendium.Colonnes(LCM.Compendium.Get("armes")), 1)
+attendu("armes : description", f.colonnesEntete[1]:GetText(), "DESCRIPTION")
+attendu("armes : pas de deuxieme colonne", f.colonnesEntete[2] == nil or not f.colonnesEntete[2]:IsShown(), true)
+attendu("armes : icone a gauche", f.rangees[1].element == nil or f.rangees[1].icone:IsShown(), true)
+f:ChoisirCategorie("traits")
 
 -- Selection : clic, Ctrl, Maj.
 f.rangees[1]:Click()
@@ -212,9 +226,10 @@ attendu("compteur sur Supprimer", f.supprimer.label:GetText(), "Supprimer (4)")
 -- Une cellule ouvre sa valeur complete.
 f:ChoisirCategorie("connaissances")
 -- Le banc ne calcule pas la largeur des panneaux : la vue montre peu de
--- colonnes. On fait defiler jusqu'a « Composants » (icone 44, metier 96,
--- niveau 96, description 140, et l'ecart de 8 entre chacune).
-f.curseur:Aller(44 + 8 + 96 + 8 + 96 + 8 + 140 + 8)
+-- colonnes. On fait defiler jusqu'a « Composants » (metier 96, niveau 96,
+-- description 140, et l'ecart de 8 entre chacune ; l'icone n'est plus une
+-- colonne, elle ouvre la ligne).
+f.curseur:Aller(96 + 8 + 96 + 8 + 140 + 8)
 local cellule
 for _, c in ipairs(f.rangees[1].cellules) do if c:IsShown() and c.champ.cle == "composants" then cellule = c end end
 cellule:Click()
@@ -402,5 +417,131 @@ attendu("deplier agrandit quand meme", carteT:GetHeight() ~= avantClic, true)
 attendu("et montre tout le contenu", carteT:GetHeight() >= carteT:Disposer(), true)
 attendu("la largeur choisie est gardee", carteT:GetWidth(), 380)
 carteT:Hide()
+
+dire("== La croix de la carte dans son encoche")
+local carteX = LCM.UI.Compendium.Voir(C.Get("traits"), trait)
+local enc = LCM.UI.AelEncoches and LCM.UI.AelEncoches(carteX)
+if enc then
+    local point, rel, relPoint, x, y = carteX.fermer:GetPoint(1)
+    attendu("croix centree", point, "CENTER")
+    attendu("sur le coin haut droit", relPoint, "TOPRIGHT")
+    attendu("dans l'encoche", x, enc.droite[1])
+else
+    dire("   (pas d'encoches dans ce theme)")
+end
+carteX:Hide()
+
+dire("== Link : choisir a qui, et l'entree part entiere")
+local function cartesOuvertes()
+    local n = 0
+    for _, c in ipairs(LCM.UI.Compendium.cartes) do if c:IsShown() then n = n + 1 end end
+    return n
+end
+local function fermerCartes() for _, c in ipairs(LCM.UI.Compendium.cartes) do c:Hide() end end
+-- Rejoue ce qui est parti comme si l'autre le recevait. `de` : l'expediteur.
+local function rejouer(debut, de)
+    for i = debut + 1, #__envois do LCM.Reseau.Recevoir(de, __envois[i].message) end
+end
+
+__groupe({ "Reika-Apertus", "Nytherah-Apertus", "Moryn-Apertus", "Lyse-Apertus" }, true)
+LCM.Reseau.Recevoir("Nytherah-Apertus", "1:1:1:ici|" .. LCM.Reseau.Encoder({ v = "0.1.0" }))
+local fl = LCM.UI.Compendium.Ouvrir("traits")
+local rl = fl.rangees[1]
+attendu("bouton Link", rl.lien:IsShown(), true)
+rl.lien:Click()
+local dj = LCM.UI.Compendium.choixJoueurs
+attendu("le choix des joueurs s'ouvre", dj ~= nil and dj:IsShown(), true)
+attendu("les membres du raid", dj.nombre, 3)
+attendu("ceux qui ont l'addon d'abord", dj.lignes[1].joueur, "Nytherah-Apertus")
+contient = contient or function(l, o, v) attendu(l, tostring(o):find(v, 1, true) ~= nil, true) end
+contient("les autres marques", dj.lignes[2].label:GetText(), "addon non confirmé")
+
+-- Sans personne : refuse, et dit pourquoi.
+dj.envoyer:Click()
+attendu("personne choisi : refuse", dj:IsShown(), true)
+attendu("et dit pourquoi", dj.statut:GetText(), "choisis au moins un joueur.")
+
+-- Un seul joueur : un chuchotement, avec toutes les donnees.
+local n = #__envois
+dj.lignes[1]:Click()
+dj.envoyer:Click()
+attendu("la fenetre se ferme", dj:IsShown(), false)
+attendu("parti en chuchotement", __envois[n + 1] and __envois[n + 1].canal, "WHISPER")
+attendu("a Nytherah", __envois[n + 1] and __envois[n + 1].cible, "Nytherah-Apertus")
+attendu("sous la limite de 255", __plusGrosEnvoi() <= 255, true)
+
+-- Plusieurs membres du raid : un seul envoi au raid, avec la liste.
+rl.lien:Click()
+dj.lignes[1]:Click() dj.lignes[2]:Click()
+n = #__envois
+dj.envoyer:Click()
+attendu("au raid, une seule fois", __envois[n + 1] and __envois[n + 1].canal, "RAID")
+-- N'importe qui en /w, meme hors du groupe.
+rl.lien:Click()
+dj.autre:Saisir("Lointain-Autreroyaume")
+n = #__envois
+dj.envoyer:Click()
+attendu("un /w a quelqu'un hors groupe", __envois[n + 1] and __envois[n + 1].cible, "Lointain-Autreroyaume")
+
+dire("== Link : ce que recoit l'autre")
+-- Un objet forge que le destinataire n'a pas : nombres, listes, texte libre.
+local lame = { id = "lame_inconnue", label = "Lame inconnue", bonus = { force = 2 }, metiers = { "forge" },
+               description = "a;b=c:d|e", forge = "creation_arme/rare" }
+lame.soi = lame                          -- une reference circulaire ne fait pas boucler
+fermerCartes()
+n = #__envois
+LCM.Lien.EnvoyerEntree(C.Get("armes"), lame, { "Nytherah-Apertus" })
+rejouer(n, "Syn-Apertus")
+local _, recue = LCM.Lien.TrouverEntree("Syn-Apertus", "armes", "lame_inconnue")
+attendu("recue en memoire", recue and recue.label, "Lame inconnue")
+attendu("les nombres restent des nombres", recue and recue.bonus.force, 2)
+attendu("les listes restent des listes", recue and recue.metiers[1], "forge")
+attendu("le texte libre passe", recue and recue.description, "a;b=c:d|e")
+attendu("rien en sauvegarde", LCM.Objets.Get("lame_inconnue"), nil)
+attendu("la carte s'ouvre a la reception", cartesOuvertes() > 0, true)
+local lienRecu
+for i = #__sorties, 1, -1 do if __sorties[i]:find("te montre", 1, true) then lienRecu = __sorties[i] break end end
+contient("un lien cliquable dans le chat", lienRecu or "", "|Hlcmentree:Syn-Apertus:armes:lame_inconnue|h")
+-- Recliquer sur le lien rouvre la carte, sans rien redemander.
+fermerCartes()
+n = #__envois
+__cliquerLien("lcmentree:Syn-Apertus:armes:lame_inconnue")
+attendu("le lien rouvre la carte", cartesOuvertes() > 0, true)
+attendu("sans redemander", #__envois, n)
+
+-- Envoi au raid pour d'autres : je l'ignore.
+fermerCartes()
+n = #__envois
+LCM.Reseau.Envoyer("entree", { categorie = "armes", id = "pas_pour_moi", pour = "Lyse-Apertus,Moryn-Apertus",
+    corps = LCM.Lien.Serialiser({ label = "Pas pour moi" }) }, "RAID")
+rejouer(n, "Syn-Apertus")
+local _, pasPourMoi = LCM.Lien.TrouverEntree("Syn-Apertus", "armes", "pas_pour_moi")
+attendu("pas pour moi : ignore", pasPourMoi, nil)
+
+-- Un gros envoi (un PNJ) part etale : une rafale, puis le reste a cadence.
+local gros = { id = "pnj_gros", label = "Gros PNJ", valeurs = {} }
+for i = 1, 400 do gros.valeurs["champ_" .. i] = i end
+n = #__envois
+local okGros, morceaux = LCM.Lien.EnvoyerEntree(C.Get("pnj"), gros, { "Nytherah-Apertus" })
+attendu("gros envoi accepte", okGros, true)
+attendu("en plusieurs dizaines de morceaux", morceaux > LCM.Reseau.RAFALE, true)
+attendu("seule la rafale part tout de suite", #__envois - n, LCM.Reseau.RAFALE)
+__avancer(morceaux * LCM.Reseau.CADENCE + 1)
+attendu("le reste suit", #__envois - n, morceaux)
+attendu("file videe", LCM.Reseau.FileEnvoi(), 0)
+rejouer(n, "Syn-Apertus")
+local _, pnjRecu = LCM.Lien.TrouverEntree("Syn-Apertus", "pnj", "pnj_gros")
+attendu("le PNJ arrive entier", pnjRecu and pnjRecu.valeurs.champ_400, 400)
+fermerCartes()
+
+-- Un lien recopie dans le chat, sans envoi : on demande les donnees.
+n = #__envois
+__cliquerLien("lcmentree:Nytherah-Apertus:armes:lame_absente")
+attendu("demande envoyee", __envois[n + 1] and __envois[n + 1].message:find("entree?|", 1, true) ~= nil, true)
+attendu("au proprietaire du lien", __envois[n + 1] and __envois[n + 1].cible, "Nytherah-Apertus")
+n = #__envois
+LCM.Reseau.Recevoir("Nytherah-Apertus", "1:1:1:entree?|" .. LCM.Reseau.Encoder({ categorie = "traits", id = rl.element.id }))
+attendu("le proprietaire repond", __envois[n + 1] and __envois[n + 1].message:find("entree|", 1, true) ~= nil, true)
+__groupe({})
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

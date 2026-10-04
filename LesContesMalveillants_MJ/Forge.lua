@@ -4,8 +4,8 @@
 --   * « Forge d'entrées » (CreateForgeWindow, 600 x 700) : on choisit un jeu
 --     et une rarete, on donne un nom, on dose les statistiques au +/-, un
 --     compteur dit ce qui est depense sur le pool. « Créer l'entrée » en fait
---     un brouillon, puis ouvre l'editeur du compendium pour le reste
---     (description, icone...).
+--     un brouillon, sans ouvrir l'editeur du compendium : icone et
+--     description se saisissent ici, sous le nom.
 --   * « Équilibrage de la forge » (CreateForgeBalanceWindow) : l'onglet
 --     « Jeu & raretés » (nom, categorie cible, raretes) et l'onglet « Champs »
 --     (verrou, min, base, max, cout, par rarete si besoin).
@@ -132,6 +132,9 @@ function ForgeUI.Definition()
                   -- L'entree prend la couleur et le tag de sa rarete, comme
                   -- dans Necronicon (ForgeCreateEntry).
                   couleurTitre = rarete.couleur, tags = rarete.label, icone = courant.icone }
+    -- Une description vide n'est pas ecrite : le defaut de la categorie suit.
+    local description = Texte(courant.description)
+    if description ~= "" then def.description = description end
     for k, v in pairs(categorie.defaut or {}) do
         if def[k] == nil then def[k] = LCM.Copie(v) end
     end
@@ -145,13 +148,14 @@ function ForgeUI.Creer()
     local ok, refus = Brouillons.Enregistrer(categorie.famille, def, true)
     if not ok then return false, refus end
     local registre = Brouillons.Registre(categorie.famille)
-    courant.valeurs, courant.nom, courant.icone = {}, "", nil
+    courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
     return true, registre and registre.Get(def.id), categorie
 end
 
 -- ===== Fenetre de creation =================================================
 
-local LARGEUR, HAUTEUR = 600, 700
+-- 780 : la description sous le nom prend 80 px, rendus a la liste.
+local LARGEUR, HAUTEUR = 600, 780
 local LIGNE = 24
 local FORGE_COLONNE, FORGE_ECART = 450, 16
 
@@ -276,10 +280,15 @@ local function Construire()
     f.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 46, -72)
     f.nom:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -72)
 
+    Libelle("Description", 2, -102)
+    f.description = UI.Zone(c, LARGEUR - 28, 56, function(texte) courant.description = texte end)
+    f.description:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -118)
+    f.description:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -118)
+
     -- Le compteur : points depenses sur le pool de la rarete.
     local k = CreateFrame("Frame", nil, c)
-    k:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -104)
-    k:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -104)
+    k:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -184)
+    k:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -184)
     k:SetHeight(50)
     k.fond = UI.Aplat(k, { 0, 0, 0, 0.35 })
     k.fond:SetAllPoints(k)
@@ -302,13 +311,13 @@ local function Construire()
             f.zone:Aller(0)
             f:Rafraichir()
         end, { largeur = 100, hauteur = 22 })
-    f.mode:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -164)
+    f.mode:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -244)
     f.mode:SetWidth(204)
     f.aideVue = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
-    f.aideVue:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -170)
+    f.aideVue:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -250)
 
     f.zone = UI.Defilement(c)
-    f.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -198)
+    f.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -278)
     f.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -14, 60)
     f.vide = UI.Texte(f.zone.contenu, "", UI.C.discret, "GameFontNormal")
     f.vide:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 10, -30)
@@ -468,6 +477,10 @@ local function Construire()
         self.rarete.label:SetText(rarete and rarete.label or "—")
         self.icone.texture:SetTexture(LCM.Icone(courant.icone))
         if not self.nom:HasFocus() then self.nom:SetText(courant.nom or "") end
+        if not self.description.saisie:HasFocus() then self.description:SetText(courant.description or "") end
+        -- La zone suit la largeur de la fenetre (le tableau l'elargit) ; sa
+        -- saisie multiligne, elle, a une largeur fixe a recaler.
+        self.description.saisie:SetWidth(math.max(100, (self.description:GetWidth() or (LARGEUR - 28)) - 12))
 
         local bilan = jeu and rarete and LCM.Forge.Bilan(jeu, rarete.id, (function()
             local v = {}
@@ -581,11 +594,12 @@ local function Construire()
             self:Statut("Refusé : " .. tostring(element), UI.C.plein)
             return
         end
-        self:Statut(string.format("Brouillon « %s » créé : complète-le dans l'éditeur.", element.label), UI.C.accent)
+        -- L'editeur ne s'ouvre plus : nom, icone et description se saisissent
+        -- ici, le reste se reprend depuis le compendium si besoin.
+        self:Statut(string.format("Brouillon « %s » créé.", element.label), UI.C.accent)
         LCM.Ok(string.format("brouillon forge : %s (%s)", element.label, categorie.label))
         self:Rafraichir()
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
-        if LCM.CompendiumEditeur then LCM.CompendiumEditeur.Ouvrir(categorie, element) end
     end
 
     f:HookScript("OnShow", function() f:Rafraichir() end)

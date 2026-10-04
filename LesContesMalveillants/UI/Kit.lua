@@ -1267,6 +1267,156 @@ function UI.Case(parent, libelle, onChange)
     return b
 end
 
+-- ===== Choisir des destinataires ============================================
+-- A qui envoyer quelque chose (le « Link » du compendium) : une case par
+-- membre du groupe ou du raid, et un champ pour un nom quelconque (un /w
+-- part a n'importe qui). Un membre dont on n'a pas vu l'addon est marque,
+-- pas exclu (Core/Presence.lua) : c'est un indice, pas un verrou. Ceux qui
+-- l'ont viennent en tete.
+--
+-- `d:Proposer(titre, envoyer)` : `envoyer(noms)` rend true, ou false et la
+-- raison, qui s'affiche dans la fenetre.
+
+local function NomsSaisis(texte)
+    local out = {}
+    for nom in tostring(texte or ""):gmatch("[^,;%s]+") do out[#out + 1] = nom end
+    return out
+end
+
+function UI.ChoixJoueurs(cle)
+    local d = CreateFrame("Frame", "LCM_ChoixJoueurs_" .. tostring(cle), UIParent)
+    d:SetSize(320, 380)
+    d:SetPoint("CENTER", UIParent, "CENTER", 0, 40)
+    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    d:SetClampedToScreen(true)
+    d:EnableMouse(true)
+    d:SetMovable(true)
+    d:RegisterForDrag("LeftButton")
+    d:SetScript("OnDragStart", function(self) self:StartMoving() end)
+    d:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    d.fond = UI.Aplat(d, UI.C.fond)
+    d.fond:SetAllPoints(d)
+    if UI.AelCadre then d.cadre = UI.AelCadre(d, "section") else UI.Bordure(d) end
+
+    d.titre = UI.Texte(d, "", UI.C.titre, "GameFontNormal")
+    d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 14, -12)
+    d.titre:SetPoint("TOPRIGHT", d, "TOPRIGHT", -34, -12)
+    d.titre:SetWordWrap(false)
+    d.fermer = UI.Bouton(d, "x", 18, 18, function() d:Hide() end)
+    d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -8, -8)
+
+    d.groupe = UI.Texte(d, "Groupe / raid :", UI.C.libelle, "GameFontNormalSmall")
+    d.groupe:SetPoint("TOPLEFT", d, "TOPLEFT", 14, -38)
+    d.tous = UI.Bouton(d, "Tous", 60, 18, function()
+        local tout = true
+        for i = 1, d.nombre or 0 do tout = tout and d.lignes[i]:EstCochee() end
+        for i = 1, d.nombre or 0 do d.lignes[i]:Cocher(not tout) end
+    end)
+    d.tous:SetPoint("TOPRIGHT", d, "TOPRIGHT", -14, -35)
+
+    d.zone = UI.Defilement(d)
+    d.zone:SetPoint("TOPLEFT", d, "TOPLEFT", 14, -60)
+    d.zone:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -24, 118)
+    d.lignes = {}
+    d.vide = UI.Texte(d.zone.contenu, "Personne dans le groupe.", UI.C.discret, "GameFontNormalSmall")
+    d.vide:SetPoint("TOPLEFT", d.zone.contenu, "TOPLEFT", 2, -4)
+
+    d.autreLabel = UI.Texte(d, "Autre joueur (/w) :", UI.C.libelle, "GameFontNormalSmall")
+    d.autreLabel:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 14, 96)
+    d.autre = UI.Champ(d, 292, 20)
+    d.autre:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 14, 72)
+    d.autre:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -14, 72)
+    UI.Bulle(d.autre, "Autre joueur", "Un ou plusieurs noms (Nom ou Nom-Royaume), séparés par une virgule.")
+
+    d.statut = UI.Texte(d, "", UI.C.discret, "GameFontNormalSmall")
+    d.statut:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 14, 46)
+    d.statut:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -14, 46)
+    d.statut:SetJustifyH("LEFT")
+    d.statut:SetWordWrap(true)
+
+    d.envoyer = UI.Bouton(d, "Envoyer", 130, 24, function() d:Envoyer() end)
+    d.envoyer:SetPoint("BOTTOMLEFT", d, "BOTTOMLEFT", 14, 14)
+    d.annuler = UI.Bouton(d, "Annuler", 130, 24, function() d:Hide() end)
+    d.annuler:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -14, 14)
+
+    local function Libelle(joueur)
+        if LCM.Presence.Confirmee(joueur) then return joueur end
+        return joueur .. "  |cff888888(addon non confirmé)|r"
+    end
+
+    -- Les cases cochees le restent quand la liste se refait (une reponse de
+    -- presence qui arrive pendant qu'on choisit).
+    function d:Remplir()
+        local cochees = {}
+        for i = 1, self.nombre or 0 do
+            if self.lignes[i]:EstCochee() then cochees[self.lignes[i].joueur] = true end
+        end
+        local membres = LCM.Combat.Membres()
+        table.sort(membres, function(a, b)
+            local ca, cb = LCM.Presence.Confirmee(a), LCM.Presence.Confirmee(b)
+            if ca ~= cb then return ca end
+            return a < b
+        end)
+        local y = 2
+        for i, joueur in ipairs(membres) do
+            local l = self.lignes[i]
+            if not l then
+                l = UI.Case(self.zone.contenu, "")
+                self.lignes[i] = l
+            end
+            l.joueur = joueur
+            l.label:SetText(Libelle(joueur))
+            l:Cocher(cochees[joueur] == true)
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 2, -y)
+            l:Show()
+            y = y + 24
+        end
+        for i = #membres + 1, #self.lignes do self.lignes[i]:Hide() end
+        self.nombre = #membres
+        self.vide:SetShown(#membres == 0)
+        self.tous:SetShown(#membres > 1)
+        self.zone:Regler(y)
+    end
+
+    function d:Choisis()
+        local noms = {}
+        for i = 1, self.nombre or 0 do
+            if self.lignes[i]:EstCochee() then noms[#noms + 1] = self.lignes[i].joueur end
+        end
+        for _, nom in ipairs(NomsSaisis(self.autre:GetText())) do noms[#noms + 1] = nom end
+        return noms
+    end
+
+    function d:Envoyer()
+        if not self.rappel then return end
+        local ok, raison = self.rappel(self:Choisis())
+        if not ok then
+            self.statut:SetText(tostring(raison or "envoi impossible."))
+            self.statut:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+            return
+        end
+        self:Hide()
+    end
+
+    function d:Proposer(titre, rappel)
+        self.titre:SetText(titre or "")
+        self.rappel = rappel
+        self.statut:SetText("")
+        self.autre:SetText("")
+        for i = 1, self.nombre or 0 do self.lignes[i]:Cocher(false) end
+        -- Des membres pas encore vus : on repingue, la liste suit les reponses.
+        if #LCM.Presence.Inconnus(LCM.Combat.Membres()) > 0 then LCM.Presence.Demander(true) end
+        self:Remplir()
+        self:Show()
+        self:Raise()
+    end
+
+    LCM.Presence.Suivre(function() if d:IsShown() then d:Remplir() end end)
+    d:Hide()
+    return d
+end
+
 -- ===== Suivre le personnage =================================================
 -- Une fenetre qui montre un personnage se redessine des qu'il change
 -- (Core/Direct.lua) : equiper une dague met a jour les Statistiques ouvertes

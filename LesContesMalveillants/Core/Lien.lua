@@ -140,6 +140,215 @@ LCM.WhenReady(function()
     end)
 end)
 
+-- ===== Les entrees du compendium ===========================================
+-- Le bouton « Link » d'une ligne du compendium (Necronicon : Link >
+-- Montrer). On choisit a qui (membres du groupe ou du raid, ou n'importe
+-- quel nom pour un /w), et l'entree part ENTIERE : toutes ses donnees, pas
+-- seulement son nom — un objet forge, une race, un PNJ avec sa fiche.
+--
+-- Pourquoi les donnees ne sont pas DANS le lien du chat : un message de chat
+-- tient en 255 caracteres, un PNJ en fait des milliers. Elles voyagent par
+-- les messages d'addon (decoupees, etalees, Core/Reseau.lua) ; le lien
+-- cliquable qui s'affiche chez le destinataire les designe.
+--
+-- Ce qui arrive reste en MEMOIRE VIVE : on regarde, on n'importe pas. Pas
+-- de « Partager » a la Necronicon : le contenu n'entre pas dans la
+-- sauvegarde d'un joueur, il arrive par la mise a jour.
+
+Lien.TYPE_ENTREE = "lcmentree"
+local COULEUR_ENTREE = "ffe6c06b"
+local entreesRecues = {}
+
+local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostring(nom or "") end
+
+function Lien.Entree(categorie, element, proprietaire)
+    if type(categorie) ~= "table" or type(element) ~= "table" then return nil end
+    return string.format("|c%s|H%s:%s:%s:%s|h[%s]|h|r", COULEUR_ENTREE, Lien.TYPE_ENTREE,
+        proprietaire or LCM.PlayerId(), categorie.id, element.id, tostring(element.label or element.id))
+end
+
+-- Une entree en texte, et retour. Format type par type (n, s, b, t), pour
+-- que les nombres restent des nombres et les listes des listes : l'encodage
+-- du reseau, lui, rend tout en chaines a un seul niveau. Le nombre finit par
+-- une virgule et pas un point-virgule : le reseau echappe « ; » sur trois
+-- octets, et un PNJ a des centaines de nombres.
+local function Serialiser(v, out, vus)
+    local t = type(v)
+    if t == "number" then out[#out + 1] = "n" .. tostring(v) .. ","
+    elseif t == "string" then out[#out + 1] = "s" .. #v .. ":" .. v
+    elseif t == "boolean" then out[#out + 1] = v and "b1" or "b0"
+    elseif t == "table" then
+        -- Une table deja en cours d'ecriture (une reference circulaire) ne
+        -- se recopie pas : on bouclerait sans fin.
+        if vus[v] then return out end
+        vus[v] = true
+        out[#out + 1] = "t"
+        for k, valeur in pairs(v) do
+            local tk, tv = type(k), type(valeur)
+            -- Les fonctions et les champs internes ne voyagent pas.
+            if (tk == "string" or tk == "number") and tv ~= "function" and tv ~= "userdata"
+                and not (tk == "string" and k:sub(1, 2) == "__")
+            then
+                if not (tv == "table" and vus[valeur]) then
+                    Serialiser(k, out, vus)
+                    Serialiser(valeur, out, vus)
+                end
+            end
+        end
+        vus[v] = nil
+        out[#out + 1] = "e"
+    end
+    return out
+end
+function Lien.Serialiser(v) return table.concat(Serialiser(v, {}, {})) end
+
+-- Ce qui arrive du reseau est lu, jamais execute (pas de loadstring) ; un
+-- texte tronque ou trafique donne au pire une table incomplete.
+local function Lire(texte, i, profondeur)
+    if profondeur > 20 then return nil, #texte + 1 end
+    local c = texte:sub(i, i)
+    if c == "n" then
+        local fin = texte:find(",", i, true)
+        if not fin then return nil, #texte + 1 end
+        return tonumber(texte:sub(i + 1, fin - 1)), fin + 1
+    elseif c == "s" then
+        local deux = texte:find(":", i, true)
+        local n = deux and tonumber(texte:sub(i + 1, deux - 1))
+        if not n then return nil, #texte + 1 end
+        return texte:sub(deux + 1, deux + n), deux + n + 1
+    elseif c == "b" then
+        return texte:sub(i + 1, i + 1) == "1", i + 2
+    elseif c == "t" then
+        local out = {}
+        i = i + 1
+        while i <= #texte and texte:sub(i, i) ~= "e" do
+            local k, v
+            k, i = Lire(texte, i, profondeur + 1)
+            v, i = Lire(texte, i, profondeur + 1)
+            if k == nil then return out, #texte + 1 end
+            out[k] = v
+        end
+        return out, i + 1
+    end
+    return nil, #texte + 1
+end
+function Lien.Deserialiser(texte)
+    local v = Lire(tostring(texte or ""), 1, 0)
+    return v
+end
+
+-- L'entree citee. Celle qu'on nous a ENVOYEE passe avant la notre : c'est
+-- elle que l'autre voulait montrer (un brouillon corrige depuis, un PNJ que
+-- nous n'avons pas). Sans envoi, la notre.
+function Lien.TrouverEntree(proprietaire, categorieId, id)
+    local categorie = LCM.Compendium.Get(categorieId)
+    if not categorie then return nil, nil end
+    local recue = entreesRecues[Cle(proprietaire, categorieId .. "/" .. tostring(id))]
+        or entreesRecues[Cle(Court(proprietaire), categorieId .. "/" .. tostring(id))]
+    if recue then return categorie, recue end
+    return categorie, LCM.Compendium.Entree(categorie, id)
+end
+
+function Lien.OuvrirEntree(proprietaire, categorieId, id)
+    local categorie, element = Lien.TrouverEntree(proprietaire, categorieId, id)
+    if not categorie then
+        LCM.Info(string.format("Catégorie inconnue « %s » : mets l'addon à jour.", tostring(categorieId)))
+        return false
+    end
+    if element then
+        if LCM.UI and LCM.UI.Compendium and LCM.UI.Compendium.Voir then LCM.UI.Compendium.Voir(categorie, element) end
+        return true
+    end
+    if tostring(proprietaire) == LCM.PlayerId() then
+        LCM.Info(string.format("« %s » n'existe plus dans ton compendium.", tostring(id)))
+        return false
+    end
+    -- Un lien recopie dans le chat sans envoi : on demande les donnees.
+    LCM.Info(string.format("« %s » n'est pas dans ton compendium : demande à %s…", tostring(id), tostring(proprietaire)))
+    LCM.Reseau.Envoyer("entree?", { categorie = categorieId, id = tostring(id) }, "WHISPER", tostring(proprietaire))
+    return nil
+end
+
+local function Paquet(categorie, element, pour)
+    return { categorie = categorie.id, id = element.id, corps = Lien.Serialiser(element), pour = pour }
+end
+
+-- Envoie une entree entiere a des joueurs. Plusieurs membres du groupe : un
+-- seul envoi sur le canal du groupe, avec la liste des destinataires (les
+-- autres l'ignorent) — un PNJ envoye cinq fois en chuchotement, c'est cinq
+-- fois la file d'attente. Sinon, un chuchotement chacun : un /w part a
+-- n'importe qui, dans le groupe ou non.
+function Lien.EnvoyerEntree(categorie, element, joueurs)
+    if type(categorie) ~= "table" or type(element) ~= "table" then return false, "rien à envoyer." end
+    local cibles, vus = {}, {}
+    for _, j in ipairs(joueurs or {}) do
+        j = tostring(j or ""):gsub("^%s+", ""):gsub("%s+$", "")
+        if j ~= "" and j ~= LCM.PlayerId() and not vus[j] then
+            vus[j] = true
+            cibles[#cibles + 1] = j
+        end
+    end
+    if #cibles == 0 then return false, "choisis au moins un joueur." end
+    local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    local tousDuGroupe = canal ~= nil
+    for _, j in ipairs(cibles) do
+        if not LCM.Reseau.DansLeGroupe(j) then tousDuGroupe = false end
+    end
+    local morceaux
+    if #cibles > 1 and tousDuGroupe then
+        local ok, n = LCM.Reseau.Envoyer("entree", Paquet(categorie, element, table.concat(cibles, ",")),
+            canal, nil, { etale = true })
+        if not ok then return false, "l'envoi a échoué." end
+        morceaux = n
+    else
+        for _, j in ipairs(cibles) do
+            local ok, n = LCM.Reseau.Envoyer("entree", Paquet(categorie, element), "WHISPER", j, { etale = true })
+            if not ok then return false, "l'envoi a échoué (" .. j .. ")." end
+            morceaux = (morceaux or 0) + n
+        end
+    end
+    return true, morceaux, cibles
+end
+
+-- Suis-je dans la liste « pour » d'un envoi au groupe ?
+local function PourMoi(pour)
+    if not pour or pour == "" then return true end
+    local moi = LCM.PlayerId()
+    for nom in tostring(pour):gmatch("[^,]+") do
+        if nom == moi or Court(nom) == Court(moi) then return true end
+    end
+    return false
+end
+
+LCM.WhenReady(function()
+    -- On me demande une entree que j'ai citee.
+    LCM.Reseau.Ecouter("entree?", function(expediteur, donnees)
+        local categorie = LCM.Compendium.Get(donnees.categorie)
+        local element = categorie and LCM.Compendium.Entree(categorie, donnees.id)
+        if not element then return end
+        LCM.Reseau.Envoyer("entree", Paquet(categorie, element), "WHISPER", expediteur, { etale = true })
+    end)
+
+    -- On me l'envoie : en memoire vive, un lien cliquable dans le chat, et la
+    -- carte s'ouvre.
+    LCM.Reseau.Ecouter("entree", function(expediteur, donnees)
+        if not PourMoi(donnees.pour) then return end
+        local categorie = LCM.Compendium.Get(donnees.categorie)
+        if not categorie then
+            LCM.Info(string.format("%s t'envoie une entrée d'une catégorie inconnue (%s) : mets l'addon à jour.",
+                tostring(expediteur), tostring(donnees.categorie)))
+            return
+        end
+        local element = Lien.Deserialiser(donnees.corps)
+        if type(element) ~= "table" then return end
+        element.id = tostring(donnees.id)
+        element.label = tostring(element.label or element.id)
+        entreesRecues[Cle(expediteur, categorie.id .. "/" .. element.id)] = element
+        LCM.Info(string.format("%s te montre %s", tostring(expediteur), Lien.Entree(categorie, element, expediteur)))
+        Lien.OuvrirEntree(expediteur, categorie.id, element.id)
+    end)
+end)
+
 -- Prendre un sort qu'on m'a montre.
 function Lien.Adopter(proprietaire, id)
     local sort = Lien.Trouver(proprietaire, id)
@@ -154,6 +363,11 @@ end
 -- et on laisse passer le reste.
 
 local function Intercepter(lien)
+    local p, categorieId, entreeId = tostring(lien or ""):match("^" .. Lien.TYPE_ENTREE .. ":([^:]+):([^:]+):(.+)$")
+    if p then
+        Lien.OuvrirEntree(p, categorieId, entreeId)
+        return true
+    end
     local proprietaire, id = tostring(lien or ""):match("^" .. Lien.TYPE .. ":(.-):(.+)$")
     if not proprietaire then return false end
     Lien.Montrer(proprietaire, id)

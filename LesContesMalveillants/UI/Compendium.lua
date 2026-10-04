@@ -16,9 +16,10 @@
 --
 -- Ce qui n'est pas repris, et pourquoi : l'edition de la STRUCTURE (+ Categorie,
 -- + Champ, panneau CHAMPS, transferts, dossiers, sous-categorie au clic droit)
--- parce qu'elle vivrait dans la sauvegarde ; « Partager » / « Link » /
--- « Importer (code) », faute de reseau et de format d'echange ; « Forge »,
--- qui est un autre outil. L'edition des ENTREES appartient au compagnon MJ :
+-- parce qu'elle vivrait dans la sauvegarde ; « Partager » et « Importer
+-- (code) », parce qu'une entree n'entre pas dans la sauvegarde d'un joueur ;
+-- « Forge », qui est un autre outil. « Link » est repris, en « Montrer »
+-- seulement (Core/Lien.lua). L'edition des ENTREES appartient au compagnon MJ :
 -- il s'inscrit dans `Compendium.Editeur` et ses boutons n'existent que la.
 
 local _, LCM = ...
@@ -233,7 +234,17 @@ local function NouvelleCarte()
         self.titre:SetPoint("TOPRIGHT", self, "TOPRIGHT", -(cote + 26), -haut)
         self.sousTitre:SetPoint("TOPRIGHT", self, "TOPRIGHT", -(cote + 26), 0)
         self.fermer:ClearAllPoints()
-        self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -math.max(8, cote - 4), -haut)
+        -- La croix va dans l'encoche du coin haut droit, comme sur les
+        -- fenetres (UI.Fenetre:PlacerCoinsHaut) ; a defaut, sous l'ornement.
+        local encoches = UI.AelEncoches and UI.AelEncoches(self)
+        if encoches then
+            local taille = math.max(10, math.floor(encoches.cote + 0.5))
+            self.fermer:SetSize(taille, taille)
+            self.fermer:SetPoint("CENTER", self, "TOPRIGHT", encoches.droite[1], encoches.droite[2])
+        else
+            self.fermer:SetSize(16, 16)
+            self.fermer:SetPoint("TOPRIGHT", self, "TOPRIGHT", -math.max(8, cote - 4), -haut)
+        end
         -- Ou commence le texte aligne sur le NOM : apres l'icone.
         self.xTexte = cote + self.icone:GetWidth() + 10
     end
@@ -519,6 +530,23 @@ function Fenetre.Voir(categorie, element, ancre)
     return carte
 end
 Fenetre.cartes = cartes
+
+-- « Link » : le choix des destinataires, puis l'envoi de l'entree entiere.
+-- L'entree est lue au moment du clic sur Envoyer : la fenetre a pu rester
+-- ouverte pendant qu'on la retouchait.
+function Fenetre.Partager(categorie, element)
+    Fenetre.choixJoueurs = Fenetre.choixJoueurs or UI.ChoixJoueurs("compendium")
+    local d = Fenetre.choixJoueurs
+    d:Proposer(string.format("Envoyer « %s »", tostring(element.label or element.id)), function(noms)
+        local actuel = C.Entree(categorie, element.id) or element
+        local ok, morceaux, cibles = LCM.Lien.EnvoyerEntree(categorie, actuel, noms)
+        if not ok then return false, morceaux end
+        LCM.Ok(string.format("%s envoyé à %s%s.", LCM.Lien.Entree(categorie, actuel), table.concat(cibles, ", "),
+            morceaux > LCM.Reseau.RAFALE and string.format(" (%d messages, quelques secondes)", morceaux) or ""))
+        return true
+    end)
+    return d
+end
 
 -- ===== La fenetre principale ==============================================
 
@@ -809,6 +837,9 @@ function Fenetre.NouvelleLigne(f, index)
     r.selectionTrait:SetWidth(2)
     r.selectionTrait:SetPoint("TOPLEFT", r, "TOPLEFT", 1, -1)
     r.selectionTrait:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 1, 1)
+    r.icone = r:CreateTexture(nil, "ARTWORK")
+    r.icone:SetSize(18, 18)
+    r.icone:SetPoint("LEFT", r, "LEFT", 8, 0)
     r.id = UI.Texte(r, "", UI.C.discret, "GameFontNormalSmall")
     r.id:SetWordWrap(false)
     r.nom = UI.Texte(r, "", UI.C.titre, "GameFontNormalSmall")
@@ -833,6 +864,11 @@ function Fenetre.NouvelleLigne(f, index)
     r.voir = Action(r, "Voir")
     r.voir:SetWidth(34)
     r.voir:SetScript("OnClick", function() Fenetre.Voir(f:Categorie(), r.element, f) end)
+    -- Link : on choisit a qui, et l'entree part entiere (Core/Lien.lua).
+    r.lien = Action(r, "Link")
+    r.lien:SetScript("OnClick", function()
+        if r.element then Fenetre.Partager(f:Categorie(), r.element) end
+    end)
 
     r:SetScript("OnClick", function(self) f:Selectionner(self.element) end)
     -- Glisser une ligne : l'entree part vers un emplacement (la race de la
@@ -1241,12 +1277,13 @@ function Fenetre.Comportement(f)
 
     function f:LargeurActions()
         local editeur = Editeur()
-        if not editeur then return math.max(ACTION_MIN, Largeur("Voir") + 20 + 12) end
+        local lien = #"Link" * 7 + 10 + 8
+        if not editeur then return math.max(ACTION_MIN, Largeur("Voir") + 20 + 12 + lien) end
         local voir = Largeur("Voir") + 20
         local dup = Largeur("Dup") + 16
         local x = math.max(18, Largeur("X") + 10)
-        local vue = 14 + 8 + dup + 8 + voir + 12
-        local edition = 14 + 8 + x + 8 + dup + 20
+        local vue = 14 + 8 + dup + 8 + voir + 12 + lien
+        local edition = 14 + 8 + x + 8 + dup + 20 + lien
         return math.min(ACTION_MAX, math.max(ACTION_MIN, vue, edition))
     end
 
@@ -1261,7 +1298,10 @@ function Fenetre.Comportement(f)
         local function LargeurColonne(champ)
             return LARGEURS[champ.cle] or LARGEURS[champ.type] or 96
         end
-        local largeurEntete = math.max((d:GetWidth() or 400) - 20, 260)
+        -- L'icone, s'il y en a une, ouvre la ligne, avant l'ID.
+        local avecIcone = C.AIcone(categorie)
+        local gauche = avecIcone and (10 + 18 + ECART) or 10
+        local largeurEntete = math.max((d:GetWidth() or 400) - 20 - (gauche - 10), 260)
         local actions = self:LargeurActions()
         -- ID et NOM a la mesure de leur contenu, bornes (GetCompendiumFixedColumnWidths).
         local plusId, plusNom = Largeur("ID"), Largeur("NOM")
@@ -1273,6 +1313,15 @@ function Fenetre.Comportement(f)
         local largeurNom = math.min(NOM_MAX, math.max(NOM_MIN, plusNom + 18))
         largeurNom = math.min(largeurNom, math.max(NOM_MIN, largeurEntete - largeurId - actions - 2 * ECART - 120))
         local visible = math.max(largeurEntete - largeurId - largeurNom - actions - 2 * ECART, 120)
+        -- Peu de colonnes choisies (`colonnesTableau`) : la derniere prend la
+        -- place qui reste, plutot que de laisser un vide a droite.
+        if categorie.colonnesTableau and #colonnes > 0 then
+            local avant, derniere = 0, colonnes[#colonnes]
+            for n = 1, #colonnes - 1 do avant = avant + LargeurColonne(colonnes[n]) + ECART end
+            local etiree = math.max(LargeurColonne(derniere), visible - avant - 4)
+            local base = LargeurColonne
+            LargeurColonne = function(champ) return champ == derniere and etiree or base(champ) end
+        end
 
         local total, positions = 0, {}
         for n, champ in ipairs(colonnes) do
@@ -1287,7 +1336,7 @@ function Fenetre.Comportement(f)
         local extra = self.extraActions or 0
         local yEntete = -74 - extra
         self.enteteId:ClearAllPoints()
-        self.enteteId:SetPoint("TOPLEFT", d, "TOPLEFT", 10, yEntete)
+        self.enteteId:SetPoint("TOPLEFT", d, "TOPLEFT", gauche, yEntete)
         self.enteteId:SetWidth(largeurId)
         self.enteteNom:ClearAllPoints()
         self.enteteNom:SetPoint("LEFT", self.enteteId, "RIGHT", ECART, 0)
@@ -1347,15 +1396,17 @@ function Fenetre.Comportement(f)
                 r:SetPoint("TOPLEFT", self.lignes.contenu, "TOPLEFT", 0, -(index - 1) * PAS_LIGNE)
                 r:SetPoint("TOPRIGHT", self.lignes.contenu, "TOPRIGHT", -4, -(index - 1) * PAS_LIGNE)
                 r.id:ClearAllPoints()
-                r.id:SetPoint("LEFT", r, "LEFT", 10, 0)
+                r.id:SetPoint("LEFT", r, "LEFT", gauche, 0)
                 r.id:SetWidth(largeurId)
+                r.icone:SetShown(avecIcone)
+                if avecIcone then r.icone:SetTexture(LCM.Icone(e.icone)) end
                 r.id:SetText(e.id)
                 r.nom:ClearAllPoints()
                 r.nom:SetPoint("LEFT", r.id, "RIGHT", ECART, 0)
                 r.nom:SetWidth(largeurNom)
                 r.nom:SetText(e.label)
                 r.nom:SetTextColor(Couleur(e.couleurTitre or LCM.COULEUR_TITRE))
-                local xDiv = 10 + largeurId + ECART + largeurNom + ECART / 2
+                local xDiv = gauche + largeurId + ECART + largeurNom + ECART / 2
                 r.diviseurG:ClearAllPoints()
                 r.diviseurG:SetPoint("TOPLEFT", r, "TOPLEFT", xDiv, -3)
                 r.diviseurG:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", xDiv, 3)
@@ -1391,7 +1442,7 @@ function Fenetre.Comportement(f)
 
                 -- Actions : Voir pour tous ; Dup et reglages pour le MJ ; X en
                 -- mode edition seulement.
-                for _, b in ipairs({ r.reglages, r.supprimer, r.dupliquer, r.voir }) do b:ClearAllPoints() end
+                for _, b in ipairs({ r.reglages, r.supprimer, r.dupliquer, r.voir, r.lien }) do b:ClearAllPoints() end
                 r.reglages:SetShown(editable)
                 r.dupliquer:SetShown(editable)
                 r.supprimer:SetShown(editable and self.edition)
@@ -1407,6 +1458,8 @@ function Fenetre.Comportement(f)
                 else
                     r.voir:SetPoint("RIGHT", r, "RIGHT", -10, 0)
                 end
+                -- Link, a gauche du premier bouton montre.
+                r.lien:SetPoint("RIGHT", r.voir:IsShown() and r.voir or r.dupliquer, "LEFT", -8, 0)
                 r:Show()
             end
         end

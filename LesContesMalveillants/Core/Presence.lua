@@ -45,6 +45,14 @@ local function Noter(joueur, version, personnage)
     vus[joueur] = { version = version, personnage = personnage ~= "" and personnage or nil }
     vus[Court(joueur)] = vus[joueur]
     if Presence.onChange then Presence.onChange(joueur) end
+    for _, fn in ipairs(Presence.suivis) do fn(joueur) end
+end
+
+-- D'autres fenetres que le choix des cibles veulent suivre les reponses (le
+-- choix des destinataires d'un Link) : `onChange` n'a qu'une place.
+Presence.suivis = {}
+function Presence.Suivre(fn)
+    if type(fn) == "function" then Presence.suivis[#Presence.suivis + 1] = fn end
 end
 
 -- Vrai si ce joueur a montre l'addon depuis la connexion.
