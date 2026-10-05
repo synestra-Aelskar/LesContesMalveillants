@@ -320,8 +320,18 @@ attendu("copie supprimee", LCM.Traits.Get("maitre_de_la_discretion_copie"), nil)
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion" then rPub = r end end
 rPub.supprimer:Click()
 f.confirmation.oui:Click()
-attendu("le publie reste", LCM.Traits.Get("maitre_de_la_discretion") ~= nil, true)
-attendu("refus dit", (f.message:GetText() or ""):find("fichier fait foi") ~= nil, true)
+-- 5 octobre 2026 : une entree PUBLIEE se MASQUE au lieu d'etre refusee net.
+-- Elle disparait du jeu tout de suite et reste masquee d'une session a
+-- l'autre ; le fichier, lui, se corrige a la source. Refuser sans issue ne
+-- laissait aucun moyen de se debarrasser d'un trait en seance.
+attendu("le publie est retire du jeu", LCM.Traits.Get("maitre_de_la_discretion"), nil)
+attendu("et marque comme masque",
+    LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discretion"), true)
+attendu("on dit qu'il reste a retirer du fichier",
+    (f.message:GetText() or ""):find("fichier") ~= nil, true)
+-- On peut revenir dessus : le masque se leve.
+attendu("demasquer", LCM.Brouillons.Demasquer("traits", "maitre_de_la_discretion"), true)
+attendu("plus masque", LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discretion"), false)
 f:BasculerEdition()
 
 dire("== Modification groupee")

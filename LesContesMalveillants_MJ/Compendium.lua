@@ -1375,17 +1375,30 @@ end
 
 -- Supprime ce qui est brouillon ; le contenu publie est refuse, et dit.
 function Editeur.Supprimer(categorie, elements)
-    local faits, refus = 0, {}
+    local faits, masques, refus = 0, {}, {}
     for _, element in ipairs(elements) do
         if element.brouillon == true then
             if Brouillons.Supprimer(categorie.famille, element.id) then faits = faits + 1 end
         else
-            refus[#refus + 1] = element.label
+            -- Publie : on ne peut pas toucher au fichier depuis le jeu, mais on
+            -- peut le MASQUER — l'entree disparait tout de suite et reste
+            -- masquee d'une session a l'autre. Refuser net ne laissait aucune
+            -- issue (5 octobre 2026).
+            local ok = Brouillons.Masquer(categorie.famille, element.id)
+            if ok then masques[#masques + 1] = element.label
+            else refus[#refus + 1] = element.label end
         end
     end
     UI.Compendium.Actualiser()
-    local raison = #refus > 0 and (table.concat(refus, ", ") .. " (contenu publié : le fichier fait foi)") or nil
-    return faits, raison
+    local notes = {}
+    if #masques > 0 then
+        notes[#notes + 1] = string.format("%s masqué(s) : retiré(s) du jeu, à retirer du fichier "
+            .. "à la prochaine passe", table.concat(masques, ", "))
+    end
+    if #refus > 0 then
+        notes[#notes + 1] = table.concat(refus, ", ") .. " (refusé)"
+    end
+    return faits + #masques, #notes > 0 and table.concat(notes, " ; ") or nil
 end
 
 -- Modification groupee : un champ, une valeur, appliques a chaque brouillon

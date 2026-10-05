@@ -464,6 +464,16 @@ local function Construire()
         if depasse then k.barre:SetColorTexture(1, 0.2, 0.2, 0.22) else k.barre:SetColorTexture(r, g, b, 0.18) end
     end
 
+    -- Le bouton du bas dit ce qu'il fera : creer une entree, ou rendre ses
+    -- valeurs a l'atelier qui a ouvert la forge.
+    function f:MajBouton()
+        self.creer.label:SetText(ForgeUI.rendre and "Reprendre ces valeurs" or "Créer l'entrée")
+        for _, w in ipairs({ self.nom, self.lblNom, self.description, self.lblDescription,
+                             self.icone }) do
+            if w then w:SetShown(ForgeUI.rendre == nil) end
+        end
+    end
+
     function f:Rafraichir()
         local jeu, rarete = JeuCourant()
         local tableau = self.vue == "tableau"
@@ -589,6 +599,21 @@ local function Construire()
     end
 
     function f:Creer()
+        -- Mode « rendre » : la forge sert d'editeur de bonus a l'atelier, qui
+        -- garde la main sur l'entree. Elle ne cree donc rien — elle remet ses
+        -- valeurs et se referme (5 octobre 2026).
+        if ForgeUI.rendre then
+            local jeu, rarete = JeuCourant()
+            if not (jeu and rarete) then
+                self:Statut("Choisis un jeu et sa rareté.", UI.C.plein)
+                return
+            end
+            local rendre = ForgeUI.rendre
+            ForgeUI.rendre = nil
+            self:Hide()
+            rendre(Bonus(jeu, rarete), LCM.Forge.Valeur(jeu, rarete))
+            return
+        end
         local ok, element, categorie = ForgeUI.Creer()
         if not ok then
             self:Statut("Refusé : " .. tostring(element), UI.C.plein)
@@ -602,7 +627,7 @@ local function Construire()
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
     end
 
-    f:HookScript("OnShow", function() f:Rafraichir() end)
+    f:HookScript("OnShow", function() f:Rafraichir() f:MajBouton() end)
     return f
 end
 
@@ -627,6 +652,38 @@ function ForgeUI.Ouvrir(categorieId)
     UI.Devant(f)
     return true
 end
+
+-- Ouvre la forge comme EDITEUR DE BONUS : l'atelier garde son entree, la forge
+-- ne sert qu'a repartir les points dans son panneau — dossiers repliables,
+-- bornes, compteur de pool. Chercher une statistique parmi cent quarante dans
+-- une liste a plat etait intenable (5 octobre 2026).
+--
+-- `valeurs` : les bonus deja poses. `forge` : « jeu/rarete » deja choisi, s'il
+-- y en a un. `onValider(bonus, valeurForge)` recoit le resultat.
+function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider)
+    local ok, raison = ForgeUI.Ouvrir(categorieId)
+    if not ok then return false, raison end
+    local jeu, rarete = LCM.Forge.Lire(forge)
+    if jeu and rarete then
+        courant.jeuId, courant.rareteId = jeu.id, rarete.id
+    end
+    courant.valeurs = {}
+    for cle, montant in pairs(valeurs or {}) do
+        courant.valeurs[cle] = tonumber(montant) or montant
+    end
+    ForgeUI.rendre = onValider
+    local f = ForgeUI.Fenetre()
+    f:Rafraichir()
+    f:MajBouton()
+    return true
+end
+
+-- Fermer la forge sans valider annule le mode « rendre » : sinon la prochaine
+-- ouverture normale croirait travailler pour l'atelier.
+LCM.WhenReady(function()
+    local f = ForgeUI.frame
+    if f then f:HookScript("OnHide", function() ForgeUI.rendre = nil end) end
+end)
 
 -- Apres l'enregistrement d'un jeu : la forge ouverte suit.
 function ForgeUI.Actualiser()

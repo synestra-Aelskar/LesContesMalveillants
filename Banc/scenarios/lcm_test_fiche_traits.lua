@@ -166,4 +166,53 @@ SlashCmdList.LCM("fiche")
 attendu("fiche fermee", f:IsShown(), false)
 attendu("la liste aussi", ligne.choix:IsShown(), false)
 
+dire("== avantage et desavantage (regles du 5 octobre 2026)")
+-- L'exemple donne : +1 escalade, +2 acrobaties, -1 vol a la tire.
+-- Attendu : desavantage DE FACTO sur vol a la tire, et un avantage a choisir
+-- parmi escalade / acrobaties seulement.
+local B3 = LCM.Brouillons
+B3.Enregistrer("traits", {
+    id = "grimpeur_malhabile", label = "Grimpeur malhabile", cout = 1,
+    bonus = { escalade = 1, acrobaties = 2, vol_a_la_tire = -1 },
+    avantage = { "escalade" },
+}, true)
+local tr = LCM.Traits.Get("grimpeur_malhabile")
+attendu("le trait existe", tr ~= nil, true)
+LCM.Traits.Grant(moi, "grimpeur_malhabile")
+
+-- Le desavantage ne se declare pas : il se deduit du bonus negatif.
+attendu("desavantage sur ce qu'on penalise",
+    select(1, LCM.Effets.Desavantage(moi, "vol_a_la_tire")) ~= nil, true)
+attendu("rien sur ce qu'on ameliore",
+    LCM.Effets.Desavantage(moi, "escalade"), nil)
+
+local r = LCM.Roll.Field(moi, "vol_a_la_tire")
+attendu("deux des sont lances", #r.jets, 2)
+attendu("et on garde le PIRE", r.garde, math.min(r.jets[1], r.jets[2]))
+attendu("le texte le dit",
+    LCM.Roll.Describe(r):find("désavantage") ~= nil, true)
+
+-- L'avantage, lui, se choisit — et seulement parmi les bonus positifs.
+local ra = LCM.Roll.Field(moi, "escalade", { avantage = true })
+attendu("avantage accorde", ra.avantage, true)
+attendu("on garde le MEILLEUR", ra.garde, math.max(ra.jets[1], ra.jets[2]))
+
+-- Les refus.
+attendu("avantage sur un jet penalise : refuse",
+    select(1, B3.Enregistrer("traits", { id = "faux_a", label = "Faux", cout = 2,
+        bonus = { escalade = 1, vol_a_la_tire = -1 }, avantage = { "vol_a_la_tire" } }, true)), false)
+attendu("avantage sur un jet qu'on ne touche pas : refuse",
+    select(1, B3.Enregistrer("traits", { id = "faux_b", label = "Faux", cout = 2,
+        bonus = { escalade = 1 }, avantage = { "nage" } }, true)), false)
+attendu("deux avantages pour un trait de niveau 1 : refuse",
+    select(1, B3.Enregistrer("traits", { id = "faux_c", label = "Faux", cout = 1,
+        bonus = { escalade = 1, acrobaties = 1 }, avantage = { "escalade", "acrobaties" } }, true)), false)
+attendu("deux avantages pour un niveau 2 : accepte",
+    select(1, B3.Enregistrer("traits", { id = "vrai_c", label = "Vrai", cout = 2,
+        bonus = { escalade = 1, acrobaties = 1 }, avantage = { "escalade", "acrobaties" } }, true)), true)
+
+LCM.Traits.Revoke(moi, "grimpeur_malhabile")
+B3.Supprimer("traits", "grimpeur_malhabile")
+B3.Supprimer("traits", "vrai_c")
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

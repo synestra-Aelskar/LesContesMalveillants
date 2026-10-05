@@ -203,4 +203,33 @@ attendu("retire", DF.Marqueur(), false)
 f2:Actualiser()
 attendu("le bouton le redit", f2.marquer.label:GetText(), "Marquer l'emplacement")
 
+dire("== la position par .gps, quand tout le reste se tait")
+-- Sur une carte d'instance, UnitPosition se tait ET la carte ne declare pas sa
+-- taille. Reste la commande serveur .gps, qui repond dans le chat. Ligne reelle
+-- relevee en jeu le 5 octobre 2026 (Magisters' Terrace, 585).
+local LIGNE = "Map: 585 (Magisters' Terrace) Zone: 0 ( <unknown> ), Area: 0 ( <unknown> ), "
+    .. "Phase: 158070, X: 11275.129883, Y: 11090.638672, Z: -81.208794, O: 1.904451"
+local gx, gy, gz = DF.LireGPS(LIGNE)
+attendu("X lu", math.floor(gx), 11275)
+attendu("Y lu", math.floor(gy), 11090)
+attendu("Z lu", math.floor(gz), -82)
+attendu("une ligne quelconque ne dit rien", DF.LireGPS("Bonjour tout le monde"), nil)
+
+__positionMonde(false)
+__carte(nil)
+attendu("plus aucune source directe", select(1, DF.Demarrer(6, "Répulsion")), false)
+attendu("et on demande au serveur",
+    tostring(select(2, DF.Demarrer(6, "Répulsion"))):find("gps") ~= nil
+    or tostring(select(2, DF.Demarrer(6, "Répulsion"))):find("serveur") ~= nil, true)
+
+DF.NoterGPS(LIGNE)
+attendu("avec la reponse, on part", DF.Demarrer(6, "Répulsion"), true)
+attendu("et c'est le gps qui mesure", DF.EnCours().source, "gps")
+DF.NoterGPS((LIGNE:gsub("X: 11275.129883", "X: 11279.129883")))
+DF.Mesurer()
+attendu("quatre metres plus loin", math.floor(select(1, DF.Etat()) + 0.5), 4)
+DF.Arreter("interrompu")
+__positionMonde(true)
+__carte(1, 1000, 1000)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

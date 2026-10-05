@@ -1,10 +1,19 @@
 """Transforme les brouillons du MJ en fichiers Lua de l'addon.
 
 Lit LCM_MJ_DB dans la SavedVariables du compagnon MJ, puis reecrit
-Data/Genere/*.lua. Ces fichiers sont ENTIEREMENT regeneres : ce qui n'est plus
+Data/Genere/Atelier.lua. Ce fichier est ENTIEREMENT regenere : ce qui n'est plus
 dans les brouillons disparait, et toute retouche manuelle est perdue.
 
     python exporter.py [--apercu]
+
+TOUTES les familles de l'atelier y passent (5 octobre 2026). L'outil n'en
+exportait que trois — traits, races, objets — donc les etats, les maladies, les
+sacs, les PNJ, les resolutions et le reste restaient coinces dans la
+SavedVariables d'une seule machine : crees en seance, jamais figes, invisibles
+pour l'autre maitre du jeu.
+
+Un SEUL fichier, et non un par famille : le .toc n'a qu'une ligne a declarer, et
+ajouter une famille ne demande plus d'y toucher.
 
 Le jeu doit avoir ete quitte (ou /reload fait) pour que la SavedVariables soit
 a jour sur le disque : WoW n'ecrit qu'a la deconnexion.
@@ -81,21 +90,33 @@ def lua_valeur(valeur, indent=0):
     return '{\n' + '\n'.join(lignes) + '\n' + marge + '}'
 
 
-def ecrire(nom_fichier, appel, entrees, apercu):
-    chemin = os.path.join(GENERE, nom_fichier)
+def ecrire_tout(par_famille, apercu):
+    """Ecrit Atelier.lua : toutes les familles, dans un ordre stable.
+
+    L'ordre compte pour la relecture d'un diff : a contenu egal, le fichier doit
+    etre octet pour octet le meme d'un export a l'autre, sinon chaque export
+    ressemble a un changement."""
     corps = [ENTETE.format(date=datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))]
-    if not entrees:
-        corps.append('-- Aucune entree.\n')
-    else:
+    total = 0
+    for famille in sorted(par_famille.keys()):
+        registre, entrees = par_famille[famille]
+        if not entrees:
+            continue
+        corps.append('-- ----- %s (%d) %s\n'
+                     % (famille, len(entrees), '-' * max(0, 56 - len(famille))))
         for identifiant in sorted(entrees.keys()):
-            corps.append(appel + '(' + lua_valeur(entrees[identifiant]) + ')\n\n')
+            corps.append('LCM.%s.Add(%s)\n\n' % (registre, lua_valeur(entrees[identifiant])))
+        total += len(entrees)
+    if total == 0:
+        corps.append('-- Aucune entree creee en seance.\n')
     texte = ''.join(corps).rstrip() + '\n'
+
+    chemin = os.path.join(GENERE, 'Atelier.lua')
     if apercu:
-        print('--- ' + nom_fichier + ' (' + str(len(entrees)) + ' entree(s))')
         print(texte)
     else:
         io.open(chemin, 'w', encoding='utf-8', newline='\n').write(texte)
-        print('ecrit  %-14s %d entree(s)' % (nom_fichier, len(entrees)))
+    return total
 
 
 def main():
@@ -108,24 +129,45 @@ def main():
         print('Aucun brouillon : rien a exporter.')
         return 0
 
+    # La meme table que Core/Compendium.lua (FAMILLES) : famille -> registre.
+    # Tenue a deux endroits, donc verifiee au passage — une famille ajoutee en
+    # jeu et oubliee ici repartirait silencieusement dans le vide.
     familles = {
-        'traits': ('Traits.lua', 'LCM.Traits.Add'),
-        'races': ('Races.lua', 'LCM.Races.Add'),
-        'objets': ('Objets.lua', 'LCM.Objets.Add'),
+        'objets': 'Objets', 'traits': 'Traits', 'races': 'Races', 'etats': 'Etats',
+        'apprentissages': 'Apprentissages', 'sacs': 'Sacs', 'ressources': 'Ressources',
+        'devises': 'Devises', 'informations': 'Informations', 'listes': 'Listes',
+        'connaissances': 'Connaissances', 'resolutions': 'Resolutions',
+        'calculateurs': 'Calculateurs', 'pnj': 'PNJ', 'jeux': 'Forge',
     }
-    total = 0
-    for famille, (fichier, appel) in sorted(familles.items()):
-        table = brouillons[famille] if famille in brouillons else None
+
+    par_famille, inconnues = {}, []
+    for cle in brouillons.keys():
+        famille = str(cle)
+        if famille not in familles:
+            inconnues.append(famille)
+            continue
+        table = brouillons[cle]
         entrees = {}
         if table is not None:
-            for cle in table.keys():
-                entrees[str(cle)] = table[cle]
-        total += len(entrees)
-        ecrire(fichier, appel, entrees, apercu)
+            for identifiant in table.keys():
+                entrees[str(identifiant)] = table[identifiant]
+        if entrees:
+            par_famille[famille] = (familles[famille], entrees)
+
+    total = ecrire_tout(par_famille, apercu)
+
+    if inconnues:
+        print('')
+        print('ATTENTION : famille(s) inconnue(s) de cet outil, NON exportee(s) : '
+              + ', '.join(sorted(inconnues)))
+        print("Ajoute-la(les) a `familles` dans exporter.py, sinon ce contenu reste")
+        print("sur cette machine et n'arrivera jamais chez l'autre.")
 
     if not apercu:
         print('')
-        print('%d entree(s) exportee(s).' % total)
+        for famille in sorted(par_famille.keys()):
+            print('  %-16s %d' % (famille, len(par_famille[famille][1])))
+        print('%d entree(s) exportee(s) dans Genere/Atelier.lua.' % total)
         print("Pense a publier l'addon, puis a faire mettre a jour tout le monde.")
     return 0
 

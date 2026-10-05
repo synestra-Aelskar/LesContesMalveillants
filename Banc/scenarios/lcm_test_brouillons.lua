@@ -58,4 +58,50 @@ SlashCmdList.LCM("brouillons")
 attendu("elle repond", #__sorties > n, true)
 for i = n + 1, #__sorties do dire("   " .. __sansCouleur(__sorties[i])) end
 
+dire("== la synchro entre maitres du jeu")
+-- On est deux a ecrire en seance : ce que l'un cree part TOUT DE SUITE chez
+-- l'autre et s'y applique sans rien demander (5 octobre 2026).
+local B2 = LCM.Brouillons
+local avant = #__envois
+
+-- Emission : ecrire un brouillon met un message sur le reseau.
+B2.Enregistrer("traits", { id = "souffle_sync", label = "Souffle partagé", cout = 1 }, true)
+local partis = 0
+for i = avant + 1, #__envois do
+    if tostring(__envois[i].message or ""):find("brouillon") then partis = partis + 1 end
+end
+attendu("l'ecriture part sur le reseau", partis > 0, true)
+
+-- Reception : ce qui arrive s'applique, sans question.
+B2.Supprimer("traits", "souffle_sync")
+attendu("retire chez nous", B2.Get("traits", "souffle_sync"), nil)
+local paquet = LCM.Reseau.Encoder({ f = "traits",
+    e = { id = "souffle_sync", label = "Souffle partagé", cout = 1 } })
+LCM.Reseau.Recevoir("Akriaxx", "7:1:1:brouillon|" .. paquet)
+attendu("arrive chez nous tout seul", B2.Get("traits", "souffle_sync") ~= nil, true)
+attendu("et devient jouable", LCM.Traits.Get("souffle_sync") ~= nil, true)
+
+-- Ce qui arrive ne REPART pas : sinon deux ateliers se le renvoient sans fin.
+local avantRenvoi = #__envois
+LCM.Reseau.Recevoir("Akriaxx", "8:1:1:brouillon|" .. paquet)
+local renvois = 0
+for i = avantRenvoi + 1, #__envois do
+    if tostring(__envois[i].message or ""):find("brouillon") then renvois = renvois + 1 end
+end
+attendu("rien n'est renvoye", renvois, 0)
+
+-- Une suppression voyage aussi.
+LCM.Reseau.Recevoir("Akriaxx", "9:1:1:brouillon-|" .. LCM.Reseau.Encoder({ f = "traits", id = "souffle_sync" }))
+attendu("la suppression arrive aussi", B2.Get("traits", "souffle_sync"), nil)
+
+-- Un JOUEUR ne recoit rien : il n'a pas d'atelier.
+local etaitCharge = __addonsCharges["LesContesMalveillants_MJ"]
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = nil
+attendu("on joue bien en joueur", LCM.IsMaster(), false)
+LCM.Reseau.Recevoir("Akriaxx", "10:1:1:brouillon|" .. paquet)
+attendu("un joueur n'en herite pas", B2.Get("traits", "souffle_sync"), nil)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = etaitCharge
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

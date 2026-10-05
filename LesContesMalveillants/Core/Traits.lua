@@ -47,6 +47,30 @@ function Traits.Construire(definition)
     end
 
     local bonus, avantage = LCM.Effets.Lire(id, definition, Erreur)
+
+    -- Un avantage se PAIE : un par niveau de trait, pas un de plus. Un trait a
+    -- 1 point qui relancerait trois jets differents serait la meilleure affaire
+    -- de la feuille (regle du 5 octobre 2026).
+    local combien = 0
+    for _ in pairs(avantage) do combien = combien + 1 end
+    if combien > cout then
+        Erreur(string.format("%s : %d avantage(s) pour un trait de niveau %d — un par niveau",
+            id, combien, cout))
+    end
+
+    -- Et il ne porte que sur ce que le trait AMELIORE. Prendre l'avantage sur
+    -- un jet qu'on ne touche pas, ou pire sur un jet qu'on penalise, n'a aucun
+    -- sens : le desavantage y est deja, de facto.
+    for champ in pairs(avantage) do
+        local montant = bonus[champ] or 0
+        if montant <= 0 then
+            Erreur(string.format(
+                "%s : avantage sur « %s », que le trait n'améliore pas (%+d) — "
+                .. "un avantage se choisit parmi les bonus positifs",
+                id, champ, montant))
+        end
+    end
+
     -- Icone, description, tags, couleurs... : l'onglet General du compendium.
     return LCM.ChampsCommuns(definition, {
         id = id,

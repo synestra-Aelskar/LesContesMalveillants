@@ -76,6 +76,22 @@ function Effets.Avantage(entity, fieldId)
     return nil
 end
 
+-- Ce qui impose un DESAVANTAGE sur ce jet. Rien ne se declare : il se deduit
+-- d'un bonus NEGATIF. Un trait qui retire des points a « Vol a la tire » gene
+-- celui qui le porte des qu'il s'en sert — on ne choisit pas ses faiblesses
+-- comme on choisit ses forces (regle du 5 octobre 2026).
+--
+-- Rend l'element fautif et le nom de sa source, comme Avantage.
+function Effets.Desavantage(entity, fieldId)
+    local cible = tostring(fieldId)
+    for _, source in ipairs(Effets.sources) do
+        for _, element in ipairs(source.portes(entity)) do
+            if (element.bonus[cible] or 0) < 0 then return element, source.nom end
+        end
+    end
+    return nil
+end
+
 -- Les champs vises n'existent pas forcement au moment ou un element est
 -- declare (les fichiers se chargent dans l'ordre du .toc). On verifie donc une
 -- fois, a la connexion, quand toute la feuille est connue.

@@ -203,6 +203,13 @@ for _, ligne in ipairs(fst.pages.statistiques.lignes) do
     end
 end
 attendu("aucun libelle tronque", coupes, 0)
+-- Le bloc fait exactement ce qu'il demande, et la valeur tombe au BOUT de sa
+-- ligne. Les blocs gardaient la largeur de la construction : la fenetre se
+-- resserrait, eux non, et la valeur restait au milieu (4 octobre 2026).
+attendu("le bloc ne traine pas de largeur en trop",
+    fst.pages.statistiques.blocs[1]:GetWidth(), fst.pages.statistiques.largeurVoulue)
+local ancrage, _, cote = fst.pages.statistiques.lignes[1].valeur:GetPoint(1)
+attendu("la valeur est calee au bout", ancrage .. "/" .. tostring(cote), "RIGHT/RIGHT")
 
 local function famille(id)
     for _, e in ipairs(entreesStats()) do

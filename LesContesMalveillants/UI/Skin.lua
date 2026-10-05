@@ -1,4 +1,9 @@
--- Le cadre Ael'Raz'kah, variante legere.
+-- Le cadre A'hell'Raz'kah, variante legere.
+--
+-- Renomme le 5 octobre 2026 : le lore est celui des DEUX maitres du jeu, et le
+-- nom du theme doit le dire. Le dossier de ressources garde son ancien nom
+-- (`ressources/aelrazkah/`) : c'est un chemin de texture, invisible, et le
+-- renommer ne ferait que risquer des carres verts.
 --
 -- Porte depuis `AelArtwork.lua` de Necronicon, ou le meme dessin existait en
 -- deux variantes ; on ne garde ici que « panel », celle du mode leger, et on
@@ -119,8 +124,8 @@ local VARIANTES = {
 UI.THEMES = {
     { id = "incritas",   label = "Incritas" },
     { id = "necronicon", label = "Necronicon", indisponible = true },
-    { id = "lourd",      label = "Ael'Raz'kah lourd" },
-    { id = "leger",      label = "Ael'Raz'kah léger" },
+    { id = "lourd",      label = "A'hell'Raz'kah lourd" },
+    { id = "leger",      label = "A'hell'Raz'kah léger" },
 }
 
 function UI.ThemeActuel()

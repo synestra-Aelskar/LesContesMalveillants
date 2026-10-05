@@ -78,6 +78,7 @@ Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
 Data\Genere\Points.lua
 Data\Genere\Necronicon_Grimoires.lua
+Data\Genere\Atelier.lua
 Data\ActionsBoutons.lua
 Data\Receptions.lua
 
@@ -93,6 +94,7 @@ UI\Inventaires.lua
 UI\Metiers.lua
 UI\Grimoires.lua
 UI\SortEditeur.lua
+UI\GrimoireEditeur.lua
 UI\Parametres.lua
 UI\Points.lua
 UI\Bourse.lua

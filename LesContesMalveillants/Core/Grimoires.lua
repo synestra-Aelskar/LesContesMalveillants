@@ -37,6 +37,65 @@ function Grimoires.Personnel()
     return nil
 end
 
+-- ===== Le grimoire personnel, a son nom ==================================
+-- Un grimoire vient du compendium : le renommer LA changerait celui de tout le
+-- monde. La personnalisation vit donc sur le PERSONNAGE, et ne vaut que pour le
+-- grimoire personnel — celui qu'on a d'office et qu'on remplit soi-meme. Les
+-- grimoires recus restent ce que le maitre du jeu a ecrit (5 octobre 2026).
+
+local PERSO_MAX = { label = 60, description = 400 }
+
+local function Rogner(valeur, maximum)
+    local texte = tostring(valeur or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if #texte > maximum then texte = texte:sub(1, maximum) end
+    return texte
+end
+
+function Grimoires.Personnalisation(entity)
+    if type(entity) ~= "table" then return nil end
+    return type(entity.grimoirePerso) == "table" and entity.grimoirePerso or nil
+end
+
+-- `definition` : { label, description, icone }. Un champ vide efface sa
+-- surcharge et rend ce que dit le compendium.
+function Grimoires.Personnaliser(entity, definition)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    if type(definition) ~= "table" then return false, "definition illisible." end
+    local perso = {
+        label = Rogner(definition.label, PERSO_MAX.label),
+        description = Rogner(definition.description, PERSO_MAX.description),
+        icone = Rogner(definition.icone, 200),
+    }
+    for cle, valeur in pairs(perso) do
+        if valeur == "" then perso[cle] = nil end
+    end
+    -- Plus rien de propre : on retire la table plutot que d'en garder une vide
+    -- dans la sauvegarde.
+    if not next(perso) then
+        entity.grimoirePerso = nil
+    else
+        entity.grimoirePerso = perso
+    end
+    if Grimoires.onChange then Grimoires.onChange(entity) end
+    return true
+end
+
+-- Ce qu'il faut AFFICHER pour ce grimoire, chez ce personnage : sa
+-- personnalisation si elle existe, le compendium sinon. Tout ce qui dessine un
+-- grimoire passe par ici, sinon la moitie de l'ecran garderait l'ancien nom.
+function Grimoires.Affichage(grimoire, entity)
+    if type(grimoire) ~= "table" then return nil end
+    local perso = grimoire.personnel and Grimoires.Personnalisation(entity) or nil
+    if not perso then return grimoire end
+    return {
+        id = grimoire.id,
+        personnel = grimoire.personnel,
+        label = perso.label or grimoire.label,
+        description = perso.description or grimoire.description,
+        icone = perso.icone or grimoire.icone,
+    }
+end
+
 function Grimoires.Has(entity, id)
     id = tostring(id or "")
     local grimoire = Grimoires.Get(id)

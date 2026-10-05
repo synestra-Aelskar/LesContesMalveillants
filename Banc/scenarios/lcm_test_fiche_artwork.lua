@@ -10,6 +10,12 @@ assert(f:GetWidth() == 340, "la fenetre garde sa largeur")
 assert(f.artwork:IsShown(), "artwork visible")
 local _, ancreVolet = f.artwork:GetPoint(1)
 assert(ancreVolet == f, "le volet est accroche a la fenetre")
+-- Il porte l'habillage complet, comme une fenetre : pose a l'exterieur du bord
+-- gauche, un simple filet le faisait flotter a cote du cadre dore.
+assert(f.artwork.cadre ~= nil, "le volet a son cadre")
+-- Et l'image se range dedans, pas sous la bordure.
+local _, _, _, artX = f.artwork.art:GetPoint(1)
+assert(artX >= 2, "l'image laisse la place au cadre")
 assert(not f.artwork.inconscient:IsShown(), "artwork normal quand le personnage vit")
 local _, _, _, ongletsX = f.barre:GetPoint(1)
 assert(ongletsX == 24 and f.barre:GetWidth() == f:GetWidth() - 72, "onglets rentres dans le cadre")

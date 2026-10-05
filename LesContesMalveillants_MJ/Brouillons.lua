@@ -208,6 +208,8 @@ function Brouillons.Enregistrer(famille, entree, creation, remplacer)
     -- et l'atelier doit pouvoir le dire a chaque ouverture.
     if remplacer then entree.remplacePublie = true end
     Brouillons.Set(famille, entree)
+    -- Et chez l'autre maitre du jeu, tout de suite.
+    Brouillons.Diffuser(famille, entree, remplacer)
 
     -- Modifie SUR PLACE : les entites designent le trait par son identifiant,
     -- mais les ecrans ouverts tiennent la table elle-meme.
@@ -237,6 +239,7 @@ end
 function Brouillons.Supprimer(famille, id)
     famille = tostring(famille or "")
     if not Brouillons.Remove(famille, id) then return false end
+    Brouillons.DiffuserSuppression(famille, id)
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
     local original = Brouillons.Original(famille, id)
@@ -254,11 +257,199 @@ function Brouillons.Supprimer(famille, id)
     return true
 end
 
+-- ===== Retirer une entree publiee =========================================
+-- Le contenu publie vient d'un fichier genere, et ce fichier fait foi : on ne
+-- peut pas l'effacer depuis le jeu. Mais s'en servir en seance alors qu'on veut
+-- s'en debarrasser n'avait aucune issue — « 0 supprimée(s). Refus : Automate
+-- danseuse » et rien d'autre a faire (5 octobre 2026).
+--
+-- On pose donc un MASQUE : l'entree disparait du jeu tout de suite et reste
+-- masquee d'une session a l'autre. Elle n'est PAS effacee du fichier — c'est
+-- l'export qui le rappellera, et le retrait definitif se fait a la source.
+
+local function Masques(famille)
+    _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
+    local db = _G.LCM_MJ_DB
+    db.masques = type(db.masques) == "table" and db.masques or {}
+    if famille then
+        db.masques[famille] = type(db.masques[famille]) == "table" and db.masques[famille] or {}
+        return db.masques[famille]
+    end
+    return db.masques
+end
+Brouillons.Masques = Masques
+
+function Brouillons.EstMasquee(famille, id)
+    return Masques(tostring(famille or ""))[tostring(id or "")] == true
+end
+
+-- Retire l'entree du registre, donc du jeu. Les personnages qui la portaient
+-- gardent son identifiant : on n'efface pas les donnees d'un joueur parce que
+-- le contenu a disparu.
+function Brouillons.Masquer(famille, id)
+    famille, id = tostring(famille or ""), tostring(id or "")
+    if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
+    local registre = Registre(famille)
+    local existant = registre and registre.Get(id)
+    if not existant then return false, "entrée inconnue : " .. id end
+    if existant.brouillon == true then
+        return false, "c'est un brouillon : il se supprime, il n'a pas besoin d'être masqué"
+    end
+    Masques(famille)[id] = true
+    if registre.Retirer then registre.Retirer(id) end
+    Brouillons.DiffuserMasque(famille, id, true)
+    return true
+end
+
+-- Le rend au jeu. Au prochain chargement il revient de son fichier ; ici on ne
+-- peut que lever le masque, l'entree elle-meme n'est plus en memoire.
+function Brouillons.Demasquer(famille, id)
+    famille, id = tostring(famille or ""), tostring(id or "")
+    if not Brouillons.EstMasquee(famille, id) then return false end
+    Masques(famille)[id] = nil
+    Brouillons.DiffuserMasque(famille, id, false)
+    return true
+end
+
+function Brouillons.CompteMasques()
+    local total = 0
+    for _, parFamille in pairs(Masques()) do
+        for _ in pairs(parFamille) do total = total + 1 end
+    end
+    return total
+end
+
+-- ===== La synchro entre maitres du jeu =====================================
+-- On est deux a ecrire du contenu en seance. Sans rien, chacun garde le sien
+-- dans sa SavedVariables jusqu'au prochain export : l'autre ne voit pas l'etat
+-- qu'on vient de creer, et une action qui s'y refere tombe dans le vide.
+--
+-- Ce qu'on ecrit part donc TOUT DE SUITE chez l'autre, et s'applique chez lui
+-- sans rien demander (choix du 5 octobre 2026). Le detour par « veux-tu
+-- l'accepter ? » serait une boite de dialogue de plus au milieu d'une partie,
+-- pour une reponse qui serait toujours oui.
+--
+-- Le canal de presence plutot que le groupe : on n'est pas toujours groupes, et
+-- ce canal-la, tout le monde l'a rejoint.
+--
+-- Deux garde-fous :
+--   * ce qui ARRIVE ne repart pas (sinon deux ateliers se renvoient la meme
+--     entree indefiniment) ;
+--   * seul un maitre du jeu emet, et seul un maitre du jeu applique. Un joueur
+--     n'a pas de brouillons, et n'a pas a en recevoir.
+
+local enReception = false
+
+local function Canal()
+    local id = LCM.Presence and LCM.Presence.Rejoindre and LCM.Presence.Rejoindre()
+    return id and "CHANNEL", id
+end
+
+function Brouillons.Diffuser(famille, entree, remplace)
+    if enReception or not LCM.IsMaster() then return false end
+    if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
+    local canal, cible = Canal()
+    if not canal then return false end
+    -- `etale` : une resolution entiere fait plusieurs milliers d'octets, donc
+    -- des dizaines de morceaux. Envoyes d'un coup, le serveur en jette la
+    -- moitie sans rien dire.
+    return LCM.Reseau.Envoyer("brouillon", {
+        f = tostring(famille), r = remplace and 1 or nil, e = entree,
+    }, canal, cible, { etale = true })
+end
+
+function Brouillons.DiffuserSuppression(famille, id)
+    if enReception or not LCM.IsMaster() then return false end
+    if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
+    local canal, cible = Canal()
+    if not canal then return false end
+    return LCM.Reseau.Envoyer("brouillon-", { f = tostring(famille), id = tostring(id) },
+        canal, cible)
+end
+
+function Brouillons.DiffuserMasque(famille, id, pose)
+    if enReception or not LCM.IsMaster() then return false end
+    if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
+    local canal, cible = Canal()
+    if not canal then return false end
+    return LCM.Reseau.Envoyer("masque", { f = tostring(famille), id = tostring(id),
+        p = pose and 1 or nil }, canal, cible)
+end
+
+LCM.WhenReady(function()
+    if not (LCM.Reseau and LCM.Reseau.Ecouter) then return end
+
+    LCM.Reseau.Ecouter("masque", function(expediteur, donnees)
+        if not LCM.IsMaster() then return end
+        if expediteur == LCM.PlayerId() then return end
+        local famille, id = tostring(donnees.f or ""), tostring(donnees.id or "")
+        if not FamilleValide(famille) then return end
+        enReception = true
+        if donnees.p ~= nil then
+            if Brouillons.Masquer(famille, id) then
+                LCM.Info(string.format("%s a retiré « %s » (%s).", tostring(expediteur), id, famille))
+            end
+        else
+            Brouillons.Demasquer(famille, id)
+        end
+        enReception = false
+    end)
+
+    LCM.Reseau.Ecouter("brouillon", function(expediteur, donnees)
+        -- Un joueur ne doit rien faire de ca : il n'a pas d'atelier.
+        if not LCM.IsMaster() then return end
+        if expediteur == LCM.PlayerId() then return end
+        local famille = tostring(donnees.f or "")
+        local entree = donnees.e
+        if type(entree) ~= "table" or not FamilleValide(famille) then return end
+        enReception = true
+        local ok, raison = Brouillons.Enregistrer(famille, entree, false, donnees.r ~= nil)
+        enReception = false
+        if ok then
+            LCM.Ok(string.format("%s a écrit « %s » (%s) : c'est chez toi.",
+                tostring(expediteur), tostring(entree.label or entree.id), famille))
+            if Brouillons.onSynchro then Brouillons.onSynchro(famille, entree) end
+        else
+            -- On le DIT : une entree refusee en silence, c'est un contenu qui
+            -- existe chez l'un et pas chez l'autre, et personne ne le sait.
+            LCM.Alerte(string.format("« %s » de %s refusé : %s",
+                tostring(entree.label or entree.id), tostring(expediteur), tostring(raison)))
+        end
+    end)
+
+    LCM.Reseau.Ecouter("brouillon-", function(expediteur, donnees)
+        if not LCM.IsMaster() then return end
+        if expediteur == LCM.PlayerId() then return end
+        local famille, id = tostring(donnees.f or ""), tostring(donnees.id or "")
+        if not FamilleValide(famille) then return end
+        enReception = true
+        local retire = Brouillons.Supprimer(famille, id)
+        enReception = false
+        if retire then
+            LCM.Info(string.format("%s a supprimé « %s » (%s).",
+                tostring(expediteur), id, famille))
+            if Brouillons.onSynchro then Brouillons.onSynchro(famille, nil) end
+        end
+    end)
+end)
+
 -- ===== Prise en compte immediate ===========================================
 -- Les brouillons sont declares comme le reste, pour etre jouables des la
 -- seance. S'ils existent deja en dur, on n'ecrase pas : le fichier fait foi.
 
 LCM.WhenReady(function()
+    -- Les masques d'abord : une entree publiee qu'on a retiree ne doit pas
+    -- reapparaitre a chaque connexion. Le fichier la redonne, le masque la
+    -- reprend.
+    for famille, parFamille in pairs(Brouillons.Masques()) do
+        local registre = Registre(famille)
+        if registre and registre.Retirer then
+            for id in pairs(parFamille) do
+                if registre.Get(id) then registre.Retirer(id) end
+            end
+        end
+    end
+
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
     for _, famille in ipairs(Brouillons.FAMILLES) do
@@ -277,12 +468,32 @@ LCM.WhenReady(function()
     if nombre > 0 then
         LCM.Info(string.format("%d brouillon(s) en attente d'export.", nombre))
     end
+    local masques = Brouillons.CompteMasques()
+    if masques > 0 then
+        LCM.Info(string.format("%d entrée(s) publiée(s) masquée(s) : retire-les du fichier "
+            .. "à la prochaine passe (/lcm brouillons).", masques))
+    end
 end)
 
 LCM.AddCommand("brouillons", "liste ce qui attend d'etre exporte", function()
+    -- Les masques AUSSI : une entree publiee retiree en seance disparait du
+    -- jeu, mais reste dans son fichier. Si personne ne le rappelle, elle y
+    -- restera pour toujours et reviendra chez qui n'a pas le masque.
+    local masques = {}
+    for famille, parFamille in pairs(Brouillons.Masques()) do
+        for id in pairs(parFamille) do
+            masques[#masques + 1] = string.format("%s / %s", famille, id)
+        end
+    end
+    table.sort(masques)
+    if #masques > 0 then
+        LCM.Info(string.format("%d entrée(s) publiée(s) masquée(s) — à RETIRER du fichier :", #masques))
+        for _, ligne in ipairs(masques) do LCM.Info("   " .. ligne) end
+    end
+
     local total = Brouillons.Count()
     if total == 0 then
-        LCM.Info("aucun brouillon.")
+        if #masques == 0 then LCM.Info("aucun brouillon.") end
         return
     end
     for _, famille in ipairs(Brouillons.FAMILLES) do

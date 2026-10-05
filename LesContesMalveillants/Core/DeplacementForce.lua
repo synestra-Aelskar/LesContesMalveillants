@@ -83,9 +83,63 @@ local function PositionCarte()
     return x * largeur, y * hauteur, 0
 end
 
--- `source` : « monde » ou « carte » pour rester sur celle d'une course en
--- cours ; rien pour prendre la meilleure disponible. Rend x, y, z, source.
+-- ===== La troisieme source : .gps =========================================
+-- Sur une carte d'instance, `UnitPosition` se tait ET la carte ne declare pas
+-- sa taille — c'est le cas de nos cartes de campagne (Magisters' Terrace, 585).
+-- Il reste la commande serveur `.gps`, qui marche la ou tout le reste echoue et
+-- repond dans le chat :
+--
+--   Map: 585 (Magisters' Terrace) Zone: 0 (...) Area: 0 (...) Phase: 158070,
+--   X: 11275.129883, Y: 11090.638672, Z: -81.208794, O: 1.904451
+--
+-- On la DEMANDE, et la reponse arrive plus tard : c'est la seule source
+-- asynchrone des trois. On garde donc la derniere position connue, et la mesure
+-- travaille dessus. Cadence lente exprés (voir INTERVALLE_GPS) : une commande
+-- tous les dixiemes de seconde, c'est un mur de texte dans le chat et du bruit
+-- pour le serveur.
+
+local gps = { x = nil, y = nil, z = nil, quand = 0, demande = 0 }
+
+-- Une ligne de .gps, quelle que soit la langue du serveur : on cherche les
+-- trois nombres etiquetes, pas une phrase entiere.
+function DeplacementForce.LireGPS(ligne)
+    ligne = tostring(ligne or "")
+    local x = ligne:match("X:%s*(-?%d+%.?%d*)")
+    local y = ligne:match("Y:%s*(-?%d+%.?%d*)")
+    local z = ligne:match("Z:%s*(-?%d+%.?%d*)")
+    if not (x and y) then return nil end
+    return tonumber(x), tonumber(y), tonumber(z) or 0
+end
+
+-- Appele par le guetteur de chat (et par le banc) quand une reponse arrive.
+function DeplacementForce.NoterGPS(ligne)
+    local x, y, z = DeplacementForce.LireGPS(ligne)
+    if not x then return false end
+    gps.x, gps.y, gps.z = x, y, z
+    DeplacementForce.gpsTente = nil
+    gps.quand = (GetTime and GetTime()) or (gps.quand + 1)
+    return true
+end
+
+-- Une position de .gps n'est bonne qu'un temps : au-dela, on marche depuis
+-- trop longtemps pour s'y fier.
+local GPS_PERIME = 3
+
+local function PositionGPS()
+    if not gps.x then return nil end
+    local maintenant = (GetTime and GetTime()) or 0
+    if maintenant > 0 and (maintenant - gps.quand) > GPS_PERIME then return nil end
+    return gps.x, gps.y, gps.z
+end
+
+-- `source` : « monde », « carte » ou « gps » pour rester sur celle d'une course
+-- en cours ; rien pour prendre la meilleure disponible. Rend x, y, z, source.
 local function Position(source)
+    if source == "gps" then
+        local x, y, z = PositionGPS()
+        if x then return x, y, z, "gps" end
+        return nil
+    end
     if source ~= "carte" then
         local x, y, z = PositionMonde()
         if x then return x, y, z, "monde" end
@@ -93,7 +147,23 @@ local function Position(source)
     end
     local x, y, z = PositionCarte()
     if x then return x, y, z, "carte" end
+    if source == "carte" then return nil end
+    -- Dernier recours : ce que .gps a repondu. S'il n'a jamais repondu, c'est
+    -- qu'on n'a pas encore demande — Demarrer s'en charge.
+    local gx, gy, gz = PositionGPS()
+    if gx then return gx, gy, gz, "gps" end
     return nil
+end
+
+-- Demande une position au serveur, sans inonder le chat.
+local INTERVALLE_GPS = 0.5
+function DeplacementForce.DemanderGPS(force)
+    local maintenant = (GetTime and GetTime()) or 0
+    if not force and maintenant > 0 and (maintenant - gps.demande) < INTERVALLE_GPS then
+        return false
+    end
+    gps.demande = maintenant
+    return DeplacementForce.Commande(".gps")
 end
 
 -- Le cadre qui bat la mesure. OnUpdate plutot que C_Timer : il existe toujours,
@@ -127,6 +197,9 @@ end
 
 function DeplacementForce.Mesurer()
     if not course then return end
+    -- Au GPS, la position ne vient pas toute seule : il faut la redemander. La
+    -- cadence est bornee dans DemanderGPS, pas ici.
+    if course.source == "gps" then DeplacementForce.DemanderGPS() end
     local x, y, z = Position(course.source)
     if not x then return end
 
@@ -162,7 +235,18 @@ function DeplacementForce.Demarrer(metres, raison, options)
     if metres <= 0 then return false, "distance nulle." end
     local x, y, z, source = Position()
     if not x then
-        return false, "position indisponible : ni UnitPosition ni la carte ne la donnent ici."
+        -- Rien ne repond. On tente `.gps` UNE fois : sa reponse arrive dans le
+        -- chat une fraction de seconde plus tard, donc on ne peut pas partir
+        -- tout de suite. Mais si le serveur ne l'execute pas — il la renvoie
+        -- alors comme un simple message de chat, ce qu'on a vu le 5 octobre —
+        -- repeter « relance dans un instant » serait un mensonge poli. On ne le
+        -- dit donc qu'au premier essai, et ensuite on nomme le vrai probleme.
+        if not DeplacementForce.gpsTente and DeplacementForce.DemanderGPS(true) then
+            DeplacementForce.gpsTente = true
+            return false, "position demandée au serveur (.gps) — relance dans un instant."
+        end
+        return false, "position indisponible : ni UnitPosition, ni la carte, ni .gps ne répondent "
+            .. "ici. Sur une carte d'instance, il faut le correctif client (Patches/AelskarMapFix)."
     end
     -- Une poussee en remplace une autre : on ne cumule pas deux dettes de
     -- metres, la seconde est celle qui compte.
@@ -226,6 +310,25 @@ function DeplacementForce.Commande(commande)
     prevenuSansCanal = false
     return pcall(SendChatMessage, commande, canal) and true or false
 end
+
+-- Le guetteur : les reponses de `.gps` arrivent comme des messages systeme.
+-- Pendant une course on les RETIRE de l'affichage — a deux par seconde, elles
+-- noieraient tout le reste — et on les laisse passer le reste du temps, pour
+-- que `.gps` tape a la main reponde normalement.
+LCM.WhenReady(function()
+    local cadre = CreateFrame("Frame")
+    cadre:RegisterEvent("CHAT_MSG_SYSTEM")
+    cadre:SetScript("OnEvent", function(_, _, message)
+        DeplacementForce.NoterGPS(message)
+    end)
+    if ChatFrame_AddMessageEventFilter then
+        ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, message)
+            if course and course.source == "gps" and DeplacementForce.LireGPS(message) then
+                return true
+            end
+        end)
+    end
+end)
 
 -- ===== Le marqueur ========================================================
 -- Une aura qui montre OU l'on s'est arrete. Elle se pose a l'arrivee, et le

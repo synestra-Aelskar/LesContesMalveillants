@@ -68,8 +68,11 @@ local function Tuile(parent)
 
     function t:Habiller(grimoire, entity, largeur)
         self.grimoire, self.entity = grimoire, entity
-        self.icone:SetTexture(grimoire.icone or "Interface\\ICONS\\INV_Misc_Book_09")
-        self.nom:SetText(grimoire.label)
+        -- Le nom, la description et l'icone peuvent avoir ete changes par le
+        -- joueur : on affiche SA version, pas celle du compendium.
+        local vu = Grimoires.Affichage(grimoire, entity) or grimoire
+        self.icone:SetTexture(vu.icone or "Interface\\ICONS\\INV_Misc_Book_09")
+        self.nom:SetText(vu.label)
 
         local sorts = Grimoires.CompteSorts(grimoire, entity)
         local sous = #Grimoires.SousGrimoires(grimoire)
@@ -77,7 +80,7 @@ local function Tuile(parent)
 
         local largeurTexte = largeur - ICONE - 24
         self.description:SetWidth(math.max(80, largeurTexte))
-        self.description:SetText(tostring(grimoire.description or ""))
+        self.description:SetText(tostring(vu.description or ""))
         local y = 8 + math.max(ICONE, 16 + self.description:GetStringHeight())
 
         local noms = {}
@@ -178,8 +181,20 @@ local function ConstruireHub()
             local t = self.tuiles[rang]
             if not t then
                 t = Tuile(self.zone.contenu)
-                t:SetScript("OnClick", function(tuile)
-                    if tuile.grimoire then Livre.Ouvrir(tuile.grimoire.id, self.entity) end
+                t:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                t:SetScript("OnClick", function(tuile, bouton)
+                    if not tuile.grimoire then return end
+                    -- Clic droit : renommer le sien. Un grimoire RECU reste ce
+                    -- que le maitre du jeu a ecrit.
+                    if bouton == "RightButton" then
+                        if tuile.grimoire.personnel then
+                            UI.GrimoireEditeur.Ouvrir(self.entity, tuile.grimoire)
+                        else
+                            LCM.Alerte("ce grimoire ne t'appartient pas : il garde son nom.")
+                        end
+                        return
+                    end
+                    Livre.Ouvrir(tuile.grimoire.id, self.entity)
                 end)
                 self.tuiles[rang] = t
             end
@@ -256,13 +271,12 @@ local function Carte(parent)
     UI.Police(c.raccourci, 10)
     c.raccourci:SetJustifyH("LEFT")
 
-    -- Pas de bouton sur un sort sans jet : ce serait un bouton qui ne fait rien.
-    c.jet = UI.Bouton(c, "Jet", 60, 20, function()
+    -- Pas de bouton sur un sort qui ne fait rien : ni jet, ni action.
+    c.jet = UI.Bouton(c, "Lancer", 60, 20, function()
         local sort = c.sort
-        if not (sort and sort.jet) then return end
-        local resultat, minimum, maximum = LCM.Roll.Des(sort.jet.min, sort.jet.max)
-        LCM.Info(string.format("%s : |cffffd36b%d|r  (%d-%d)",
-            tostring(sort.label), resultat, minimum, maximum))
+        if not sort then return end
+        local ok, raison = LCM.Sorts.Lancer(c.entity, sort)
+        if not ok and raison then LCM.Alerte(tostring(raison)) end
     end)
     c.jet:SetPoint("TOPRIGHT", c, "TOPRIGHT", -6, -6)
 
@@ -297,7 +311,8 @@ local function Carte(parent)
         self.icone:SetTexture(icone ~= "" and icone or "Interface\\ICONS\\INV_Misc_QuestionMark")
         self.nom:SetText(tostring(sort.label or sort.id or ""))
 
-        local largeurTexte = largeur - 40 - 28 - (sort.jet and 66 or 0)
+        local largeurTexte = largeur - 40 - 28
+            - ((sort.competence or sort.jet or sort.action) and 66 or 0)
         self.description:SetWidth(math.max(80, largeurTexte))
         self.description:SetText(tostring(sort.description or ""))
         local y = 6 + math.max(40, 18 + self.description:GetStringHeight() + 4)
@@ -318,7 +333,10 @@ local function Carte(parent)
         self.raccourci:SetPoint("TOPLEFT", self, "TOPLEFT", 54, -y)
         if raccourci ~= "" then y = y + 13 end
 
-        self.jet:SetShown(sort.jet ~= nil)
+        -- Le bouton apparait des que le sort fait QUELQUE CHOSE : un jet (par
+        -- sa competence ou son ancienne plage) ou une action.
+        self.jet:SetShown((sort.competence or sort.jet or sort.action) ~= nil)
+        self.jet.label:SetText(sort.action and not (sort.competence or sort.jet) and "Action" or "Lancer")
 
         -- Les actions se posent en bas a droite, de la droite vers la gauche.
         local actions = {}

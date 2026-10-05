@@ -106,4 +106,41 @@ hub:Hide()
 SlashCmdList.LCM("grimoires")
 attendu("la commande ouvre le hub", LCM.UI.Grimoires.frame:IsShown(), true)
 
+dire("== donner son nom a son grimoire")
+-- Un grimoire vient du compendium : le renommer LA changerait celui de tout le
+-- monde. La personnalisation vit donc sur le personnage, et ne vaut que pour le
+-- grimoire personnel (5 octobre 2026).
+local G = LCM.Grimoires
+local perso = G.Personnel()
+attendu("il y a un grimoire personnel", perso ~= nil, true)
+local avant = perso.label
+
+attendu("rien de personnalise au depart", G.Personnalisation(moi), nil)
+attendu("affiche donc le compendium", G.Affichage(perso, moi).label, avant)
+
+attendu("on le renomme", select(1, G.Personnaliser(moi, {
+    label = "Carnet de Reika", description = "Ce qu'elle a compris toute seule." })), true)
+attendu("l'affichage suit", G.Affichage(perso, moi).label, "Carnet de Reika")
+attendu("et la description aussi",
+    G.Affichage(perso, moi).description, "Ce qu'elle a compris toute seule.")
+attendu("le compendium n'a pas bouge", perso.label, avant)
+
+-- Un champ vide reprend le defaut, sans effacer le reste.
+G.Personnaliser(moi, { description = "Ce qu'elle a compris toute seule." })
+attendu("nom vide : le defaut revient", G.Affichage(perso, moi).label, avant)
+attendu("la description reste", G.Affichage(perso, moi).description ~= nil, true)
+
+-- Tout vide : plus rien dans la sauvegarde.
+G.Personnaliser(moi, {})
+attendu("plus de personnalisation", G.Personnalisation(moi), nil)
+
+-- Un grimoire RECU n'est pas concerne.
+local recu
+for _, g in ipairs(G.list) do if not g.personnel then recu = g break end end
+if recu then
+    G.Personnaliser(moi, { label = "Pirate" })
+    attendu("un grimoire recu garde son nom", G.Affichage(recu, moi).label, recu.label)
+    G.Personnaliser(moi, {})
+end
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

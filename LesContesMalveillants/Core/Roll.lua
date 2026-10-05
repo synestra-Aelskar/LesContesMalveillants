@@ -50,10 +50,24 @@ function Roll.Field(entity, fieldId, options)
     local trait, source = LCM.Effets.Avantage(entity, fieldId)
     local avantage = options.avantage == true and trait ~= nil
 
+    -- Le DESAVANTAGE, lui, ne se coche pas : il s'impose des qu'un trait porte
+    -- un bonus negatif sur ce jet. On ne choisit pas ses faiblesses.
+    local genant, sourceGenante = LCM.Effets.Desavantage(entity, fieldId)
+    local desavantage = genant ~= nil
+    -- Les deux a la fois s'annulent : relancer pour garder le meilleur ET le
+    -- pire n'a pas de sens, et c'est le cas d'un trait qui donne et reprend sur
+    -- le meme jet.
+    if avantage and desavantage then
+        avantage, desavantage = false, false
+    end
+
     local premier = Alea(minimum, maximum)
-    local second = avantage and Alea(minimum, maximum) or nil
+    local second = (avantage or desavantage) and Alea(minimum, maximum) or nil
     local garde = premier
-    if second and second > premier then garde = second end
+    if second then
+        if avantage and second > premier then garde = second end
+        if desavantage and second < premier then garde = second end
+    end
 
     return {
         field = field,
@@ -69,6 +83,9 @@ function Roll.Field(entity, fieldId, options)
         avantage = avantage,
         trait = trait,
         source = source,
+        desavantage = desavantage,
+        genant = genant,
+        sourceGenante = sourceGenante,
         -- Vrai quand la case etait cochee mais qu'aucun trait ne l'autorisait :
         -- on le dit plutot que d'ignorer en silence.
         avantageRefuse = options.avantage == true and trait == nil,
@@ -93,7 +110,9 @@ function Roll.Describe(resultat)
     if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("Bonus : %+d", resultat.bonus) end
     if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("Modificateur : %+d", resultat.modificateur) end
     local ligne = string.format("%s : %d  (%s)", resultat.label, resultat.total, table.concat(morceaux, ", "))
-    if resultat.avantage and resultat.trait then
+    if resultat.desavantage and resultat.genant then
+        ligne = ligne .. "  — désavantage : " .. resultat.genant.label
+    elseif resultat.avantage and resultat.trait then
         ligne = ligne .. "  — avantage : " .. resultat.trait.label
     end
     return ligne

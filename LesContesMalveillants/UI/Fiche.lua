@@ -4,7 +4,7 @@
 -- Data/ apparait ici sans une ligne de plus. Le rendu ne connait que les types
 -- de champ.
 --
--- La mise en page est celle du theme Ael'Raz'kah de Necronicon (AelLayout.lua,
+-- La mise en page est celle du theme A'hell'Raz'kah de Necronicon (AelLayout.lua,
 -- AelWidgets.lua), reprise avec ses mesures : une section est un bloc encadre
 -- avec un titre en capitales ; une ligne fait 62 unites sur 786 et place ses
 -- colonnes aux memes abscisses que le modele (nom 96, plage 310, valeur 418,
@@ -1321,9 +1321,13 @@ function Fiche.Page(parent, sections, largeur)
             for _, ligne in ipairs(bloc.lignes) do
                 if ligne.nom and ligne.valeur and ligne.field then
                     ligne.nom:SetWidth(largeur)
+                    -- Au BOUT de la ligne, pas a une abscisse calculee : une
+                    -- fois le bloc taille sur son contenu, le bord est
+                    -- justement la ou la valeur doit tomber. Calee sur un
+                    -- point fixe, elle restait au milieu d'un bloc devenu plus
+                    -- large que prevu (4 octobre 2026).
                     ligne.valeur:ClearAllPoints()
-                    ligne.valeur:SetPoint("RIGHT", ligne, "LEFT",
-                        depart + largeur + c.valeurLargeur, 0)
+                    ligne.valeur:SetPoint("RIGHT", ligne, "RIGHT", -MARGE_VALEUR, 0)
                 end
             end
             -- Ce qu'il FAUDRAIT a ce bloc pour que rien ne soit coupe ni ne
@@ -1415,10 +1419,24 @@ function Fiche.Artwork(parent, largeur)
     p:SetWidth(largeur)
     p.fond = UI.Aplat(p, UI.C.fond)
     p.fond:SetAllPoints(p)
-    UI.Bordure(p)
+    -- L'habillage complet, comme une fenetre : pose a l'exterieur du bord
+    -- gauche, le volet n'avait qu'un filet et flottait a cote du cadre dore
+    -- sans lui appartenir (4 octobre 2026).
+    if UI.Cadre then p.cadre = UI.Cadre(p) else UI.Bordure(p) end
     p.art = p:CreateTexture(nil, "ARTWORK")
-    p.art:SetPoint("TOPLEFT", p, "TOPLEFT", 2, -2)
-    p.art:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -2, 2)
+    -- L'image se range DANS le cadre : au ras du bord elle passait dessous.
+    local e = UI.AelEmprise and UI.AelEmprise(p) or { bas = 0, cote = 0 }
+    p.art:SetPoint("TOPLEFT", p, "TOPLEFT", math.max(2, e.cote), -math.max(2, e.cote))
+    p.art:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -math.max(2, e.cote), math.max(2, e.bas))
+    -- L'habillage se remesure quand il change de taille ou de theme.
+    function p:AjusterArt()
+        local em = UI.AelEmprise and UI.AelEmprise(self) or { bas = 0, cote = 0 }
+        local cote = math.max(2, em.cote)
+        self.art:ClearAllPoints()
+        self.art:SetPoint("TOPLEFT", self, "TOPLEFT", cote, -cote)
+        self.art:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -cote, math.max(2, em.bas))
+    end
+    p:SetScript("OnSizeChanged", function(self) self:AjusterArt() end)
 
     local pied = CreateFrame("Frame", nil, p)
     pied:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 3, 3)

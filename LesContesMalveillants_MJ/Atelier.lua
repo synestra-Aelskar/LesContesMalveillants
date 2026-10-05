@@ -65,7 +65,106 @@ local function OptionsBonus(famille)
     return out
 end
 
--- L'avantage relance un jet : seuls les champs qui se lancent y ont droit.
+-- La categorie du compendium que vise cette famille, pour y chercher un jeu
+-- d'equilibrage. `nil` quand la famille n'a pas de categorie propre.
+local function CategorieForge(famille, edition)
+    if famille == "traits" then return "traits" end
+    if famille == "races" then return "races" end
+    local registre = Brouillons.Registre(famille)
+    if not registre then return nil end
+    if #registre.CATEGORIES == 1 then return registre.CATEGORIES[1].id end
+    return edition and edition.categorie or nil
+end
+
+-- Le jeu d'equilibrage en cours, s'il y en a un et qu'il est choisi.
+local function JeuChoisi(edition)
+    if not edition or not edition.forge then return nil end
+    local jeu, rarete = LCM.Forge.Lire(edition.forge)
+    if not (jeu and rarete) then return nil end
+    return jeu, rarete
+end
+
+-- Ce qu'une statistique autorise, en une ligne lisible : « 0 à 4 · 2 pt »,
+-- « verrouillé à 1 ». C'est ce qui manquait le plus — on saisissait a
+-- l'aveugle, et le refus tombait a l'enregistrement (5 octobre 2026).
+local function Bornes(limites)
+    local N = LCM.Compendium.Nombre
+    if limites.verrou then
+        return string.format("verrouillé à %s", N(limites.base))
+    end
+    local morceaux = {}
+    if limites.min and limites.max then
+        morceaux[#morceaux + 1] = string.format("%s à %s", N(limites.min), N(limites.max))
+    elseif limites.min then
+        morceaux[#morceaux + 1] = string.format("%s au moins", N(limites.min))
+    elseif limites.max then
+        morceaux[#morceaux + 1] = string.format("%s au plus", N(limites.max))
+    end
+    if limites.base and limites.base ~= 0 then
+        morceaux[#morceaux + 1] = string.format("base %s", N(limites.base))
+    end
+    morceaux[#morceaux + 1] = string.format("%s pt", N(limites.cout))
+    return table.concat(morceaux, " · ")
+end
+
+-- Les bonus que le JEU autorise, avec leurs bornes. Une statistique
+-- verrouillee n'est pas proposee : on ne peut rien en faire, et l'offrir
+-- revient a promettre une saisie qui sera refusee.
+local function OptionsBonusForge(edition)
+    local jeu, rarete = JeuChoisi(edition)
+    if not jeu then return nil end
+    local out = {}
+    for _, champ in ipairs(LCM.Forge.Champs(jeu.categorie)) do
+        local limites = LCM.Forge.Limites(jeu, champ.cle, rarete.id)
+        if not limites.verrou then
+            -- Range par DOSSIER, comme le panneau de la forge : cent quarante
+            -- statistiques a plat sont introuvables. Les bornes vont dans le
+            -- libelle — les mettre en intertitre groupait « 0 à 4 · 2 pt »
+            -- ensemble et eparpillait les champs au hasard (5 octobre 2026).
+            out[#out + 1] = {
+                id = champ.cle,
+                label = string.format("%s   |cff8a8a8a%s|r", champ.label, Bornes(limites)),
+                groupe = champ.dossier or "Général",
+            }
+        end
+    end
+    return out
+end
+
+-- La liste a proposer.
+--
+-- Trois cas, et le troisieme compte : si un jeu VISE la categorie mais qu'on
+-- n'en a pas encore choisi un, on ne propose RIEN. Retomber sur la feuille
+-- entiere laisserait choisir une statistique puis se faire refuser a
+-- l'enregistrement, sans comprendre pourquoi.
+local function OptionsBonusPour(edition)
+    local duJeu = OptionsBonusForge(edition)
+    if duJeu then return duJeu end
+    local categorie = CategorieForge(edition.famille, edition)
+    local jeux = categorie and LCM.Forge.PourCategorie(categorie) or {}
+    if #jeux > 0 then return {} end
+    return OptionsBonus(edition.famille)
+end
+
+-- L'avantage ne se choisit que parmi ce que l'entree AMELIORE, et seulement
+-- sur un jet. Prendre l'avantage sur un jet qu'on ne touche pas — ou pire, sur
+-- un qu'on penalise — n'a aucun sens : le desavantage y est deja, de facto
+-- (regle du 5 octobre 2026, cf. Core/Traits.lua).
+local function OptionsAvantageParmiBonus(e)
+    local out = {}
+    for _, ligne in ipairs(e.bonus or {}) do
+        local montant = tonumber(ligne.montant) or 0
+        local field = ligne.champ and LCM.Schema.Field(ligne.champ)
+        if montant > 0 and field and field.kind == "roll" then
+            out[#out + 1] = { id = field.id, label = field.label,
+                              groupe = string.format("Bonus +%d", montant) }
+        end
+    end
+    return out
+end
+
+-- L'ancienne liste : tous les jets de la feuille. Gardee pour les familles qui
+-- n'ont pas de bonus chiffres.
 local function OptionsAvantage()
     local out = {}
     for _, tab in ipairs(LCM.Schema.Tabs()) do
@@ -173,6 +272,8 @@ local function Definition(e)
     for _, champ in ipairs(e.avantage) do avantage[#avantage + 1] = champ end
 
     local definition = { id = id, label = nom, bonus = bonus, avantage = avantage }
+    -- Le jeu d'equilibrage choisi : c'est lui que Forge.Verifier attend.
+    if e.forge and e.forge ~= "" then definition.forge = e.forge end
     if e.famille == "traits" then
         definition.cout = e.cout
     else
@@ -234,7 +335,7 @@ local function LigneBonus(f, p, c)
     ligne:SetHeight(22)
     ligne.champ = UI.Bouton(ligne, "", 220, 20, function()
         f.choix.titre:SetText("Bonus sur…")
-        f.choix:Proposer(ligne.champ, OptionsBonus(f.edition.famille), function(id)
+        f.choix:Proposer(ligne.champ, OptionsBonusPour(f.edition), function(id)
             f.edition.bonus[ligne.index].champ = id
             p:Remplir()
         end)
@@ -255,6 +356,11 @@ local function LigneBonus(f, p, c)
         p:Remplir()
     end)
     ligne.retirer:SetPoint("LEFT", ligne.montant, "RIGHT", 6, 0)
+
+    -- Ce que le jeu autorise sur CETTE statistique, et ce qu'elle coute.
+    ligne.bornes = UI.Texte(ligne, "", UI.C.discret, "GameFontNormalSmall")
+    ligne.bornes:SetPoint("LEFT", ligne.retirer, "RIGHT", 8, 0)
+    ligne.bornes:SetJustifyH("LEFT")
     return ligne
 end
 
@@ -316,6 +422,69 @@ local function PanneauEffets(f, genre)
     local c = p.contenu
     EnTete(f, p, c)
     local registre = genre ~= "traits" and genre ~= "races" and Brouillons.Registre(genre) or nil
+
+    -- Le jeu d'equilibrage. Le bareme de la forge BLOQUE (Core/Forge.lua) :
+    -- des qu'un jeu vise la categorie, une entree qui n'en choisit pas est
+    -- REFUSEE. Sans ce champ, l'atelier ne pouvait plus rien enregistrer dans
+    -- cette categorie — il ignorait la forge entierement (5 octobre 2026).
+    p.lblForge = Libelle(c, "Équilibrage")
+    p.forge = UI.Bouton(c, "", 260, 22, function()
+        local categorie = CategorieForge(genre, f.edition)
+        local options = categorie and LCM.Forge.Options(categorie) or {}
+        if #options == 0 then
+            LCM.Alerte("aucun jeu d'équilibrage ne vise cette catégorie.")
+            return
+        end
+        f.choix.titre:SetText("Jeu d'équilibrage")
+        f.choix:Proposer(p.forge, options, function(valeur)
+            f.edition.forge = valeur
+            p:Remplir()
+        end)
+    end)
+    p.bilanForge = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
+    p.bilanForge:SetJustifyH("LEFT")
+    p.bilanForge:SetWordWrap(true)
+
+    -- Ce que le jeu autorise, et ce qu'on a depense : sans ca on saisit a
+    -- l'aveugle et on se fait refuser a l'enregistrement.
+    function p:MajForge()
+        local categorie = CategorieForge(genre, f.edition)
+        local jeux = categorie and LCM.Forge.PourCategorie(categorie) or {}
+        local concerne = #jeux > 0
+        self.lblForge:SetShown(concerne)
+        self.forge:SetShown(concerne)
+        self.bilanForge:SetShown(concerne)
+        if not concerne then return end
+
+        local valeur = f.edition.forge
+        local jeu, rarete = LCM.Forge.Lire(valeur)
+        self.forge.label:SetText(jeu and rarete
+            and string.format("%s · %s", jeu.label, rarete.label)
+            or "— choisir un jeu et sa rareté —")
+        if not (jeu and rarete) then
+            self.bilanForge:SetText("Obligatoire : cette catégorie passe par un jeu d'équilibrage.")
+            return
+        end
+        local bonus = {}
+        for _, ligne in ipairs(f.edition.bonus or {}) do
+            bonus[ligne.champ] = tonumber(ligne.montant) or 0
+        end
+        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus)
+        local hors
+        for _, ligne in ipairs(bilan.lignes) do
+            if ligne.hors then hors = ligne.hors break end
+        end
+        if hors then
+            self.bilanForge:SetText(hors)
+            self.bilanForge:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+        else
+            local depasse = bilan.total > rarete.points
+            self.bilanForge:SetText(string.format("%s / %d points du pool %s",
+                LCM.Compendium.Nombre(bilan.total), rarete.points, rarete.label))
+            local couleur = depasse and UI.C.plein or UI.C.discret
+            self.bilanForge:SetTextColor(couleur[1], couleur[2], couleur[3])
+        end
+    end
 
     local plafond = LCM.Traits.COUT_MAX
     if genre == "traits" then
@@ -421,7 +590,7 @@ local function PanneauEffets(f, genre)
 
     p.lblDesc = Libelle(c, "Description")
     p.lblDesc:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -86 - decale)
-    p.description = UI.Zone(c, LARGEUR_FORMULAIRE - 20, 72, function(texte)
+    p.description = UI.Zone(c, LARGEUR_FORMULAIRE - 20, 118, function(texte)
         f.edition.description = texte
     end)
     p.description:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -102 - decale)
@@ -430,16 +599,83 @@ local function PanneauEffets(f, genre)
     p.enteteAvantage = UI.EnTeteGroupe(c, "AVANTAGE (relance, garde le meilleur)")
     p.lignesBonus, p.lignesAvantage = {}, {}
 
-    p.ajoutBonus = UI.Bouton(c, "+  Bonus", 110, 20, function()
+    p.ajoutBonus = UI.Bouton(c, "+  Bonus", 150, 20, function()
         f.choix.titre:SetText("Bonus sur…")
-        f.choix:Proposer(p.ajoutBonus, OptionsBonus(f.edition.famille), function(id)
+        -- Quand un jeu d'equilibrage vise la categorie, on ouvre LA FORGE :
+        -- son panneau range les statistiques par dossier repliable, montre les
+        -- bornes et compte le pool. Une liste a plat de cent quarante entrees
+        -- etait intenable (5 octobre 2026).
+        local categorieForge = CategorieForge(f.edition.famille, f.edition)
+        if categorieForge and #LCM.Forge.PourCategorie(categorieForge) > 0 then
+            local valeurs = {}
+            for _, ligne in ipairs(f.edition.bonus or {}) do
+                valeurs[ligne.champ] = tonumber(ligne.montant) or ligne.montant
+            end
+            -- `UI.Forge` et non `ForgeUI` : ce dernier est un local de
+            -- Forge.lua, donc nil ici. Resolu a l'appel, l'ordre du .toc n'a
+            -- pas d'importance.
+            local forgeUI = UI.Forge
+            if not (forgeUI and forgeUI.OuvrirPourBonus) then
+                LCM.Alerte("la forge n'est pas chargée.")
+                return
+            end
+            local ouverte, raison = forgeUI.OuvrirPourBonus(categorieForge, valeurs, f.edition.forge,
+                function(bonus, valeurForge)
+                    f.edition.bonus = {}
+                    for cle, montant in pairs(bonus or {}) do
+                        -- Zero n'est pas un bonus : l'ecrire encombrerait la
+                        -- liste de cent quarante lignes a zero.
+                        if (tonumber(montant) or 0) ~= 0 then
+                            table.insert(f.edition.bonus, { champ = cle, montant = tostring(montant) })
+                        end
+                    end
+                    table.sort(f.edition.bonus, function(a, b) return a.champ < b.champ end)
+                    f.edition.forge = valeurForge
+                    p:Remplir()
+                end)
+            if not ouverte then LCM.Alerte(tostring(raison)) end
+            return
+        end
+        local options = OptionsBonusPour(f.edition)
+        if #options == 0 then
+            LCM.Alerte("choisis d'abord le jeu d'équilibrage et sa rareté.")
+            return
+        end
+        f.choix:Proposer(p.ajoutBonus, options, function(id)
             table.insert(f.edition.bonus, { champ = id, montant = "1" })
             p:Remplir()
         end)
     end)
     p.ajoutAvantage = UI.Bouton(c, "+  Avantage", 110, 20, function()
         f.choix.titre:SetText("Avantage sur…")
-        f.choix:Proposer(p.ajoutAvantage, OptionsAvantage(), function(id)
+        -- Pour un TRAIT : parmi les bonus POSITIFS deja saisis, et pas la
+        -- feuille entiere — un trait donne l'avantage sur ce qu'il ameliore
+        -- (regle du 5 octobre 2026).
+        --
+        -- Les autres familles gardent la liste complete : un OBJET qui fait
+        -- relancer un jet sans rien y ajouter est legitime (l'Amulette du
+        -- guetteur donne l'avantage en Pistage sans bonus chiffre dessus), et
+        -- la regle ne parlait que des traits.
+        local options
+        if f.edition.famille == "traits" then
+            options = OptionsAvantageParmiBonus(f.edition)
+            if #options == 0 then
+                LCM.Alerte("ajoute d'abord un bonus POSITIF sur un jet : "
+                    .. "c'est parmi eux que se choisit l'avantage d'un trait.")
+                return
+            end
+            -- Un avantage par niveau, pas un de plus (Core/Traits.lua).
+            local plafondAvantages = tonumber(f.edition.cout) or 1
+            if #f.edition.avantage >= plafondAvantages then
+                LCM.Alerte(string.format(
+                    "un trait de niveau %d ne donne que %d avantage(s).",
+                    plafondAvantages, plafondAvantages))
+                return
+            end
+        else
+            options = OptionsAvantage()
+        end
+        f.choix:Proposer(p.ajoutAvantage, options, function(id)
             for _, deja in ipairs(f.edition.avantage) do
                 if deja == id then return end
             end
@@ -480,7 +716,21 @@ local function PanneauEffets(f, genre)
             self.icone:SetText(e.icone or "")
             self.apercu:SetTexture(LCM.Objets.Icone(e.icone))
         end
+        -- Le jeu d'equilibrage, juste au-dessus des bonus : c'est lui qui dit
+        -- ce qu'on a le droit d'y mettre.
+        self:MajForge()
+
         local y = -186 - self.decale
+        if self.forge:IsShown() then
+            self.lblForge:ClearAllPoints()
+            self.lblForge:SetPoint("TOPLEFT", c, "TOPLEFT", 0, y)
+            self.forge:ClearAllPoints()
+            self.forge:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, y + 4)
+            self.bilanForge:ClearAllPoints()
+            self.bilanForge:SetPoint("TOPLEFT", c, "TOPLEFT", COLONNE, y - 22)
+            self.bilanForge:SetPoint("TOPRIGHT", c, "TOPRIGHT", -20, y - 22)
+            y = y - 48
+        end
         -- Une famille sans effets (les sacs) s'arrete a la description.
         for _, w in ipairs({ self.enteteBonus, self.ajoutBonus, self.enteteAvantage, self.ajoutAvantage }) do
             w:SetShown(not self.sansEffets)
@@ -493,11 +743,26 @@ local function PanneauEffets(f, genre)
         self.enteteBonus:SetPoint("TOPLEFT", c, "TOPLEFT", 0, y)
         self.enteteBonus:SetPoint("TOPRIGHT", c, "TOPRIGHT", -20, y)
         y = y - 26
+        local jeuCourant, rareteCourante = JeuChoisi(e)
         y = Ranger(c, self.lignesBonus, #e.bonus, function() return LigneBonus(f, self, c) end, y,
             function(ligne, index)
                 local b = e.bonus[index]
                 ligne.champ.label:SetText(LibelleChamp(b.champ))
                 ligne.montant:SetText(tostring(b.montant or ""))
+                -- Les bornes du jeu, et le rouge quand on en sort : le refus
+                -- doit se voir en saisissant, pas a l'enregistrement.
+                if jeuCourant then
+                    local limites = LCM.Forge.Limites(jeuCourant, b.champ, rareteCourante.id)
+                    local valeur = tonumber(b.montant) or 0
+                    local hors = (limites.verrou and valeur ~= limites.base)
+                        or (limites.min and valeur < limites.min)
+                        or (limites.max and valeur > limites.max)
+                    ligne.bornes:SetText(Bornes(limites))
+                    local couleur = hors and UI.C.plein or UI.C.discret
+                    ligne.bornes:SetTextColor(couleur[1], couleur[2], couleur[3])
+                else
+                    ligne.bornes:SetText("")
+                end
             end)
         self.ajoutBonus:ClearAllPoints()
         self.ajoutBonus:SetPoint("TOPLEFT", c, "TOPLEFT", 0, y)
@@ -573,10 +838,7 @@ local function Construire()
 
     f.panneaux = {}
     for _, famille in ipairs(FAMILLES) do f.panneaux[famille.id] = PanneauEffets(f, famille.id) end
-    for _, p in pairs(f.panneaux) do
-        p:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, 0)
-        p:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 64)
-    end
+    -- Pose par f:PlacerPanneaux(), qui suit la hauteur reelle du message.
 
     -- Une liste de choix ou une confirmation n'a plus de sens fenetre fermee.
     f:HookScript("OnHide", function()
@@ -586,10 +848,29 @@ local function Construire()
 
     -- ----- comportement ---------------------------------------------------
 
+    -- Les panneaux descendent jusqu'au message, qui n'est pas toujours la.
+    -- Ils reservaient 64 px en bas SYSTEMATIQUEMENT : sans message, c'etait du
+    -- vide, et le formulaire se mettait a defiler pour rien (5 octobre 2026).
+    function f:PlacerPanneaux()
+        local texte = self.message:GetText() or ""
+        -- 28 : la rangee de boutons et son air. Au-dela, la hauteur reelle du
+        -- message, qui peut faire deux ou trois lignes.
+        local bas = 28
+        if texte ~= "" then
+            bas = 36 + math.max(14, self.message:GetStringHeight() or 14)
+        end
+        for _, p in pairs(self.panneaux) do
+            p:ClearAllPoints()
+            p:SetPoint("TOPLEFT", self.droite, "TOPLEFT", 0, 0)
+            p:SetPoint("BOTTOMRIGHT", self.droite, "BOTTOMRIGHT", 0, bas)
+        end
+    end
+
     function f:Message(texte, couleur)
         couleur = couleur or UI.C.discret
         self.message:SetText(texte or "")
         self.message:SetTextColor(couleur[1], couleur[2], couleur[3])
+        self:PlacerPanneaux()
     end
 
     function f:MajIdentifiant()
@@ -674,6 +955,7 @@ local function Construire()
     end
 
     function f:Afficher()
+        self:PlacerPanneaux()
         local e = self.edition
         for famille, p in pairs(self.panneaux) do p:SetShown(famille == self.famille) end
         local p = self.panneaux[self.famille]

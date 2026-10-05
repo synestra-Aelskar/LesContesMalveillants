@@ -991,7 +991,57 @@ function UI.Zone(parent, largeur, hauteur, onChange)
     -- derniere ligne ecrite.
     z:SetScript("OnMouseDown", function() e:SetFocus() end)
 
-    function z:SetText(texte) self.saisie:SetText(texte or "") end
+    -- ----- le defilement ---------------------------------------------------
+    -- Le cadre ROGNE ce qui depasse (SetClipsChildren) : sans defilement, une
+    -- description un peu longue sortait par le bas et rien ne permettait d'y
+    -- revenir — on ne pouvait ni la lire ni la corriger (5 octobre 2026).
+    --
+    -- On deplace la boite de saisie dans son cadre plutot que d'employer un
+    -- ScrollFrame : c'est ce que fait deja UI.Defilement, et une boite de
+    -- saisie multi-lignes dans un ScrollFrame demande les fonctions Blizzard
+    -- (ScrollingEdit_*) qui n'existent pas partout.
+    z.decalage = 0
+
+    local function Hauteurs()
+        local visible = z:GetHeight() - 8
+        local contenu = e:GetHeight() or 0
+        -- Une boite de saisie ne connait sa hauteur qu'une fois dessinee : sans
+        -- rien, on prend la hauteur visible, donc aucun defilement.
+        if contenu <= 0 then contenu = visible end
+        return visible, contenu
+    end
+
+    function z:Aller(decalage)
+        local visible, contenu = Hauteurs()
+        local maximum = math.max(0, contenu - visible)
+        self.decalage = math.max(0, math.min(tonumber(decalage) or 0, maximum))
+        e:ClearAllPoints()
+        e:SetPoint("TOPLEFT", self, "TOPLEFT", 6, -4 + self.decalage)
+        return self.decalage
+    end
+
+    z:EnableMouseWheel(true)
+    z:SetScript("OnMouseWheel", function(self, sens)
+        self:Aller(self.decalage - (sens or 0) * 18)
+    end)
+
+    -- Le curseur reste en vue : taper au bas d'un texte long doit suivre, sinon
+    -- on ecrit a l'aveugle.
+    e:SetScript("OnCursorChanged", function(_, _, y, _, hauteurLigne)
+        local visible = z:GetHeight() - 8
+        local haut = -(tonumber(y) or 0)
+        local bas = haut + (tonumber(hauteurLigne) or 14)
+        if bas - z.decalage > visible then
+            z:Aller(bas - visible)
+        elseif haut < z.decalage then
+            z:Aller(haut)
+        end
+    end)
+
+    function z:SetText(texte)
+        self.saisie:SetText(texte or "")
+        self:Aller(0)
+    end
     function z:GetText() return self.saisie:GetText() or "" end
     return z
 end

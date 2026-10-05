@@ -424,4 +424,100 @@ local heros = LCM.Entities.Create("h2", "H2", "player")
 LCM.Entities.Set_Value(heros, "race", "sylvaine")
 attendu("la race donne sa Perception", LCM.Formules.Primaire(heros, "perception"), 4)
 
+dire("== l'atelier et le jeu d'equilibrage")
+-- Le bareme de la forge BLOQUE (Core/Forge.lua) : des qu'un jeu vise une
+-- categorie, une entree qui n'en choisit pas est refusee. L'atelier ignorait la
+-- forge, donc il ne pouvait plus rien enregistrer dans cette categorie
+-- (5 octobre 2026).
+LCM.Forge.Add({
+    id = "jeu_traits", label = "Création de trait", categorie = "traits",
+    raretes = { { id = "commun", label = "Commun", points = 10, couleur = "FFFFFF" } },
+    champs = { escalade = { cout = "2", base = "0", max = "4" } },
+})
+f.onglets.boutons[1]:Click()
+f:Nouveau()
+local pe = f.panneaux.traits
+pe:Remplir()
+attendu("le champ d'equilibrage apparait", pe.forge:IsShown(), true)
+attendu("et dit qu'il faut choisir",
+    (pe.bilanForge:GetText() or ""):find("Obligatoire") ~= nil, true)
+
+-- Sans choisir : refus, avec la raison.
+f.edition.label = "Sans jeu"
+table.insert(f.edition.bonus, { champ = "escalade", montant = "1" })
+f:Enregistrer()
+attendu("refuse sans jeu", LCM.Traits.Get("sans_jeu"), nil)
+attendu("et on dit pourquoi",
+    (f.message:GetText() or ""):find("équilibrage") ~= nil, true)
+
+-- En le choisissant : accepte, et le bilan compte les points.
+f.edition.forge = "jeu_traits/commun"
+pe:Remplir()
+attendu("le bilan compte le pool", (pe.bilanForge:GetText() or ""):find("/ 10") ~= nil, true)
+f:Enregistrer()
+attendu("accepte avec son jeu", LCM.Traits.Get("sans_jeu") ~= nil, true)
+attendu("et le jeu est retenu", LCM.Brouillons.Get("traits", "sans_jeu").forge, "jeu_traits/commun")
+
+-- Les bonus proposes viennent du JEU, pas de la feuille entiere.
+f:Nouveau()
+f.edition.label = "Essai bornes"
+f.edition.forge = "jeu_traits/commun"
+pe:Remplir()
+pe.ajoutBonus:Click()
+local proposes = {}
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() then proposes[#proposes + 1] = b.choix end end
+-- Le jeu couvre TOUT le bloc de statistiques de sa categorie : ce qu'il
+-- apporte, ce sont les bornes de chacune et le retrait des verrouillees.
+attendu("une liste a proposer", #proposes > 0, true)
+attendu("escalade y est", (("," .. table.concat(proposes, ",") .. ","):find(",escalade,")) ~= nil, true)
+-- Les bornes voyagent dans l'intertitre de chaque option : on les verifie sur
+-- la ligne posee, qui est ce que le MJ lit en saisissant.
+attendu("une statistique verrouillee n'est pas proposee",
+    (("," .. table.concat(proposes, ",") .. ","):find(",pa,")) == nil
+    or LCM.Forge.Limites(LCM.Forge.Get("jeu_traits"), "pa", "commun").verrou ~= true, true)
+for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "escalade" then b:Click() end end
+
+-- La ligne porte ses bornes, et passe en rouge quand on en sort.
+pe.lignesBonus[1].montant:Saisir("2")
+pe:Remplir()
+attendu("les bornes sont dites", (pe.lignesBonus[1].bornes:GetText() or ""):find("2 pt") ~= nil, true)
+local rouge = { pe.lignesBonus[1].bornes:GetTextColor() }
+pe.lignesBonus[1].montant:Saisir("9")
+pe:Remplir()
+local horsBornes = { pe.lignesBonus[1].bornes:GetTextColor() }
+attendu("hors bareme : la couleur change", horsBornes[1] ~= rouge[1] or horsBornes[2] ~= rouge[2], true)
+attendu("et le bilan refuse aussi",
+    (pe.bilanForge:GetText() or ""):find("maximum") ~= nil, true)
+
+-- « + Bonus » ouvre LA FORGE quand un jeu vise la categorie : son panneau
+-- range les statistiques par dossier repliable, montre les bornes et compte le
+-- pool. Une liste a plat de cent quarante entrees etait intenable.
+f:Nouveau()
+f.edition.label = "Par la forge"
+f.edition.forge = "jeu_traits/commun"
+pe:Remplir()
+pe.ajoutBonus:Click()
+local forge = LCM.UI.Forge.Fenetre()
+attendu("la forge s'ouvre", forge:IsShown(), true)
+attendu("en mode « rendre »", LCM.UI.Forge.rendre ~= nil, true)
+attendu("et le bouton le dit", forge.creer.label:GetText(), "Reprendre ces valeurs")
+LCM.UI.Forge.courant.valeurs.escalade = 3
+forge.creer:Click()
+attendu("les valeurs reviennent dans l'atelier", #f.edition.bonus, 1)
+attendu("avec leur montant", f.edition.bonus[1].montant, "3")
+attendu("et le jeu reste choisi", f.edition.forge, "jeu_traits/commun")
+attendu("la forge se referme", forge:IsShown(), false)
+attendu("le mode « rendre » est retombe", LCM.UI.Forge.rendre, nil)
+
+-- Sans jeu choisi, la forge s'ouvre quand meme : c'est ELLE qui propose le jeu
+-- et la rarete, donc on n'a plus a les choisir avant. L'atelier demandait
+-- « choisis d'abord le jeu » ; ce detour n'a plus lieu d'etre.
+f:Nouveau()
+pe:Remplir()
+attendu("rien n'est encore choisi", f.edition.forge, nil)
+pe.ajoutBonus:Click()
+attendu("la forge s'ouvre tout de meme", LCM.UI.Forge.Fenetre():IsShown(), true)
+LCM.UI.Forge.Fenetre():Hide()
+LCM.Brouillons.Supprimer("traits", "sans_jeu")
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

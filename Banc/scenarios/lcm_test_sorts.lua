@@ -63,11 +63,20 @@ ed.valider:Click()
 attendu("sans nom : refuse et dit", ed.probleme:GetText(), "il faut un nom.")
 attendu("et il reste ouvert", ed:IsShown(), true)
 ed.nom:Saisir("Souffle de cendre")
-ed.jetMin:Saisir("2")
-ed.jetMax:Saisir("12")
+-- 5 octobre 2026 : le jet designe une COMPETENCE de la fiche, pas une plage
+-- ecrite a la main qui ne tenait compte de rien et vieillissait avec le
+-- personnage. Et il se decoche, pour un sort qui ne lance rien.
+attendu("decoche a l'ouverture", ed.jetActif, false)
+attendu("et il le dit", ed.aideJet:GetText(), "sort sans jet")
+attendu("des competences a proposer", #LCM.UI.SortEditeur.Competences() > 0, true)
+ed.competenceId = "esprit"
+ed.jetActif = true
+ed.avecJet:Cocher(true)
+ed:MajJet()
+attendu("le bouton nomme la competence", ed.competence.label:GetText(), "Esprit")
 ed.valider:Click()
 attendu("ecrit", S.Get(moi, "souffle_de_cendre") ~= nil, true)
-attendu("avec son jet", S.Get(moi, "souffle_de_cendre").jet.max, 12)
+attendu("avec sa competence", S.Get(moi, "souffle_de_cendre").competence, "esprit")
 attendu("l'editeur se ferme", ed:IsShown(), false)
 -- Le personnage en a deja un : on cherche la carte par son nom.
 local function carte(nom)
@@ -153,5 +162,33 @@ dire("== supprimer nettoie la sauvegarde")
 S.Supprimer(moi, "trait_de_givre")
 attendu("plus de sorts", S.Compte(moi), 0)
 attendu("ni de table", moi.sorts, nil)
+
+dire("== un sort peut declencher une action")
+-- Repris de Necronicon : un sort du grimoire lance autre chose que du texte —
+-- une action de combat, une macro, ou un sort Arcanum (5 octobre 2026).
+local avecAction = S.Ajouter(moi, {
+    label = "Trait de givre", competence = "esprit",
+    action = { genre = "resolution", ref = "attaque_simple" },
+})
+attendu("ecrit", avecAction ~= nil, true)
+attendu("il garde son genre", avecAction.action.genre, "resolution")
+attendu("et sa reference", avecAction.action.ref, "attaque_simple")
+attendu("un genre inconnu est refuse",
+    select(1, S.Ajouter(moi, { label = "Faux", action = { genre = "rien", ref = "x" } })), nil)
+attendu("une action sans reference aussi",
+    select(1, S.Ajouter(moi, { label = "Faux", action = { genre = "macro", ref = "" } })), nil)
+attendu("une competence inconnue est refusee",
+    select(1, S.Ajouter(moi, { label = "Faux", competence = "nawak" })), nil)
+
+-- Une macro sans client qui sache les lancer : on le DIT au lieu de faire
+-- semblant d'avoir lance quelque chose.
+local macro = S.Ajouter(moi, { label = "Salut", action = { genre = "macro", ref = "/wave" } })
+local ok, raison = S.Lancer(moi, macro)
+if type(RunMacroText) ~= "function" then
+    attendu("macro impossible : refus franc", ok, false)
+    attendu("et on dit pourquoi", tostring(raison):find("macro") ~= nil, true)
+end
+S.Supprimer(moi, macro.id)
+S.Supprimer(moi, avecAction.id)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

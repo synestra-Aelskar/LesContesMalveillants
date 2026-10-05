@@ -312,6 +312,13 @@ local function Construire(vue, rang)
             self.barre:SetWidth(contenu)
             self.barre:Disposer(contenu, self.mesures.onglet)
         end
+        -- Les blocs gardaient la largeur qu'ils avaient a la construction : la
+        -- fenetre se resserrait, eux non, et la valeur se retrouvait au milieu
+        -- d'un bloc trop large.
+        local utile = contenu - gauche
+        for _, page in pairs(self.pages) do
+            if page.Largeur then page:Largeur(utile) end
+        end
     end
 
     -- Une vue simple : sa page unique, sous le nom qu'on lui a toujours donne.
@@ -332,27 +339,16 @@ local function Construire(vue, rang)
         -- replie pas la meme chose a chaque ouverture.
         LCM.EnsureDatabase()
         f.artworkReplie = LCM.db.settings.ficheArtworkReplie == true
-        f.replierArtwork = CreateFrame("Button", nil, f)
-        -- La plaque fait 385 x 200 dans la planche : ecrasee dans un carre, elle
-        -- ne ressemblait a rien. On garde son rapport.
-        f.replierArtwork:SetSize(62, 32)
-        f.replierArtwork:SetScript("OnClick", function()
+        -- Une poignee au style des autres controles de l'habillage (le meme que
+        -- la croix et les boutons de jauge). J'ai d'abord essaye d'y plaquer
+        -- l'ornement du bas du cadre : il fait 385 x 200 dans la planche, et a
+        -- la taille d'une poignee il ne ressemblait plus a rien. Le volet, lui,
+        -- a desormais son vrai cadre — c'est la que l'ornement a sa place.
+        f.replierArtwork = UI.Bouton(f, "‹", 20, 26, function()
             f.artworkReplie = not f.artworkReplie
             LCM.db.settings.ficheArtworkReplie = f.artworkReplie or nil
             f:DisposerArtwork()
         end)
-        f.replierArtwork:SetFrameLevel(f.contenu:GetFrameLevel() + 20)
-        -- La plaque ornee du bas du cadre, reprise comme poignee : un chevron
-        -- dans une boite ne ressemblait a rien au milieu de cet habillage.
-        -- C'est la meme piece, posee au milieu de la barre qui separe l'artwork
-        -- du contenu — celle qu'elle fait justement coulisser (4 octobre 2026).
-        if UI.AelRef then
-            f.replierArtwork.plaque = UI.AelRef(f.replierArtwork, 0, 256, 385, 200, "OVERLAY")
-            f.replierArtwork.plaque:SetAllPoints(f.replierArtwork)
-            f.replierArtwork.plaque:SetBlendMode("ADD")
-        end
-        f.replierArtwork.survol = UI.Aplat(f.replierArtwork, UI.C.survol, "HIGHLIGHT")
-        f.replierArtwork.survol:SetAllPoints(f.replierArtwork)
         UI.Bulle(f.replierArtwork, "Artwork",
             "Replier ou déplier l'artwork, le niveau et l'expérience.")
     end
@@ -379,6 +375,7 @@ local function Construire(vue, rang)
             -- Toujours au meme endroit : sur le bord gauche de la fenetre, a
             -- mi-hauteur. C'est la limite que le volet longe, et elle ne bouge
             -- plus — on sait ou retrouver la poignee.
+            self.replierArtwork.label:SetText(ouvert and "‹" or "›")
             self.replierArtwork:ClearAllPoints()
             self.replierArtwork:SetPoint("CENTER", self, "LEFT", 0, 0)
             self.replierArtwork:SetFrameLevel(self:GetFrameLevel() + 20)
