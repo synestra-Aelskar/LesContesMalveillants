@@ -235,7 +235,9 @@ E.metiers = {
 -- conteneurs du template (Sante, Apprentissage).
 
 E.conteneurs = {
-    arme = 1,             -- Equipements › Armes principales
+    -- Deux mains : une arme et un bouclier, ou une seule arme qui prend les
+    -- deux (son champ « emplacements »). 5 octobre 2026.
+    arme = 2,             -- Equipements › Armes
     equipement = 5,       -- Equipements › Armures et vetements
     accessoire = 5,       -- Equipements › Accessoires
     etat = 30,            -- Sante › Etats divers
@@ -388,6 +390,8 @@ E.mecaniques = {
     { id = "attaque_simple",   label = "Attaque simple" },
     { id = "perce_armure",     label = "Perce-armure" },
     { id = "brise_armure",     label = "Brise-armure" },
+    { id = "provocation",      label = "Provocation" },
+    { id = "intimidation",     label = "Intimidation" },
     { id = "bouclier",         label = "Bouclier" },
     { id = "soin",             label = "Soin" },
     { id = "buff",             label = "Buff" },

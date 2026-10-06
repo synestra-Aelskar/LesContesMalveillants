@@ -24,7 +24,7 @@ local _, LCM = ...
 local Objets = LCM.Catalogue({
     nom = "objet", prefixe = "Objets", cleEntite = "equipement", primaires = true,
     categories = {
-        { id = "arme",       label = "Arme",       onglet = "Armes",       bloc = "Armes principales" },
+        { id = "arme",       label = "Arme",       onglet = "Armes",       bloc = "Armes" },
         { id = "equipement", label = "Armure",     onglet = "Armures",     bloc = "Armures et vêtements", toutesLesCases = true },
         { id = "accessoire", label = "Accessoire", onglet = "Accessoires", bloc = "Accessoires", toutesLesCases = true },
     },
@@ -33,7 +33,14 @@ local Objets = LCM.Catalogue({
     champs = {
         { cle = "armure", libelle = "armure", min = 0, categories = { equipement = true },
           defaut = function() return LCM.Equilibrage.armure.parDefaut end },
+        -- Combien de mains une arme demande. Une epee en prend une, et il
+        -- reste la place d'un bouclier ; une arme a deux mains prend les deux
+        -- (5 octobre 2026).
+        { cle = "taille", libelle = "emplacements", min = 1, max = 2,
+          categories = { arme = true }, defaut = 1 },
     },
+    -- Ce que l'element occupe : sa taille s'il en declare une.
+    taille = function(objet) return tonumber(objet and objet.taille) or 1 end,
 })
 LCM.Objets = Objets
 

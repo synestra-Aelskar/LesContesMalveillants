@@ -262,12 +262,14 @@ f:ChoisirCategorie("traits")
 attendu("Nouvelle entree", f.nouvelle:IsShown(), true)
 f.nouvelle:Click()
 local ed = LCM_CompendiumEditeur
+local idRapace = ed.travail.e.id
 attendu("editeur ouvert", ed:IsShown(), true)
 local onglets = {}
 for _, b in ipairs(ed.onglets) do if b:IsShown() then onglets[#onglets + 1] = b.label:GetText() end end
 attendu("onglets", table.concat(onglets, ","), "Général,Textes courts,Statistiques,Textes longs,Jauges,Listes,Avantage")
 ed.identite.nom:Saisir("Oeil du rapace")
-attendu("identifiant derive", (ed.identite.ident:GetText() or ""):match("^oeil_du_rapace") ~= nil, true)
+attendu("identifiant unique", (ed.identite.ident:GetText() or ""):match("^(%S+)"), idRapace)
+attendu("le nom ne devient pas l'identifiant", idRapace ~= "oeil_du_rapace", true)
 -- Onglet Statistiques, dossier Statistiques : un bonus de Force est refuse.
 for _, b in ipairs(ed.onglets) do if b.ongletId == "statistic" then b:Click() end end
 attendu("dossiers de statistiques", ed.dossiers[1]:IsShown(), true)
@@ -289,21 +291,33 @@ for champ, e in pairs(ed.editeurs) do if champ.cle == "cout" and e:IsShown() the
 edCout.saisie:Saisir("3")
 ed.ok:Click()
 attendu("enregistre et ferme", ed:IsShown(), false)
-local neuf = LCM.Traits.Get("oeil_du_rapace")
+local neuf = LCM.Traits.Get(idRapace)
 attendu("trait jouable", neuf and neuf.bonus.vue, 2)
 attendu("cout", neuf and neuf.cout, 3)
 attendu("brouillon", neuf and neuf.brouillon, true)
-attendu("sauvegarde du compagnon", LCM_MJ_DB.brouillons.traits.oeil_du_rapace.label, "Oeil du rapace")
+attendu("sauvegarde du compagnon", LCM_MJ_DB.brouillons.traits[idRapace].label, "Oeil du rapace")
 
-dire("== Contenu publie : lecture seule, Dup pour corriger")
+dire("== Contenu forgeable : modification directe dans la Forge")
 local rPub
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion" then rPub = r end end
 rPub.reglages:Click()
-attendu("lecture seule", ed.ok:IsShown(), false)
-attendu("et pourquoi", (ed.message:GetText() or ""):find("fichier généré fait foi") ~= nil, true)
-ed.annuler:Click()
+local forgeEdition = LCM.UI.Forge.Fenetre()
+attendu("la Forge s'ouvre", forgeEdition:IsShown(), true)
+attendu("l'ancien éditeur reste fermé", ed:IsShown(), false)
+attendu("elle reprend la bonne entrée", LCM.UI.Forge.courant.editionId, "maitre_de_la_discretion")
+attendu("le bouton annonce l'enregistrement", forgeEdition.creer.label:GetText(), "Enregistrer l'entrée")
+local toutesDansForge = true
+for _, id in ipairs({ "races", "traits", "etats", "maladies", "apprentissages", "armes", "armures" }) do
+    toutesDansForge = toutesDansForge and LCM.UI.Forge.EstCategorie(LCM.Compendium.Get(id))
+end
+attendu("toutes les familles demandées passent par la Forge", toutesDansForge, true)
+forgeEdition:Hide()
 rPub.dupliquer:Click()
-local copie = LCM.Traits.Get("maitre_de_la_discretion_copie")
+local copie
+for _, element in ipairs(LCM.Traits.list) do
+    if element.brouillon and element.label == "Maitre de la discrétion (copie)" then copie = element end
+end
+local copieId = copie and copie.id
 attendu("copie en brouillon", copie and copie.brouillon, true)
 attendu("libelle", copie and copie.label, "Maitre de la discrétion (copie)")
 attendu("bonus copie", copie and copie.bonus.discretion, 4)
@@ -312,11 +326,11 @@ dire("== Supprimer : brouillons oui, publie non")
 f:BasculerEdition()
 attendu("mode edition", f.modeEdition:IsShown(), true)
 local rCopie
-for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion_copie" then rCopie = r end end
+for _, r in ipairs(f.rangees) do if r.element and r.element.id == copieId then rCopie = r end end
 attendu("X en mode edition", rCopie.supprimer:IsShown(), true)
 rCopie.supprimer:Click()
 f.confirmation.oui:Click()
-attendu("copie supprimee", LCM.Traits.Get("maitre_de_la_discretion_copie"), nil)
+attendu("copie supprimee", LCM.Traits.Get(copieId), nil)
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion" then rPub = r end end
 rPub.supprimer:Click()
 f.confirmation.oui:Click()
@@ -335,7 +349,7 @@ attendu("plus masque", LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discret
 f:BasculerEdition()
 
 dire("== Modification groupee")
-for _, r in ipairs(f.rangees) do if r.element and r.element.id == "oeil_du_rapace" then r:Click() end end
+for _, r in ipairs(f.rangees) do if r.element and r.element.id == idRapace then r:Click() end end
 f.groupee:Click()
 local choixCout
 for _, b in ipairs(LCM_Choix_compendium_editeur and LCM_Choix_compendium_editeur.lignes or {}) do
@@ -345,11 +359,12 @@ choixCout:Click()
 local g = LCM_CompendiumGroupe
 g.saisie:Saisir("1")
 g.ok:Click()
-attendu("cout change", LCM.Traits.Get("oeil_du_rapace").cout, 1)
+attendu("cout change", LCM.Traits.Get(idRapace).cout, 1)
 
 dire("== Une connaissance : composants et fabrication")
 f:ChoisirCategorie("connaissances")
 f.nouvelle:Click()
+local idFonte = ed.travail.e.id
 ed.identite.nom:Saisir("Fonte du fer")
 for _, b in ipairs(ed.onglets) do if b.ongletId == "table" then b:Click() end end
 local edComp
@@ -364,13 +379,14 @@ attendu("onglet Fabrication", (function()
     for _, b in ipairs(ed.onglets) do if b.ongletId == "compendium_entry" then return b.label:GetText() end end
 end)(), "Fabrication")
 ed.ok:Click()
-local fonte = LCM.Connaissances.Get("fonte_du_fer")
+local fonte = LCM.Connaissances.Get(idFonte)
 attendu("connaissance creee", fonte ~= nil, true)
 attendu("composant pose", fonte and fonte.composants[1].ref, "ressources/eau")
 
 dire("== Une resolution : le cheminement")
 f:ChoisirCategorie("actions_mj")
 f.nouvelle:Click()
+local idCheminement = ed.travail.e.id
 ed.identite.nom:Saisir("Essai de cheminement")
 for _, b in ipairs(ed.onglets) do if b.ongletId == "table" then b:Click() end end
 local edArbre
@@ -379,7 +395,7 @@ edArbre.outils.feuille:Click()
 edArbre.outils.ajouter:Click()
 for _, b in ipairs(LCM_Choix_compendium_editeur.lignes) do if b:IsShown() and b.choix == "message" then b:Click() end end
 ed.ok:Click()
-local essai = LCM.Resolutions.Get("essai_de_cheminement")
+local essai = LCM.Resolutions.Get(idCheminement)
 attendu("resolution creee", essai ~= nil, true)
 attendu("une feuille, une etape", essai and #essai.feuilles[1].etapes, 1)
 attendu("categorie mj (par la categorie)", essai and essai.categorie, "mj")
@@ -553,5 +569,43 @@ n = #__envois
 LCM.Reseau.Recevoir("Nytherah-Apertus", "1:1:1:entree?|" .. LCM.Reseau.Encoder({ categorie = "traits", id = rl.element.id }))
 attendu("le proprietaire repond", __envois[n + 1] and __envois[n + 1].message:find("entree|", 1, true) ~= nil, true)
 __groupe({})
+
+dire("== un lien de chat est cliquable")
+-- Un lien ne se clique que si la fenetre de chat accepte les liens ET que
+-- quelqu'un ecoute le clic. On ne tenait que la seconde, par une seule porte
+-- (SetItemRef) ; une fenetre dont les liens sont coupes affichait « [Nom] » en
+-- texte mort, sans rien pour le dire (5 octobre 2026).
+local L = LCM.Lien
+local cat = C.Get("armes")
+local entree = { id = "lame_lien", label = "Lame d'essai" }
+local lien = L.Entree(cat, entree, "Syn-Apertus")
+attendu("le lien a la forme attendue",
+    lien:match("^|c%x%x%x%x%x%x%x%x|H(.-)|h%[(.-)%]|h|r") ~= nil, true)
+local charge, visible = lien:match("^|c%x%x%x%x%x%x%x%x|H(.-)|h%[(.-)%]|h|r")
+attendu("son texte visible est le libelle", visible, "Lame d'essai")
+
+-- Un libelle qui porte des codes d'affichage : glisses tels quels entre
+-- « |h[ » et « ]|h », le premier « | » fermait le lien avant l'heure et il n'y
+-- avait plus rien a cliquer.
+local sale = L.Entree(cat, { id = "lame_sale", label = "|cffff0000Lame|r |TIcon:0|t rouge" })
+local _, visibleSale = sale:match("^|c%x%x%x%x%x%x%x%x|H(.-)|h%[(.-)%]|h|r")
+attendu("les codes sont retires du texte visible", visibleSale, "Lame rouge")
+attendu("et il ne reste aucune barre verticale", visibleSale:find("|", 1, true), nil)
+
+-- Le clic : la charge du lien est reconnue comme etant a nous.
+attendu("le clic est intercepte", L.Intercepter(charge), true)
+-- Le meme clic peut arriver par les deux portes (SetItemRef et
+-- OnHyperlinkClick) : on ne fait le geste qu'une fois.
+attendu("un lien qui n'est pas le notre passe son chemin",
+    L.Intercepter("item:6948"), false)
+
+-- Les fenetres de chat se branchent, et le branchement est idempotent.
+local fausse = { liens = nil, crochets = 0 }
+function fausse:SetHyperlinksEnabled(oui) self.liens = oui end
+function fausse:HookScript() self.crochets = self.crochets + 1 end
+attendu("une fenetre de chat se branche", L.BrancherChat(fausse), true)
+attendu("ses liens sont allumes", fausse.liens, true)
+attendu("et son clic nous arrive", fausse.crochets, 1)
+attendu("la rebrancher ne double rien", L.BrancherChat(fausse) and fausse.crochets, 1)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

@@ -54,7 +54,9 @@ fe:Montrer(moi)
 fe:Afficher("athletisme")
 local course
 for _, l in ipairs(fe.pages.athletisme.lignes) do if l.label:GetText() == "Course" then course = l end end
-attendu("Course : valeur 4", course.valeur:GetText(), "4")
+-- La colonne porte le TOTAL depuis le 5 octobre 2026 : investi + apport des
+-- primaires + bonus portes. Ici 4 de la fiche, +2 de ce qu'elle porte.
+attendu("Course : le total", course.valeur:GetText(), "6")
 attendu("Course : bonus +2", course.bonus:GetText(), "+2")
 fe:Hide()
 

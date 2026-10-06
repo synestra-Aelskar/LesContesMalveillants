@@ -91,6 +91,27 @@ attendu("la description a une vraie boite", K.desc:GetHeight() > 60, true)
 attendu("l'icone se choisit au clic", type(K.iconeBouton:GetScript("OnClick")), "function")
 attendu("les reserves sont deux carres", K.carrePA ~= nil and K.carrePF ~= nil, true)
 attendu("PA et PF sont colles", (select(2, K.carrePF:GetPoint(1))), K.carrePA)
+
+-- La rangee du haut tient en trois bandes qui ne se recouvrent pas :
+-- bibliotheque + « Configurer », puis les carres PA/PF, puis la liste de choix.
+-- « Configurer » etait une ligne plus bas et tombait sur « Déclarer » quand la
+-- fenetre etait repliee (son etat de depart) ; les carres, eux, etaient poses
+-- DANS la zone de choix et recouvraient sa premiere rangee (5 octobre 2026).
+local function bas(region)
+    local _, _, _, _, y = region:GetPoint(1)
+    return y - region:GetHeight()
+end
+-- K.biblio est ancre a son libelle (decalage 0) : c'est le libelle qui porte
+-- l'ordonnee de la rangee.
+local _, _, _, _, yBiblio = K.biblioLibelle:GetPoint(1)
+local _, _, _, _, yBascule = K.basculer:GetPoint(1)
+attendu("« Configurer » est sur la rangee de la bibliotheque", yBascule, yBiblio)
+local _, _, _, _, yCarre = K.carrePA:GetPoint(1)
+local _, _, _, _, yChoix = K.choix:GetPoint(1)
+attendu("les carres passent sous la bibliotheque", yCarre <= bas(K.basculer), true)
+attendu("et s'arretent avant la liste de choix", bas(K.carrePA) >= yChoix, true)
+attendu("ils restent dans la largeur de la liste",
+    K.carrePA:GetWidth() + K.carrePF:GetWidth() < K:GetWidth() / 2, true)
 -- Une option payante porte son prix en carres, plus entre parentheses.
 local payante
 for _, b in ipairs(K.options) do

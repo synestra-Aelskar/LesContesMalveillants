@@ -74,8 +74,24 @@ local RARETES_NEUVES = {
 -- En memoire seulement : jeu, rarete, nom, et les valeurs touchees (une
 -- statistique non touchee vaut sa base).
 
-local courant = { valeurs = {}, nom = "" }
+local courant = { valeurs = {}, nom = "", creationId = Brouillons.NouvelIdentifiant() }
 ForgeUI.courant = courant
+
+-- Les categories dont les entrees sont creees et reprises dans cette fenetre.
+-- Le reste du compendium conserve son editeur specialise ou generique.
+local CATEGORIES_ENTREES = {
+    armes = true,
+    armures = true,
+    races = true,
+    traits = true,
+    etats = true,
+    maladies = true,
+    apprentissages = true,
+}
+
+function ForgeUI.EstCategorie(categorie)
+    return categorie ~= nil and CATEGORIES_ENTREES[categorie.id] == true
+end
 
 -- Les jeux proposes : ceux de la categorie d'ou l'on a ouvert la forge.
 local function Jeux()
@@ -89,7 +105,9 @@ local function JeuCourant()
     if not jeu then
         jeu = Jeux()[1]
         courant.jeuId = jeu and jeu.id or nil
-        courant.valeurs = {}
+        -- Sans aucun jeu, une ancienne entree ouverte en modification garde
+        -- ses bonus en memoire : ils reapparaitront si un jeu est ajoute.
+        if jeu or not courant.editionId then courant.valeurs = {} end
     end
     local rarete = jeu and LCM.Forge.Rarete(jeu, courant.rareteId)
     if jeu and not rarete then
@@ -126,15 +144,32 @@ function ForgeUI.Definition()
     local categorie = C.Get(jeu.categorie)
     local nom = Texte(courant.nom)
     if nom == "" then return nil, "donne-lui un nom" end
-    local id = Brouillons.Identifiant(nom)
-    if id == "" then return nil, "le nom ne donne aucun identifiant (lettres ou chiffres)" end
-    local def = { id = id, label = nom, bonus = Bonus(jeu, rarete), forge = LCM.Forge.Valeur(jeu, rarete),
-                  -- L'entree prend la couleur et le tag de sa rarete, comme
-                  -- dans Necronicon (ForgeCreateEntry).
-                  couleurTitre = rarete.couleur, tags = rarete.label, icone = courant.icone }
+    -- L'identifiant est attribue a l'ouverture de la creation et ne depend
+    -- jamais du nom. En modification, on conserve naturellement l'ancien.
+    local id = courant.editionId or courant.creationId or Brouillons.NouvelIdentifiant()
+    courant.creationId = courant.editionId and courant.creationId or id
+    -- Repart de l'entree complete : cout d'un trait, morphologie d'une race,
+    -- categorie d'un etat, taille d'une arme et armure d'un equipement ne sont
+    -- pas des valeurs de forge, mais ne doivent pas disparaitre a l'edition.
+    local def = courant.original and LCM.Copie(courant.original) or {}
+    def.id, def.label = id, nom
+    def.bonus = Bonus(jeu, rarete)
+    def.forge = LCM.Forge.Valeur(jeu, rarete)
+    -- Une race publique est proposee aux joueurs ; une race reservee reste
+    -- visible et attribuable uniquement pour un MJ. La case de la Forge est
+    -- la source de cette propriete, y compris lors d'une modification.
+    if categorie.famille == "races" then
+        def.mjSeulement = courant.mjSeulement and true or nil
+    end
+    -- L'entree prend la couleur et le tag de sa rarete, comme dans Necronicon
+    -- (ForgeCreateEntry).
+    def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
+    -- Ces marques appartiennent au registre en memoire, pas a la definition
+    -- que ses constructeurs valident.
+    def.brouillon = nil
     -- Une description vide n'est pas ecrite : le defaut de la categorie suit.
     local description = Texte(courant.description)
-    if description ~= "" then def.description = description end
+    def.description = description ~= "" and description or nil
     for k, v in pairs(categorie.defaut or {}) do
         if def[k] == nil then def[k] = LCM.Copie(v) end
     end
@@ -145,11 +180,22 @@ end
 function ForgeUI.Creer()
     local def, categorie = ForgeUI.Definition()
     if not def then return false, categorie end
-    local ok, refus = Brouillons.Enregistrer(categorie.famille, def, true)
+    local edition = courant.editionId ~= nil
+    local ok, refus = Brouillons.Enregistrer(categorie.famille, def, not edition, courant.remplacePublie)
     if not ok then return false, refus end
     local registre = Brouillons.Registre(categorie.famille)
-    courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
-    return true, registre and registre.Get(def.id), categorie
+    local element = registre and registre.Get(def.id)
+    if edition then
+        -- Reste sur l'entree apres l'enregistrement : le MJ peut poursuivre
+        -- ses ajustements et voit toujours qu'il modifie, jamais qu'il cree.
+        courant.original = element and LCM.Copie(element) or LCM.Copie(def)
+        courant.remplacePublie = false
+    else
+        courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
+        courant.mjSeulement = nil
+        courant.creationId = Brouillons.NouvelIdentifiant()
+    end
+    return true, element, categorie, edition
 end
 
 -- ===== Fenetre de creation =================================================
@@ -285,10 +331,15 @@ local function Construire()
     f.description:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -118)
     f.description:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -118)
 
+    f.mjSeulement = UI.Case(c, "Réservée au MJ — les joueurs ne la voient pas", function(cochee)
+        courant.mjSeulement = cochee and true or nil
+    end)
+    f.mjSeulement:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -180)
+
     -- Le compteur : points depenses sur le pool de la rarete.
     local k = CreateFrame("Frame", nil, c)
-    k:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -184)
-    k:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -184)
+    k:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -210)
+    k:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -210)
     k:SetHeight(50)
     k.fond = UI.Aplat(k, { 0, 0, 0, 0.35 })
     k.fond:SetAllPoints(k)
@@ -311,13 +362,13 @@ local function Construire()
             f.zone:Aller(0)
             f:Rafraichir()
         end, { largeur = 100, hauteur = 22 })
-    f.mode:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -244)
+    f.mode:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -270)
     f.mode:SetWidth(204)
     f.aideVue = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
-    f.aideVue:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -250)
+    f.aideVue:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -276)
 
     f.zone = UI.Defilement(c)
-    f.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -278)
+    f.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -304)
     f.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -14, 60)
     f.vide = UI.Texte(f.zone.contenu, "", UI.C.discret, "GameFontNormal")
     f.vide:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 10, -30)
@@ -450,13 +501,21 @@ local function Construire()
         local r, g, b = RVB(rarete.couleur)
         k.points:SetText(C.Nombre(total) .. " pts")
         if depasse then Peindre(k.points, ROUGE) else k.points:SetTextColor(r, g, b) end
-        local suffit = LCM.Forge.RareteSuffisante(jeu, total)
+        -- Les VALEURS, pas le total : le credit des negatives est plafonne par
+        -- le pool, donc le total depend de la rarete qu'on vise.
+        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs)
         if depasse then
             k.palier:SetText("Dépasse le pool de " .. rarete.label)
         elseif suffit and suffit.id ~= rarete.id then
             k.palier:SetText("Rentrerait déjà en " .. suffit.label)
         else
             k.palier:SetText("Rareté " .. rarete.label)
+        end
+        -- Ce que le plafond a mange : sans ce mot, on baisse dix statistiques
+        -- et le total ne bouge plus, sans qu'on sache pourquoi.
+        if (bilan.creditPerdu or 0) > 0 then
+            k.palier:SetText(string.format("%s — %s pt(s) rendus perdus (plafond du pool)",
+                k.palier:GetText(), C.Nombre(bilan.creditPerdu)))
         end
         k.pool:SetText(string.format("/ %d pts", rarete.points))
         local part = rarete.points > 0 and math.min(1, math.max(0, total / rarete.points)) or (total > 0 and 1 or 0)
@@ -467,7 +526,8 @@ local function Construire()
     -- Le bouton du bas dit ce qu'il fera : creer une entree, ou rendre ses
     -- valeurs a l'atelier qui a ouvert la forge.
     function f:MajBouton()
-        self.creer.label:SetText(ForgeUI.rendre and "Reprendre ces valeurs" or "Créer l'entrée")
+        self.creer.label:SetText(ForgeUI.rendre and "Reprendre ces valeurs"
+            or (courant.editionId and "Enregistrer l'entrée" or "Créer l'entrée"))
         for _, w in ipairs({ self.nom, self.lblNom, self.description, self.lblDescription,
                              self.icone }) do
             if w then w:SetShown(ForgeUI.rendre == nil) end
@@ -488,6 +548,10 @@ local function Construire()
         self.icone.texture:SetTexture(LCM.Icone(courant.icone))
         if not self.nom:HasFocus() then self.nom:SetText(courant.nom or "") end
         if not self.description.saisie:HasFocus() then self.description:SetText(courant.description or "") end
+        local categorie = jeu and C.Get(jeu.categorie) or (courant.categorie and C.Get(courant.categorie))
+        self.mjSeulement:Cocher(courant.mjSeulement == true)
+        self.mjSeulement:SetShown(ForgeUI.rendre == nil
+            and categorie ~= nil and categorie.famille == "races")
         -- La zone suit la largeur de la fenetre (le tableau l'elargit) ; sa
         -- saisie multiligne, elle, a une largeur fixe a recaler.
         self.description.saisie:SetWidth(math.max(100, (self.description:GetWidth() or (LARGEUR - 28)) - 12))
@@ -614,15 +678,15 @@ local function Construire()
             rendre(Bonus(jeu, rarete), LCM.Forge.Valeur(jeu, rarete))
             return
         end
-        local ok, element, categorie = ForgeUI.Creer()
+        local ok, element, categorie, edition = ForgeUI.Creer()
         if not ok then
             self:Statut("Refusé : " .. tostring(element), UI.C.plein)
             return
         end
-        -- L'editeur ne s'ouvre plus : nom, icone et description se saisissent
-        -- ici, le reste se reprend depuis le compendium si besoin.
-        self:Statut(string.format("Brouillon « %s » créé.", element.label), UI.C.accent)
-        LCM.Ok(string.format("brouillon forge : %s (%s)", element.label, categorie.label))
+        self:Statut(string.format("Brouillon « %s » %s.", element.label,
+            edition and "enregistré" or "créé"), UI.C.accent)
+        LCM.Ok(string.format("brouillon forge %s : %s (%s)",
+            edition and "enregistré" or "créé", element.label, categorie.label))
         self:Rafraichir()
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
     end
@@ -637,18 +701,66 @@ end
 
 -- Le bouton « Forger » du compendium : la forge, sur les jeux de cette
 -- categorie. false et la raison s'il n'y en a aucun.
-function ForgeUI.Ouvrir(categorieId)
+function ForgeUI.Ouvrir(categorieId, options)
+    options = options or {}
     local categorie = C.Get(categorieId)
     if not categorie then return false, "catégorie inconnue" end
-    if #LCM.Forge.PourCategorie(categorie.id) == 0 then
+    if #LCM.Forge.PourCategorie(categorie.id) == 0 and not options.autoriserSansJeu then
         return false, string.format("aucun jeu d'équilibrage ne vise %s : crée-en un dans la catégorie "
             .. "« Jeux d'équilibrage »", categorie.label)
     end
+    -- Quitter une modification par le bouton « Forger » revient bien a une
+    -- creation. Sans cela, le formulaire garde l'identifiant de l'entree
+    -- precedente et le bouton suivant l'ecraserait.
+    if courant.editionId then
+        courant.editionId, courant.original, courant.remplacePublie = nil, nil, nil
+        courant.creationId = Brouillons.NouvelIdentifiant()
+        courant.mjSeulement = nil
+        courant.nom, courant.icone, courant.description, courant.valeurs = "", nil, "", {}
+    end
     if courant.categorie ~= categorie.id then
         courant.categorie, courant.jeuId, courant.rareteId, courant.valeurs = categorie.id, nil, nil, {}
+        courant.mjSeulement = nil
     end
     local f = ForgeUI.Fenetre()
     if f:IsShown() then f:Rafraichir() else f:Show() end
+    UI.Devant(f)
+    return true
+end
+
+-- La roue d'une entree du compendium revient directement dans la Forge. Tout
+-- ce que la Forge sait regler est precharge ; les autres proprietes sont
+-- conservees dans `original` et repassees a l'enregistrement.
+function ForgeUI.OuvrirEdition(categorie, element)
+    if not ForgeUI.EstCategorie(categorie) then return false, "catégorie non forgée" end
+    if type(element) ~= "table" then return false, "entrée absente" end
+    -- Une ancienne entree peut preceder la creation de son jeu d'equilibrage.
+    -- On ouvre quand meme la Forge : elle explique qu'aucun jeu n'existe,
+    -- plutot que de renvoyer vers l'ancien editeur ou de ne rien montrer.
+    local ok, raison = ForgeUI.Ouvrir(categorie.id, { autoriserSansJeu = true })
+    if not ok then return false, raison end
+
+    local jeu, rarete = LCM.Forge.Lire(element.forge)
+    courant.categorie = categorie.id
+    courant.jeuId = jeu and jeu.categorie == categorie.id and jeu.id or nil
+    courant.rareteId = rarete and rarete.id or nil
+    courant.valeurs = {}
+    for cle, montant in pairs(element.bonus or {}) do
+        courant.valeurs[cle] = tonumber(montant) or montant
+    end
+    courant.nom = tostring(element.label or element.id or "")
+    courant.icone = element.icone
+    courant.description = element.description or ""
+    courant.mjSeulement = element.mjSeulement == true
+    courant.editionId = tostring(element.id)
+    courant.original = LCM.Copie(element)
+    courant.remplacePublie = Brouillons.EstPublie(categorie.famille, element.id)
+    ForgeUI.rendre = nil
+
+    local f = ForgeUI.Fenetre()
+    f:Rafraichir()
+    f:MajBouton()
+    f:Statut(string.format("Modification de « %s ».", courant.nom), UI.C.accent)
     UI.Devant(f)
     return true
 end
@@ -716,7 +828,8 @@ local function Nouveau()
     end
     local cle = "__nouveau_" .. nouveaux
     local t = { id = cle, creation = true, publie = false,
-                def = { label = "Jeu " .. tostring(#LCM.Forge.list + nouveaux), raretes = raretes, champs = {} } }
+                def = { id = Brouillons.NouvelIdentifiant(),
+                    label = "Jeu " .. tostring(#LCM.Forge.list + nouveaux), raretes = raretes, champs = {} } }
     travaux[cle] = t
     return t
 end
@@ -763,8 +876,8 @@ function ForgeUI.EnregistrerJeu(t)
     local def = LCM.Copie(t.def)
     def.label = Texte(def.label)
     if def.label == "" then return false, "donne un nom au jeu" end
-    if t.creation then def.id = Brouillons.Identifiant(def.label) end
-    if Texte(def.id) == "" then return false, "le nom ne donne aucun identifiant (lettres ou chiffres)" end
+    if t.creation and Texte(def.id) == "" then def.id = Brouillons.NouvelIdentifiant() end
+    if Texte(def.id) == "" then return false, "identifiant absent" end
     local ok, refus = Brouillons.Enregistrer("jeux", def, t.creation, t.publie)
     if not ok then return false, refus end
     -- La copie est rendue : la prochaine ouverture repart de l'enregistre.
@@ -1454,3 +1567,26 @@ function ForgeUI.Editer(jeu)
     if f:IsShown() then f:Rafraichir() else f:Show() end
     UI.Devant(f)
 end
+
+-- Une modification recue du second MJ remplace aussi la copie de travail de
+-- l'equilibrage. Sans cela, le registre etait bien a jour mais la fenetre
+-- continuait d'afficher (et pouvait reenregistrer) son ancienne copie.
+LCM.WhenReady(function()
+    local precedent = Brouillons.onSynchro
+    Brouillons.onSynchro = function(famille, entree)
+        if precedent then precedent(famille, entree) end
+        if famille == "jeux" and type(entree) == "table" and entree.id then
+            local id = tostring(entree.id)
+            travaux[id] = nil
+            local f = ForgeUI.equilibrage
+            if f and f:IsShown() then
+                if tostring(f.selection or "") == id then
+                    f:Statut("Mise à jour reçue de l'autre MJ.", UI.C.accent)
+                end
+                f:Rafraichir()
+            end
+        end
+        ForgeUI.Actualiser()
+        if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
+    end
+end)

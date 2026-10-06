@@ -108,7 +108,7 @@ dire("   " .. table.concat(noms, " | "))
 -- pour liberer une branche dans « Outils », qui en avait deja huit (le maximum
 -- qu'un eventail sait dessiner) et devait accueillir l'Atelier.
 attendu("six entrees de premier niveau (Compendium retire le 3 octobre)", #M.STRUCTURE, 6)
-attendu("Fiches personnages : six fenetres", #M.Trouver("fiches_personnages").enfants, 6)
+attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 attendu("Outils : sept fenetres (les Regles s'y sont ajoutees)", #M.Trouver("outils").enfants, 7)
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
@@ -116,7 +116,7 @@ attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() e
 
 dire("== ce qui est branche")
 -- « creation » n'est plus au menu : on cree un personnage depuis la selection.
-for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances",
+for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances", "montee_niveau",
                       "equipement", "deplacement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
                       "grimoires", "parametres", "panneau_mj", "incarner",
                       "vendeur", "ressources" }) do

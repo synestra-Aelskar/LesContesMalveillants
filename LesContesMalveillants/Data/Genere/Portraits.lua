@@ -12,8 +12,11 @@
 local _, LCM = ...
 local Portraits = LCM.Portraits
 
+Portraits.Add({ id = "archibald", label = "Archibald" })
+Portraits.Add({ id = "iridia", label = "Iridia" })
 Portraits.Add({ id = "moon", label = "Moon" })
 Portraits.Add({ id = "reikashira", label = "ReikaShira" })
+Portraits.Add({ id = "svallesansnom", label = "SvalLeSansNom" })
 
 -- Repli : affichee quand un personnage n'a pas encore son artwork.
 Portraits.SetSilhouette("silhouette.tga")

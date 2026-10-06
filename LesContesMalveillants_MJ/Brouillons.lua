@@ -22,9 +22,11 @@ MJ.Brouillons = Brouillons
 LCM.Brouillons = Brouillons
 
 -- Les familles exportables. En ajouter une ici ET dans l'outil d'export.
--- Les huit suivantes viennent du compendium (Core/Contenus.lua), et « jeux »
--- de la forge (Core/Forge.lua) : l'outil d'export ne les connait pas encore,
--- leurs brouillons attendent qu'il le fasse.
+--
+-- L'outil les connait toutes (6 octobre 2026) et les range en DEUX fichiers :
+-- ce qui part chez les joueurs (Data/Genere/Atelier.lua) et ce qui reste chez
+-- les MJ (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua) — les PNJ, les jeux
+-- d'equilibrage, et les resolutions de categorie « mj ».
 Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
     "jeux" }
@@ -118,8 +120,10 @@ end
 -- chargement d'un fichier genere (`Construire` du registre) : un brouillon
 -- refuse ici l'aurait ete a l'export, autant le dire tout de suite.
 
--- Les identifiants sont sans accents (convention de l'addon) : on les derive du
--- nom saisi. Lua ne connait que des octets, d'ou la table des sequences UTF-8.
+-- Normalise un texte en identifiant lisible. Les anciennes entrees et les
+-- sous-identifiants (par exemple une rarete) s'en servent encore. Les NOUVELLES
+-- entrees, elles, recoivent plus bas un identifiant unique sans rapport avec
+-- leur nom.
 local ACCENTS = {
     ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["À"] = "a", ["Â"] = "a", ["Ä"] = "a",
     ["é"] = "e", ["è"] = "e", ["ê"] = "e", ["ë"] = "e",
@@ -148,6 +152,45 @@ local function Registre(famille)
     return nom and LCM[nom] or nil
 end
 Brouillons.Registre = Registre
+
+-- Un identifiant d'entree ne doit plus dependre de son libelle : deux objets
+-- peuvent avoir exactement le meme nom. On combine l'identite du MJ, l'heure
+-- serveur, le temps de la session, un compteur et de l'alea. Le resultat reste
+-- compose uniquement de caracteres surs pour les sauvegardes et les liens.
+local compteurIdentifiants = 0
+
+local function Empreinte(texte)
+    local valeur = 5381
+    texte = tostring(texte or "")
+    for index = 1, #texte do
+        valeur = (valeur * 33 + texte:byte(index)) % 0x1000000
+    end
+    return valeur
+end
+
+local function IdentifiantOccupe(id)
+    for _, famille in ipairs(Brouillons.FAMILLES) do
+        if Brouillons.Get(famille, id) then return true end
+        local registre = Registre(famille)
+        if registre and registre.Get and registre.Get(id) then return true end
+    end
+    return false
+end
+
+function Brouillons.NouvelIdentifiant()
+    local id
+    repeat
+        compteurIdentifiants = compteurIdentifiants + 1
+        local secondes = tonumber((GetServerTime and GetServerTime())
+            or (time and time()) or 0) or 0
+        local session = math.floor((tonumber(GetTime and GetTime() or 0) or 0) * 1000)
+        local alea = math.random(0, 0xFFFFFF)
+        id = string.format("lcm_%06x_%08x_%08x_%04x_%06x",
+            Empreinte(LCM.PlayerId()), secondes % 0x100000000,
+            session % 0x100000000, compteurIdentifiants % 0x10000, alea)
+    until not IdentifiantOccupe(id)
+    return id
+end
 
 -- « LCM/Traits : cout invalide » -> « cout invalide » : le prefixe sert a qui
 -- lit une trace, pas au MJ devant son formulaire.
@@ -339,23 +382,135 @@ end
 --     n'a pas de brouillons, et n'a pas a en recevoir.
 
 local enReception = false
+local mjConnus, attentes, recus = {}, {}, {}
+local ordreRecus, sequence = {}, 0
+local horlogeSync
+
+local function IdentifiantSync()
+    sequence = sequence + 1
+    return tostring(LCM.PlayerId()) .. ":" .. tostring(time and time() or 0) .. ":" .. tostring(sequence)
+end
 
 local function Canal()
     local id = LCM.Presence and LCM.Presence.Rejoindre and LCM.Presence.Rejoindre()
     return id and "CHANNEL", id
 end
 
+local function Accuser(expediteur, identifiant)
+    if identifiant and identifiant ~= "" then
+        LCM.Reseau.Envoyer("sync-ok", { s = identifiant }, "WHISPER", expediteur)
+    end
+end
+
+-- Le meme envoi peut revenir apres une relance. Il doit etre acquitte de
+-- nouveau, mais applique une seule fois.
+local function CleReception(expediteur, identifiant)
+    if not identifiant or identifiant == "" then return false end
+    return tostring(expediteur) .. "\031" .. tostring(identifiant)
+end
+
+local function MarquerRecu(cle)
+    if not cle then return end
+    recus[cle] = true
+    ordreRecus[#ordreRecus + 1] = cle
+    if #ordreRecus > 200 then recus[table.remove(ordreRecus, 1)] = nil end
+end
+
+local function EnvoyerAttente(a)
+    local canal, cible
+    if a.cible then
+        canal, cible = "WHISPER", a.cible
+    else
+        canal, cible = Canal()
+        if not canal then return false end
+    end
+    local avant = LCM.Reseau.FileEnvoi and LCM.Reseau.FileEnvoi() or 0
+    local ok, morceaux = LCM.Reseau.Envoyer("brouillon", a.donnees, canal, cible, { etale = true })
+    if not ok then return false end
+    a.essais = a.essais + 1
+    -- L'accuse ne peut revenir qu'une fois tous les fragments sortis.
+    a.reste = math.max(5, (avant + (tonumber(morceaux) or 1))
+        * (LCM.Reseau.CADENCE or 0.25) + 3)
+    return true
+end
+
+local function NoterMJ(nom)
+    nom = tostring(nom or "")
+    if nom == "" or nom == tostring(LCM.PlayerId()) then return end
+    mjConnus[nom] = true
+    -- Un brouillon diffuse avant la decouverte du binome bascule aussitot en
+    -- chuchotement fiable, sans attendre la prochaine modification.
+    for cle, a in pairs(attentes) do
+        if not a.cible then
+            attentes[cle] = nil
+            a.cible, a.essais, a.reste = nom, 0, 0
+            attentes[a.identifiant .. "\031" .. nom] = a
+        end
+    end
+end
+
+local function AnnoncerMJ()
+    local canal, cible = Canal()
+    if canal then return LCM.Reseau.Envoyer("mj-sync?", {}, canal, cible) end
+    return false
+end
+
+local function BattreLaMesure()
+    if horlogeSync or not CreateFrame then return end
+    horlogeSync = CreateFrame("Frame")
+    horlogeSync.cumul = 0
+    horlogeSync:SetScript("OnUpdate", function(self, dt)
+        self.cumul = self.cumul + (dt or 0)
+        if self.cumul < 0.5 then return end
+        local ecoule = self.cumul
+        self.cumul = 0
+        for cle, a in pairs(attentes) do
+            a.reste = math.max(0, (a.reste or 0) - ecoule)
+            if a.reste <= 0 then
+                if a.essais >= 3 or (not a.cible and a.essais >= 1) then
+                    attentes[cle] = nil
+                    if a.cible then
+                        LCM.Alerte("Synchronisation non confirmée par " .. tostring(a.cible)
+                            .. " : « " .. tostring(a.donnees.e and (a.donnees.e.label or a.donnees.e.id)) .. " ».")
+                    end
+                elseif not EnvoyerAttente(a) then
+                    -- Rejoindre un canal est asynchrone : on garde le paquet
+                    -- au lieu de le perdre et on retente apres sa creation.
+                    a.reste = 1
+                end
+            end
+        end
+    end)
+end
+
+function Brouillons.SynchronisationsEnAttente()
+    local n = 0
+    for _ in pairs(attentes) do n = n + 1 end
+    return n
+end
+
 function Brouillons.Diffuser(famille, entree, remplace)
     if enReception or not LCM.IsMaster() then return false end
     if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
-    local canal, cible = Canal()
-    if not canal then return false end
-    -- `etale` : une resolution entiere fait plusieurs milliers d'octets, donc
-    -- des dizaines de morceaux. Envoyes d'un coup, le serveur en jette la
-    -- moitie sans rien dire.
-    return LCM.Reseau.Envoyer("brouillon", {
-        f = tostring(famille), r = remplace and 1 or nil, e = entree,
-    }, canal, cible, { etale = true })
+    BattreLaMesure()
+    AnnoncerMJ()
+    local identifiant = IdentifiantSync()
+    local donnees = { f = tostring(famille), r = remplace and 1 or nil,
+        e = entree, s = identifiant }
+    local trouve = false
+    for nom in pairs(mjConnus) do
+        trouve = true
+        local a = { identifiant = identifiant, cible = nom, donnees = donnees,
+            essais = 0, reste = 0 }
+        attentes[identifiant .. "\031" .. nom] = a
+        if not EnvoyerAttente(a) then a.reste = 1 end
+    end
+    if not trouve then
+        local a = { identifiant = identifiant, donnees = donnees, essais = 0, reste = 0 }
+        attentes[identifiant] = a
+        if not EnvoyerAttente(a) then a.reste = 1 end
+    end
+    return true
 end
 
 function Brouillons.DiffuserSuppression(famille, id)
@@ -378,6 +533,27 @@ end
 
 LCM.WhenReady(function()
     if not (LCM.Reseau and LCM.Reseau.Ecouter) then return end
+
+    BattreLaMesure()
+
+    LCM.Reseau.Ecouter("mj-sync?", function(expediteur)
+        if not LCM.IsMaster() or expediteur == LCM.PlayerId() then return end
+        NoterMJ(expediteur)
+        LCM.Reseau.Envoyer("mj-sync", {}, "WHISPER", expediteur)
+    end)
+    LCM.Reseau.Ecouter("mj-sync", function(expediteur)
+        if not LCM.IsMaster() or expediteur == LCM.PlayerId() then return end
+        NoterMJ(expediteur)
+    end)
+    LCM.Reseau.Ecouter("sync-ok", function(expediteur, donnees)
+        if not LCM.IsMaster() then return end
+        NoterMJ(expediteur)
+        local identifiant = tostring(donnees.s or "")
+        attentes[identifiant .. "\031" .. tostring(expediteur)] = nil
+        -- Compatibilite avec le premier envoi sur le canal, avant que le MJ
+        -- distant ait eu le temps de se presenter.
+        attentes[identifiant] = nil
+    end)
 
     LCM.Reseau.Ecouter("masque", function(expediteur, donnees)
         if not LCM.IsMaster() then return end
@@ -402,10 +578,18 @@ LCM.WhenReady(function()
         local famille = tostring(donnees.f or "")
         local entree = donnees.e
         if type(entree) ~= "table" or not FamilleValide(famille) then return end
+        local identifiant = donnees.s and tostring(donnees.s) or nil
+        local cleReception = CleReception(expediteur, identifiant)
+        if cleReception and recus[cleReception] then
+            Accuser(expediteur, identifiant)
+            return
+        end
         enReception = true
         local ok, raison = Brouillons.Enregistrer(famille, entree, false, donnees.r ~= nil)
         enReception = false
         if ok then
+            MarquerRecu(cleReception)
+            Accuser(expediteur, identifiant)
             LCM.Ok(string.format("%s a écrit « %s » (%s) : c'est chez toi.",
                 tostring(expediteur), tostring(entree.label or entree.id), famille))
             if Brouillons.onSynchro then Brouillons.onSynchro(famille, entree) end
@@ -431,6 +615,17 @@ LCM.WhenReady(function()
             if Brouillons.onSynchro then Brouillons.onSynchro(famille, nil) end
         end
     end)
+
+    AnnoncerMJ()
+end)
+
+-- Le canal prive apparait quelques instants apres la connexion. Une annonce
+-- ici permet aussi aux brouillons restes en attente de trouver leur cible.
+LCM.On("CHAT_MSG_CHANNEL_NOTICE", function(notice, _, _, _, _, _, _, _, nomCanal)
+    if (notice == "YOU_JOINED" or notice == "YOU_CHANGED")
+        and LCM.Presence and tostring(nomCanal or "") == tostring(LCM.Presence.CANAL) then
+        AnnoncerMJ()
+    end
 end)
 
 -- ===== Prise en compte immediate ===========================================

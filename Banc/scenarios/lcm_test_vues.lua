@@ -135,7 +135,8 @@ fe.barre.boutons[2]:Click()
 attendu("10 en athletisme", #fe.pages.athletisme.lignes, 10)
 local escalade
 for _, l in ipairs(fe.pages.athletisme.lignes) do if l.label:GetText() == "Escalade" then escalade = l end end
-attendu("valeur", escalade.valeur:GetText(), "4")
+-- Le TOTAL, bonus portes compris (5 octobre 2026).
+attendu("valeur totale", escalade.valeur:GetText(), "7")
 attendu("bonus de trait dans sa colonne", escalade.bonus:GetText(), "+3")
 attendu("case d'avantage", escalade.avantage:IsShown(), true)
 local nSorties = #__sorties
@@ -232,6 +233,14 @@ attendu("Force d'attaque : l'objet", attaques.lignes[1].valeur:GetText(), "3")
 local bonus = famille("bonus")
 attendu("Bonus : PA +1", bonus.lignes[1].valeur:GetText(), "+1")
 attendu("Bonus : Fatigue sans bonus", bonus.lignes[2].valeur:GetText(), "0")
+local mecaniques = famille("mecaniques")
+local champsMecaniques = {}
+for _, ligne in ipairs(mecaniques.lignes) do
+    if ligne.field then champsMecaniques[ligne.field.id] = ligne end
+end
+attendu("Provocation dans la fiche", champsMecaniques.meca_provocation ~= nil, true)
+attendu("Intimidation dans la fiche", champsMecaniques.meca_intimidation ~= nil, true)
+famille("bonus")
 for _, e in ipairs(entreesStats()) do
     if e.ongletId == "bonus" then attendu("la puce suit la famille", e.marque, "ici") end
 end

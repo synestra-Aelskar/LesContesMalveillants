@@ -1045,11 +1045,32 @@ fichiers, et seulement eux ; un tri et une refonte du contenu sont prévus.
 
 ### Le contenu créé en séance
 
-Le MJ crée traits, races et objets **en jeu** ; ça vit dans les SavedVariables
-du compagnon et c'est jouable immédiatement. Entre deux séances,
-`Exporter les brouillons.bat` transforme ces brouillons en fichiers Lua propres
-dans `Data\Genere\`, qui partent dans le dépôt. Tout le monde met à jour avant
-la séance suivante.
+Le MJ crée **en jeu** — traits, races, objets, états, sacs, PNJ, résolutions,
+jeux d'équilibrage : toutes les familles de l'atelier. Ça vit dans les
+SavedVariables du compagnon et c'est jouable immédiatement. Entre deux séances,
+`Exporter les brouillons.bat` transforme ces brouillons en fichiers Lua propres,
+qui partent dans le dépôt. Tout le monde met à jour avant la séance suivante.
+
+L'export écrit **deux** fichiers, et le partage compte :
+
+| Fichier | Pour qui |
+|---|---|
+| `LesContesMalveillants/Data/Genere/Atelier.lua` | livré à tout le monde |
+| `LesContesMalveillants_MJ/Genere/Atelier_MJ.lua` | reste chez les MJ |
+
+Restent côté MJ : les **PNJ** (des fiches complètes — les livrer, c'est donner
+la réponse avant la rencontre), les **jeux d'équilibrage** (le barème de
+construction ; un joueur ne forge jamais) et les **résolutions de catégorie
+`mj`**. Masquer une entrée dans l'interface ne protège rien — un addon vit sur
+la machine du joueur, et la seule protection est de ne pas livrer le fichier.
+
+Le partage ne s'appuie **pas** sur `mjSeulement` : une race réservée au MJ porte
+ce drapeau et doit pourtant partir chez les joueurs, puisque la fiche de celui à
+qui le MJ la donne la référence. Le drapeau dit qui peut la *choisir*, pas qui
+peut la connaître.
+
+Il faut donc publier les **deux** addons : le fichier du MJ ne part pas avec
+celui des joueurs.
 
 Les fichiers de `Data\Genere\` portent un en-tête
 **« NE PAS MODIFIER A LA MAIN »** : ils sont réécrits entièrement à chaque

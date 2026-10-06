@@ -92,7 +92,9 @@ local ligneVue
 for _, l in ipairs(fe.pages.observations.lignes) do
     if l.label and l.label:GetText() == "Vue" then ligneVue = l end
 end
-attendu("vue : valeur", ligneVue.valeur:GetText(), "0")
+-- 5 octobre 2026 : la colonne de valeur porte le TOTAL (ce qu'on ajoute au
+-- de), le bonus reste a part pour dire d'ou vient la difference.
+attendu("vue : le total", ligneVue.valeur:GetText(), "2")
 attendu("vue : bonus dans sa colonne", ligneVue.bonus:GetText(), "+2")
 attendu("vue : case d'avantage", ligneVue.avantage:IsShown(), true)
 fe:Hide()

@@ -32,7 +32,7 @@ local function Construire()
     function f:Afficher()
         local entity = self.entity
         local devises = Bourse.Liste(entity)
-        local mj = LCM.IsMaster()
+        local mj = LCM.IsMaster() and not (entity and entity.distante)
         local y = 0
 
         -- La fenetre se taille sur le plus long nom de devise. A 420 fixes, on

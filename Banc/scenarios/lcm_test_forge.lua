@@ -80,12 +80,17 @@ local jeu = F.Get("creation_arme")
 local bilan = F.Bilan(jeu, "rare", { force = 1, vue = 2, escalade = 3, ouie = 2 })
 attendu("vue 2 x 2 + escalade 3 = 7", bilan.total, 7)
 bilan = F.Bilan(jeu, "rare", { force = 1 })
-attendu("ouie absente : sous sa base, rembourse 2", bilan.total, -2)
+-- L'ouie a une base de 2 ; absente, elle vaut 0, donc deux crans sous sa base.
+-- Elle rembourse la MOITIE depuis le 5 octobre 2026 : 1, et non 2.
+attendu("ouie absente : sous sa base, rembourse la moitié", bilan.total, -1)
 attendu("limites : max de la rarete", F.Limites(jeu, "escalade", "commun").max, 2)
 attendu("limites : max du jeu ailleurs", F.Limites(jeu, "escalade", "rare").max, 5)
 attendu("cout par defaut", F.Limites(jeu, "pistage", "rare").cout, LCM.Equilibrage.forge.coutParDefaut)
-attendu("rarete suffisante pour 3", F.RareteSuffisante(jeu, 3).id, "commun")
-attendu("aucune pour 11", F.RareteSuffisante(jeu, 11), nil)
+-- RareteSuffisante prend les VALEURS depuis le 5 octobre 2026, plus un total :
+-- le credit des negatives etant plafonne par le pool, le total depend de la
+-- rarete qu'on vise, et ne peut donc pas se calculer une fois pour toutes.
+attendu("rarete suffisante pour 3 pts", F.RareteSuffisante(jeu, { escalade = 3 }).id, "commun")
+attendu("aucune pour 12 pts", F.RareteSuffisante(jeu, { vue = 6 }), nil)
 
 dire("== Le garde-fou : le bareme bloque")
 local function arme(id, forge, bonus)
@@ -238,13 +243,15 @@ attendu("depasse", f.compteur.palier:GetText(), "Dépasse le pool de Commun")
 f.creer:Click()
 contient("sans nom : refusee", f.statut:GetText(), "donne-lui un nom")
 f.nom:Saisir("Lame d'essai")
+local idLame = FU.courant.creationId
+attendu("identifiant unique de l'entree", idLame ~= "lame_d_essai", true)
 attendu("icone transmise a la definition", FU.Definition().icone, iconeForge)
 attendu("description sous le nom", f.description:IsShown(), true)
 f.description.saisie:Saisir("Une lame forgée pour l'essai.")
 attendu("description transmise a la definition", FU.Definition().description, "Une lame forgée pour l'essai.")
 f.creer:Click()
 contient("hors pool : refusee", f.statut:GetText(), "Refusé : 6 pts dépensés")
-attendu("rien sauvegarde", LCM_MJ_DB.brouillons.objets.lame_d_essai, nil)
+attendu("rien sauvegarde", LCM_MJ_DB.brouillons.objets[idLame], nil)
 
 -- Une saisie illisible n'est pas lue comme zero.
 vue.valeur:SetText("beaucoup")
@@ -269,7 +276,7 @@ attendu("escalade dans les bornes", esc.hors, nil)
 contient("palier", f.compteur.palier:GetText(), "Rareté Rare")
 f.creer:Click()
 contient("creee", f.statut:GetText(), "Lame d'essai")
-local cree = LCM.Objets.Get("lame_d_essai")
+local cree = LCM.Objets.Get(idLame)
 attendu("brouillon jouable", cree and cree.brouillon, true)
 attendu("son jeu", cree and cree.forge, "creation_arme/rare")
 attendu("force a sa base", cree and cree.bonus.force, 1)
@@ -281,6 +288,32 @@ attendu("saisie remise a zero", next(FU.courant.valeurs), nil)
 attendu("description de l'entree", cree and cree.description, "Une lame forgée pour l'essai.")
 attendu("description remise a zero", FU.courant.description, "")
 attendu("editeur pas ouvert", Ed.frame ~= nil and Ed.frame:IsShown(), false)
+
+dire("== Modifier depuis le compendium revient dans la forge")
+-- Une propriete hors statistiques doit survivre a ce passage : la Forge ne
+-- l'affiche pas, mais ne doit surtout pas l'effacer.
+cree.taille = 2
+Ed.Ouvrir(armes, cree)
+attendu("la forge reste le panneau d'edition", f:IsShown(), true)
+attendu("l'ancien editeur reste ferme", Ed.frame ~= nil and Ed.frame:IsShown(), false)
+attendu("le bouton annonce une modification", f.creer.label:GetText(), "Enregistrer l'entrée")
+attendu("le même jeu est repris", FU.courant.jeuId, "creation_arme")
+attendu("la même rareté est reprise", FU.courant.rareteId, "rare")
+attendu("le nom est repris", FU.courant.nom, "Lame d'essai")
+attendu("les statistiques sont reprises", FU.courant.valeurs.vue, 3)
+f.nom:Saisir("Lame retouchée")
+f.description.saisie:Saisir("Description retouchée dans la Forge.")
+FU.courant.valeurs.vue = 2
+f:Rafraichir()
+f.creer:Click()
+contient("modification enregistrée", f.statut:GetText(), "enregistré")
+attendu("l'identifiant reste stable", LCM.Objets.Get(idLame), cree)
+attendu("aucun doublon au nouveau nom", LCM.Objets.Get("lame_retouchee"), nil)
+attendu("le nom est modifié", cree.label, "Lame retouchée")
+attendu("la description est modifiée", cree.description, "Description retouchée dans la Forge.")
+attendu("le bonus est modifié", cree.bonus.vue, 2)
+attendu("la propriété d'arme est conservée", cree.taille, 2)
+attendu("le mode édition reste explicite", f.creer.label:GetText(), "Enregistrer l'entrée")
 
 dire("== Les jeux dans le compendium")
 cf:ChoisirCategorie("jeux_equilibrage")
@@ -311,6 +344,7 @@ attendu("modif groupee : refusee et dit", alerte, true)
 -- Nouvelle entree : un jeu neuf.
 cf.nouvelle:Click()
 local t = q:Travail()
+local idArmure = t.def.id
 attendu("jeu neuf", t.creation, true)
 attendu("sept raretes de Necronicon", #t.def.raretes, 7)
 attendu("pools vides", t.def.raretes[1].points, "")
@@ -432,7 +466,7 @@ attendu("tout replier masque les champs", visibles, 0)
 
 q.enregistrer:Click()
 contient("enregistre", q.statut:GetText(), "Jeu enregistré")
-local armure = F.Get("creation_d_armure")
+local armure = F.Get(idArmure)
 attendu("jeu en brouillon", armure and armure.brouillon, true)
 attendu("six raretes", armure and #armure.raretes, 6)
 attendu("pool lu en nombre", armure and armure.raretes[1].points, 8)
@@ -440,7 +474,7 @@ attendu("max par rarete", F.Limites(armure, "adresse", "rare").max, 4)
 attendu("max du jeu", F.Limites(armure, "adresse", "commun").max, 2)
 attendu("cout", F.Limites(armure, "adresse", "commun").cout, 3)
 attendu("dossier prive enregistre", F.Limites(armure, "resi_feu", "commun").verrou, true)
-attendu("le compendium le liste", LCM.Compendium.Entree(cj, "creation_d_armure") ~= nil, true)
+attendu("le compendium le liste", LCM.Compendium.Entree(cj, idArmure) ~= nil, true)
 
 -- Desormais les armures aussi passent par un jeu.
 ok, raison = B.Enregistrer("objets", { id = "casque", label = "Casque", categorie = "equipement" }, true)
@@ -471,13 +505,17 @@ attendu("pool modifie", F.Get("creation_arme").raretes[1].points, 5)
 attendu("la meme table, modifiee sur place", F.Get("creation_arme") == jeu, true)
 
 -- Dupliquer et supprimer : les gestes du compendium.
-ok = Ed.Dupliquer(cj, F.Get("creation_d_armure"))
+ok = Ed.Dupliquer(cj, F.Get(idArmure))
 attendu("dupliquer un jeu", ok, true)
-attendu("la copie existe", F.Get("creation_d_armure_copie") ~= nil, true)
-local faits = Ed.Supprimer(cj, { F.Get("creation_d_armure"), F.Get("creation_d_armure_copie") })
+local copieArmure
+for _, element in ipairs(F.list) do
+    if element.brouillon and element.label == "Création d'armure (copie)" then copieArmure = element end
+end
+attendu("la copie existe", copieArmure ~= nil, true)
+local faits = Ed.Supprimer(cj, { F.Get(idArmure), copieArmure })
 attendu("deux jeux supprimes", faits, 2)
-attendu("jeu retire", F.Get("creation_d_armure"), nil)
-attendu("brouillon efface", LCM_MJ_DB.brouillons.jeux.creation_d_armure, nil)
+attendu("jeu retire", F.Get(idArmure), nil)
+attendu("brouillon efface", LCM_MJ_DB.brouillons.jeux[idArmure], nil)
 ok = B.Enregistrer("objets", { id = "casque", label = "Casque", categorie = "equipement" }, true)
 attendu("armures de nouveau libres", ok, true)
 
@@ -536,7 +574,113 @@ attendu("min copie au tableau", tc.def.champs.resi_feu and tc.def.champs.resi_fe
 q.vue = "liste"
 q:Hide()
 
+dire("== Les valeurs negatives : moitie du cout, et plafonnees au pool")
+-- Deux regles du 5 octobre 2026 :
+--   * descendre une statistique sous sa base ne rend que la MOITIE de son
+--     cout (un defaut coute a jouer autant qu'il rapporte a construire) ;
+--   * ce que les negatives rendent EN TOUT ne depasse pas le pool de la
+--     rarete, sinon il suffisait d'assez de defauts pour tout s'offrir.
+local jeuNeg = F.Construire(Jeu())
+local commun = jeuNeg.raretes[1]        -- pool 4
+local rare = jeuNeg.raretes[2]       -- pool 10
+
+-- Les autres statistiques restent SUR leur base : la force est verrouillee a 1
+-- et l'ouie a une base de 2, donc les laisser a zero les mettrait sous leur
+-- base et rendrait des points elles aussi.
+local function V(t)
+    local v = { force = 1, ouie = 2 }
+    for cle, valeur in pairs(t) do v[cle] = valeur end
+    return v
+end
+
+-- La moitie : escalade a -1, le point vaut 1, donc 0,5 rendu.
+local demi = F.Bilan(jeuNeg, rare.id, V({ escalade = -1 }))
+attendu("une negative rend la moitié", demi.credit, 0.5)
+attendu("et la ligne le montre", (function()
+    for _, l in ipairs(demi.lignes) do if l.champ.cle == "escalade" then return l.depense end end
+end)(), -0.5)
+attendu("le total la retranche", demi.total, -0.5)
+
+-- Le cout propre d'une statistique suit : la vue vaut 2 le point, donc -1
+-- rend 1.
+attendu("la moitié se compte sur le coût de la statistique",
+    F.Bilan(jeuNeg, rare.id, V({ vue = -1 })).credit, 1)
+
+-- Positif et negatif ensemble : on depense plein tarif, on recupere a moitie.
+local melange = F.Bilan(jeuNeg, rare.id, V({ escalade = 2, vue = -1 }))
+attendu("dépensé plein tarif", melange.depenses, 2)
+attendu("rendu à moitié", melange.credit, 1)
+attendu("total", melange.total, 1)
+
+-- Le PLAFOND : un pool de 4 et des negatives qui rendraient bien plus.
+local beaucoup = V({ escalade = -20, vue = -20 })
+local brut = F.Bilan(jeuNeg, commun.id, beaucoup)
+attendu("elles rendraient beaucoup", brut.credit > commun.points, true)
+attendu("mais on n'en garde que le pool", brut.creditRetenu, commun.points)
+attendu("et on dit ce qui est perdu", brut.creditPerdu, brut.credit - commun.points)
+attendu("le total descend d'autant, pas plus", brut.total, -commun.points)
+
+-- Donc on peut depenser deux fois le pool, et pas un point de plus.
+local bilanFond = F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = 4 }))
+attendu("on dépense le double du pool", bilanFond.depenses, 8)
+attendu("et le total tombe pile sur le pool", bilanFond.total, commun.points)
+attendu("un point de plus ne passerait pas",
+    F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = 5 })).total > commun.points, true)
+
+-- Le plafond depend de la rarete : les memes valeurs rendent plus en Rare.
+attendu("le pool de Rare retient davantage",
+    F.Bilan(jeuNeg, rare.id, beaucoup).creditRetenu, rare.points)
+
+-- Et donc la rarete suffisante se cherche sur les VALEURS.
+attendu("deux points tiennent dans le Commun",
+    F.RareteSuffisante(jeuNeg, V({ escalade = 2 })).id, "commun")
+
 dire("== Pas de commande ni d'entree de menu")
 attendu("pas de /lcm forge", LCM.UI.Menu.Trouver("forge"), nil)
+
+local mecaniquesForge = {}
+for _, champ in ipairs(F.Statistiques(LCM.Compendium.Get("traits"))) do
+    mecaniquesForge[champ.cle] = true
+end
+attendu("Forge : Provocation disponible", mecaniquesForge.meca_provocation, true)
+attendu("Forge : Intimidation disponible", mecaniquesForge.meca_intimidation, true)
+
+dire("== Race publique ou reservee au MJ dans la Forge")
+ok, raison = B.Enregistrer("jeux", {
+    id = "jeu_race_acces", label = "Création de race", categorie = "races",
+    raretes = { { id = "commun", label = "Commun", points = 10, couleur = "FFFFFF" } },
+    champs = { vue = { cout = 1, base = 0, max = 4 } },
+}, true)
+attendu("jeu de race disponible", ok, true)
+local races = LCM.Compendium.Get("races")
+FU.Ouvrir("races")
+attendu("case visible pour une race", f.mjSeulement:IsShown(), true)
+attendu("publique par defaut", f.mjSeulement:EstCochee(), false)
+local idRaceForge = FU.courant.creationId
+f.nom:Saisir("Race jumelle")
+f.mjSeulement:Click()
+attendu("case MJ cochee", FU.courant.mjSeulement, true)
+f.creer:Click()
+local raceForge = LCM.Races.Get(idRaceForge)
+attendu("restriction enregistree", raceForge and raceForge.mjSeulement, true)
+local chargeMJ = __addonsCharges["LesContesMalveillants_MJ"]
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = nil
+attendu("race MJ cachee au joueur", LCM.Races.Choisissable(raceForge), false)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = chargeMJ
+
+Ed.Ouvrir(races, raceForge)
+attendu("case relue en modification", f.mjSeulement:EstCochee(), true)
+f.mjSeulement:Click()
+f.creer:Click()
+attendu("restriction retiree", LCM.Races.Get(idRaceForge).mjSeulement, nil)
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = nil
+attendu("race publique visible au joueur", LCM.Races.Choisissable(LCM.Races.Get(idRaceForge)), true)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = chargeMJ
+B.Supprimer("races", idRaceForge)
+B.Supprimer("jeux", "jeu_race_acces")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

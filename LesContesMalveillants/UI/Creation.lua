@@ -103,13 +103,15 @@ local function NouvellePage(f)
     function page:Disposer()
         local y = 0
         for _, bloc in ipairs(self.blocs) do
-            local h = bloc.hautTitre + 8
-            if bloc.paragraphe then h = h + (bloc.paragraphe:GetStringHeight() or 14) + 12 end
-            h = h + (bloc.hauteurContenu or 0) + UI.Fiche.MARGE_BLOC
-            bloc:ClearAllPoints()
-            bloc:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
-            bloc:SetSize(LARGEUR_PAGE, h)
-            y = y + h + ECART_BLOCS
+            if bloc:IsShown() then
+                local h = bloc.hautTitre + 8
+                if bloc.paragraphe then h = h + (bloc.paragraphe:GetStringHeight() or 14) + 12 end
+                h = h + (bloc.hauteurContenu or 0) + UI.Fiche.MARGE_BLOC
+                bloc:ClearAllPoints()
+                bloc:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
+                bloc:SetSize(LARGEUR_PAGE, h)
+                y = y + h + ECART_BLOCS
+            end
         end
         self.hauteur = math.max(1, y - ECART_BLOCS)
         self:SetHeight(self.hauteur)
@@ -139,17 +141,20 @@ end
 -- fait defiler, et c'est precisement en bas de liste qu'on a besoin de savoir
 -- ce qu'il reste. Le bloc, lui, garde son titre.
 local function Budget(page, f, bloc, categorie)
-    -- Le titre voyage : il s'affiche dans le bandeau fige (f.bandeau), au meme
-    -- niveau que le pool. Le bloc, lui, n'est plus que la liste.
-    bloc.titreFige = bloc.titreFige or ""
-
-    bloc.budget = UI.Texte(f.contenu, "", UI.C.titre)
+    -- Le pool vit dans l'entete du bloc, sur la ligne du titre et a droite.
+    --
+    -- Il a vecu un temps dans un bandeau fige au-dessus de la liste, pour
+    -- rester lisible quand on faisait defiler (3 octobre 2026). Ca coutait
+    -- trop cher : un bloc prive de titre perd aussi son cadre, la description
+    -- s'affichait en double, et deux grilles sur une meme page se disputaient
+    -- le bandeau. L'entete est revenue dans le bloc (5 octobre 2026).
+    bloc.budget = UI.Texte(bloc, "", UI.C.titre)
     UI.Police(bloc.budget, 14)
-    bloc.remise = UI.Bouton(f.contenu, "R", 22, 20, function()
+    bloc.remise = UI.Bouton(bloc, "R", 22, 20, function()
         C.RemettreCategorie(f.brouillon, categorie)
         f:Actualiser()
     end)
-    bloc.remise:SetFrameLevel(f.contenu:GetFrameLevel() + 10)
+    bloc.remise:SetFrameLevel(bloc:GetFrameLevel() + 5)
     bloc.budget:SetDrawLayer("OVERLAY")
     bloc.categorie = categorie
     -- Posee par f:PlacerBudget() quand on change d'etape : une seule de ces
@@ -160,13 +165,10 @@ end
 -- Une grille de repartition : un compteur par ligne de la categorie, sur une
 -- ou deux colonnes, avec un intertitre quand le groupe change.
 local function Grille(page, f, titre, texte, categorie, colonnes)
-    -- Bloc SANS titre : le titre et le pool vivent ensemble dans le bandeau
-    -- fige au-dessus de la liste. Les avoir dans la liste voulait dire les
-    -- perdre des qu'on faisait defiler — et c'est en bas de liste qu'on a le
-    -- plus besoin de savoir ce qu'il reste (3 octobre 2026).
-    local bloc = Bloc(page, "", nil)
-    bloc.titreFige = titre or ""
-    bloc.texteFige = texte or ""
+    -- Titre et description dans le bloc, comme partout ailleurs. Les mettre
+    -- ailleurs laissait un bloc sans titre, donc sans cadre (`b.aTitre`
+    -- commande `AelCadre`), et la description s'ecrivait deux fois.
+    local bloc = Bloc(page, titre or "", texte)
     Budget(page, f, bloc, categorie)
     colonnes = colonnes or 1
     local lignes = C.Lignes(categorie)
@@ -686,8 +688,55 @@ function Pages.generale(page, f)
     end
     infos.hauteurContenu = y - Haut(infos)
 
+    -- Variante « montée de niveau » : la page Générale ne montre ni identité,
+    -- ni race, ni portrait. Elle annonce seulement le passage traité et les
+    -- réserves gagnées à ce niveau précis.
+    page.creationBlocs = { identite, race, portrait, niveau, infos }
+    local progression = Bloc(page, "Niveau supérieur",
+        "Chaque validation ne traite qu'un seul niveau. Tous les points encore dépensables doivent être répartis avant de passer au suivant.")
+    progression:Hide()
+    page.progression = progression
+    page.gains = {}
+    y = Haut(progression)
+    for _, def in ipairs({
+        { "primaires", "Statistiques" }, { "secondaires", "Statistiques secondaires" },
+        { "expertises", "Expertises" }, { "mecaniques", "Mécaniques de compétence" },
+        { "penetration", "Pénétrations" }, { "resistance", "Résistances" },
+        { "traits", "Traits" },
+    }) do
+        local l = Lecture(progression, def[2], y)
+        l.categorie = def[1]
+        page.gains[#page.gains + 1] = l
+        y = y + LIGNE + 4
+    end
+    progression.hauteurContenu = y - Haut(progression)
+
     function page:Actualiser()
         local b = f.brouillon
+        local montee = b.mode == "niveau"
+        for _, bloc in ipairs(self.creationBlocs) do bloc:SetShown(not montee) end
+        self.progression:SetShown(montee)
+        if montee then
+            if self.progression.paragraphe then
+                self.progression.paragraphe:SetText(string.format(
+                    "Passage du niveau %d au niveau %d. Répartis uniquement ce que ce niveau vient d'accorder.",
+                    b.niveauAvant, b.niveau))
+            end
+            local gy = Haut(self.progression)
+            for _, l in ipairs(self.gains) do
+                local budget = C.Budget(b, l.categorie)
+                local visible = budget.total > 0
+                l:SetShown(visible)
+                if visible then
+                    l:ClearAllPoints()
+                    l:SetPoint("TOPLEFT", self.progression, "TOPLEFT", UI.Fiche.MARGE_BLOC, -gy)
+                    l:SetPoint("TOPRIGHT", self.progression, "TOPRIGHT", -UI.Fiche.MARGE_BLOC, -gy)
+                    l.valeur:SetText(string.format("+%d acquis — %d à dépenser", budget.total, budget.reste))
+                    gy = gy + LIGNE + 4
+                end
+            end
+            self.progression.hauteurContenu = math.max(LIGNE, gy - Haut(self.progression))
+        end
         if self.nom:GetText() ~= b.nom then self.nom:SetText(b.nom or "") end
         local age = tostring(b.valeurs.age or "")
         if self.age:GetText() ~= age then self.age:SetText(age) end
@@ -991,12 +1040,28 @@ local function Construire()
 
     -- En bas : ce qui bloque, et les trois gestes.
     f.valider = UI.Bouton(f.contenu, "Créer le personnage", 190, 26, function()
-        local entity, erreur = C.Appliquer(f.brouillon)
+        local montee = f.brouillon.mode == "niveau"
+        local edition = f.brouillon.entite ~= nil
+        local entity, resultat = C.Appliquer(f.brouillon)
         if not entity then
-            LCM.Alerte(tostring(erreur))
+            LCM.Alerte(tostring(resultat))
             return
         end
-        LCM.Ok(string.format("%s rejoint les Contes.", tostring(entity.name)))
+        if montee then
+            LCM.Ok(string.format("niveau %d validé pour %s.", f.brouillon.niveau, tostring(entity.name)))
+            if UI.Radial and UI.Radial.Rafraichir then UI.Radial.Rafraichir() end
+            if (tonumber(resultat) or 0) > 0 then
+                local suivant, erreur = C.DepuisNiveau(entity)
+                if not suivant then LCM.Alerte(tostring(erreur)) f:Hide() return end
+                f:Montrer(suivant)
+                return
+            end
+            f:Hide()
+            UI.Fiche.Fenetre():Montrer(entity)
+            return
+        end
+        LCM.Ok(edition and string.format("la fiche de %s a été rééditée.", tostring(entity.name))
+            or string.format("%s rejoint les Contes.", tostring(entity.name)))
         f:Hide()
         if UI.Personnages and UI.Personnages.frame and UI.Personnages.frame:IsShown() then
             UI.Personnages.frame:Montrer()
@@ -1038,55 +1103,11 @@ local function Construire()
     UI.Police(f.probleme, 12)
     f.probleme:SetJustifyH("RIGHT")
 
-    -- ----- le bandeau fige -------------------------------------------------
-    -- Le titre de l'etape et son pool, sur la MEME ligne, au-dessus de la liste
-    -- et hors du defilement. On reprend l'habillage d'un titre de bloc (meme
-    -- couleur, meme ornement, meme filet) pour que ca reste le bandeau du bloc
-    -- et pas une barre de plus.
-    local HAUT_BANDEAU = 30
-    f.bandeau = CreateFrame("Frame", nil, f.contenu)
-    f.bandeau:SetHeight(HAUT_BANDEAU)
-    f.bandeau:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 34))
-    f.bandeau:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -(hauteurBandeau + 34))
-    f.bandeau.titre = UI.Texte(f.bandeau, "", UI.C.titreBloc)
-    UI.Police(f.bandeau.titre, 15)
-    f.bandeau.titre:SetPoint("LEFT", f.bandeau, "LEFT", 14, 0)
-    if UI.AelRef then
-        f.bandeau.ornement = UI.AelRef(f.bandeau, 347, 344, 45, 17, "ARTWORK")
-        f.bandeau.ornement:SetSize(45, 17)
-        f.bandeau.ornement:SetPoint("LEFT", f.bandeau.titre, "RIGHT", 12, 0)
-    end
-    f.bandeau.filet = UI.Aplat(f.bandeau, { 0.48, 0.36, 0.19, 0.8 }, "ARTWORK")
-    f.bandeau.filet:SetHeight(1)
-    f.bandeau.filet:SetPoint("TOPLEFT", f.bandeau, "TOPLEFT", 10, -HAUT_BANDEAU)
-    f.bandeau.filet:SetPoint("TOPRIGHT", f.bandeau, "TOPRIGHT", -10, -HAUT_BANDEAU)
-    -- La description de l'etape est figee elle aussi : c'est la consigne de ce
-    -- qu'on est en train de faire, elle n'a pas a disparaitre des qu'on
-    -- descend dans la liste.
-    f.bandeau.texte = UI.Texte(f.bandeau, "", UI.C.texte)
-    UI.Police(f.bandeau.texte, 11)
-    f.bandeau.texte:SetPoint("TOPLEFT", f.bandeau, "TOPLEFT", 20, -(HAUT_BANDEAU + 8))
-    f.bandeau.texte:SetPoint("TOPRIGHT", f.bandeau, "TOPRIGHT", -20, -(HAUT_BANDEAU + 8))
-    f.bandeau.texte:SetJustifyH("LEFT")
-    f.bandeau.texte:SetWordWrap(true)
-
-    -- Le bandeau se mesure : titre, filet, puis la description si elle existe.
-    function f:MesurerBandeau()
-        local haut = HAUT_BANDEAU
-        local texte = self.bandeau.texte:GetText() or ""
-        if texte ~= "" then
-            haut = haut + 8 + (self.bandeau.texte:GetStringHeight() or 14) + 8
-        end
-        self.bandeau:SetHeight(haut)
-        return haut
-    end
-
     f.zone = UI.Defilement(f.contenu)
-    -- Ce qui est pose AU-DESSUS de la zone : la rangee d'onglets, puis le
-    -- bandeau fige (titre + pool).
+    -- Ce qui est pose AU-DESSUS de la zone : la rangee d'onglets.
     f.hautZoneCreation = hauteurBandeau + 10
-    f.zone:SetPoint("TOPLEFT", f.bandeau, "BOTTOMLEFT", 0, -6)
-    f.zone:SetPoint("TOPRIGHT", f.bandeau, "BOTTOMRIGHT", 0, -6)
+    f.zone:SetPoint("TOPLEFT", f.recap, "TOPRIGHT", 12, -(hauteurBandeau + 34))
+    f.zone:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -(hauteurBandeau + 34))
 
     -- La rangee du bas (et ce qui s'appuie dessus) se pose au-dessus de ce que
     -- l'habillage mange a l'interieur de la fenetre : au ras du contenu, les
@@ -1139,6 +1160,10 @@ local function Construire()
     local function LignesRecap(brouillon, categorie)
         local out = {}
         if categorie == "identite" then
+            if brouillon.mode == "niveau" then
+                out[#out + 1] = { "Passage", string.format("%d → %d", brouillon.niveauAvant, brouillon.niveau) }
+                return out
+            end
             local race = brouillon.race ~= "" and LCM.Races.Get(brouillon.race)
             out[#out + 1] = { "Nom", brouillon.nom ~= "" and brouillon.nom or "—" }
             out[#out + 1] = { "Race", (race and race.label) or "—" }
@@ -1152,14 +1177,23 @@ local function Construire()
         end
         if categorie == "traits" then
             for _, id in ipairs(brouillon.traits) do
-                local trait = LCM.Traits.Get(id)
-                out[#out + 1] = { (trait and trait.label) or id, tostring((trait and trait.cout) or 1) }
+                if not (brouillon.mode == "niveau" and brouillon.base and C.ATrait(brouillon.base, id)) then
+                    local trait = LCM.Traits.Get(id)
+                    out[#out + 1] = { (trait and trait.label) or id,
+                        brouillon.mode == "niveau" and ("+" .. tostring((trait and trait.cout) or 1))
+                            or tostring((trait and trait.cout) or 1) }
+                end
             end
             return out
         end
         for _, ligne in ipairs(C.Lignes(categorie)) do
             local valeur = C.Valeur(brouillon, ligne.id)
-            if valeur > 0 then out[#out + 1] = { ligne.label, tostring(valeur) } end
+            if brouillon.mode == "niveau" and brouillon.base then
+                local gain = valeur - C.Valeur(brouillon.base, ligne.id)
+                if gain > 0 then out[#out + 1] = { ligne.label, "+" .. tostring(gain) } end
+            elseif valeur > 0 then
+                out[#out + 1] = { ligne.label, tostring(valeur) }
+            end
         end
         return out
     end
@@ -1240,23 +1274,15 @@ local function Construire()
     -- la zone qui defile.
     function f:PlacerBudget()
         local page = self.pages[self.etape]
-        local avecBudget = page and page.budgets and page.budgets[1]
-        -- Le bandeau ne s'affiche que pour une etape qui a un pool : sur
-        -- « Bienvenue » il n'y a rien a y mettre, et un bandeau vide prendrait
-        -- la place de ce qu'on lit.
-        self.bandeau:SetShown(avecBudget ~= nil)
-        if avecBudget then
-            self.bandeau.titre:SetText(UI.Majuscules(avecBudget.titreFige or ""))
-            self.bandeau.texte:SetText(avecBudget.texteFige or "")
-            self:MesurerBandeau()
-        end
-        for _, bloc in ipairs((page and page.budgets) or {}) do
-            -- Ancres sur le bandeau, a la hauteur du titre : c'est la ligne
-            -- du bloc. Pas besoin de les reparenter, ils vivent deja dans le
-            -- meme contenu et suivent donc le bandeau fige.
+        local budgets = (page and page.budgets) or {}
+        for _, bloc in ipairs(budgets) do
+            -- Sur la ligne du titre de SON bloc, a droite. Une page peut porter
+            -- plusieurs grilles (Statistiques en a deux) : chacune compte son
+            -- propre pool, en face de son propre titre.
             bloc.remise:ClearAllPoints()
-            bloc.remise:SetPoint("RIGHT", self.bandeau, "RIGHT", -12, 0)
             bloc.budget:ClearAllPoints()
+            bloc.remise:SetPoint("TOPRIGHT", bloc, "TOPRIGHT", -14,
+                -(bloc.hautTitre - 20) / 2)
             bloc.budget:SetPoint("RIGHT", bloc.remise, "LEFT", -8, 0)
             bloc.remise:Show()
             bloc.budget:Show()
@@ -1271,12 +1297,40 @@ local function Construire()
         end
     end
 
+    local ETAPE_CATEGORIES = {
+        statistiques = { "primaires", "secondaires" },
+        expertises = { "expertises" }, mecaniques = { "mecaniques" },
+        penetrations = { "penetration" }, resistances = { "resistance" },
+        traits = { "traits" },
+    }
+
+    function f:EtapesDisponibles()
+        if self.brouillon.mode ~= "niveau" then return C.ETAPES end
+        local out = {}
+        for _, etape in ipairs(C.ETAPES) do
+            local visible = etape.id == "generale"
+            for _, categorie in ipairs(ETAPE_CATEGORIES[etape.id] or {}) do
+                if C.Budget(self.brouillon, categorie).total > 0 then visible = true end
+            end
+            if visible then out[#out + 1] = etape end
+        end
+        return out
+    end
+
+    function f:ActualiserEtapes()
+        self.etapes = self:EtapesDisponibles()
+        local visibles = {}
+        for _, etape in ipairs(self.etapes) do visibles[etape.id] = true end
+        for _, bouton in ipairs(self.barre.boutons) do bouton:SetShown(visibles[bouton.ongletId] or false) end
+        self.barre:Disposer(LARGEUR_PAGE, m.onglet, { uneRangee = true })
+    end
+
     function f:Pas(sens)
         local rang = 1
-        for index, etape in ipairs(C.ETAPES) do
+        for index, etape in ipairs(self.etapes or C.ETAPES) do
             if etape.id == self.etape then rang = index end
         end
-        local cible = C.ETAPES[rang + sens]
+        local cible = (self.etapes or C.ETAPES)[rang + sens]
         if cible then self:Afficher(cible.id) end
     end
 
@@ -1289,6 +1343,7 @@ local function Construire()
     end
 
     function f:Actualiser()
+        self:ActualiserEtapes()
         self:ActualiserRecap()
         local page = self.pages[self.etape]
         if not page then return end
@@ -1340,8 +1395,9 @@ local function Construire()
 
         -- La derniere etape est la seule qui propose de creer ; partout
         -- ailleurs, c'est « Suivant » qui occupe cette place.
-        local rang, dernier = 1, #C.ETAPES
-        for index, etape in ipairs(C.ETAPES) do
+        local etapes = self.etapes or C.ETAPES
+        local rang, dernier = 1, #etapes
+        for index, etape in ipairs(etapes) do
             if etape.id == self.etape then rang = index end
         end
         self.valider:SetShown(rang == dernier)
@@ -1371,7 +1427,15 @@ local function Construire()
 
     function f:Montrer(brouillon)
         self.brouillon = brouillon or self.brouillon or C.Nouveau()
-        self:Afficher(C.ETAPES[1].id)
+        local montee = self.brouillon.mode == "niveau"
+        local edition = self.brouillon.entite ~= nil
+        self:Titre(montee and string.format("Niveau %d → %d", self.brouillon.niveauAvant, self.brouillon.niveau)
+            or (edition and "Réédition" or "Création"))
+        self.valider.label:SetText(montee and ("Valider le niveau " .. tostring(self.brouillon.niveau))
+            or (edition and "Valider la fiche" or "Créer le personnage"))
+        self.recap.titre:SetText(montee and "Gains de ce niveau" or "Récapitulatif")
+        self.remiseTotale.label:SetText(montee and "Réinitialiser ce niveau" or "Tout remettre à zéro")
+        self:Afficher(montee and "generale" or C.ETAPES[1].id)
         self:Show()
     end
 
@@ -1391,4 +1455,39 @@ function Ecran.Ouvrir()
     return f
 end
 
+function Ecran.Editer(entity)
+    entity = entity or (LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage())
+    local peut, raison = C.PeutEditer(entity)
+    if not peut then return nil, raison end
+    local brouillon, erreur = C.Depuis(entity)
+    if not brouillon then return nil, erreur end
+    local f = Ecran.Fenetre()
+    f:Montrer(brouillon)
+    return f
+end
+
+function Ecran.MonterNiveau(entity)
+    entity = entity or (LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage())
+    local brouillon, erreur = C.DepuisNiveau(entity)
+    if not brouillon then return nil, erreur end
+    local f = Ecran.Fenetre()
+    f:Montrer(brouillon)
+    return f
+end
+
+LCM.WhenReady(function()
+    UI.Menu.Lier("montee_niveau", function()
+        local f, erreur = Ecran.MonterNiveau()
+        if not f then LCM.Alerte(tostring(erreur)) end
+    end)
+end)
+
 LCM.AddCommand("creer", "cree un personnage", function() Ecran.Ouvrir() end)
+LCM.AddCommand("editer", "réédite ton personnage (MJ ou avec un jeton)", function()
+    local f, raison = Ecran.Editer()
+    if not f then LCM.Alerte(tostring(raison)) end
+end)
+LCM.AddCommand("niveau", "répartit les points d'un niveau en attente", function()
+    local f, raison = Ecran.MonterNiveau()
+    if not f then LCM.Alerte(tostring(raison)) end
+end)

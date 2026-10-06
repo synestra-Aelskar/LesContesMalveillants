@@ -231,17 +231,34 @@ attendu("plafond lu du moteur (5 + 4)", force.plafond, 9)
 for _ = 1, 9 do force.plus:Click() end
 attendu("neuf clics, neuf points", f.brouillon.valeurs.force, 9)
 attendu("budget dans le titre du bloc", budget(st, "primaires").budget:GetText(), "23 / 32")
--- 3 octobre 2026 : le bandeau du bloc (titre + pool + R) est FIGE au-dessus de
--- la liste. Le pool se perdait des qu'on faisait defiler, alors que c'est en
--- bas de liste qu'on a le plus besoin de savoir ce qu'il reste.
+-- 5 octobre 2026 : le pool vit dans l'ENTETE DE SON BLOC, sur la ligne du
+-- titre. Il a passe deux jours dans un bandeau fige au-dessus de la liste pour
+-- rester lisible pendant le defilement (3 octobre) ; ca privait le bloc de son
+-- titre, donc de son cadre (`aTitre` commande AelCadre), ca affichait la
+-- description deux fois, et deux grilles d'une meme page se disputaient le
+-- bandeau.
 local F = LCM.UI.Creation.frame
-attendu("le bandeau est affiche", F.bandeau:IsShown(), true)
-attendu("il porte le titre de l'etape", F.bandeau.titre:GetText() ~= "", true)
-local _, ancreDe = budget(st, "primaires").remise:GetPoint(1)
-attendu("le R est ancre au bandeau, pas a la liste", ancreDe == F.bandeau, true)
-attendu("la liste defile SOUS le bandeau",
-    (select(2, F.zone:GetPoint(1))) == F.bandeau, true)
-attendu("le bloc du pool n'a plus de titre a lui", budget(st, "primaires").aTitre, false)
+attendu("plus de bandeau fige", F.bandeau, nil)
+local blocPrim = budget(st, "primaires")
+attendu("le bloc du pool a son titre", blocPrim.aTitre, true)
+attendu("donc son cadre", blocPrim.cadre ~= nil, true)
+attendu("et il le porte", blocPrim.titre:GetText(), "STATISTIQUES GÉNÉRALES")
+-- La description ne s'ecrit qu'UNE fois : dans le bloc, et nulle part ailleurs.
+attendu("un seul paragraphe de description", blocPrim.paragraphe ~= nil, true)
+attendu("et c'est bien celui du template",
+    blocPrim.paragraphe:GetText():find("Répartissez ci%-dessous") ~= nil, true)
+-- Chaque grille compte son propre pool, en face de son propre titre : ancres
+-- au meme endroit, les deux s'ecrivaient l'un sur l'autre.
+attendu("deux pools sur cette page", #st.budgets, 2)
+attendu("le premier est sur son bloc",
+    (select(2, blocPrim.remise:GetPoint(1))) == blocPrim, true)
+attendu("le second sur le sien",
+    (select(2, budget(st, "secondaires").remise:GetPoint(1))) == budget(st, "secondaires"), true)
+attendu("et ce bloc garde son titre", budget(st, "secondaires").aTitre, true)
+-- Sur la ligne du TITRE, pas au milieu du bloc : centre verticalement, le pool
+-- tombait au milieu de la liste.
+local _, _, _, _, yPool = blocPrim.remise:GetPoint(1)
+attendu("le pool est sur la ligne du titre", yPool > -blocPrim.hautTitre, true)
 force.plus:Click()
 attendu("le dixieme est refuse", f.brouillon.valeurs.force, 9)
 attendu("et il est explique", dernierMessage():find("plafond") ~= nil, true)
@@ -391,8 +408,11 @@ attendu("elles ne sont plus avec les expertises", compteur(ex, "meca_soin"), nil
 f.barre.boutons[5]:Click()
 local meca = f.pages.mecaniques
 attendu("l'etape Mecaniques", f.etape, "mecaniques")
+attendu("vingt-deux choix", #meca.compteurs, 22)
 local soin = compteur(meca, "meca_soin")
 attendu("avec ses lignes", soin ~= nil, true)
+attendu("avec Provocation", compteur(meca, "meca_provocation") ~= nil, true)
+attendu("avec Intimidation", compteur(meca, "meca_intimidation") ~= nil, true)
 attendu("plafond d'une mecanique", soin.plafond, 10)
 for _ = 1, 4 do soin.plus:Click() end
 attendu("quatre points de soin", f.brouillon.valeurs.meca_soin, 4)
@@ -613,10 +633,34 @@ attendu("le personnage existe", LCM.Personnages.Compte(), 1)
 attendu("et il est joue", LCM.Entities.Self().name, "Ysolde")
 attendu("sa fiche s'ouvre", LCM.UI.Fiche.frame:IsShown(), true)
 
+dire("== rouvrir la fiche dans l'écran de création")
+local personnage = LCM.Entities.Personnage()
+local edition = LCM.UI.Creation.Editer(personnage)
+attendu("le MJ peut la rouvrir", edition ~= nil, true)
+attendu("le titre annonce la réédition", edition.titre:GetText(), "RÉÉDITION")
+attendu("le bouton valide au lieu de créer", edition.valider.label:GetText(), "Valider la fiche")
+attendu("le brouillon vise la fiche existante", edition.brouillon.entite == personnage, true)
+edition:Hide()
+
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+local refusee, raison = LCM.UI.Creation.Editer(personnage)
+attendu("le joueur sans jeton est refusé", refusee, nil)
+attendu("l'écran explique pourquoi", tostring(raison):find("jeton") ~= nil, true)
+LCM.Creation.DonnerJeton(personnage)
+edition = LCM.UI.Creation.Editer(personnage)
+attendu("le jeton ouvre le même écran", edition ~= nil, true)
+edition:Hide()
+LCM.Creation.RetirerJeton(personnage)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+
 dire("== rouvrir repart d'un brouillon neuf")
 LCM.UI.Creation.Ouvrir()
 attendu("nom vide", f.brouillon.nom, "")
 attendu("aucune valeur", next(f.brouillon.valeurs), nil)
 attendu("sur Bienvenue", f.etape, "bienvenue")
+attendu("le titre redevient Création", f.titre:GetText(), "CRÉATION")
+attendu("le bouton redevient Créer", f.valider.label:GetText(), "Créer le personnage")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

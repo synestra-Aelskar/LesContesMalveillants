@@ -574,9 +574,19 @@ function UI.AelColonnes(largeur)
     -- contre le nom au lieu du bord. (3 octobre 2026 : annule « on garde
     -- l'alignement » du 2 octobre, qui ne tenait que sur une page pleine
     -- largeur.)
+    --
+    -- La plage (« 0-15 ») se glisse ENTRE le nom et la valeur : la place qu'il
+    -- lui faut est donc reservee dans ce rapprochement. Sans elle, `plage`
+    -- etait calculee a reculons depuis `valeur` et retombait DANS la colonne du
+    -- nom : dans un volet etroit (Expertises), « 15 » s'ecrivait par-dessus
+    -- « Communication » (5 octobre 2026).
     local valeur = math.min(modificateur - ecart - valeurLargeur,
-                            nom + nomLargeur + ecart)
-    local plage = valeur - ecart - plageLargeur
+                            nom + nomLargeur + ecart + plageLargeur + ecart)
+    -- Elle commence ou le nom finit, et occupe tout le couloir libre jusqu'a la
+    -- valeur : centree dedans (SetJustifyH("CENTER") cote ligne), elle tombe au
+    -- milieu de cet espace plutot que collee au nom.
+    local plage = nom + nomLargeur + ecart
+    plageLargeur = math.max(plageLargeur, valeur - ecart - plage)
 
     return {
         echelle = s,

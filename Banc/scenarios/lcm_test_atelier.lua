@@ -209,9 +209,11 @@ f.onglets.boutons[1]:Click()
 dire("== Atelier : creer un trait")
 f.nouveau:Click()
 local p = f.panneaux.traits
+local idOeil = f.edition.id
 attendu("formulaire vierge", p.nom:GetText(), "")
 p.nom:Saisir("Œil de lynx")
-attendu("identifiant derive", (p.ident:GetText() or ""):match("^(%S+)"), "oeil_de_lynx")
+attendu("identifiant unique affiche", (p.ident:GetText() or ""):match("^(%S+)"), idOeil)
+attendu("identifiant sans rapport avec le nom", idOeil ~= "oeil_de_lynx", true)
 p.cout.plus:Click()
 attendu("cout 2", f.edition.cout, 2)
 p.cout.maximum:Click()
@@ -243,14 +245,20 @@ for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "vue" then b
 attendu("avantage ajoute", f.edition.avantage[1], "vue")
 
 f.enregistrer:Click()
-local cree = LCM.Traits.Get("oeil_de_lynx")
+local cree = LCM.Traits.Get(idOeil)
 attendu("enregistre et jouable", cree ~= nil, true)
 attendu("bonus 3", cree and cree.bonus.vue, 3)
 attendu("avantage", cree and cree.avantage.vue, true)
 attendu("description", cree and cree.description, "Voit loin.")
 attendu("plus en creation", f.edition.creation, false)
 attendu("supprimer visible", f.supprimer:IsShown(), true)
-attendu("sauvegarde : avantage en liste", LCM_MJ_DB.brouillons.traits.oeil_de_lynx.avantage[1], "vue")
+attendu("sauvegarde : avantage en liste", LCM_MJ_DB.brouillons.traits[idOeil].avantage[1], "vue")
+
+-- Deux entrees peuvent desormais porter exactement le meme nom.
+local idHomonyme = B.NouvelIdentifiant()
+local okHomonyme = B.Enregistrer("traits", { id = idHomonyme, label = "Œil de lynx", cout = 1 }, true)
+attendu("un homonyme est accepte", okHomonyme, true)
+attendu("les homonymes ont deux identifiants", idHomonyme ~= idOeil, true)
 
 dire("== Atelier : refus affiches")
 p.ajoutBonus:Click()
@@ -262,7 +270,7 @@ p.lignesBonus[1].montant:Saisir("abc")
 f.enregistrer:Click()
 attendu("montant illisible refuse", (f.message:GetText() or ""):find("^Refusé") ~= nil, true)
 dire("     message : " .. tostring(f.message:GetText()))
-attendu("la version sauvegardee est intacte", LCM_MJ_DB.brouillons.traits.oeil_de_lynx.bonus.vue, 3)
+attendu("la version sauvegardee est intacte", LCM_MJ_DB.brouillons.traits[idOeil].bonus.vue, 3)
 
 f.nouveau:Click()
 f.enregistrer:Click()
@@ -282,41 +290,44 @@ attendu("2e est l'ancien 3e", f.edition.bonus[2].champ, "pistage")
 attendu("ligne 3 cachee", p.lignesBonus[3]:IsShown(), false)
 
 dire("== Atelier : supprimer depuis la fenetre")
-f:Ouvrir("oeil_de_lynx")
+f:Ouvrir(idOeil)
 f.supprimer:Click()
 attendu("confirmation demandee", f.confirmation:IsShown(), true)
-attendu("pas encore supprime", LCM.Traits.Get("oeil_de_lynx") ~= nil, true)
+attendu("pas encore supprime", LCM.Traits.Get(idOeil) ~= nil, true)
 f.confirmation.oui:Click()
-attendu("supprime", LCM.Traits.Get("oeil_de_lynx"), nil)
+attendu("supprime", LCM.Traits.Get(idOeil), nil)
+B.Supprimer("traits", idHomonyme)
 
 dire("== Atelier : races et objets")
 f.onglets.boutons[2]:Click()
 attendu("famille races", f.famille, "races")
 attendu("panneau races", f.panneaux.races:IsShown(), true)
 local pr = f.panneaux.races
+local idMinotaure = f.edition.id
 pr.nom:Saisir("Minotaure")
 pr.morphologie:Click()
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "quadrupede" then b:Click() end end
 attendu("morphologie choisie", f.edition.morphology, "quadrupede")
 f.enregistrer:Click()
-attendu("race creee", LCM.Races.Get("minotaure") and LCM.Races.Get("minotaure").morphology, "quadrupede")
-attendu("ouverte aux joueurs par defaut", LCM.Races.Get("minotaure").mjSeulement, nil)
+attendu("race creee", LCM.Races.Get(idMinotaure) and LCM.Races.Get(idMinotaure).morphology, "quadrupede")
+attendu("ouverte aux joueurs par defaut", LCM.Races.Get(idMinotaure).mjSeulement, nil)
 pr.mjSeulement:Click()
 f.enregistrer:Click()
-attendu("la case la reserve au MJ", LCM.Races.Get("minotaure").mjSeulement, true)
+attendu("la case la reserve au MJ", LCM.Races.Get(idMinotaure).mjSeulement, true)
 -- Rouvrir puis enregistrer sans toucher la case : l'option survit. Le
 -- formulaire ne recopiait que les cles qu'il connaissait.
-f:Ouvrir("minotaure")
+f:Ouvrir(idMinotaure)
 attendu("la case se relit cochee", pr.mjSeulement:EstCochee(), true)
 pr.description.saisie:Saisir("Cornu.")
 f.enregistrer:Click()
-attendu("et l'option survit a une autre modification", LCM.Races.Get("minotaure").mjSeulement, true)
-attendu("la description passe aussi", LCM.Races.Get("minotaure").description, "Cornu.")
+attendu("et l'option survit a une autre modification", LCM.Races.Get(idMinotaure).mjSeulement, true)
+attendu("la description passe aussi", LCM.Races.Get(idMinotaure).description, "Cornu.")
 
 dire("== Atelier : un objet")
 f.onglets.boutons[3]:Click()
 attendu("famille objets", f.famille, "objets")
 local po = f.panneaux.objets
+local idAmulette = f.edition.id
 attendu("panneau objets", po:IsShown(), true)
 attendu("pas de cout pour un objet", po.cout, nil)
 attendu("enregistrement propose", f.enregistrer:IsShown(), true)
@@ -335,15 +346,15 @@ po.lignesBonus[1].montant:Saisir("2")
 po.ajoutAvantage:Click()
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "pistage" then b:Click() end end
 f.enregistrer:Click()
-local amulette = LCM.Objets.Get("amulette_du_guetteur")
+local amulette = LCM.Objets.Get(idAmulette)
 attendu("objet cree", amulette ~= nil, true)
 attendu("categorie", amulette and amulette.categorie, "accessoire")
 attendu("bonus", amulette and amulette.bonus.vue, 2)
 attendu("avantage", amulette and amulette.avantage.pistage, true)
-local sauve = LCM_MJ_DB.brouillons.objets.amulette_du_guetteur
+local sauve = LCM_MJ_DB.brouillons.objets[idAmulette]
 attendu("sauvegarde sans cout", sauve.cout, nil)
 attendu("sauvegarde : categorie", sauve.categorie, "accessoire")
-f:Ouvrir("amulette_du_guetteur")
+f:Ouvrir(idAmulette)
 attendu("rouvert : categorie relue", f.edition.categorie, "accessoire")
 
 dire("== Menu")
@@ -372,15 +383,17 @@ attendu("six familles", table.concat(onglets, ", "), "Traits, Races, Objets, Ét
 
 f.onglets.boutons[6]:Click()
 local ps = f.panneaux.sacs
+local idSac = f.edition.id
 attendu("un sac n'a pas d'effets", ps.ajoutBonus:IsShown(), false)
 ps.nom:Saisir("Sac d'essai")
 ps.places:Saisir("12")
 f.enregistrer:Click()
-attendu("sac cree", LCM.Sacs.Get("sac_d_essai") and LCM.Sacs.Get("sac_d_essai").places, 12)
+attendu("sac cree", LCM.Sacs.Get(idSac) and LCM.Sacs.Get(idSac).places, 12)
 f.onglets.boutons[1]:Click()
 
 f.onglets.boutons[4]:Click()
 local pe = f.panneaux.etats
+local idPeste = f.edition.id
 pe.nom:Saisir("Peste d'essai")
 f.enregistrer:Click()
 attendu("etat sans categorie : refus", (f.message:GetText() or ""):find("catégorie") ~= nil, true)
@@ -395,21 +408,23 @@ for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "force" then
 attendu("un etat peut viser la Force", force, true)
 pe.lignesBonus[1].montant:Saisir("-10")
 f.enregistrer:Click()
-local infection = LCM.Etats.Get("peste_d_essai")
+local infection = LCM.Etats.Get(idPeste)
 attendu("etat cree", infection and infection.bonus.force, -10)
 
 f.onglets.boutons[5]:Click()
 local pa = f.panneaux.apprentissages
+local idEtude = f.edition.id
 attendu("apprentissage : pas de categorie a choisir", pa.categorie, nil)
 pa.nom:Saisir("Etude de l'acrobatie")
 pa.ajoutBonus:Click()
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "acrobaties" then b:Click() end end
 f.enregistrer:Click()
-attendu("apprentissage cree", LCM.Apprentissages.Get("etude_de_l_acrobatie") ~= nil, true)
-attendu("categorie implicite", LCM.Apprentissages.Get("etude_de_l_acrobatie").categorie, "apprentissage")
+attendu("apprentissage cree", LCM.Apprentissages.Get(idEtude) ~= nil, true)
+attendu("categorie implicite", LCM.Apprentissages.Get(idEtude).categorie, "apprentissage")
 
 f.onglets.boutons[2]:Click()
 local prace = f.panneaux.races
+local idSylvaine = f.edition.id
 prace.nom:Saisir("Sylvaine")
 prace.morphologie:Click()
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "humanoide" then b:Click() end end
@@ -418,10 +433,10 @@ prace.ajoutBonus:Click()
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "perception" then b:Click() end end
 prace.lignesBonus[1].montant:Saisir("4")
 f.enregistrer:Click()
-local race = LCM.Races.Get("sylvaine")
+local race = LCM.Races.Get(idSylvaine)
 attendu("race avec effets", race and race.bonus.perception, 4)
 local heros = LCM.Entities.Create("h2", "H2", "player")
-LCM.Entities.Set_Value(heros, "race", "sylvaine")
+LCM.Entities.Set_Value(heros, "race", idSylvaine)
 attendu("la race donne sa Perception", LCM.Formules.Primaire(heros, "perception"), 4)
 
 dire("== l'atelier et le jeu d'equilibrage")
@@ -436,6 +451,7 @@ LCM.Forge.Add({
 })
 f.onglets.boutons[1]:Click()
 f:Nouveau()
+local idSansJeu = f.edition.id
 local pe = f.panneaux.traits
 pe:Remplir()
 attendu("le champ d'equilibrage apparait", pe.forge:IsShown(), true)
@@ -446,7 +462,7 @@ attendu("et dit qu'il faut choisir",
 f.edition.label = "Sans jeu"
 table.insert(f.edition.bonus, { champ = "escalade", montant = "1" })
 f:Enregistrer()
-attendu("refuse sans jeu", LCM.Traits.Get("sans_jeu"), nil)
+attendu("refuse sans jeu", LCM.Traits.Get(idSansJeu), nil)
 attendu("et on dit pourquoi",
     (f.message:GetText() or ""):find("équilibrage") ~= nil, true)
 
@@ -455,8 +471,8 @@ f.edition.forge = "jeu_traits/commun"
 pe:Remplir()
 attendu("le bilan compte le pool", (pe.bilanForge:GetText() or ""):find("/ 10") ~= nil, true)
 f:Enregistrer()
-attendu("accepte avec son jeu", LCM.Traits.Get("sans_jeu") ~= nil, true)
-attendu("et le jeu est retenu", LCM.Brouillons.Get("traits", "sans_jeu").forge, "jeu_traits/commun")
+attendu("accepte avec son jeu", LCM.Traits.Get(idSansJeu) ~= nil, true)
+attendu("et le jeu est retenu", LCM.Brouillons.Get("traits", idSansJeu).forge, "jeu_traits/commun")
 
 -- Les bonus proposes viennent du JEU, pas de la feuille entiere.
 f:Nouveau()
@@ -518,6 +534,6 @@ attendu("rien n'est encore choisi", f.edition.forge, nil)
 pe.ajoutBonus:Click()
 attendu("la forge s'ouvre tout de meme", LCM.UI.Forge.Fenetre():IsShown(), true)
 LCM.UI.Forge.Fenetre():Hide()
-LCM.Brouillons.Supprimer("traits", "sans_jeu")
+LCM.Brouillons.Supprimer("traits", idSansJeu)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

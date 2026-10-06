@@ -128,7 +128,9 @@ attendu("plus de combat", C.EnCours(), false)
 attendu("bandeau cache", f:IsShown(), false)
 
 dire("== en groupe : inviter, repondre, lancer")
-__groupe({ "Reika-Apertus", "Nytherah-Apertus" })
+-- Sur un meme royaume, WoW peut rendre les membres sans suffixe par
+-- UnitName, tandis que CHAT_MSG_ADDON suffixe toujours l'expediteur.
+__groupe({ "Reika", "Nytherah" })
 -- La boucle rend chaque envoi a son expediteur : ce client joue le MJ ET le
 -- joueur invite (Nytherah).
 __reseauBoucle(true, "Nytherah-Apertus")

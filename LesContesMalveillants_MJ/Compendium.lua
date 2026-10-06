@@ -135,6 +135,7 @@ local function Travail(categorie, element)
     if not element then
         for k, v in pairs(categorie.defaut or {}) do e[k] = LCM.Copie(v) end
         e.label = "Nouvelle entree"
+        e.id = Brouillons.NouvelIdentifiant()
     end
     local famille = categorie.famille
     return {
@@ -176,8 +177,8 @@ local function Definition(t)
     local def = LCM.Copie(t.e)
     def.label = Texte(def.label)
     if def.label == "" then return nil, "donne-lui un nom" end
-    def.id = t.creation and Brouillons.Identifiant(def.label) or def.id
-    if Texte(def.id) == "" then return nil, "le nom ne donne aucun identifiant (lettres ou chiffres)" end
+    def.id = def.id or Brouillons.NouvelIdentifiant()
+    if Texte(def.id) == "" then return nil, "identifiant absent" end
     for k, v in pairs(t.categorie.defaut or {}) do
         if def[k] == nil then def[k] = LCM.Copie(v) end
     end
@@ -445,8 +446,7 @@ function Editeur.Comportement(f)
     function f:MajIdentifiant()
         local t = self.travail
         if t.creation then
-            local id = Brouillons.Identifiant(t.e.label)
-            self.identite.ident:SetText(id ~= "" and (id .. "   |cff99907fdérivé du nom, figé à l'enregistrement|r") or "—")
+            self.identite.ident:SetText(tostring(t.e.id) .. "   |cff99907fidentifiant unique, figé|r")
         else
             self.identite.ident:SetText(tostring(t.e.id))
         end
@@ -1352,6 +1352,15 @@ local function Fenetre()
 end
 
 function Editeur.Ouvrir(categorie, element)
+    -- Les entrees dosees par la Forge se reprennent dans la Forge elle-meme :
+    -- l'ancien panneau a champs du compendium faisait doublon et separait le
+    -- nom/la description des statistiques et de leur pool.
+    if element and UI.Forge and UI.Forge.EstCategorie(categorie) then
+        if Editeur.frame then Editeur.frame:Hide() end
+        local ok, raison = UI.Forge.OuvrirEdition(categorie, element)
+        if not ok then LCM.Alerte("Forge : " .. tostring(raison)) end
+        return ok
+    end
     -- Une categorie qui a son propre editeur (les jeux de la forge) l'ouvre :
     -- sa structure ne tient pas dans des champs.
     local propre = categorie and categorie.editeur and MJ[categorie.editeur]
@@ -1365,6 +1374,7 @@ function Editeur.Dupliquer(categorie, element)
     if not C.Editable(categorie) then return false, categorie.lectureSeule or "categorie en lecture seule" end
     local t = Travail(categorie, element)
     t.creation = true
+    t.e.id = Brouillons.NouvelIdentifiant()
     t.e.label = Texte(element.label) .. " (copie)"
     local def, raison = Definition(t)
     if not def then return false, raison end

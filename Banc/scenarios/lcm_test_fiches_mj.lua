@@ -15,12 +15,23 @@ local moi = LCM.Entities.Self()
 LCM.Entities.Set_Value(moi, "force", 7)
 LCM.Entities.Set_Value(moi, "niveau", 5)
 LCM.Entities.SetGauge(moi, "fatigue", 12, 40)
+moi.traits = { "escalade_jungle" }
+moi.body = { buste = 2 }
+moi.apprentissages = { apprentissage = { "lecon_absente" } }
+moi.equipement = { arme = { "objet_absent" } }
+moi.usureArmure = { objet_absent = 1 }
+moi.bourse = { ecus = 17 }
+moi.xp = 23
 
 dire("== le paquet d'une fiche")
 local paquet = F.Paquet(moi)
 attendu("il porte le nom", paquet.nom, moi.name)
 attendu("et les valeurs", paquet.v.force, "7")
 attendu("les jauges se disent courant/max", paquet.v.fatigue, "12/40")
+attendu("les traits partent avec la fiche", paquet.t[1], "escalade_jungle")
+attendu("les blessures partent avec la fiche", paquet.b.buste, 2)
+attendu("l'équipement part avec la fiche", paquet.eq.arme[1], "objet_absent")
+attendu("la bourse part avec la fiche", paquet.bo.ecus, 17)
 -- Ce qui ne doit PAS partir : le MJ consulte une fiche, il ne fouille pas.
 LCM.Sorts.Ajouter(moi, { label = "Secret" })
 attendu("les sorts personnels restent chez moi", paquet.v.sorts, nil)
@@ -28,6 +39,13 @@ local refait = F.Entite(paquet)
 attendu("relue : le nom", refait.name, moi.name)
 attendu("relue : la force", refait.values.force, 7)
 attendu("relue : la jauge", refait.values.fatigue.current .. "/" .. refait.values.fatigue.max, "12/40")
+attendu("relue : le trait", refait.traits[1], "escalade_jungle")
+attendu("relue : la blessure", refait.body.buste, 2)
+attendu("relue : l'apprentissage", refait.apprentissages.apprentissage[1], "lecon_absente")
+attendu("relue : l'équipement", refait.equipement.arme[1], "objet_absent")
+attendu("relue : l'usure", refait.usureArmure.objet_absent, 1)
+attendu("relue : la bourse", refait.bourse.ecus, 17)
+attendu("relue : l'expérience", refait.xp, 23)
 attendu("elle se sait distante", refait.distante, true)
 
 dire("== seul le MJ demande")
@@ -52,6 +70,12 @@ attendu("ouvert", p:IsShown(), true)
 attendu("le groupe sans moi", p.nombreAffiche, 1)
 attendu("le membre", p.lignes[1].nom:GetText(), "Nytherah-Apertus")
 attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("panneau_mj"), true)
+local envoisAvant = #__envois
+p.lignes[1].reedition:Click()
+attendu("le panneau propose le jeton de réédition", p.lignes[1].reedition ~= nil, true)
+attendu("le clic envoie un message", #__envois > envoisAvant, true)
+attendu("le jeton vise le bon joueur", __envois[#__envois].cible, "Nytherah-Apertus")
+attendu("et part en chuchotement", __envois[#__envois].canal, "WHISPER")
 -- Le combat est un onglet du panneau depuis le 3 octobre 2026 (c'etait une
 -- fenetre a part, ouverte par un bouton).
 local onglets = {}
@@ -72,9 +96,13 @@ dire("== demander, recevoir")
 __reseauBoucle(true, "Nytherah-Apertus")
 attendu("rien de recu avant", F.Recue("Nytherah-Apertus"), nil)
 p.lignes[1].consulter:Click()
+__avancer(LCM.Reseau.FileEnvoi() * LCM.Reseau.CADENCE + 1)
 local recue = F.Recue("Nytherah-Apertus")
 attendu("la fiche arrive", recue ~= nil, true)
 attendu("avec ses valeurs", recue.values.force, 7)
+attendu("avec ses traits", recue.traits[1], "escalade_jungle")
+attendu("avec son équipement", recue.equipement.arme[1], "objet_absent")
+attendu("avec sa bourse", recue.bourse.ecus, 17)
 attendu("le joueur consulte en est prevenu",
     (function()
         for i = #__sorties, 1, -1 do
@@ -83,6 +111,35 @@ attendu("le joueur consulte en est prevenu",
         return false
     end)(), true)
 attendu("la fenetre de fiche s'ouvre dessus", LCM.UI.Fiche.frame.entity.name, recue.name)
+local consultation = LCM.UI.ConsultationMJ
+attendu("sept onglets de consultation", #consultation.barre.boutons, 7)
+attendu("Fiche reprend l'icone du radial", consultation.barre.boutons[1].icone.__texture,
+    LCM.UI.Menu.Trouver("fiche").icone)
+consultation.barre.boutons[2]:GetScript("OnEnter")(consultation.barre.boutons[2])
+attendu("le survol nomme l'onglet", GameTooltip.__text, "Santé")
+consultation.barre.boutons[2]:GetScript("OnLeave")(consultation.barre.boutons[2])
+attendu("Fiche est l'onglet actif", consultation.barre.boutons[1].__selectionne, true)
+attendu("les autres onglets sont grisés", consultation.barre.boutons[2].__selectionne, false)
+local pointBarre, relatifBarre, pointRelatifBarre, xBarre, yBarre = consultation.barre:GetPoint(1)
+attendu("la barre est ancree a l'ecran", relatifBarre, UIParent)
+consultation.barre.boutons[2]:Click()
+attendu("Santé remplace la fiche", consultation.onglet, "sante")
+attendu("la Santé lit le personnage consulté", LCM.UI.Vues.Fenetre("sante").entity, recue)
+attendu("la fiche précédente est cachée", LCM.UI.Fiche.frame:IsShown(), false)
+local _, relatifSante, pointRelatifSante, xSante = LCM.UI.Vues.Fenetre("sante"):GetPoint(1)
+attendu("la nouvelle feuille vient contre la barre", relatifSante, consultation.barre)
+attendu("elle garde un espace avec le menu", xSante, -consultation.ESPACEMENT_FEUILLE)
+local _, relatifApres, _, xApres, yApres = consultation.barre:GetPoint(1)
+attendu("le menu ne change pas d'ancrage", relatifApres, relatifBarre)
+attendu("le menu ne bouge pas horizontalement", xApres, xBarre)
+attendu("le menu ne bouge pas verticalement", yApres, yBarre)
+consultation.barre.boutons[6]:Click()
+attendu("Équipement remplace la Santé", consultation.onglet, "equipement")
+attendu("l'équipement reste en lecture seule",
+    LCM.UI.Vues.Fenetre("equipement").entity.distante, true)
+consultation.barre.boutons[7]:Click()
+attendu("Bourse utilise la même consultation", LCM.UI.Bourse.frame.entity, recue)
+attendu("Bourse devient l'onglet actif", consultation.barre.boutons[7].__selectionne, true)
 p:Afficher()
 -- Depuis le 3 octobre 2026, la ligne dit ce que la fiche apprend (niveau,
 -- PV) plutot que « fiche reçue ».
@@ -101,6 +158,21 @@ dire("== un joueur ne peut pas demander la fiche d'un autre")
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 attendu("aucun moyen de demander", (F.Demander("Nytherah-Apertus")), false)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+
+dire("== le joueur reçoit son jeton de réédition")
+while LCM.Creation.ADesJetons(moi) do LCM.Creation.RetirerJeton(moi) end
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+__reseauBoucle(true, "Nytherah-Apertus")
+-- Le message est produit par le même transport que le bouton du panneau ; la
+-- boucle le rend comme s'il arrivait du MJ distant.
+LCM.Reseau.Envoyer("edition+", {}, "WHISPER", LCM.PlayerId())
+attendu("le jeton est posé sur le personnage", LCM.Creation.ADesJetons(moi), true)
+attendu("le joueur peut maintenant rééditer", (LCM.Creation.PeutEditer(moi)), true)
+attendu("le message indique comment faire", dernierMessage():find("/lcm editer") ~= nil, true)
+__reseauBoucle(false)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 

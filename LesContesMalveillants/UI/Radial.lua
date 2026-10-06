@@ -527,7 +527,32 @@ local function Vignette(parent, taille, legendeAuSurvol, magique, niveau)
     b.legendeAuSurvol = legendeAuSurvol and true or false
     if legendeAuSurvol then b.legende:Hide() end
     Halo(b, taille)
+
+    -- Notification posee SUR le coin haut gauche de l'icone. Le contenu est
+    -- fourni par le noeud du menu (par exemple les niveaux en attente), ce qui
+    -- permet aux boutons recycles de l'effacer proprement.
+    b.badge = CreateFrame("Frame", nil, b)
+    b.badge:SetSize(18, 18)
+    b.badge:SetPoint("CENTER", b, "TOPLEFT", 5, -5)
+    b.badge:SetFrameLevel(b:GetFrameLevel() + 8)
+    b.badge.fond = UI.Aplat(b.badge, { 0.32, 0.03, 0.02, 0.98 }, "OVERLAY")
+    b.badge.fond:SetAllPoints(b.badge)
+    UI.Bordure(b.badge, { 0.95, 0.68, 0.20, 1 })
+    b.badge.texte = UI.Texte(b.badge, "", UI.C.titre, "GameFontNormalSmall")
+    b.badge.texte:SetAllPoints(b.badge)
+    b.badge.texte:SetJustifyH("CENTER")
+    b.badge:Hide()
     return b
+end
+
+local function ActualiserBadge(bouton, cible)
+    local nombre = 0
+    if cible and type(cible.badge) == "function" then
+        local ok, valeur = pcall(cible.badge)
+        if ok then nombre = math.max(0, math.floor(tonumber(valeur) or 0)) end
+    end
+    bouton.badge.texte:SetText(tostring(nombre))
+    bouton.badge:SetShown(nombre > 0)
 end
 
 -- ===== Les deux couronnes ==================================================
@@ -715,6 +740,7 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         b:SetPoint("CENTER", c.orbite, "CENTER", b.rx, b.ry)
         b.icone:SetTexture(categorie.icone)
         b.legende:SetText(categorie.label)
+        ActualiserBadge(b, categorie)
         b.choisi = (c.choisi == categorie.id)
         -- Une categorie qui s'ouvre directement (une fenetre seule) et que
         -- rien ne branche reste eteinte, comme une entree.
@@ -781,6 +807,7 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         b:SetSize(Radial.ACTION, Radial.ACTION)
         b.icone:SetTexture(entree.icone)
         b.legende:SetText(entree.label)
+        ActualiserBadge(b, entree)
         -- Une entree sans fenetre derriere elle reste visible mais eteinte : le
         -- menu ne ment pas sur ce qui existe.
         local prete = type(entree.onClick) == "function"
@@ -797,6 +824,16 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
     end
     for i = #entrees + 1, #c.boutonsEntree do c.boutonsEntree[i]:Hide() end
     c.nombreEntrees = #entrees
+end
+
+-- Une notification peut changer pendant que la couronne est ouverte (gain
+-- d'XP, validation d'un niveau). On redessine alors sans animation.
+function Radial.Rafraichir()
+    local f = Radial.frame
+    if not f then return end
+    for _, c in ipairs(f.couronnes or {}) do
+        if c.ouvert then Dessiner(f, c, false, false) end
+    end
 end
 
 local function ConstruireCouronne(f, def)

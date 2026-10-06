@@ -28,7 +28,9 @@ local moi = LCM.Entities.Self()
 
 dire("== le registre")
 attendu("trois categories", #O.CATEGORIES, 3)
-attendu("1 arme", O.Emplacements("arme"), 1)
+-- Deux depuis le 5 octobre 2026 : une arme et un bouclier, ou une arme a
+-- deux mains qui prend les deux.
+attendu("2 armes", O.Emplacements("arme"), 2)
 attendu("5 equipements", O.Emplacements("equipement"), 5)
 attendu("5 accessoires", O.Emplacements("accessoire"), 5)
 attendu("les brouillons sont jouables", O.Get("lame_de_givre") and O.Get("lame_de_givre").brouillon, true)
@@ -44,9 +46,13 @@ attendu("au depart rien", #O.Equipes(moi), 0)
 attendu("rien en sauvegarde", moi.equipement, nil)
 attendu("une arme", O.Placer(moi, "lame_de_givre"), true)
 local refus
-ok, refus = O.Placer(moi, "hache")
-attendu("pas de deuxieme arme", ok, false)
+-- Une seconde arme a UNE main tient a cote de la premiere.
+attendu("une deuxieme arme tient", O.Placer(moi, "hache"), true)
+attendu("les deux emplacements sont pris", O.Occupation(moi, "arme"), 2)
+ok, refus = O.Placer(moi, "dague_simple")
+attendu("mais pas une troisieme", ok, false)
 dire("     " .. tostring(refus))
+O.Enlever(moi, "hache")
 ok, refus = O.Placer(moi, "lame_de_givre")
 attendu("pas deux fois le meme", ok, false)
 ok, refus = O.Placer(moi, "inexistant")
@@ -84,10 +90,18 @@ fr:Montrer(moi)
 fr:Afficher("resistances")
 local ombre
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Ombre" then ombre = l end end
--- Le bonus a son texte, a droite de la valeur : le 0 reste dans sa colonne.
-attendu("Ombre : la valeur seule dans sa colonne", ombre.valeur:GetText(), "0")
-attendu("Ombre : le bonus a sa droite", ombre.bonus:GetText(), "+2")
-attendu("Ombre : ancre a droite de la valeur", select(3, ombre.bonus:GetPoint(1)), "RIGHT")
+-- 5 octobre 2026 : une statistique n'affiche plus que son TOTAL. « 0 +2 »
+-- ecrivait deux valeurs dans une colonne prevue pour une, et ca debordait.
+-- Le detail est passe dans l'infobulle.
+attendu("Ombre : le total", ombre.valeur:GetText(), "2")
+attendu("Ombre : plus de second nombre", ombre.bonus:GetText(), "")
+-- Le detail est dans l'infobulle : le total, puis chaque source qui y
+-- contribue. « D'ou viennent ces +4 ? » est la premiere question devant une
+-- fiche, et le total seul n'y repondait pas (5 octobre 2026).
+local champOmbre = LCM.Schema.Field(ombre.field.id)
+local texte = LCM.UI.Fiche.Decomposition(moi, champOmbre, 0, 0)
+attendu("l'infobulle donne le total", texte:find("Total : 2") ~= nil, true)
+attendu("et nomme la source", texte:find("Équipement") ~= nil, true)
 local feu
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Feu" then feu = l end end
 attendu("Feu : pas de bonus, pas de signe", feu.valeur:GetText(), "0")
@@ -112,9 +126,10 @@ for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
 attendu("trois onglets du template", table.concat(noms, ", "), "Armes, Armures, Accessoires")
 attendu("onglet Armes ouvert", f.onglet, "arme")
 local armes = f.pages.arme.blocs[1]
-attendu("bloc titre", armes.titre:GetText(), "ARMES PRINCIPALES")
-attendu("un emplacement d'arme", #armes.conteneur.emplacements, 1)
-attendu("occupation", armes.occupation:GetText(), "1 / 1")
+attendu("bloc titre", armes.titre:GetText(), "ARMES")
+-- Une arme portee, et la case libre qui reste.
+attendu("deux emplacements d'arme", #armes.conteneur.emplacements, 2)
+attendu("occupation", armes.occupation:GetText(), "1 / 2")
 local ligne = armes.conteneur.emplacements[1]
 attendu("l'arme portee", __sansCouleur(ligne.nom:GetText()):find("^Lame de givre") ~= nil, true)
 attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -178,7 +193,7 @@ f.barre.boutons[1]:Click()
 ligne.action:Click()
 attendu("arme retiree", O.EstEquipe(moi, "lame_de_givre"), false)
 attendu("case redevenue vide", ligne.nom:GetText(), "Emplacement")
-attendu("occupation 0 / 1", armes.occupation:GetText(), "0 / 1")
+attendu("occupation 0 / 2", armes.occupation:GetText(), "0 / 2")
 ligne.action:Click()
 local choix = LCM.UI.Fiche.choixConteneur
 local proposes = {}
@@ -189,7 +204,54 @@ attendu("seulement les armes des sacs", table.concat(proposes, ","), "hache,lame
 attendu("la lame retiree est au sac", O.Possede(moi, "lame_de_givre"), true)
 for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "hache" then b:Click() end end
 attendu("hache equipee", O.EstEquipe(moi, "hache"), true)
-attendu("affichage suit", armes.occupation:GetText(), "1 / 1")
+attendu("affichage suit", armes.occupation:GetText(), "1 / 2")
+
+dire("== une arme a deux mains prend les deux emplacements")
+-- Le champ « emplacements » d'une arme (5 octobre 2026). Une epee en demande
+-- un et laisse la place d'un bouclier ; une arme a deux mains prend tout.
+local okDeux = B.Enregistrer("objets", { id = "espadon", label = "Espadon",
+    categorie = "arme", taille = 2 }, true)
+attendu("une arme a deux mains s'enregistre", okDeux, true)
+attendu("sa taille est lue", O.Taille("espadon"), 2)
+attendu("une arme ordinaire en vaut un", O.Taille("lame_de_givre"), 1)
+-- Une taille hors bornes est une faute de frappe, pas une intention.
+attendu("trois emplacements refuses",
+    pcall(O.Construire, { id = "y", label = "Y", categorie = "arme", taille = 3 }), false)
+attendu("zero aussi",
+    pcall(O.Construire, { id = "y", label = "Y", categorie = "arme", taille = 0 }), false)
+
+for _, id in ipairs(O.Ids(moi, "arme")) do O.Enlever(moi, id) end
+attendu("les mains sont libres", O.Occupation(moi, "arme"), 0)
+attendu("l'espadon s'équipe", O.Placer(moi, "espadon"), true)
+attendu("il prend les deux mains", O.Occupation(moi, "arme"), 2)
+local okSecond, pourquoi = O.Placer(moi, "hache")
+attendu("plus rien ne tient a cote", okSecond, false)
+dire("     " .. tostring(pourquoi))
+-- Et dans l'autre sens : une main prise, l'espadon ne rentre plus, et on dit
+-- combien il lui en faut.
+O.Enlever(moi, "espadon")
+O.Placer(moi, "hache")
+local okEspadon, raisonEspadon = O.Placer(moi, "espadon")
+attendu("l'espadon ne rentre pas sur une seule main", okEspadon, false)
+attendu("et on dit ce qu'il demande",
+    tostring(raisonEspadon):find("en demande 2", 1, true) ~= nil, true)
+O.Enlever(moi, "hache")
+O.Placer(moi, "espadon")
+
+-- La fenetre compte les PLACES, pas les objets : a cote d'une arme a deux
+-- mains il n'y a pas de case libre a montrer.
+f.barre.boutons[1]:Click()
+attendu("occupation pleine", armes.occupation:GetText(), "2 / 2")
+attendu("et aucune case libre en plus", #(function()
+    local vus = {}
+    for _, ligne in ipairs(armes.conteneur.emplacements) do
+        if ligne:IsShown() then vus[#vus + 1] = ligne end
+    end
+    return vus
+end)(), 1)
+O.Enlever(moi, "espadon")
+O.Placer(moi, "hache")
+f:Actualiser()
 
 dire("== un objet disparu reste visible")
 f.barre.boutons[3]:Click()

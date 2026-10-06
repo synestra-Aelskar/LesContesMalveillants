@@ -83,6 +83,44 @@ function Fiche.LargeurTexte(texte, police)
     return mesureur:GetStringWidth() or 0
 end
 
+-- Les noms des sources, tels qu'on veut les lire sur une fiche. Ceux du code
+-- sont au singulier et en minuscules ; ici on parle au joueur.
+local LIBELLE_SOURCE = {
+    ["race"] = "Racial",
+    ["trait"] = "Traits",
+    ["objet"] = "Équipement",
+    ["etat"] = "États",
+    ["état temporaire"] = "États temporaires",
+    ["apprentissage"] = "Apprentissages",
+}
+
+-- « D'où viennent ces +4 ? » : le total, puis chaque source qui y contribue.
+-- `apport` est la part qui vient des primaires (la formule de la fiche), qui
+-- n'est pas une source d'effets mais compte dans le total.
+function Fiche.Decomposition(e, field, base, apport)
+    local lignes = {}
+    local total = (base or 0) + (apport or 0)
+    for _, part in ipairs(LCM.Effets.Detail(e, field.id)) do
+        total = total + part.total
+        lignes[#lignes + 1] = string.format("%s : %s",
+            LIBELLE_SOURCE[part.nom] or (part.nom:sub(1, 1):upper() .. part.nom:sub(2)),
+            Montant(part.total))
+    end
+    local texte = { string.format("Total : %s", Nombre(total)) }
+    if (base or 0) ~= 0 then
+        texte[#texte + 1] = string.format("Investi : %s", Nombre(base))
+    end
+    if (apport or 0) ~= 0 then
+        texte[#texte + 1] = string.format("Stat : %s", Montant(apport))
+    end
+    for _, ligne in ipairs(lignes) do texte[#texte + 1] = ligne end
+    if field.note and field.note ~= "" then
+        texte[#texte + 1] = ""
+        texte[#texte + 1] = field.note
+    end
+    return table.concat(texte, "\n")
+end
+
 function Fiche.Nom(l, c, texte, avecIcone)
     l.nom = UI.Texte(l, texte, UI.C.texte)
     UI.Police(l.nom, c.police)
@@ -211,18 +249,22 @@ function Lignes.stat(parent, field, c)
     UI.Police(l.bonus, c.police)
     l.bonus:SetPoint("LEFT", l.valeur, "RIGHT", 4, 0)
     l.bonus:SetJustifyH("LEFT")
-    Bulle(l, field.label, field.note)
     function l:Actualiser(e)
         local valeur = LCM.Entities.Get_Value(e, field.id)
-        -- Un nombre saisi recoit les bonus portes (traits, objets), montres a
-        -- part : « 2 +3 », pour qu'on sache ce qui vient de soi.
         local bonus = field.kind == "stat" and LCM.Effets.Bonus(e, field.id) or 0
+        -- LE TOTAL, un seul nombre. « 2 +3 » ecrivait deux valeurs dans une
+        -- colonne prevue pour une : ca debordait, et c'est le total qu'on lit
+        -- en jouant. Le detail passe dans l'infobulle, ou il ne gene personne
+        -- (5 octobre 2026).
         if bonus ~= 0 then
-            self.valeur:SetText(Nombre(tonumber(valeur) or 0))
-            self.bonus:SetText(Montant(bonus))
+            local base = tonumber(valeur) or 0
+            self.valeur:SetText(Nombre(base + bonus))
+            self.bonus:SetText("")
+            Bulle(self, field.label, Fiche.Decomposition(e, field, base, 0))
         else
             self.valeur:SetText(Nombre(valeur))
             self.bonus:SetText("")
+            Bulle(self, field.label, field.note)
         end
     end
     return l
@@ -274,6 +316,9 @@ function Lignes.gauge(parent, field, c)
         local jauge = LCM.Entities.Gauge(e, field.id)
         if jauge then self.barre:Regler(jauge.current, jauge.max) end
         self:CaleBarre()
+        for _, bouton in ipairs(self.boutons or {}) do
+            bouton:SetShown(not e.distante)
+        end
     end
     return l
 end
@@ -336,10 +381,22 @@ function Lignes.roll(parent, field, c)
         -- primaires), puis ce qu'il porte, dans sa colonne.
         local valeur = (tonumber(LCM.Entities.Get_Value(e, field.id)) or 0) + LCM.Formules.Apport(e, field.id)
         local bonus = LCM.Effets.Bonus(e, field.id)
-        self.valeur:SetText(Nombre(valeur))
+        -- Le TOTAL dans la colonne de valeur : c'est lui qu'on ajoute au de, et
+        -- il manquait — on lisait « +1 » a cote d'une case vide sans savoir ce
+        -- que valait le jet (5 octobre 2026). Le bonus reste a part, dans sa
+        -- propre colonne : il dit d'ou vient la difference.
+        self.valeur:SetText(Nombre(valeur + bonus))
         self.bonus:SetText(bonus ~= 0 and Montant(bonus) or "")
+        if bonus ~= 0 then
+            local investi = tonumber(LCM.Entities.Get_Value(e, field.id)) or 0
+            Bulle(self, field.label,
+                Fiche.Decomposition(e, field, investi, valeur - investi))
+        else
+            Bulle(self, field.label, field.note)
+        end
         local source = LCM.Effets.Avantage(e, field.id)
-        self.avantage:SetShown(source ~= nil)
+        self.avantage:SetShown(not e.distante and source ~= nil)
+        self.lancer:SetShown(not e.distante)
         if not source then
             self.avantage:SetChecked(false)
             self.avantage.marque:SetText("")
@@ -399,6 +456,9 @@ function Lignes.body(parent, field, c, options)
         local courant, maximum = LCM.Body.Totals(e)
         self.total.barre:Regler(courant, maximum)
         self.total:CaleBarre()
+        for _, bouton in ipairs(self.total.boutons or {}) do
+            bouton:SetShown(not e.distante)
+        end
 
         local etat = avecZones and LCM.Body.State(e) or {}
         local y = avecTotal and (c.ligne + ECART_LIGNES) or 0
@@ -410,6 +470,9 @@ function Lignes.body(parent, field, c, options)
             Bulle(z, partie.label, partie.part.description)
             z.barre:Regler(partie.current, partie.max)
             z:CaleBarre()
+            for _, bouton in ipairs(z.boutons or {}) do
+                bouton:SetShown(not e.distante)
+            end
             z:ClearAllPoints()
             z:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             z:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
@@ -615,7 +678,7 @@ function Lignes.traits(parent, field, c)
 
     -- Ne propose que ce qui n'est pas deja porte.
     function l:ProposerAjout()
-        if not (self.entity and LCM.IsMaster()) then return end
+        if not (self.entity and LCM.IsMaster()) or self.entity.distante then return end
         local options = {}
         for _, trait in ipairs(LCM.Traits.list) do
             if not LCM.Traits.Has(self.entity, trait.id) then
@@ -637,7 +700,7 @@ function Lignes.traits(parent, field, c)
 
     -- Retirer se rattrape (on redonne le trait) : pas de confirmation.
     function l:Retirer(id)
-        if not (self.entity and LCM.IsMaster()) then return end
+        if not (self.entity and LCM.IsMaster()) or self.entity.distante then return end
         if LCM.Traits.Revoke(self.entity, id) then self:Changer() end
     end
 
@@ -649,7 +712,7 @@ function Lignes.traits(parent, field, c)
 
     function l:Actualiser(e)
         self.entity = e
-        local mj = LCM.IsMaster()
+        local mj = LCM.IsMaster() and not e.distante
         self.ajouter:SetShown(mj)
         -- On ne retire pas SES PROPRES traits : ils se choisissent a la
         -- creation et font le personnage. La croix restait offerte au MJ sur
@@ -867,6 +930,24 @@ local function VoirElement(conteneur, id, ancre)
     if element and categorie then UI.Compendium.Voir(categorie, element, ancre) end
 end
 
+-- La reference de compendium (« objets/dague_… ») d'un element porte. Le
+-- conteneur ne la connait pas : sa `categorie` est un type d'EMPLACEMENT
+-- (arme, armure), pas une famille de compendium. On tente la lecture directe,
+-- puis on cherche l'entree dans les familles, comme VoirElement.
+function Fiche.RefPortee(conteneur, id)
+    if not (id and LCM.Compendium) then return nil end
+    local direct = tostring(conteneur.categorie) .. "/" .. tostring(id)
+    if LCM.Compendium.Resoudre(direct) then return direct end
+    for _, cat in ipairs(LCM.Compendium.categories) do
+        for _, e in ipairs(LCM.Compendium.Entrees(cat)) do
+            if tostring(e.id) == tostring(id) then
+                return LCM.Compendium.Reference(cat, e)
+            end
+        end
+    end
+    return nil
+end
+
 local function Emplacement(conteneur, c)
     -- Un BOUTON, pas un cadre : seuls les boutons recoivent OnClick, et sans
     -- ca le clic droit ne part jamais (c'est la panne du 1er octobre).
@@ -912,6 +993,80 @@ local function Emplacement(conteneur, c)
     end)
     l.action:SetPoint("LEFT", l, "LEFT", c.action, 0)
     UI.Police(l.action.label, c.police * 0.8)
+
+    -- Cible de glissement : on y depose un objet venu d'un sac, s'il va dans
+    -- cette categorie. Equiper demandait d'ouvrir le menu « + Ajouter » et de
+    -- retrouver l'objet dans une liste, alors qu'on l'a sous la souris.
+    if UI.Glisser then
+        UI.Glisser.Cible(l, function(objet)
+            if conteneur.entity and conteneur.entity.distante then
+                return false, "fiche distante en lecture seule."
+            end
+            if not LCM.IsMaster() then return false, "équiper est un geste du maître du jeu." end
+            if l.elementId then return false, "cet emplacement est déjà pris." end
+            local ref = tostring(objet.ref or "")
+            local famille, id = ref:match("^([%w_]+)/(.+)$")
+            if not famille then
+                -- Glisse depuis le compendium : l'element porte sa categorie.
+                id = objet.element and objet.element.id
+            end
+            if not id then return false, "on ne sait pas ce que c'est." end
+            local element = conteneur.catalogue.Get(id)
+            if not element then
+                return false, "cet objet n'appartient pas à cette famille."
+            end
+            if element.categorie ~= conteneur.categorie then
+                return false, string.format("« %s » ne se porte pas ici.", element.label)
+            end
+            return true
+        end, function(objet)
+            local ref = tostring(objet.ref or "")
+            local _, id = ref:match("^([%w_]+)/(.+)$")
+            id = id or (objet.element and objet.element.id)
+            local ok, raison = conteneur.catalogue.Placer(conteneur.entity, id)
+            if not ok then
+                LCM.Alerte(tostring(raison))
+                return
+            end
+            -- Equipe : il quitte la place d'ou il vient, sinon il existerait
+            -- en deux exemplaires. C'est la SOURCE qui sait comment : une case
+            -- de sac se vide, un autre emplacement se deshabille.
+            if objet.retirer then objet.retirer() end
+            conteneur:Actualiser(conteneur.entity)
+        end)
+
+        -- ... et une SOURCE : on reprend ce qu'on porte pour le ranger dans un
+        -- sac. L'emplacement ne savait que recevoir, si bien qu'on equipait en
+        -- glissant mais qu'on ne pouvait pas desequiper de meme (5 octobre
+        -- 2026).
+        l:RegisterForDrag("LeftButton")
+        l:SetScript("OnDragStart", function(self)
+            if not self.elementId then return end
+            if not conteneur:Autorise(conteneur.entity) then return end
+            local element = conteneur.catalogue.Get(self.elementId)
+            local porte = self.elementId
+            UI.Glisser.Commencer({
+                icone = element and element.icone or nil,
+                nom = element and element.label or tostring(porte),
+                ref = Fiche.RefPortee(conteneur, porte),
+                element = element,
+                quantite = 1,
+                origine = { equipement = conteneur, id = porte },
+                -- Quitter l'emplacement, et savoir y revenir si le rangement
+                -- echoue : un objet perdu entre le corps et le sac serait pire
+                -- que le refus.
+                retirer = function()
+                    conteneur.catalogue.Enlever(conteneur.entity, porte)
+                    conteneur:Actualiser(conteneur.entity)
+                end,
+                rendre = function()
+                    conteneur.catalogue.Placer(conteneur.entity, porte)
+                    conteneur:Actualiser(conteneur.entity)
+                end,
+            })
+        end)
+        l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
+    end
 
     -- Clic droit : la fiche de l'objet porte. Il manquait — on voyait l'objet
     -- sur soi sans pouvoir le lire.
@@ -1047,7 +1202,7 @@ function Lignes.temporaires(bloc, c, conteneur)
                 .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat))
             local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
             r.action.label:SetText(guerir and string.format("Guérir (%s)", etat.guerison.competence) or "Retirer")
-            r.action:SetShown(LCM.IsMaster() or guerir)
+            r.action:SetShown(not e.distante and (LCM.IsMaster() or guerir))
             r:ClearAllPoints()
             r:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             r:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
@@ -1086,6 +1241,7 @@ function Lignes.conteneur(bloc, def, c)
 
     function l:Autorise(entity)
         if not entity then return false end
+        if entity.distante then return false end
         if LCM.IsMaster() then return true end
         return depuisLesSacs and LCM.Personnages.Actif() == entity
     end
@@ -1141,16 +1297,24 @@ function Lignes.conteneur(bloc, def, c)
         local mj = self:Autorise(e)
         local portes = self.catalogue.Ids(e, self.categorie)
         local places = self.catalogue.Capacite(self.categorie)
+        -- Les PLACES prises, pas le nombre d'objets : une arme a deux mains en
+        -- prend deux, et le compte doit le dire, sinon on cherche en vain la
+        -- main libre qu'il annonce (5 octobre 2026).
+        local occupe = self.catalogue.Occupation and self.catalogue.Occupation(e, self.categorie)
+            or #portes
         -- Au-dessus du total (capacite reduite apres coup), le compte passe au
         -- rouge : rien n'est retire en douce.
-        bloc.occupation:SetText(string.format("%d / %d", #portes, places))
-        local couleur = (#portes > places) and UI.C.plein or UI.C.titre
+        bloc.occupation:SetText(string.format("%d / %d", occupe, places))
+        local couleur = (occupe > places) and UI.C.plein or UI.C.titre
         bloc.occupation:SetTextColor(couleur[1], couleur[2], couleur[3])
         -- Les cases occupees, puis UNE case libre tant qu'il reste de la
         -- place : trente cases vides ne disent rien de plus qu'une seule.
         -- Sauf categorie qui demande toutes ses places (l'armure).
         local categorie = self.catalogue.Categorie(self.categorie)
-        local n = math.max(#portes, math.min(places, #portes + 1))
+        -- Une case libre en plus seulement s'il RESTE une place : a cote d'une
+        -- arme a deux mains, il n'y en a pas.
+        local n = (occupe < places) and (#portes + 1) or #portes
+        n = math.max(#portes, n)
         if categorie and categorie.toutesLesCases then n = math.max(#portes, places) end
         local y = 0
         for index = 1, n do
@@ -1251,6 +1415,28 @@ local Bloc = Fiche.Bloc
 -- lignes — une seule facon de montrer un champ dans l'addon.
 --
 -- `largeur` : celle de la page. Les colonnes des lignes s'en deduisent.
+-- Une ligne de JET porte, a droite de son nom, quatre colonnes de plus : la
+-- plage, la valeur, le bonus et le bouton. Quand un bloc elargit sa colonne de
+-- noms pour ne couper aucun libelle, il faut les pousser d'autant — sans quoi
+-- le libelle leur passe dessus.
+function Fiche.DecalerJet(ligne, c, decalage)
+    if decalage <= 0 then return end
+    local function Poser(region, x)
+        if not region then return end
+        region:ClearAllPoints()
+        region:SetPoint("LEFT", ligne, "LEFT", x + decalage, 0)
+    end
+    Poser(ligne.plage, c.plage)
+    Poser(ligne.valeur, c.valeur)
+    Poser(ligne.bonus, c.modificateur)
+    Poser(ligne.lancer, c.action)
+    if ligne.avantage then
+        ligne.avantage:ClearAllPoints()
+        ligne.avantage:SetPoint("RIGHT", ligne, "LEFT",
+            c.modificateur + c.modificateurLargeur + decalage, 0)
+    end
+end
+
 function Fiche.Page(parent, sections, largeur)
     largeur = largeur or 520
     local page = CreateFrame("Frame", nil, parent)
@@ -1318,16 +1504,28 @@ function Fiche.Page(parent, sections, largeur)
         if plusLong > 0 then
             local depart = c.nom
             local largeur = math.max(plusLong, c.nomLargeur)
+            local decalage = math.max(0, largeur - c.nomLargeur)
+            local avecJet = false
             for _, ligne in ipairs(bloc.lignes) do
                 if ligne.nom and ligne.valeur and ligne.field then
                     ligne.nom:SetWidth(largeur)
-                    -- Au BOUT de la ligne, pas a une abscisse calculee : une
-                    -- fois le bloc taille sur son contenu, le bord est
-                    -- justement la ou la valeur doit tomber. Calee sur un
-                    -- point fixe, elle restait au milieu d'un bloc devenu plus
-                    -- large que prevu (4 octobre 2026).
-                    ligne.valeur:ClearAllPoints()
-                    ligne.valeur:SetPoint("RIGHT", ligne, "RIGHT", -MARGE_VALEUR, 0)
+                    if ligne.lancer then
+                        -- Une ligne de JET garde ses colonnes : son bord droit
+                        -- est pris par le bouton. Epinglee au bord comme les
+                        -- autres, la valeur passait DESSOUS — on lisait « +1 »
+                        -- (le bonus) a cote d'un vide, et le total nulle part
+                        -- (5 octobre 2026).
+                        avecJet = true
+                        Fiche.DecalerJet(ligne, c, decalage)
+                    else
+                        -- Au BOUT de la ligne, pas a une abscisse calculee :
+                        -- une fois le bloc taille sur son contenu, le bord est
+                        -- justement la ou la valeur doit tomber. Calee sur un
+                        -- point fixe, elle restait au milieu d'un bloc devenu
+                        -- plus large que prevu (4 octobre 2026).
+                        ligne.valeur:ClearAllPoints()
+                        ligne.valeur:SetPoint("RIGHT", ligne, "RIGHT", -MARGE_VALEUR, 0)
+                    end
                 end
             end
             -- Ce qu'il FAUDRAIT a ce bloc pour que rien ne soit coupe ni ne
@@ -1335,6 +1533,11 @@ function Fiche.Page(parent, sections, largeur)
             -- La vue s'en sert pour se tailler a son contenu au lieu de garder
             -- une largeur fixe ou l'on voit du vide a droite.
             bloc.largeurVoulue = math.ceil(depart + largeur + c.valeurLargeur + 14)
+            if avecJet then
+                -- Avec un jet, il faut aussi la plage, le bonus et le bouton.
+                bloc.largeurVoulue = math.ceil(c.action + c.actionLargeur
+                    + decalage + 2 * MARGE_BLOC)
+            end
         end
 
         if #bloc.lignes > 0 or section.texte then

@@ -27,11 +27,28 @@ local function Cle(proprietaire, id)
     return tostring(proprietaire) .. "/" .. tostring(id)
 end
 
+-- Le texte VISIBLE d'un lien, nettoye de tout code d'affichage. Un libelle de
+-- compendium peut en porter (une couleur, une icone) : glisse tel quel entre
+-- « |h[ » et « ]|h », le premier « | » ferme le lien avant l'heure et le chat
+-- n'affiche plus qu'un bout de texte mort, impossible a cliquer.
+local function Lisible(texte)
+    texte = tostring(texte or "")
+    texte = texte:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    texte = texte:gsub("|T.-|t", ""):gsub("|A.-|a", "")
+    texte = texte:gsub("|H.-|h(.-)|h", "%1")
+    -- Ce qui resterait de « | » n'a plus de sens ici : on l'enleve plutot que
+    -- de le doubler, un lien n'est pas l'endroit pour une barre verticale.
+    texte = texte:gsub("|", "")
+    -- Une icone retiree laisse son espace : deux blancs de suite se verraient.
+    return (texte:gsub("%s+", " "):gsub("^ ", ""):gsub(" $", ""))
+end
+Lien.Lisible = Lisible
+
 function Lien.Sort(entity, sort)
     if type(sort) ~= "table" then return nil end
     local proprietaire = (type(entity) == "table" and entity.id) or LCM.PlayerId()
     return string.format("|c%s|H%s:%s:%s|h[%s]|h|r",
-        COULEUR, Lien.TYPE, proprietaire, sort.id, tostring(sort.label))
+        COULEUR, Lien.TYPE, proprietaire, sort.id, Lisible(sort.label))
 end
 
 -- Pose le lien dans la zone de saisie si elle est ouverte ; sinon l'affiche,
@@ -164,7 +181,8 @@ local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostri
 function Lien.Entree(categorie, element, proprietaire)
     if type(categorie) ~= "table" or type(element) ~= "table" then return nil end
     return string.format("|c%s|H%s:%s:%s:%s|h[%s]|h|r", COULEUR_ENTREE, Lien.TYPE_ENTREE,
-        proprietaire or LCM.PlayerId(), categorie.id, element.id, tostring(element.label or element.id))
+        proprietaire or LCM.PlayerId(), categorie.id, element.id,
+        Lisible(element.label or element.id))
 end
 
 -- Une entree en texte, et retour. Format type par type (n, s, b, t), pour
@@ -359,22 +377,77 @@ function Lien.Adopter(proprietaire, id)
 end
 
 -- ===== Le clic =============================================================
--- SetItemRef recoit tous les clics sur un lien ; on ne retient que les notres
--- et on laisse passer le reste.
+-- Un lien ne se clique que si DEUX choses sont vraies : la fenetre de chat
+-- accepte les liens (`SetHyperlinksEnabled`), et quelqu'un ecoute le clic.
+--
+-- On ne tenait que la seconde, et par une seule porte — `SetItemRef`, ce que
+-- fait l'interface par defaut. Une fenetre dont les liens sont coupes affiche
+-- « [Nom] » en texte mort : rien a cliquer, et aucune erreur pour le dire. On
+-- allume donc les liens sur chaque fenetre, et on ecoute aussi
+-- `OnHyperlinkClick`, la porte qu'empruntent les addons qui remplacent le chat
+-- (5 octobre 2026).
+
+-- Le meme clic peut nous arriver par les deux portes. On ne fait le geste
+-- qu'une fois : sinon la carte s'ouvrirait en double.
+local dernierLien, dernierTemps = nil, -1
 
 local function Intercepter(lien)
-    local p, categorieId, entreeId = tostring(lien or ""):match("^" .. Lien.TYPE_ENTREE .. ":([^:]+):([^:]+):(.+)$")
+    lien = tostring(lien or "")
+    local maintenant = (GetTime and GetTime()) or 0
+    if lien == dernierLien and (maintenant - dernierTemps) < 0.5 then return true end
+
+    local p, categorieId, entreeId = lien:match("^" .. Lien.TYPE_ENTREE .. ":([^:]+):([^:]+):(.+)$")
     if p then
+        dernierLien, dernierTemps = lien, maintenant
         Lien.OuvrirEntree(p, categorieId, entreeId)
         return true
     end
-    local proprietaire, id = tostring(lien or ""):match("^" .. Lien.TYPE .. ":(.-):(.+)$")
+    local proprietaire, id = lien:match("^" .. Lien.TYPE .. ":(.-):(.+)$")
     if not proprietaire then return false end
+    dernierLien, dernierTemps = lien, maintenant
     Lien.Montrer(proprietaire, id)
     return true
 end
 Lien.Intercepter = Intercepter
 
+-- Une fenetre de chat : ses liens sont allumes, et son clic nous arrive.
+function Lien.BrancherChat(frame)
+    if type(frame) ~= "table" then return false end
+    if frame.SetHyperlinksEnabled then frame:SetHyperlinksEnabled(true) end
+    if frame.lcmLienBranche then return true end
+    if not frame.HookScript then return false end
+    frame.lcmLienBranche = true
+    frame:HookScript("OnHyperlinkClick", function(_, lien) Intercepter(lien) end)
+    return true
+end
+
+function Lien.BrancherLeChat()
+    local branchees = 0
+    for index = 1, (_G.NUM_CHAT_WINDOWS or 10) do
+        if Lien.BrancherChat(_G["ChatFrame" .. index]) then branchees = branchees + 1 end
+    end
+    return branchees
+end
+
 if _G.SetItemRef and hooksecurefunc then
     hooksecurefunc("SetItemRef", function(lien) Intercepter(lien) end)
 end
+
+-- Apres l'ouverture : les fenetres de chat existent, et celles qu'un addon
+-- ajoute ensuite sont reprises a la volee.
+if LCM.WhenReady then LCM.WhenReady(function() Lien.BrancherLeChat() end) end
+
+LCM.AddCommand("lien", "vérifie que les liens de chat sont cliquables", function()
+    local branchees = Lien.BrancherLeChat()
+    LCM.Info(string.format("fenêtres de chat branchées : %d", branchees))
+    LCM.Info(string.format("SetItemRef : %s", _G.SetItemRef and "oui" or "ABSENT"))
+    local moi = LCM.Entities.Self()
+    local categorie = LCM.Compendium and LCM.Compendium.categories
+        and LCM.Compendium.categories[1]
+    local element = categorie and (LCM.Compendium.Entrees(categorie) or {})[1]
+    if element then
+        LCM.Info("essai (clique dessus) : " .. tostring(Lien.Entree(categorie, element)))
+    elseif moi then
+        LCM.Info("aucune entrée de compendium pour faire l'essai.")
+    end
+end)

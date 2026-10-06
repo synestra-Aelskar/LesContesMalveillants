@@ -18,34 +18,27 @@ LCM.Brouillons.Set("objets", { id = "essai_icone", label = "Essai", categorie = 
 local brouillon = LCM.Brouillons.Get("objets", "essai_icone")
 attendu("brouillon cree", brouillon ~= nil, true)
 Ed.Ouvrir(categorie, brouillon)
-local f = Ed.frame
-attendu("l'editeur s'ouvre", f ~= nil and f:IsShown(), true)
-attendu("il est modifiable", f.lecture, false)
+local f = LCM.UI.Forge.Fenetre()
+attendu("la Forge s'ouvre", f ~= nil and f:IsShown(), true)
+attendu("elle modifie la bonne entrée", LCM.UI.Forge.courant.editionId, "essai_icone")
 
 dire("== l'apercu est un bouton")
-local ic = f.panneauIcone
-attendu("c'est un bouton", ic.apercuBouton ~= nil, true)
-attendu("avec son selecteur", ic.selecteur ~= nil, true)
-ic.apercuBouton:Click()
-attendu("le selecteur s'ouvre", ic.selecteur:IsShown(), true)
+local ic = f.icone
+attendu("c'est un bouton", ic ~= nil, true)
+attendu("avec son selecteur", f.selecteurIcone ~= nil, true)
+ic:Click()
+attendu("le selecteur s'ouvre", f.selecteurIcone:IsShown(), true)
 
 dire("== choisir une icone la pose")
 local choisie
-for _, b in ipairs(ic.selecteur.cases) do
+for _, b in ipairs(f.selecteurIcone.cases) do
     if b:IsShown() and not choisie then choisie = b end
 end
 attendu("il propose des icones", choisie ~= nil, true)
 choisie:Click()
-attendu("le chemin est recopie", ic.chemin:GetText(), choisie.chemin)
-attendu("et retenu sur l'entree", f.travail.e.icone, choisie.chemin)
-attendu("le selecteur se referme", ic.selecteur:IsShown(), false)
-
-dire("== en lecture seule, on ne propose rien")
-f.lecture = true
-ic.apercuBouton:Click()
-attendu("le selecteur reste ferme", ic.selecteur:IsShown(), false)
-attendu("et on dit quoi faire",
-    __sansCouleur(__sorties[#__sorties]):find("duplique") ~= nil, true)
+attendu("et retenu dans la Forge", LCM.UI.Forge.courant.icone, choisie.chemin)
+attendu("l'apercu est actualise", ic.texture:GetTexture(), LCM.Icone(choisie.chemin))
+attendu("le selecteur se referme", f.selecteurIcone:IsShown(), false)
 
 dire("== navigateur Omega : pool fixe et catalogue complet")
 attendu("chemin WoW avec slash normalise", LCM.Icone("Interface/ICONS/INV_Misc_Book_09"),
@@ -68,7 +61,7 @@ for i = 1, 1200 do catalogue[i] = "Interface/Icons/Test_" .. i end
 LCM.UI.CatalogueIcones = function() return catalogue end
 local navigateur = LCM.UI.SelecteurIcone("test_grille_omega")
 local selection
-navigateur:Proposer(ic.apercuBouton, function(chemin) selection = chemin end)
+navigateur:Proposer(ic, function(chemin) selection = chemin end)
 attendu("84 boutons seulement", #navigateur.cases, 84)
 navigateur:Defiler(10000)
 attendu("la derniere icone est accessible", navigateur.cases[84].chemin, catalogue[1200])

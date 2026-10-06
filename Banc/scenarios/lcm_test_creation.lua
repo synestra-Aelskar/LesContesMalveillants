@@ -130,7 +130,7 @@ attendu("un trait a 5 points est refuse au chargement", ok2, false)
 
 dire("== mecaniques de competence")
 local m = C.Nouveau()
-attendu("vingt mecaniques", #C.Lignes("mecaniques"), 20)
+attendu("vingt-deux mecaniques", #C.Lignes("mecaniques"), 22)
 attendu("budget 2 + 3x5", C.Budget(m, "mecaniques").total, 17)
 C.Definir(m, "secondaires", "sec_mecanique", 4)
 attendu("quatre points secondaires = quatre de plus", C.Total(m, "mecaniques"), 21)
@@ -139,6 +139,11 @@ attendu("11 refuse", (C.Definir(m, "mecaniques", "meca_soin", 11)), false)
 attendu("10 passe", (C.Definir(m, "mecaniques", "meca_soin", 10)), true)
 attendu("depense comptee", C.Budget(m, "mecaniques").depense, 10)
 attendu("la repulsion existe", LCM.Schema.Field("meca_repulsion").label, "Répulsion")
+attendu("la provocation existe", LCM.Schema.Field("meca_provocation").label, "Provocation")
+attendu("l'intimidation existe", LCM.Schema.Field("meca_intimidation").label, "Intimidation")
+attendu("investir en provocation", C.Definir(m, "mecaniques", "meca_provocation", 1), true)
+attendu("investir en intimidation", C.Definir(m, "mecaniques", "meca_intimidation", 1), true)
+attendu("leurs points sont comptes", C.Budget(m, "mecaniques").depense, 12)
 
 dire("== un brouillon incomplet ne cree rien")
 local n = C.Nouveau()
@@ -215,6 +220,38 @@ attendu("son trait", LCM.Traits.Has(entity, "escalade_jungle"), true)
 -- Les PV suivent la formule de la fiche, appliquee aux valeurs transmises.
 attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"),
     LCM.Schema.Field("pv_max").formula(entity))
+
+dire("== rééditer une fiche")
+LCM.Entities.Set_Value(entity, "age", 28)
+LCM.Entities.Set_Value(entity, "portrait", "moon")
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+local peut, pourquoi = C.PeutEditer(entity)
+attendu("un joueur sans jeton est refusé", peut, false)
+attendu("et la raison parle du jeton", tostring(pourquoi):find("jeton") ~= nil, true)
+attendu("le MJ donne un jeton", (C.DonnerJeton(entity)), true)
+attendu("le joueur peut alors rééditer", (C.PeutEditer(entity)), true)
+local reprise = C.Depuis(entity)
+attendu("la même fiche sera modifiée", reprise.entite == entity, true)
+attendu("le nom est repris", reprise.nom, entity.name)
+attendu("l'âge est repris", reprise.valeurs.age, 28)
+attendu("le portrait est repris", reprise.valeurs.portrait, "moon")
+-- Une valeur retirée doit réellement partir de la fiche, pas seulement du
+-- brouillon. C'était le piège du premier brouillon de la réédition.
+reprise.valeurs.age = nil
+local reeditee = C.Appliquer(reprise)
+attendu("la réédition conserve l'entité", reeditee == entity, true)
+attendu("la valeur retirée est effacée", entity.values.age, nil)
+attendu("le jeton est consommé à la validation", C.ADesJetons(entity), false)
+attendu("une seconde réédition est refusée", (C.Appliquer(C.Depuis(entity))), nil)
+
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
+local refonteMJ = C.Depuis(entity)
+refonteMJ.nom = "Ysolde rééditée"
+attendu("le MJ réédite sans jeton", C.Appliquer(refonteMJ) == entity, true)
+attendu("le nouveau nom est appliqué", entity.name, "Ysolde rééditée")
+attendu("aucun jeton n'est consommé chez le MJ", C.ADesJetons(entity), false)
 
 dire("== ce qui vaut le defaut n'est pas sauvegarde")
 local ecrits = 0

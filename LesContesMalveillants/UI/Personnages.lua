@@ -202,8 +202,25 @@ local function Construire()
         local entity = f:Courant()
         if entity then f:Jouer(entity) end
     end)
-    f.jouer:SetPoint("BOTTOM", f.scene, "BOTTOM", -56, 12)
+    f.jouer:SetPoint("BOTTOM", f.scene, "BOTTOM", 0, 12)
     f.jouer:Selectionner(true)
+
+    -- Le bouton n'existe visuellement que lorsque la fiche choisie peut être
+    -- rouverte : toujours pour le MJ, ou le temps d'un jeton pour un joueur.
+    f.editer = UI.Bouton(f.scene, "Rééditer", 100, 32, function()
+        local entity = f:Courant()
+        if not entity then return end
+        local ouverte = f:IsShown()
+        if ouverte then f:Hide() end
+        local creation, raison = UI.Creation.Editer(entity)
+        if not creation then
+            LCM.Alerte(tostring(raison))
+            if ouverte then f:Montrer() end
+            return
+        end
+        creation.retourSelection = ouverte or nil
+    end)
+    f.editer:SetPoint("RIGHT", f.jouer, "LEFT", -12, 0)
 
     -- Effacer un personnage ne se rattrape pas : on demande confirmation, et le
     -- nom est dans la question — pour ne pas supprimer le mauvais.
@@ -249,6 +266,7 @@ local function Construire()
         self.destination = index
         self.glissement = true
         self.jouer:Disable()
+        self.editer:Disable()
         self.supprimer:Disable()
         local temps = 0
         local function Pas(_, ecoule)
@@ -298,6 +316,7 @@ local function Construire()
         self.galerie:SetScript("OnUpdate", nil)
         self.glissement, self.destination = nil, nil
         self.jouer:Enable()
+        self.editer:Enable()
         self.supprimer:Enable()
         local nombre = #(self.profils or {})
         self.liste.compteur:SetText(string.format("%d personnage%s", nombre, nombre == 1 and "" or "s"))
@@ -317,6 +336,9 @@ local function Construire()
             if math.abs(place) > 1 then c:Hide() end
         end
         self.jouer:SetShown(nombre > 0)
+        local courant = self:Courant()
+        local peutEditer = courant and LCM.Creation and LCM.Creation.PeutEditer(courant)
+        self.editer:SetShown(peutEditer and true or false)
         self.supprimer:SetShown(nombre > 0)
         self.vide:SetText(nombre > 0 and "" or
             "Aucun personnage.\nLe bouton « Créer un personnage » ouvre la création.")

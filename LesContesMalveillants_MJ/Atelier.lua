@@ -204,7 +204,7 @@ end
 
 local function Vierge(famille)
     return {
-        famille = famille, creation = true,
+        famille = famille, creation = true, id = Brouillons.NouvelIdentifiant(),
         label = "", description = "", cout = 1,
         bonus = {}, avantage = {},
         morphology = LCM.DEFAULT_MORPHOLOGY,
@@ -257,7 +257,7 @@ end
 local function Definition(e)
     local nom = tostring(e.label or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if nom == "" then return nil, "donne-lui un nom" end
-    local id = e.creation and Brouillons.Identifiant(nom) or e.id
+    local id = e.id
 
     local bonus = {}
     for _, ligne in ipairs(e.bonus) do
@@ -479,8 +479,16 @@ local function PanneauEffets(f, genre)
             self.bilanForge:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
         else
             local depasse = bilan.total > rarete.points
-            self.bilanForge:SetText(string.format("%s / %d points du pool %s",
-                LCM.Compendium.Nombre(bilan.total), rarete.points, rarete.label))
+            local texte = string.format("%s / %d points du pool %s",
+                LCM.Compendium.Nombre(bilan.total), rarete.points, rarete.label)
+            -- Les negatives ne rendent que la moitie, et jamais plus que le
+            -- pool : on le dit, sinon baisser une statistique de plus ne change
+            -- rien sans qu'on comprenne.
+            if (bilan.creditPerdu or 0) > 0 then
+                texte = string.format("%s (%s pt(s) rendus perdus : plafond du pool)",
+                    texte, LCM.Compendium.Nombre(bilan.creditPerdu))
+            end
+            self.bilanForge:SetText(texte)
             local couleur = depasse and UI.C.plein or UI.C.discret
             self.bilanForge:SetTextColor(couleur[1], couleur[2], couleur[3])
         end
@@ -878,8 +886,7 @@ local function Construire()
         if not (p and p.ident) then return end
         local e = self.edition
         if e.creation then
-            local id = Brouillons.Identifiant(e.label)
-            p.ident:SetText(id ~= "" and (id .. "   |cff99907fdérivé du nom, figé à l'enregistrement|r") or "—")
+            p.ident:SetText(tostring(e.id) .. "   |cff99907fidentifiant unique, figé|r")
         else
             p.ident:SetText(tostring(e.id))
         end

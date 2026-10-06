@@ -1,4 +1,4 @@
--- L'experience : le MJ la donne, le palier fait monter le niveau.
+-- L'experience : le MJ la donne, le palier ouvre une montee a repartir.
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -32,17 +32,19 @@ attendu("pas de palier", r.monte, false)
 attendu("niveau inchange", LCM.Entities.Get_Value(moi, "niveau"), 5)
 attendu("il reste 60 pour le 6", X.Progression(moi).reste, 60)
 
-dire("== le palier franchi fait monter")
+dire("== le palier franchi met un niveau en attente")
 r = X.Donner(moi, 60, "le dragon")
 attendu("cent au total", X.Total(moi), 100)
 attendu("monte", r.monte, true)
-attendu("niveau 6 sur la fiche", LCM.Entities.Get_Value(moi, "niveau"), 6)
+attendu("la fiche attend la repartition", LCM.Entities.Get_Value(moi, "niveau"), 5)
+attendu("un niveau en attente", X.NiveauxEnAttente(moi), 1)
 
 dire("== plusieurs paliers d'un coup")
 r = X.Donner(moi, 900)
 attendu("mille au total", X.Total(moi), 1000)
 attendu("du 6 au 9 d'un seul gain", r.avant .. " -> " .. r.apres, "6 -> 9")
-attendu("la fiche suit", LCM.Entities.Get_Value(moi, "niveau"), 9)
+attendu("la fiche ne saute pas les repartitions", LCM.Entities.Get_Value(moi, "niveau"), 5)
+attendu("quatre passages attendent", X.NiveauxEnAttente(moi), 4)
 
 dire("== au dernier palier connu, plus rien a viser")
 X.Donner(moi, 5000)
@@ -50,6 +52,7 @@ local fin = X.Progression(moi)
 attendu("niveau maximum", fin.niveau, 10)
 attendu("aucun palier suivant", fin.prochainNiveau, nil)
 attendu("et aucun reste a afficher", fin.reste, nil)
+attendu("cinq passages attendent", X.NiveauxEnAttente(moi), 5)
 
 dire("== un niveau pose a la main au-dessus de l'XP ne redescend pas")
 local pnj = LCM.Entities.Create("pnj_vieux", "Ancien", "npc")
@@ -57,6 +60,7 @@ LCM.Entities.Set_Value(pnj, "niveau", 20)
 X.Donner(pnj, 100)
 attendu("le MJ garde son PNJ de niveau 20", LCM.Entities.Get_Value(pnj, "niveau"), 20)
 attendu("mais son experience est comptee", X.Total(pnj), 100)
+attendu("et il n'a aucun passage en attente", X.NiveauxEnAttente(pnj), 0)
 
 dire("== le budget de creation suit le niveau")
 -- C'est tout l'interet de monter : on a des points a repartir.

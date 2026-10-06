@@ -131,7 +131,7 @@ function Pages.joueurs(page, f)
             local cible = l.joueur
             local entity = LCM.Fiches.Recue(cible)
             if entity then
-                UI.Fiche.Fenetre():Montrer(entity)
+                MJ.Consultation.Ouvrir(entity, "fiche")
                 return
             end
             local ok, raison = LCM.Fiches.Demander(cible)
@@ -139,11 +139,19 @@ function Pages.joueurs(page, f)
             LCM.Info(string.format("fiche demandee a %s…", cible))
         end)
         l.consulter:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+        l.reedition = UI.Bouton(l, "Réédition", 82, 20, function()
+            local ok, raison = LCM.Creation.EnvoyerJeton(l.joueur)
+            if not ok then LCM.Alerte(tostring(raison)) return end
+            -- La réception répondra : on distingue ainsi « envoyé » de
+            -- « réellement remis au personnage ».
+            LCM.Info(string.format("jeton de réédition envoyé à %s…", tostring(l.joueur)))
+        end)
+        l.reedition:SetPoint("RIGHT", l.consulter, "LEFT", -8, 0)
         -- Donner de l'experience : le montant se tape a cote du nom, et le
         -- bouton l'envoie. Pas de menu, pas de fenetre a part — c'est un geste
         -- de fin de scene, repete, sur plusieurs joueurs d'affilee.
         l.xp = UI.Champ(l, 52, 20, nil)
-        l.xp:SetPoint("RIGHT", l.consulter, "LEFT", -8, 0)
+        l.xp:SetPoint("RIGHT", l.reedition, "LEFT", -8, 0)
         l.xp:SetNumeric(true)
         l.donner = UI.Bouton(l, "+ XP", 52, 20, function()
             local montant = tonumber(l.xp:GetText())
@@ -546,6 +554,6 @@ LCM.WhenReady(function()
     LCM.Fiches.onRecue = function(joueur, entity)
         LCM.Info(string.format("fiche de %s reçue.", tostring(joueur)))
         if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Afficher() end
-        UI.Fiche.Fenetre():Montrer(entity)
+        MJ.Consultation.Ouvrir(entity, "fiche")
     end
 end)

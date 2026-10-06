@@ -495,13 +495,17 @@ function UI.BandeauOnglets(parent, onglets, onChange)
     function bandeau:Disposer(largeur, hauteurRangee, options)
         options = options or {}
         local police = 24 * ((hauteurRangee - 2) / 55)
+        local boutons = {}
+        for _, b in ipairs(self.boutons) do
+            if b:IsShown() then boutons[#boutons + 1] = b end
+        end
 
-        if options.uneRangee and #self.boutons > 0 then
-            local n = #self.boutons
+        if options.uneRangee and #boutons > 0 then
+            local n = #boutons
             local part = math.max(40, (largeur - (n - 1) * 6) / n)
             UI.Police(self.mesure, police)
             local pire = 0
-            for _, b in ipairs(self.boutons) do
+            for _, b in ipairs(boutons) do
                 self.mesure:SetText(b.label:GetText() or "")
                 pire = math.max(pire, self.mesure:GetStringWidth() or 0)
             end
@@ -510,7 +514,7 @@ function UI.BandeauOnglets(parent, onglets, onChange)
                 police = math.max(9, math.floor(police * (part - 14) / pire))
             end
             local x = 0
-            for index, b in ipairs(self.boutons) do
+            for index, b in ipairs(boutons) do
                 UI.Police(b.label, police)
                 b:SetSize(part, hauteurRangee - 2)
                 b:ClearAllPoints()
@@ -519,13 +523,13 @@ function UI.BandeauOnglets(parent, onglets, onChange)
             end
             self:SetHeight(hauteurRangee)
             self.rangees = 1
-            self:Selectionner(self.actif or self.boutons[1].ongletId)
+            self:Selectionner(self.actif or boutons[1].ongletId)
             return hauteurRangee
         end
 
         UI.Police(self.mesure, police)
         local rangees, courante, x = {}, nil, 0
-        for _, b in ipairs(self.boutons) do
+        for _, b in ipairs(boutons) do
             UI.Police(b.label, police)
             self.mesure:SetText(b.label:GetText() or "")
             local l = math.max(70, math.ceil((self.mesure:GetStringWidth() or 0) + 50))
@@ -556,7 +560,7 @@ function UI.BandeauOnglets(parent, onglets, onChange)
         local hauteur = math.max(1, #rangees) * hauteurRangee
         self:SetHeight(hauteur)
         self.rangees = math.max(1, #rangees)
-        self:Selectionner(self.actif or (self.boutons[1] and self.boutons[1].ongletId))
+        self:Selectionner(self.actif or (boutons[1] and boutons[1].ongletId))
         return hauteur
     end
     return bandeau
@@ -1531,9 +1535,16 @@ local function Fantome()
     g.icone:SetSize(30, 30)
     g.icone:SetPoint("LEFT", g, "LEFT", 6, 0)
     g.nom = UI.Texte(g, "", UI.C.texte, "GameFontNormalSmall")
-    g.nom:SetPoint("LEFT", g.icone, "RIGHT", 8, 0)
+    g.nom:SetPoint("TOPLEFT", g.icone, "TOPRIGHT", 8, -2)
     g.nom:SetPoint("RIGHT", g, "RIGHT", -8, 0)
     g.nom:SetWordWrap(false)
+    -- Ce qui arrivera si on lache ICI. La raison d'un refus n'etait dite
+    -- qu'APRES avoir lache : on relachait sur une case, rien ne se passait, et
+    -- il fallait lire le chat pour comprendre (5 octobre 2026).
+    g.etat = UI.Texte(g, "", UI.C.discret, "GameFontNormalSmall")
+    g.etat:SetPoint("TOPLEFT", g.nom, "BOTTOMLEFT", 0, -2)
+    g.etat:SetPoint("RIGHT", g, "RIGHT", -8, 0)
+    g.etat:SetWordWrap(false)
     g:SetAlpha(0.78)
     g:SetScript("OnUpdate", function(self)
         -- Bouton relache : on depose (ou on abandonne) une fois, puis on range.
@@ -1580,12 +1591,39 @@ end
 -- Necronicon retenait de meme la derniere cible survolee
 -- (SetInventoryDragHoverTarget) et deposait la, pas « sous le curseur au
 -- relache ».
+local function EteindreSurvol(cible)
+    if not cible then return end
+    cible.glisserSurvol:Hide()
+    if cible.glisserRefus then cible.glisserRefus:Hide() end
+end
+
 function Glisser.Suivre()
     local cible = SousLeCurseur()
-    if cible ~= Glisser.survolee then
-        if Glisser.survolee then Glisser.survolee.glisserSurvol:Hide() end
-        Glisser.survolee = cible
-        if cible and Glisser.objet and cible.glisserAccepte(Glisser.objet) then cible.glisserSurvol:Show() end
+    if cible == Glisser.survolee then return end
+    EteindreSurvol(Glisser.survolee)
+    Glisser.survolee = cible
+
+    local fantome = Glisser.fantome
+    if not (cible and Glisser.objet) then
+        if fantome then fantome.etat:SetText("") end
+        return
+    end
+    local ok, raison = cible.glisserAccepte(Glisser.objet)
+    -- Une cible qui REFUSE s'eclaire en rouge. Elle ne montrait rien du tout :
+    -- on ne savait pas si on survolait une case qui n'en voulait pas, ou si on
+    -- avait rate la case.
+    if ok then
+        cible.glisserSurvol:Show()
+        if fantome then
+            fantome.etat:SetText("")
+            fantome.etat:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+        end
+    else
+        if cible.glisserRefus then cible.glisserRefus:Show() end
+        if fantome then
+            fantome.etat:SetText(raison or "ne va pas ici")
+            fantome.etat:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
+        end
     end
 end
 
@@ -1594,9 +1632,17 @@ function Glisser.Lacher()
     Glisser.objet = nil
     if Glisser.fantome then Glisser.fantome:Hide() end
     local cible = SousLeCurseur() or Glisser.survolee
-    if Glisser.survolee then Glisser.survolee.glisserSurvol:Hide() end
+    EteindreSurvol(Glisser.survolee)
     Glisser.survolee = nil
-    if not (objet and cible) then return false end
+    if Glisser.fantome then Glisser.fantome.etat:SetText("") end
+    if not objet then return false end
+    -- Aucune cible d'interface sous le curseur : il est peut-etre sur
+    -- QUELQU'UN. C'est le geste qui ouvre un echange, et le kit n'a pas a
+    -- savoir ce qu'est un echange — il demande (Core/Echange.lua s'inscrit).
+    if not cible then
+        if Glisser.SansCible then return Glisser.SansCible(objet) and true or false end
+        return false
+    end
     local ok, raison = cible.glisserAccepte(objet)
     if ok then
         cible.glisserDepose(objet)
@@ -1610,10 +1656,15 @@ end
 function Glisser.Cible(frame, accepte, depose)
     frame.glisserAccepte, frame.glisserDepose = accepte, depose
     Glisser.cibles[#Glisser.cibles + 1] = frame
-    -- Le survol pendant un glissement se voit : la case s'eclaire.
+    -- Le survol pendant un glissement se voit : la case s'eclaire en or si
+    -- elle accepte, en rouge si elle refuse. Sans le rouge, une cible qui n'en
+    -- voulait pas etait indiscernable d'un survol rate.
     frame.glisserSurvol = UI.Aplat(frame, { 0.95, 0.82, 0.38, 0.20 }, "OVERLAY")
     frame.glisserSurvol:SetAllPoints(frame)
     frame.glisserSurvol:Hide()
+    frame.glisserRefus = UI.Aplat(frame, { 0.90, 0.28, 0.24, 0.22 }, "OVERLAY")
+    frame.glisserRefus:SetAllPoints(frame)
+    frame.glisserRefus:Hide()
     return frame
 end
 

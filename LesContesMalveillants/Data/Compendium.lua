@@ -62,7 +62,8 @@ C.BLOC = {
     { dossier = "Debuff", champs = {
         "force_debuff", "mystique_debuff", "perception_debuff", "constitution_debuff", "duree_debuff", "puissance_debuff" } },
     { dossier = "Mécanique de compétence", champs = {
-        "meca_attaque_simple", "meca_perce_armure", "meca_brise_armure", "meca_bouclier", "meca_soin", "meca_buff",
+        "meca_attaque_simple", "meca_perce_armure", "meca_brise_armure", "meca_provocation", "meca_intimidation",
+        "meca_bouclier", "meca_soin", "meca_buff",
         "meca_debuff", "meca_attraction", "meca_repulsion", "meca_immobilisation",
         "meca_entrave", "meca_deviation", "meca_levitation", "meca_intervention", "meca_permutation",
         "meca_dissipation", "meca_creation", "meca_confusion", "meca_controle_mental", "meca_illusion" } },
@@ -302,7 +303,13 @@ local function Objet(id, label, categorie, liste, extras)
         filtre = function(element) return element.categorie == categorie end,
         defaut = { categorie = categorie }, extras = extras })
 end
-Objet("armes", "Armes", "arme", "armes")
+Objet("armes", "Armes", "arme", "armes", {
+    -- Ajout de l'addon (5 octobre 2026) : combien de mains l'arme demande.
+    -- Une a une main laisse la place d'un bouclier ; une a deux mains prend
+    -- les deux emplacements.
+    { cle = "taille", label = "Emplacements", type = "nombre", emplacement = "meta",
+      min = 1, max = 2, defaut = 1 },
+})
 Objet("armures", "Armures", "equipement", "type_armures", {
     -- Ajout de l'addon (2 octobre 2026) : ce qu'une piece porte vers la jauge
     -- #armure. Laisse vide, elle vaut Equilibrage.armure.parDefaut.

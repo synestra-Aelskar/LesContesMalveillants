@@ -218,17 +218,66 @@ local function Construire()
                 -- On y depose une entree glissee du compendium, comme dans la
                 -- fenetre d'un sac. Il manquait : c'est pourtant la que le MJ
                 -- regarde le contenu, et le glisser y etait refuse sans un mot.
+                -- Reposer un objet sur sa propre case n'est pas une erreur :
+                -- c'est un glissement qu'on annule.
+                local function MemeCase(objet)
+                    local o = objet.origine
+                    return o and l.place and o.onglet == l.place.onglet
+                        and o.index == l.place.index and o.case == l.case
+                end
                 UI.Glisser.Cible(l, function(objet)
                     if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
                     local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
                     if not (ici and ici.sac) then return false, "aucun sac ici." end
+                    if MemeCase(objet) then return true end
                     if Inv.Case(ici, l.case) then return false, "cette case est déjà occupée." end
                     return Inv.Accepte(ici, l.case, objet.ref)
                 end, function(objet)
-                    local ok, raison = Inv.Ranger(Entite(), l.place.onglet, l.place.index, l.case, objet.ref, 1)
-                    if not ok then Refuser(raison) end
+                    if MemeCase(objet) then return end
+                    local entite = Entite()
+                    -- Un objet qui vient d'ailleurs demenage : il quitte sa
+                    -- place, puis on le range ici. Si le rangement echoue, il
+                    -- y retourne — un objet perdu entre deux sacs serait pire
+                    -- que le refus. La SOURCE sait comment partir et revenir :
+                    -- une case se vide, un emplacement d'equipement se
+                    -- deshabille.
+                    if objet.retirer then objet.retirer() end
+                    local ok, raison = Inv.Ranger(entite, l.place.onglet, l.place.index, l.case,
+                        objet.ref, objet.quantite or 1)
+                    if not ok then
+                        if objet.rendre then objet.rendre() end
+                        Refuser(raison)
+                    end
                     f:Rafraichir()
                 end)
+
+                -- ... et une SOURCE. Ces lignes-ci sont le panneau de droite de
+                -- la fenetre Inventaires — c'est LA qu'on lit le contenu d'une
+                -- sacoche, et donc de la qu'on veut sortir un objet. Seules les
+                -- cases de la fenetre d'un sac savaient se glisser, si bien que
+                -- le glisser-deposer semblait ne pas exister (5 octobre 2026).
+                l:RegisterForDrag("LeftButton")
+                l:SetScript("OnDragStart", function(self)
+                    if not LCM.IsMaster() then return end
+                    if not self.place then return end
+                    local ici = Inv.Emplacement(Entite(), self.place.onglet, self.place.index)
+                    local c = ici and Inv.Case(ici, self.case)
+                    if not c then return end
+                    local element = LCM.Compendium.Resoudre(c.ref)
+                    local onglet, index, place = self.place.onglet, self.place.index, self.case
+                    local ref, quantite = c.ref, c.quantite
+                    UI.Glisser.Commencer({
+                        icone = element and LCM.Icone(element.icone) or nil,
+                        nom = element and element.label or tostring(ref),
+                        ref = ref, quantite = quantite, element = element,
+                        origine = { onglet = onglet, index = index, case = place },
+                        retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
+                        rendre = function()
+                            Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1)
+                        end,
+                    })
+                end)
+                l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
                 self.lignes[n] = l
             end
             l.place, l.case = place, n
@@ -431,13 +480,58 @@ local function NouvelleCase(s, n)
     UI.Glisser.Cible(b, function(objet)
         if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
         local e = s:Emplacement()
+        -- Reposer un objet sur sa propre case n'est pas une erreur : c'est un
+        -- glissement qu'on annule. On accepte, et le depot ne fera rien.
+        if objet.origine and objet.origine.onglet == s.onglet
+            and objet.origine.index == s.index and objet.origine.case == b.index then
+            return true
+        end
         if Inv.Case(e, b.index) then return false, "cette case est déjà occupée." end
         return Inv.Accepte(e, b.index, objet.ref)
     end, function(objet)
-        local ok, raison = Inv.Ranger(Entite(), s.onglet, s.index, b.index, objet.ref, 1)
-        if not ok then Refuser(raison) end
+        local entite = Entite()
+        if objet.origine and objet.origine.onglet == s.onglet
+            and objet.origine.index == s.index and objet.origine.case == b.index then
+            return
+        end
+        -- Un objet qui vient d'ailleurs demenage : il quitte sa place, puis on
+        -- le range ici. Si le rangement echoue, il y retourne — un objet perdu
+        -- entre deux sacs serait pire que le refus (5 octobre 2026). La SOURCE
+        -- sait comment partir et revenir.
+        if objet.retirer then objet.retirer() end
+        local ok, raison = Inv.Ranger(entite, s.onglet, s.index, b.index,
+            objet.ref, objet.quantite or 1)
+        if not ok then
+            if objet.rendre then objet.rendre() end
+            Refuser(raison)
+        end
         Ecran.Actualiser()
     end)
+
+    -- ... et une SOURCE : on prend ce qu'elle contient pour le poser ailleurs.
+    -- Le glissement n'existait que depuis le compendium ; d'un sac a l'autre, il
+    -- fallait passer par le menu contextuel et son sous-menu.
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function(self)
+        if not LCM.IsMaster() then return end
+        local c = Inv.Case(s:Emplacement(), self.index)
+        if not c then return end
+        local element = LCM.Compendium.Resoudre(c.ref)
+        local onglet, index, place = s.onglet, s.index, self.index
+        local ref, quantite = c.ref, c.quantite
+        UI.Glisser.Commencer({
+            icone = element and LCM.Icone(element.icone) or nil,
+            nom = element and element.label or tostring(ref),
+            ref = ref, quantite = quantite, element = element,
+            origine = { onglet = onglet, index = index, case = place },
+            retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
+            rendre = function() Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1) end,
+        })
+    end)
+    -- Pas d'OnUpdate ici : c'est le fantome du kit qui bat la mesure, suit la
+    -- souris et lache au relachement. En poser un second ferait le travail
+    -- deux fois par image.
+    b:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
     b:SetScript("OnClick", function(self, bouton) s:CliquerCase(self, bouton) end)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

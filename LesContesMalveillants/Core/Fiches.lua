@@ -36,8 +36,38 @@ Fiches.DansLeGroupe = DansLeGroupe
 
 -- ===== Cote joueur : repondre ==============================================
 
--- Ce qu'on envoie : les VALEURS de la fiche, rien d'autre. Pas les sorts
--- personnels, pas les brouillons — le MJ consulte une fiche, il ne fouille pas.
+-- Les parties de l'entite necessaires aux sept vues de consultation. Cette
+-- liste blanche est volontaire : pas de sorts personnels, d'inventaire ni de
+-- brouillons. Le MJ recoit ce qui se voit sur ces fiches, et rien d'autre.
+local ANNEXES = {
+    traits = "t",
+    body = "b",
+    etats = "e",
+    etatsTemporaires = "et",
+    apprentissages = "a",
+    equipement = "eq",
+    usureArmure = "u",
+    bourse = "bo",
+    xp = "xp",
+}
+
+-- Detache le paquet de l'entite vivante. Ainsi une reception en boucle dans le
+-- banc, ou un transport remplace plus tard, ne partage jamais ses tables avec
+-- le personnage d'origine.
+local function Copier(valeur, profondeur)
+    if type(valeur) ~= "table" then return valeur end
+    if (profondeur or 0) > 8 then return nil end
+    local copie = {}
+    for cle, contenu in pairs(valeur) do
+        if (type(cle) == "string" or type(cle) == "number")
+            and type(contenu) ~= "function" and type(contenu) ~= "userdata" then
+            copie[cle] = Copier(contenu, (profondeur or 0) + 1)
+        end
+    end
+    return copie
+end
+
+-- Ce qu'on envoie : les valeurs et les annexes utiles aux vues de consultation.
 -- Les valeurs vont dans une SOUS-TABLE `v`, et pas sous un prefixe « v. » :
 -- l'encodage du reseau se sert deja du point pour dire l'imbrication, et
 -- « v.force » lui revenait comme une table nommee v. Un separateur qui veut
@@ -53,8 +83,12 @@ function Fiches.Paquet(entity)
             paquet.v[champ] = tostring(valeur)
         end
     end
+    for champ, cle in pairs(ANNEXES) do
+        if entity[champ] ~= nil then paquet[cle] = Copier(entity[champ]) end
+    end
     -- Les jauges calculees (l'armure portee) ne sont pas dans les valeurs, et
-    -- le MJ ne recoit pas l'equipement : on envoie leur lecture.
+    -- restent aussi envoyees sous leur lecture afin que la vue supporte les
+    -- personnages provenant d'une version precedente du paquet.
     for _, champ in ipairs(LCM.Schema.sheet.order) do
         local field = LCM.Schema.Field(champ)
         if field.kind == "gauge" and field.lire then
@@ -82,6 +116,9 @@ function Fiches.Entite(paquet)
                 entity.values[champ] = tonumber(valeur) or valeur
             end
         end
+    end
+    for champ, cle in pairs(ANNEXES) do
+        if paquet[cle] ~= nil then entity[champ] = Copier(paquet[cle]) end
     end
     return entity
 end
@@ -124,7 +161,7 @@ LCM.WhenReady(function()
         end
         local moi = LCM.Entities.Self()
         if not moi then return end
-        LCM.Reseau.Envoyer("fiche", Fiches.Paquet(moi), "WHISPER", expediteur)
+        LCM.Reseau.Envoyer("fiche", Fiches.Paquet(moi), "WHISPER", expediteur, { etale = true })
         LCM.Info(string.format("%s a consulte ta fiche.", tostring(expediteur)))
     end)
 

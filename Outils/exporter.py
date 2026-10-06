@@ -1,8 +1,10 @@
 """Transforme les brouillons du MJ en fichiers Lua de l'addon.
 
-Lit LCM_MJ_DB dans la SavedVariables du compagnon MJ, puis reecrit
-Data/Genere/Atelier.lua. Ce fichier est ENTIEREMENT regenere : ce qui n'est plus
-dans les brouillons disparait, et toute retouche manuelle est perdue.
+Lit LCM_MJ_DB dans la SavedVariables du compagnon MJ, puis reecrit DEUX
+fichiers, entierement regeneres a chaque fois :
+
+    LesContesMalveillants/Data/Genere/Atelier.lua       -> livre a tout le monde
+    LesContesMalveillants_MJ/Genere/Atelier_MJ.lua      -> reste chez les MJ
 
     python exporter.py [--apercu]
 
@@ -12,8 +14,21 @@ sacs, les PNJ, les resolutions et le reste restaient coinces dans la
 SavedVariables d'une seule machine : crees en seance, jamais figes, invisibles
 pour l'autre maitre du jeu.
 
-Un SEUL fichier, et non un par famille : le .toc n'a qu'une ligne a declarer, et
-ajouter une famille ne demande plus d'y toucher.
+POURQUOI DEUX FICHIERS (6 octobre 2026). Tout partait dans l'addon des joueurs,
+fiches de PNJ comprises : leurs statistiques, leur equipement, leurs resolutions
+d'action. Un addon vit sur la machine du joueur — masquer une entree dans
+l'interface ne protege rien, la seule protection est de ne pas livrer le
+fichier. C'est deja la regle de importer_necronicon.py (RESERVE_MJ) ; l'export
+des brouillons ne la suivait pas.
+
+CE QUI NE SE PARTAGE PAS SUR `mjSeulement`. Une race « reservee au MJ » porte ce
+drapeau, et elle doit pourtant partir chez les joueurs : le jour ou le MJ la
+donne a quelqu'un, la fiche de ce joueur la reference, et son addon doit savoir
+ce que c'est. Le drapeau dit qui peut la CHOISIR, pas qui peut la connaitre. Le
+partage se fait donc par famille, et par categorie pour les resolutions.
+
+Un seul fichier par cote, et non un par famille : le .toc n'a qu'une ligne a
+declarer, et ajouter une famille ne demande plus d'y toucher.
 
 Le jeu doit avoir ete quitte (ou /reload fait) pour que la SavedVariables soit
 a jour sur le disque : WoW n'ecrit qu'a la deconnexion.
@@ -23,6 +38,7 @@ import io, os, sys, datetime
 
 SAVED = r'F:\WOW EPSILON\Epsilon\Epsilon\_retail_\WTF\Account\SYNESTRA\SavedVariables\LesContesMalveillants_MJ.lua'
 GENERE = r'F:\WOW EPSILON\Epsilon\Epsilon\_retail_\Interface\AddOns\LesContesMalveillants\Data\Genere'
+GENERE_MJ = r'F:\WOW EPSILON\Epsilon\Epsilon\_retail_\Interface\AddOns\LesContesMalveillants_MJ\Genere'
 
 ENTETE = """-- ============================================================================
 --  FICHIER GENERE — NE PAS MODIFIER A LA MAIN
@@ -37,6 +53,14 @@ ENTETE = """-- =================================================================
 local _, LCM = ...
 
 """
+
+# Dans le compagnon MJ, le second argument d'un fichier d'addon est l'espace du
+# compagnon, pas LCM : on prend LCM au global, comme les autres fichiers du
+# compagnon. Et on sort si l'addon joueur n'est pas la — les registres y vivent,
+# il n'y aurait rien ou ajouter.
+ENTETE_MJ = ENTETE.replace(
+    'local _, LCM = ...',
+    'local LCM = _G.LCM\nif not LCM then return end')
 
 
 def lire_sauvegarde(chemin):
@@ -56,6 +80,32 @@ def lire_sauvegarde(chemin):
     return brouillons, None
 
 
+# Ce qui doit etre echappe dans une chaine Lua entre guillemets. L'ordre compte :
+# l'antislash d'abord, sinon on echapperait les antislashs qu'on vient de poser.
+#
+# Le RETOUR A LA LIGNE surtout : une description d'objet en tient souvent
+# plusieurs, et Lua refuse un saut de ligne brut entre guillemets (« unfinished
+# string »). Recopie tel quel, il rendait tout le fichier illisible — l'addon ne
+# chargeait plus, et pas seulement l'entree fautive (6 octobre 2026).
+ECHAPPEMENTS = [
+    ('\\', '\\\\'),
+    ('"', '\\"'),
+    ('\r\n', '\\n'),
+    ('\r', '\\n'),
+    ('\n', '\\n'),
+    ('\t', '\\t'),
+]
+
+
+def chaine_lua(valeur):
+    for brut, echappe in ECHAPPEMENTS:
+        valeur = valeur.replace(brut, echappe)
+    # Le reste des caracteres de controle n'a rien a faire dans une chaine : on
+    # les ecrit par leur code plutot que de les laisser passer en silence.
+    return '"' + ''.join(
+        c if ord(c) >= 32 or c == '\\' else '\\%d' % ord(c) for c in valeur) + '"'
+
+
 def lua_valeur(valeur, indent=0):
     """Serialise une valeur Lua, lisible et stable (cles triees)."""
     marge = '    ' * indent
@@ -68,7 +118,7 @@ def lua_valeur(valeur, indent=0):
             return str(int(valeur))
         return str(valeur)
     if isinstance(valeur, str):
-        return '"' + valeur.replace('\\', '\\\\').replace('"', '\\"') + '"'
+        return chaine_lua(valeur)
 
     # Table Lua (lupa) : partie tableau puis partie dictionnaire.
     cles = list(valeur.keys())
@@ -90,13 +140,43 @@ def lua_valeur(valeur, indent=0):
     return '{\n' + '\n'.join(lignes) + '\n' + marge + '}'
 
 
-def ecrire_tout(par_famille, apercu):
-    """Ecrit Atelier.lua : toutes les familles, dans un ordre stable.
+# Les familles qui ne quittent PAS le compagnon MJ.
+#
+#   pnj   : des fiches completes — statistiques, equipement, sorts. C'est le
+#           materiel du MJ ; les livrer, c'est donner la reponse avant la
+#           rencontre.
+#   jeux  : les jeux d'equilibrage de la forge, c'est-a-dire le bareme de
+#           construction : ce que coute chaque statistique, le pool de chaque
+#           rarete. Un joueur ne forge jamais (la forge et l'atelier sont des
+#           outils du compagnon MJ), et l'addon joueur se passe tres bien de
+#           leur absence : une entree dont le jeu est inconnu s'affiche, elle ne
+#           se VERIFIE pas, et seule la creation d'entree verifie.
+RESERVE_MJ = {'pnj', 'jeux'}
+
+# Les resolutions se partagent en deux par leur categorie (Core/Contenus.lua) :
+# « systeme » decrit comment une action se resout — tout le monde en a besoin ;
+# « mj » est une action que seul le MJ declenche.
+CATEGORIE_RESOLUTION_MJ = 'mj'
+
+
+def cote_de(famille, entree):
+    """'mj' si cette entree reste chez le MJ, 'joueur' sinon."""
+    if famille in RESERVE_MJ:
+        return 'mj'
+    if famille == 'resolutions':
+        categorie = entree['categorie'] if entree is not None else None
+        if str(categorie or '') == CATEGORIE_RESOLUTION_MJ:
+            return 'mj'
+    return 'joueur'
+
+
+def corps_de(par_famille, entete):
+    """Le texte d'un fichier, dans un ordre stable.
 
     L'ordre compte pour la relecture d'un diff : a contenu egal, le fichier doit
     etre octet pour octet le meme d'un export a l'autre, sinon chaque export
     ressemble a un changement."""
-    corps = [ENTETE.format(date=datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))]
+    corps = [entete.format(date=datetime.datetime.now().strftime('%Y-%m-%d %H:%M'))]
     total = 0
     for famille in sorted(par_famille.keys()):
         registre, entrees = par_famille[famille]
@@ -109,14 +189,34 @@ def ecrire_tout(par_famille, apercu):
         total += len(entrees)
     if total == 0:
         corps.append('-- Aucune entree creee en seance.\n')
-    texte = ''.join(corps).rstrip() + '\n'
+    return ''.join(corps).rstrip() + '\n', total
 
-    chemin = os.path.join(GENERE, 'Atelier.lua')
-    if apercu:
-        print(texte)
-    else:
-        io.open(chemin, 'w', encoding='utf-8', newline='\n').write(texte)
-    return total
+
+def ecrire_tout(cotes, apercu):
+    """Ecrit les deux fichiers et rend le compte de chacun.
+
+    Les DEUX sont reecrits meme vides : une famille qui change de cote laisserait
+    sinon sa copie d'avant en place, et le contenu existerait en double — ou
+    continuerait de partir chez les joueurs apres qu'on a decide le contraire."""
+    comptes = {}
+    for cote, (dossier, nom, entete) in CIBLES.items():
+        texte, total = corps_de(cotes.get(cote, {}), entete)
+        comptes[cote] = total
+        if apercu:
+            print('=' * 78)
+            print('%s  (%s, %d entree(s))' % (nom, cote, total))
+            print('=' * 78)
+            print(texte)
+        else:
+            io.open(os.path.join(dossier, nom), 'w',
+                    encoding='utf-8', newline='\n').write(texte)
+    return comptes
+
+
+CIBLES = {
+    'joueur': (GENERE, 'Atelier.lua', ENTETE),
+    'mj': (GENERE_MJ, 'Atelier_MJ.lua', ENTETE_MJ),
+}
 
 
 def main():
@@ -140,21 +240,24 @@ def main():
         'calculateurs': 'Calculateurs', 'pnj': 'PNJ', 'jeux': 'Forge',
     }
 
-    par_famille, inconnues = {}, []
+    # Une famille peut nourrir les deux fichiers (les resolutions), d'ou le tri
+    # entree par entree et non famille par famille.
+    cotes, inconnues = {'joueur': {}, 'mj': {}}, []
     for cle in brouillons.keys():
         famille = str(cle)
         if famille not in familles:
             inconnues.append(famille)
             continue
         table = brouillons[cle]
-        entrees = {}
-        if table is not None:
-            for identifiant in table.keys():
-                entrees[str(identifiant)] = table[identifiant]
-        if entrees:
-            par_famille[famille] = (familles[famille], entrees)
+        if table is None:
+            continue
+        for identifiant in table.keys():
+            entree = table[identifiant]
+            cote = cote_de(famille, entree)
+            registre, entrees = cotes[cote].setdefault(famille, (familles[famille], {}))
+            entrees[str(identifiant)] = entree
 
-    total = ecrire_tout(par_famille, apercu)
+    comptes = ecrire_tout(cotes, apercu)
 
     if inconnues:
         print('')
@@ -164,11 +267,20 @@ def main():
         print("sur cette machine et n'arrivera jamais chez l'autre.")
 
     if not apercu:
+        for cote in ('joueur', 'mj'):
+            dossier, nom, _ = CIBLES[cote]
+            print('')
+            print('%s  (%s)' % (nom, 'livre a tout le monde' if cote == 'joueur'
+                                else 'reste chez les MJ'))
+            par_famille = cotes[cote]
+            if not par_famille:
+                print('  (rien)')
+            for famille in sorted(par_famille.keys()):
+                print('  %-16s %d' % (famille, len(par_famille[famille][1])))
+            print('  = %d entree(s)' % comptes[cote])
         print('')
-        for famille in sorted(par_famille.keys()):
-            print('  %-16s %d' % (famille, len(par_famille[famille][1])))
-        print('%d entree(s) exportee(s) dans Genere/Atelier.lua.' % total)
-        print("Pense a publier l'addon, puis a faire mettre a jour tout le monde.")
+        print("Pense a publier les DEUX addons : le fichier du MJ ne part pas")
+        print("avec celui des joueurs.")
     return 0
 
 

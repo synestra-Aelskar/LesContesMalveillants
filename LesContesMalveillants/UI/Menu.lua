@@ -32,7 +32,21 @@ Menu.STRUCTURE = {
     -- Personnage » du template, qui ne gardait plus que les Règles, l'a suivi
     -- le 2 octobre 2026 ; les Règles sont passees dans « Outils ».
     { id = "fiches_personnages", label = "Personnage", icone = RADIAL .. "fenetres-personnages.tga",
+      badge = function()
+          local entity = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+          return LCM.Experience and LCM.Experience.NiveauxEnAttente(entity) or 0
+      end,
       enfants = {
+          { id = "montee_niveau", label = "Niveau supérieur",
+            icone = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew",
+            visible = function()
+                local entity = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+                return LCM.Experience and LCM.Experience.PeutMonter(entity)
+            end,
+            badge = function()
+                local entity = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+                return LCM.Experience and LCM.Experience.NiveauxEnAttente(entity) or 0
+            end },
           { id = "fiche",         label = "Fiche",                     icone = RADIAL .. "fenetres-fiche.tga" },
           { id = "sante",         label = "Santé",                     icone = RADIAL .. "fenetres-sante.tga" },
           { id = "expertise",     label = "Expertises",                icone = RADIAL .. "fenetres-expertise.tga" },
@@ -119,7 +133,8 @@ end
 function Menu.Visibles(noeuds)
     local out = {}
     for _, noeud in ipairs(noeuds or Menu.STRUCTURE) do
-        if not noeud.mjSeulement or LCM.IsMaster() then
+        local visible = type(noeud.visible) ~= "function" or noeud.visible()
+        if visible and (not noeud.mjSeulement or LCM.IsMaster()) then
             if not noeud.enfants or #Menu.Visibles(noeud.enfants) > 0 then out[#out + 1] = noeud end
         end
     end

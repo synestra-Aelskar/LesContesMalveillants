@@ -44,6 +44,28 @@ function LCM.Catalogue(def)
         return tonumber(Capacites()[categorie.capacite or categorie.id]) or 0
     end
 
+    -- Combien d'emplacements un element occupe. Un seul, sauf si la famille
+    -- dit autrement : une arme a deux mains en prend deux, et l'autre main
+    -- n'est alors plus libre pour un bouclier (5 octobre 2026).
+    function C.Taille(element)
+        if type(element) ~= "table" then element = C.Get(element) end
+        if not element then return 1 end
+        local taille = def.taille and def.taille(element) or 1
+        taille = math.floor(tonumber(taille) or 1)
+        return taille >= 1 and taille or 1
+    end
+
+    -- Les emplacements PRIS dans une categorie : on compte les places, pas les
+    -- objets. Compter les objets laissait croire qu'il restait de la place a
+    -- cote d'une arme a deux mains.
+    function C.Occupation(entity, categorieId)
+        local total = 0
+        for _, id in ipairs(C.Ids(entity, categorieId)) do
+            total = total + C.Taille(id)
+        end
+        return total
+    end
+
     -- Verifie et met en forme sans enregistrer. Une seule categorie : elle
     -- est implicite.
     function C.Construire(definition)
@@ -91,7 +113,11 @@ function LCM.Catalogue(def)
                 element[champ.cle] = valeur
             else
                 local valeur = brut == nil and defaut or tonumber(brut)
-                if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0) then
+                -- `max` autant que `min` : une arme qui tiendrait sept
+                -- emplacements est une faute de frappe, pas une intention.
+                if valeur == nil or valeur ~= math.floor(valeur) or valeur < (champ.min or 0)
+                    or (champ.max and valeur > champ.max)
+                then
                     Erreur(string.format("%s : %s invalide (%s)", id, champ.libelle or champ.cle, tostring(brut)))
                 end
                 element[champ.cle] = valeur
@@ -172,10 +198,15 @@ function LCM.Catalogue(def)
             return false, string.format("%s est deja porte.", element.label)
         end
         local places = C.Capacite(element.categorie)
-        local occupees = #Rangee(entity, element.categorie)
-        if occupees >= places then
-            return false, string.format("plus d'emplacement libre en %s (%d / %d).",
-                CATEGORIE[element.categorie].label:lower(), occupees, places)
+        local occupees = C.Occupation(entity, element.categorie)
+        local taille = C.Taille(element)
+        if occupees + taille > places then
+            -- On dit ce qu'il faut, pas seulement ce qui manque : « il faut
+            -- deux emplacements » evite de chercher pourquoi une main libre ne
+            -- suffit pas.
+            return false, string.format("plus d'emplacement libre en %s (%d / %d)%s.",
+                CATEGORIE[element.categorie].label:lower(), occupees, places,
+                taille > 1 and string.format(" : « %s » en demande %d", element.label, taille) or "")
         end
         entity[def.cleEntite] = type(entity[def.cleEntite]) == "table" and entity[def.cleEntite] or {}
         local stock = entity[def.cleEntite]

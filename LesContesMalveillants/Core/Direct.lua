@@ -35,6 +35,9 @@ local GESTES = {
     { "Grimoires", { "Donner" } },
     { "Bourse", { "Crediter", "Debiter" } },
     { "Experience", { "Donner" } },
+    -- Une refonte efface puis repose de nombreuses valeurs et plusieurs traits :
+    -- l'interface ne doit voir que la fiche terminée, jamais l'état intermédiaire.
+    { "Creation", { "Appliquer" } },
 }
 
 -- Previent pour chaque personnage touche, une fois.

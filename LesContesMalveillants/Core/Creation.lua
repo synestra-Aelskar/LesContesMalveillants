@@ -184,6 +184,13 @@ function Creation.Depense(brouillon, categorie)
 end
 
 function Creation.Budget(brouillon, categorie)
+    if brouillon.mode == "niveau" and brouillon.base then
+        local total = math.max(0, Creation.Total(brouillon, categorie)
+            - Creation.Total(brouillon.base, categorie))
+        local depense = Creation.Depense(brouillon, categorie)
+            - Creation.Depense(brouillon.base, categorie)
+        return { total = total, depense = depense, reste = total - depense }
+    end
     local total = Creation.Total(brouillon, categorie)
     local depense = Creation.Depense(brouillon, categorie)
     return { total = total, depense = depense, reste = total - depense }
@@ -228,6 +235,13 @@ end
 function Creation.Definir(brouillon, categorie, champ, valeur)
     valeur = math.floor(tonumber(valeur) or 0)
     if valeur < 0 then return false, "une valeur ne descend pas sous zero." end
+
+    if brouillon.mode == "niveau" and brouillon.base then
+        local minimum = Creation.Valeur(brouillon.base, champ)
+        if valeur < minimum then
+            return false, string.format("un passage de niveau ne peut pas descendre sous %d.", minimum)
+        end
+    end
 
     local avant = Creation.Valeur(brouillon, champ)
     local plafond = Creation.Plafond(brouillon, categorie, champ)
@@ -283,13 +297,20 @@ end
 -- Remet une ligne a zero, ou toute une categorie, ou tout le brouillon. Les
 -- valeurs partent : ce sont les points qu'on recupere, pas une mise en forme.
 function Creation.Remettre(brouillon, categorie, champ)
-    brouillon.valeurs[champ] = nil
+    local valeur = brouillon.mode == "niveau" and brouillon.base
+        and Creation.Valeur(brouillon.base, champ) or 0
+    brouillon.valeurs[champ] = valeur ~= 0 and valeur or nil
     return true
 end
 
 function Creation.RemettreCategorie(brouillon, categorie)
     if categorie == "traits" then
         brouillon.traits = {}
+        if brouillon.mode == "niveau" and brouillon.base then
+            for _, id in ipairs(brouillon.base.traits or {}) do
+                brouillon.traits[#brouillon.traits + 1] = id
+            end
+        end
         return true
     end
     for _, ligne in ipairs(Creation.Lignes(categorie)) do
@@ -360,6 +381,9 @@ function Creation.AjouterTrait(brouillon, id)
 end
 
 function Creation.RetirerTrait(brouillon, id)
+    if brouillon.mode == "niveau" and brouillon.base and Creation.ATrait(brouillon.base, id) then
+        return false, "un passage de niveau ne retire pas un trait déjà acquis."
+    end
     for index, porte in ipairs(brouillon.traits) do
         if porte == id then table.remove(brouillon.traits, index) return true end
     end
@@ -370,17 +394,17 @@ end
 
 function Creation.Problemes(brouillon)
     local out = {}
-    if tostring(brouillon.nom or ""):gsub("%s+", "") == "" then
+    if brouillon.mode ~= "niveau" and tostring(brouillon.nom or ""):gsub("%s+", "") == "" then
         out[#out + 1] = "il faut un nom."
     end
     -- La race se CHOISIT dans le compendium, et nulle part ailleurs : une race
     -- tapee a la main n'apportait ni bonus ni morphologie, et laissait croire
     -- le contraire. Si elle manque, c'est au MJ de la creer.
-    if tostring(brouillon.race or "") == "" then
+    if brouillon.mode ~= "niveau" and tostring(brouillon.race or "") == "" then
         out[#out + 1] = "il faut choisir une race."
-    elseif not LCM.Races.Get(brouillon.race) then
+    elseif brouillon.mode ~= "niveau" and not LCM.Races.Get(brouillon.race) then
         out[#out + 1] = string.format("la race « %s » n'existe pas dans cette version.", tostring(brouillon.race))
-    elseif not LCM.Races.Choisissable(LCM.Races.Get(brouillon.race)) then
+    elseif brouillon.mode ~= "niveau" and not LCM.Races.Choisissable(LCM.Races.Get(brouillon.race)) then
         -- Le choix reste affiche : on dit pourquoi, on ne le retire pas.
         out[#out + 1] = string.format("la race « %s » est réservée au MJ.", LCM.Races.Get(brouillon.race).label)
     end
@@ -411,7 +435,184 @@ function Creation.Problemes(brouillon)
 end
 
 -- Rien n'oblige a tout depenser : un personnage peut garder des points de cote.
+-- ===== Rouvrir une fiche ===================================================
+-- Un personnage termine n'etait plus modifiable : la creation ne savait que
+-- creer. Deux portes s'ouvrent (5 octobre 2026) :
+--
+--   * le MJ rouvre n'importe quelle fiche, quand il veut ;
+--   * un joueur rouvre la sienne s'il tient un JETON, que le MJ lui donne et
+--     que la validation consomme. Un jeton, une refonte : on ne retouche pas
+--     sa fiche entre deux phrases.
+
+-- Le jeton vit sur la fiche elle-meme, pas dans les reglages du joueur : il
+-- suit le personnage, y compris quand le MJ incarne un PNJ.
+function Creation.ADesJetons(entity)
+    return type(entity) == "table" and (tonumber(entity.jetonEdition) or 0) > 0
+end
+
+function Creation.DonnerJeton(entity, combien)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    combien = math.max(1, math.floor(tonumber(combien) or 1))
+    entity.jetonEdition = (tonumber(entity.jetonEdition) or 0) + combien
+    return true, entity.jetonEdition
+end
+
+-- Le jeton voyage jusqu'au joueur, puis s'attache a SON personnage actif. La
+-- reponse evite au MJ de croire le geste accompli si le joueur n'a encore
+-- cree aucun personnage.
+local SUJET_JETON = "edition+"
+local SUJET_REPONSE = "edition!"
+
+function Creation.EnvoyerJeton(joueur)
+    joueur = tostring(joueur or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if joueur == "" then return false, "à qui ?" end
+    if not LCM.IsMaster() then return false, "seul le maître du jeu donne un jeton de réédition." end
+    if joueur == LCM.PlayerId() then
+        return false, "tu n'en as pas besoin : le maître du jeu peut rééditer sa fiche à tout moment."
+    end
+    return LCM.Reseau.Envoyer(SUJET_JETON, {}, "WHISPER", joueur)
+end
+
+LCM.WhenReady(function()
+    LCM.Reseau.Ecouter(SUJET_JETON, function(expediteur)
+        -- Comme pour l'XP, le client ne peut pas prouver que l'autre possède le
+        -- compagnon MJ. Le groupe borne le geste, et le nom de l'expéditeur est
+        -- annoncé : un envoi illégitime ne passe pas inaperçu.
+        if not LCM.Reseau.DansLeGroupe(expediteur) then
+            LCM.Debug(string.format("jeton de réédition refusé de %s : hors du groupe.", tostring(expediteur)))
+            return
+        end
+        local moi = LCM.Entities.Personnage()
+        if not moi then
+            LCM.Reseau.Envoyer(SUJET_REPONSE,
+                { r = "aucun personnage actif chez ce joueur." }, "WHISPER", expediteur)
+            LCM.Alerte(string.format("%s a voulu te donner un jeton de réédition, mais tu n'as aucun personnage actif.",
+                tostring(expediteur)))
+            return
+        end
+        Creation.DonnerJeton(moi)
+        LCM.Reseau.Envoyer(SUJET_REPONSE, { ok = 1, nom = tostring(moi.name) }, "WHISPER", expediteur)
+        LCM.Ok(string.format("%s t'a donné un jeton de réédition pour %s. "
+            .. "Ouvre /lcm personnages puis Rééditer, ou utilise /lcm editer.",
+            tostring(expediteur), tostring(moi.name)))
+        if LCM.UI and LCM.UI.Personnages and LCM.UI.Personnages.frame
+            and LCM.UI.Personnages.frame:IsShown() then
+            LCM.UI.Personnages.frame:Rafraichir()
+        end
+    end)
+
+    LCM.Reseau.Ecouter(SUJET_REPONSE, function(expediteur, donnees)
+        if not LCM.IsMaster() then return end
+        if donnees.ok then
+            LCM.Ok(string.format("%s a reçu son jeton de réédition pour %s.",
+                tostring(expediteur), tostring(donnees.nom or "son personnage")))
+        else
+            LCM.Alerte(string.format("jeton non remis à %s : %s",
+                tostring(expediteur), tostring(donnees.r or "raison inconnue")))
+        end
+    end)
+end)
+
+function Creation.RetirerJeton(entity)
+    if not Creation.ADesJetons(entity) then return false end
+    local reste = (tonumber(entity.jetonEdition) or 0) - 1
+    entity.jetonEdition = reste > 0 and reste or nil
+    return true
+end
+
+-- Qui peut rouvrir cette fiche, et sinon pourquoi.
+function Creation.PeutEditer(entity)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    if LCM.IsMaster() then return true end
+    if Creation.ADesJetons(entity) then return true end
+    return false, "il faut un jeton de réédition : demande-le au maître du jeu."
+end
+
+-- Un brouillon fait d'une fiche existante : on repart de ce qu'elle est, et
+-- `entite` dit que la validation modifiera CELLE-LA au lieu d'en creer une.
+function Creation.Depuis(entity)
+    if type(entity) ~= "table" then return nil, "aucun personnage." end
+    local brouillon = Creation.Nouveau(LCM.Entities.Get_Value(entity, "niveau"))
+    brouillon.entite = entity
+    brouillon.nom = tostring(entity.name or "")
+    brouillon.race = tostring(LCM.Entities.Get_Value(entity, "race") or "")
+
+    -- Les valeurs investies, telles qu'elles ont ete saisies. On ne reprend que
+    -- ce que la creation sait depenser : le reste de la fiche (jauges, etats,
+    -- inventaire) ne la regarde pas et doit survivre a la refonte.
+    for _, categorie in ipairs(Creation.CATEGORIES or {}) do
+        for _, ligne in ipairs(Creation.Lignes(categorie.id or categorie) or {}) do
+            local id = ligne.id or ligne
+            local valeur = tonumber(LCM.Entities.Get_Value(entity, id))
+            if valeur and valeur ~= 0 then brouillon.valeurs[id] = valeur end
+        end
+    end
+    for _, champ in ipairs({ "sexe", "age", "poids", "taille", "portrait" }) do
+        local valeur = LCM.Entities.Get_Value(entity, champ)
+        if valeur ~= nil and valeur ~= "" then brouillon.valeurs[champ] = valeur end
+    end
+    brouillon.traits = {}
+    for _, id in ipairs(LCM.Traits.Ids and LCM.Traits.Ids(entity) or {}) do
+        brouillon.traits[#brouillon.traits + 1] = id
+    end
+    return brouillon
+end
+
+-- Un passage ne rouvre pas toute la fiche : il part des investissements deja
+-- valides, vise exactement le niveau suivant et conserve une photographie de
+-- depart. Budgets et remises a zero ne portent alors que sur CE niveau.
+function Creation.DepuisNiveau(entity)
+    if type(entity) ~= "table" then return nil, "aucun personnage." end
+    if not (LCM.Experience and LCM.Experience.PeutMonter(entity)) then
+        return nil, "aucun niveau en attente."
+    end
+    local brouillon, erreur = Creation.Depuis(entity)
+    if not brouillon then return nil, erreur end
+    local courant = LCM.Experience.NiveauFiche(entity)
+    local base = Creation.Nouveau(courant)
+    base.nom, base.race = brouillon.nom, brouillon.race
+    for champ, valeur in pairs(brouillon.valeurs) do base.valeurs[champ] = valeur end
+    for _, id in ipairs(brouillon.traits or {}) do base.traits[#base.traits + 1] = id end
+    brouillon.mode = "niveau"
+    brouillon.niveauAvant = courant
+    brouillon.niveau = courant + 1
+    brouillon.base = base
+    return brouillon
+end
+
+function Creation.AppliquerNiveau(brouillon)
+    if type(brouillon) ~= "table" or brouillon.mode ~= "niveau" then
+        return nil, "passage de niveau invalide."
+    end
+    local entity = brouillon.entite
+    if type(entity) ~= "table" then return nil, "aucun personnage." end
+    local courant = LCM.Experience.NiveauFiche(entity)
+    if brouillon.niveauAvant ~= courant or brouillon.niveau ~= courant + 1 then
+        return nil, "la fiche a changé depuis l'ouverture du passage de niveau."
+    end
+    if not LCM.Experience.PeutMonter(entity) then return nil, "aucun niveau en attente." end
+    local problemes = Creation.Problemes(brouillon)
+    if #problemes > 0 then return nil, problemes[1] end
+
+    for _, categorie in ipairs(Creation.CATEGORIES) do
+        if categorie ~= "traits" then
+            for _, ligne in ipairs(Creation.Lignes(categorie)) do
+                local id = ligne.id or ligne
+                local valeur = Creation.Valeur(brouillon, id)
+                LCM.Entities.Set_Value(entity, id, valeur ~= 0 and valeur or nil)
+            end
+        end
+    end
+    for _, id in ipairs(brouillon.traits or {}) do
+        if not LCM.Traits.Has(entity, id) then LCM.Traits.Grant(entity, id) end
+    end
+    LCM.Entities.Set_Value(entity, "niveau", brouillon.niveau)
+    if LCM.Entities.Changed then LCM.Entities.Changed(entity, "niveau") end
+    return entity, LCM.Experience.NiveauxEnAttente(entity)
+end
+
 function Creation.Appliquer(brouillon)
+    if brouillon and brouillon.mode == "niveau" then return Creation.AppliquerNiveau(brouillon) end
     local problemes = Creation.Problemes(brouillon)
     if #problemes > 0 then return nil, problemes[1] end
 
@@ -427,7 +628,49 @@ function Creation.Appliquer(brouillon)
     end
     for champ, valeur in pairs(brouillon.valeurs) do valeurs[champ] = valeur end
 
-    local entity, erreur = LCM.Personnages.Creer(brouillon.nom, valeurs)
+    -- Une REFONTE : la meme fiche, revue. Tout ce que la creation ne touche pas
+    -- (jauges, sacs, equipement, etats) reste en place ; en recreant le
+    -- personnage on l'aurait perdu.
+    local entity, erreur = brouillon.entite, nil
+    if entity then
+        local peut, pourquoi = Creation.PeutEditer(entity)
+        if not peut then return nil, pourquoi end
+        -- On efface d'abord tout ce que l'outil de création gouverne. Sinon
+        -- remettre une statistique ou l'âge à zéro ne ferait que l'omettre du
+        -- brouillon, et l'ancienne valeur resterait silencieusement sur la fiche.
+        local aRemplacer = {
+            race = true, niveau = true, sexe = true, age = true,
+            poids = true, taille = true, portrait = true,
+        }
+        for _, categorie in ipairs(Creation.CATEGORIES) do
+            if categorie ~= "traits" then
+                for _, ligne in ipairs(Creation.Lignes(categorie)) do
+                    aRemplacer[ligne.id or ligne] = true
+                end
+            end
+        end
+        for champ in pairs(aRemplacer) do LCM.Entities.Set_Value(entity, champ, nil) end
+        entity.name = brouillon.nom
+        for champ, valeur in pairs(valeurs) do LCM.Entities.Set_Value(entity, champ, valeur) end
+        -- Les traits se refont : ceux qu'on a retires partent, les nouveaux
+        -- arrivent. Les laisser s'empiler doublerait leurs bonus.
+        local garde = {}
+        for _, id in ipairs(brouillon.traits) do garde[id] = true end
+        for _, id in ipairs(LCM.Traits.Ids and LCM.Traits.Ids(entity) or {}) do
+            if not garde[id] then LCM.Traits.Revoke(entity, id) end
+        end
+        for _, id in ipairs(brouillon.traits) do
+            if not LCM.Traits.Has(entity, id) then LCM.Traits.Grant(entity, id) end
+        end
+        -- Le jeton se consomme ICI, pas a l'ouverture : rouvrir sa fiche pour
+        -- regarder, puis renoncer, ne doit rien couter. Le MJ, lui, n'en
+        -- consomme pas.
+        if not LCM.IsMaster() then Creation.RetirerJeton(entity) end
+        if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
+        return entity
+    end
+
+    entity, erreur = LCM.Personnages.Creer(brouillon.nom, valeurs)
     if not entity then return nil, erreur end
     for _, id in ipairs(brouillon.traits) do LCM.Traits.Grant(entity, id) end
     return entity

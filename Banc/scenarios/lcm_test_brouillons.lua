@@ -72,6 +72,28 @@ for i = avant + 1, #__envois do
 end
 attendu("l'ecriture part sur le reseau", partis > 0, true)
 
+-- Si le canal n'est pas encore pret (cas normal juste apres une connexion),
+-- l'entree reste en attente au lieu d'etre abandonnee au hasard.
+local rejoindre = LCM.Presence.Rejoindre
+LCM.Presence.Rejoindre = function() return nil end
+local avantAttente = B2.SynchronisationsEnAttente()
+local avantCanal = #__envois
+B2.Enregistrer("traits", { id = "canal_retarde", label = "Canal retardé", cout = 1 }, true)
+attendu("canal absent : le brouillon reste en attente",
+    B2.SynchronisationsEnAttente() > avantAttente, true)
+local partiSansCanal = false
+for i = avantCanal + 1, #__envois do
+    if tostring(__envois[i].message or ""):find("brouillon") then partiSansCanal = true end
+end
+attendu("canal absent : aucun faux envoi", partiSansCanal, false)
+LCM.Presence.Rejoindre = rejoindre
+__avancer(1.1)
+local partiApresCanal = false
+for i = avantCanal + 1, #__envois do
+    if tostring(__envois[i].message or ""):find("brouillon") then partiApresCanal = true end
+end
+attendu("le brouillon part quand le canal revient", partiApresCanal, true)
+
 -- Reception : ce qui arrive s'applique, sans question.
 B2.Supprimer("traits", "souffle_sync")
 attendu("retire chez nous", B2.Get("traits", "souffle_sync"), nil)
@@ -81,6 +103,24 @@ LCM.Reseau.Recevoir("Akriaxx", "7:1:1:brouillon|" .. paquet)
 attendu("arrive chez nous tout seul", B2.Get("traits", "souffle_sync") ~= nil, true)
 attendu("et devient jouable", LCM.Traits.Get("souffle_sync") ~= nil, true)
 
+-- Une synchro fiable est acquittee et une relance n'est pas appliquee deux
+-- fois. On change volontairement le libelle dans le doublon pour le prouver.
+local paquetFiable = LCM.Reseau.Encoder({ s = "essai-dedoublonnage", f = "traits",
+    e = { id = "dedouble", label = "Première version", cout = 1 } })
+local avantAccuse = #__envois
+LCM.Reseau.Recevoir("Akriaxx", "71:1:1:brouillon|" .. paquetFiable)
+local paquetDoublon = LCM.Reseau.Encoder({ s = "essai-dedoublonnage", f = "traits",
+    e = { id = "dedouble", label = "Version qui ne doit pas passer", cout = 1 } })
+LCM.Reseau.Recevoir("Akriaxx", "72:1:1:brouillon|" .. paquetDoublon)
+attendu("une relance n'est appliquee qu'une fois", B2.Get("traits", "dedouble").label,
+    "Première version")
+local accuses = 0
+for i = avantAccuse + 1, #__envois do
+    if tostring(__envois[i].message or ""):find("sync%-ok") then accuses = accuses + 1 end
+end
+attendu("chaque reception est acquittee", accuses, 2)
+B2.Supprimer("traits", "dedouble")
+
 -- Ce qui arrive ne REPART pas : sinon deux ateliers se le renvoient sans fin.
 local avantRenvoi = #__envois
 LCM.Reseau.Recevoir("Akriaxx", "8:1:1:brouillon|" .. paquet)
@@ -89,6 +129,47 @@ for i = avantRenvoi + 1, #__envois do
     if tostring(__envois[i].message or ""):find("brouillon") then renvois = renvois + 1 end
 end
 attendu("rien n'est renvoye", renvois, 0)
+
+-- Un JEU D'EQUILIBRAGE traverse aussi, raretes comprises. Elles ne passaient
+-- pas : l'encodeur triait les cles en les convertissant en texte, puis lisait
+-- la table avec cette chaine — donc nil sur toute cle numerique, et les
+-- TABLEAUX disparaissaient en silence (5 octobre 2026).
+local jeu = { id = "jeu_reseau", label = "Jeu réseau", categorie = "traits",
+    raretes = { { id = "commun", label = "Commun", points = 10, couleur = "FFFFFF" },
+                { id = "rare", label = "Rare", points = 25, couleur = "4488FF" } },
+    champs = { escalade = { cout = "2", max = "4" } } }
+LCM.Reseau.Recevoir("Akriaxx", "11:1:1:brouillon|"
+    .. LCM.Reseau.Encoder({ f = "jeux", e = jeu }))
+local arrive = LCM.Forge.Get("jeu_reseau")
+attendu("le jeu arrive", arrive ~= nil, true)
+attendu("avec ses deux raretes", arrive and #arrive.raretes, 2)
+attendu("nommees", arrive and arrive.raretes[2] and arrive.raretes[2].label, "Rare")
+attendu("et ses champs", arrive and arrive.champs
+    and arrive.champs.escalade and tostring(arrive.champs.escalade.max), "4")
+
+-- La Forge gardait auparavant sa copie locale en cache : le registre etait
+-- modifie, mais l'ecran semblait ne rien avoir recu.
+LCM.UI.Forge.Editer(arrive)
+local equilibre = LCM.UI.Forge.Equilibrage()
+attendu("la forge montre la premiere version", equilibre:Travail().def.label, "Jeu réseau")
+local jeuMaj = LCM.Copie(jeu)
+jeuMaj.label = "Jeu réseau mis à jour"
+LCM.Reseau.Recevoir("Akriaxx", "73:1:1:brouillon|"
+    .. LCM.Reseau.Encoder({ s = "maj-jeu", f = "jeux", r = 1, e = jeuMaj }))
+attendu("la forge recharge la modification distante", equilibre:Travail().def.label,
+    "Jeu réseau mis à jour")
+B2.Supprimer("jeux", "jeu_reseau")
+
+-- Un trait garde ses bonus et son avantage en route.
+local trait = { id = "t_reseau", label = "T réseau", cout = 1,
+    bonus = { escalade = 1 }, avantage = { "escalade" } }
+LCM.Reseau.Recevoir("Akriaxx", "12:1:1:brouillon|"
+    .. LCM.Reseau.Encoder({ f = "traits", e = trait }))
+local tr = LCM.Traits.Get("t_reseau")
+attendu("le trait arrive", tr ~= nil, true)
+attendu("avec son bonus", tr and tr.bonus.escalade, 1)
+attendu("et son avantage", tr and tr.avantage.escalade, true)
+B2.Supprimer("traits", "t_reseau")
 
 -- Une suppression voyage aussi.
 LCM.Reseau.Recevoir("Akriaxx", "9:1:1:brouillon-|" .. LCM.Reseau.Encoder({ f = "traits", id = "souffle_sync" }))

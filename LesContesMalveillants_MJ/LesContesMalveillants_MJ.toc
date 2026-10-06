@@ -10,10 +10,12 @@ MJ.lua
 Brouillons.lua
 Genere\Compendium_PNJ.lua
 Genere\Compendium_Resolutions_MJ.lua
+Genere\Atelier_MJ.lua
 ActionsBoutons.lua
 Atelier.lua
 Forge.lua
 Compendium.lua
+Consultation.lua
 Panneau.lua
 Incarner.lua
 Combat.lua

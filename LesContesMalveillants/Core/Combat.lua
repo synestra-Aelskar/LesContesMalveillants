@@ -48,6 +48,27 @@ local function Moi()
     return LCM.PlayerId()
 end
 
+-- Les API de groupe peuvent rendre « Nom » pour un personnage du meme
+-- royaume, alors que CHAT_MSG_ADDON identifie toujours l'expediteur sous la
+-- forme « Nom-Royaume ». Sans cette canonicalisation, le MJ envoie bien
+-- l'invitation mais rejette ensuite la reponse comme venant d'un non-invite.
+local function IdJoueur(nom)
+    nom = tostring(nom or "")
+    if nom == "" or nom:find("-", 1, true) then return nom end
+    local royaume
+    if UnitFullName then _, royaume = UnitFullName("player") end
+    royaume = tostring(royaume or "")
+    return royaume ~= "" and (nom .. "-" .. royaume) or nom
+end
+
+local function IdUnite(unite)
+    if not UnitName then return nil end
+    local nom, royaume = UnitName(unite)
+    if not nom then return nil end
+    royaume = tostring(royaume or "")
+    return royaume ~= "" and (nom .. "-" .. royaume) or IdJoueur(nom)
+end
+
 local function Nettoyer(valeur)
     return (tostring(valeur or ""):gsub("^%s+", ""):gsub("%s+$", ""))
 end
@@ -71,11 +92,8 @@ function Combat.Membres()
     local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
     local moi = Moi()
     for index = 1, nombre do
-        local nom, royaume = UnitName(prefixe .. index)
-        if nom then
-            local complet = (royaume and royaume ~= "" and (nom .. "-" .. royaume)) or nom
-            if complet ~= moi then out[#out + 1] = complet end
-        end
+        local complet = IdUnite(prefixe .. index)
+        if complet and complet ~= moi then out[#out + 1] = complet end
     end
     table.sort(out)
     return out
@@ -468,7 +486,7 @@ LCM.WhenReady(function()
     R.Ecouter("combat?", function(expediteur, d)
         if Combat.EstMJ() then return end
         if not LCM.Fiches.DansLeGroupe(expediteur) then return end
-        Combat.invitationRecue = { s = tostring(d.s or ""), mj = expediteur }
+        Combat.invitationRecue = { s = tostring(d.s or ""), mj = IdJoueur(expediteur) }
         if Combat.onInvitationRecue then Combat.onInvitationRecue(Combat.invitationRecue) end
     end)
 
@@ -477,15 +495,16 @@ LCM.WhenReady(function()
     R.Ecouter("combat+", function(expediteur, d)
         local invitation = Combat.invitation
         if not invitation or tostring(d.s) ~= invitation.s then return end
-        if not invitation.cibles[expediteur] then return end
+        local joueur = IdJoueur(expediteur)
+        if not invitation.cibles[joueur] then return end
         if tostring(d.ok) == "1" then
-            invitation.reponses[expediteur] = {
+            invitation.reponses[joueur] = {
                 ok = true, v = tonumber(d.v) or 0,
-                nom = Tronquer(Nettoyer(d.n) ~= "" and d.n or expediteur, Combat.NOM_MAX),
+                nom = Tronquer(Nettoyer(d.n) ~= "" and d.n or joueur, Combat.NOM_MAX),
                 icone = d.ic and Tronquer(d.ic, Combat.ICONE_MAX) or nil,
             }
         else
-            invitation.reponses[expediteur] = { ok = false }
+            invitation.reponses[joueur] = { ok = false }
         end
         if Combat.onInvitation then Combat.onInvitation(invitation) end
         -- Tout le monde a repondu : on lance (Necronicon faisait de meme).
@@ -496,7 +515,7 @@ LCM.WhenReady(function()
     -- autre : son etat a lui fait foi.
     R.Ecouter("combat=", function(expediteur, d)
         if Combat.EstMJ() then return end
-        local etat = Combat.Depaqueter(d, expediteur)
+        local etat = Combat.Depaqueter(d, IdJoueur(expediteur))
         -- Comme dans Necronicon, celui qui n'est pas au combat ne voit pas le
         -- bandeau : il a refuse, ou il n'a pas ete invite.
         local present = false
@@ -510,7 +529,7 @@ LCM.WhenReady(function()
     R.Ecouter("combat~", function(expediteur, d)
         local etat = Combat.etat
         if not etat or Combat.EstMJ() then return end
-        if etat.mj ~= expediteur or etat.s ~= tostring(d.s) then return end
+        if etat.mj ~= IdJoueur(expediteur) or etat.s ~= tostring(d.s) then return end
         local nouveau = LCM.Copie(etat)
         nouveau.c = tonumber(d.c) or nouveau.c
         nouveau.t = tonumber(d.t) or nouveau.t
@@ -522,7 +541,7 @@ LCM.WhenReady(function()
     R.Ecouter("combat.", function(expediteur, d)
         local etat = Combat.etat
         if not etat or Combat.EstMJ() then return end
-        if etat.mj ~= expediteur or etat.s ~= tostring(d.s) then return end
+        if etat.mj ~= IdJoueur(expediteur) or etat.s ~= tostring(d.s) then return end
         Combat.etat = nil
         LCM.Info("Combat terminé.")
         Prevenir()
@@ -533,7 +552,7 @@ LCM.WhenReady(function()
         local etat = Combat.etat
         if not Combat.EstMJ() or etat.s ~= tostring(d.s) then return end
         local courant = Combat.Courant()
-        if not courant or courant.pnj or courant.id ~= expediteur then return end
+        if not courant or courant.pnj or courant.id ~= IdJoueur(expediteur) then return end
         Combat.Avancer(1)
     end)
 
@@ -541,9 +560,10 @@ LCM.WhenReady(function()
     R.Ecouter("combat!", function(expediteur)
         local etat = Combat.etat
         if not Combat.EstMJ() then return end
+        local joueur = IdJoueur(expediteur)
         for _, e in ipairs(etat.entrees) do
-            if not e.pnj and e.id == expediteur then
-                Envoyer("combat=", Combat.Paquet(etat), "WHISPER", expediteur)
+            if not e.pnj and e.id == joueur then
+                Envoyer("combat=", Combat.Paquet(etat), "WHISPER", joueur)
                 return
             end
         end

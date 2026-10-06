@@ -86,6 +86,20 @@ attendu("le dernier bouton finit au bord", col.boutons[3] + col.boutonL, L)
 attendu("le bouton d'action aussi", col.action + col.actionLargeur, L)
 attendu("et la jauge s'arrete juste avant les boutons", col.barreFin < col.boutons[1], true)
 
+-- La plage (« 0-15 ») tient ENTRE le nom et la valeur, a toute largeur. Elle
+-- etait calculee a reculons depuis la valeur, elle-meme ramenee contre le nom :
+-- dans un volet etroit (Expertises) elle retombait DANS la colonne du nom et
+-- « 15 » s'ecrivait par-dessus « Communication » (5 octobre 2026).
+local plageMal = {}
+for largeur = 320, 1600, 20 do
+    local cc = LCM.UI.AelColonnes(largeur)
+    local finNom = cc.nom + cc.nomLargeur
+    if cc.plage < finNom or cc.plage + cc.plageLargeur > cc.valeur then
+        plageMal[#plageMal + 1] = largeur
+    end
+end
+attendu("la plage ne mord ni sur le nom ni sur la valeur", table.concat(plageMal, ","), "")
+
 dire("== une icone n'ecrase pas son libelle")
 -- `Fiche.Nom` a deux colonnes : avec icone et sans. Oublier de dire laquelle
 -- pose le texte a l'interieur de l'icone — c'est arrive sur les trois types de
@@ -190,5 +204,48 @@ local jauge = LCM.Entities.Gauge(moi, "pa")
 LCM.Entities.SetGauge(moi, "pa", math.max(0, jauge.current - 1))
 attendu("l'affichage a suivi sans rouvrir", texteJauge() ~= avant, true)
 SlashCmdList.LCM("fiche")
+
+dire("== une ligne de jet montre son total, dans sa colonne")
+-- Le bloc elargit sa colonne de noms pour ne couper aucun libelle, puis epingle
+-- la valeur au bord droit de la ligne. Sur une ligne de JET ce bord est pris par
+-- le bouton : le total passait DESSOUS, et on lisait « +1 » (le bonus) a cote
+-- d'un vide (5 octobre 2026).
+local cible
+LCM.Schema.EachField(function(champ)
+    if champ.kind == "roll" and tostring(champ.label or "") == "Équilibre" then cible = champ end
+end)
+attendu("une expertise de reference", cible ~= nil, true)
+LCM.Entities.Set_Value(moi, cible.id, 2)
+
+local vue = LCM.UI.Vues.Fenetre("expertise")
+vue:Montrer(moi)
+vue:Afficher("athletisme")
+local jet
+for _, page in pairs(vue.pages or {}) do
+    for _, bloc in ipairs(page.blocs or {}) do
+        for _, ligne in ipairs(bloc.lignes or {}) do
+            if ligne.field and ligne.field.id == cible.id then jet = ligne end
+        end
+    end
+end
+attendu("la ligne existe", jet ~= nil, true)
+
+local attendu_total = (tonumber(LCM.Entities.Get_Value(moi, cible.id)) or 0)
+    + LCM.Formules.Apport(moi, cible.id) + LCM.Effets.Bonus(moi, cible.id)
+attendu("elle affiche le total", jet.valeur:GetText(), tostring(attendu_total))
+
+-- Et chaque colonne reste a sa place : nom, plage, valeur, bonus, bouton.
+local function x(region)
+    local _, _, _, ax = region:GetPoint(1)
+    return ax or 0
+end
+attendu("la plage vient apres le nom", x(jet.plage) > x(jet.nom) + jet.nom:GetWidth(), true)
+attendu("la valeur vient apres la plage",
+    x(jet.valeur) >= x(jet.plage) + jet.plage:GetWidth(), true)
+attendu("le bonus vient apres la valeur",
+    x(jet.bonus) >= x(jet.valeur) + jet.valeur:GetWidth(), true)
+attendu("et le bouton ferme la marche",
+    x(jet.lancer) >= x(jet.bonus) + jet.bonus:GetWidth(), true)
+vue:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

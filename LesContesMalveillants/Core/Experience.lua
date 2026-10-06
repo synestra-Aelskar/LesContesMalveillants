@@ -41,6 +41,23 @@ function Experience.NiveauPour(xp)
     return niveau
 end
 
+function Experience.NiveauFiche(entity)
+    return math.max(1, math.floor(tonumber(LCM.Entities.Get_Value(entity, "niveau"))
+        or Eq().niveauDepart))
+end
+
+-- L'XP donne le DROIT de monter ; le niveau de la fiche ne bouge qu'apres
+-- repartition et validation. La difference est le nombre de passages que le
+-- joueur doit encore traiter, un par un.
+function Experience.NiveauxEnAttente(entity)
+    if type(entity) ~= "table" then return 0 end
+    return math.max(0, Experience.NiveauPour(Experience.Total(entity)) - Experience.NiveauFiche(entity))
+end
+
+function Experience.PeutMonter(entity)
+    return Experience.NiveauxEnAttente(entity) > 0
+end
+
 -- Ou l'on en est : le niveau courant, et ce qu'il faut pour le suivant.
 -- `reste` vaut nil au dernier palier connu — il n'y a plus rien a viser.
 function Experience.Progression(entity)
@@ -70,14 +87,10 @@ function Experience.Donner(entity, montant, raison)
     entity.xp = Experience.Total(entity) + montant
     local apres = Experience.NiveauPour(entity.xp)
 
-    -- Le niveau de la feuille suit, jamais l'inverse : c'est l'XP qui fait foi.
-    -- On ne REDESCEND pas un personnage dont le niveau a ete pose a la main
-    -- au-dessus de son XP (un PNJ du MJ, un personnage d'avant l'outil).
-    local niveauFiche = tonumber(LCM.Entities.Get_Value(entity, "niveau")) or 0
-    if apres > niveauFiche then LCM.Entities.Set_Value(entity, "niveau", apres) end
-
     if Experience.onGain then Experience.onGain(entity, montant, avant, apres, raison) end
-    return { avant = avant, apres = apres, monte = apres > avant, xp = entity.xp }
+    if LCM.UI and LCM.UI.Radial and LCM.UI.Radial.Rafraichir then LCM.UI.Radial.Rafraichir() end
+    return { avant = avant, apres = apres, monte = apres > avant, xp = entity.xp,
+        enAttente = Experience.NiveauxEnAttente(entity) }
 end
 
 -- ===== Entre le MJ et le joueur ===========================================
@@ -113,7 +126,8 @@ LCM.WhenReady(function()
         LCM.Ok(string.format("+%d XP de %s%s.", math.floor(tonumber(donnees.m) or 0),
             tostring(expediteur), pourquoi ~= "" and (" — " .. pourquoi) or ""))
         if resultat.monte then
-            LCM.Ok(string.format("|cffffd36bNiveau %d !|r Tu as des points à répartir.", resultat.apres))
+            LCM.Ok(string.format("|cffffd36b%d niveau%s en attente !|r Ouvre le menu Personnage pour répartir tes points.",
+                resultat.enAttente, resultat.enAttente > 1 and "x" or ""))
         end
     end)
 end)

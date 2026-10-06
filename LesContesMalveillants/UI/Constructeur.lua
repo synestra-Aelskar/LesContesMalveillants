@@ -178,19 +178,24 @@ local function Construire()
     -- comme une note de bas de page, alors que c'est ce qu'on surveille.
     local function Carre(couleur, libelle)
         local k = CreateFrame("Frame", nil, f)
-        k:SetSize(62, 42)
+        k:SetSize(48, 28)
         k.fond = UI.Aplat(k, couleur)
         k.fond:SetAllPoints(k)
         UI.BordureFine(k, 0.5)
         k.titre = UI.Texte(k, libelle, { 0.92, 0.92, 0.88 }, "GameFontNormalSmall")
-        k.titre:SetPoint("TOP", k, "TOP", 0, -4)
+        k.titre:SetPoint("TOP", k, "TOP", 0, -2)
         k.valeur = UI.Texte(k, "0 / 0", UI.C.titre)
-        k.valeur:SetPoint("BOTTOM", k, "BOTTOM", 0, 5)
+        UI.Police(k.valeur, 11)
+        k.valeur:SetPoint("BOTTOM", k, "BOTTOM", 0, 2)
         return k
     end
     f.carrePA = Carre({ 0.16, 0.42, 0.22, 0.92 }, "PA")
     f.carrePF = Carre({ 0.16, 0.26, 0.48, 0.92 }, "PF")
-    Placer(f.carrePA, "TOPRIGHT", f, "TOPRIGHT", -78, -168)
+    -- Sur la ligne du titre CHOIX, au-DESSUS de la liste. Poses a -168 ils
+    -- tombaient dans la zone qui commence a -166 : ils recouvraient la premiere
+    -- rangee de choix (« Perception »), et leurs 62 x 42 debordaient du bord
+    -- droit de cette zone (5 octobre 2026).
+    Placer(f.carrePA, "TOPRIGHT", f, "TOPRIGHT", -72, -136)
     -- Colles l'un a l'autre : c'est une seule information en deux moities.
     Placer(f.carrePF, "LEFT", f.carrePA, "RIGHT", 0, 0)
 
@@ -271,15 +276,18 @@ local function Construire()
     end)
     Placer(f.enregistrer, "LEFT", f.biblio, "RIGHT", 8, 0)
 
-    -- « Configurer » deplie, « Réduire » replie. C'est le bouton de Necronicon,
-    -- au meme endroit : en haut a droite, sous l'apercu.
+    -- « Configurer » deplie, « Réduire » replie.
+    --
+    -- Sur la MEME rangee que la bibliotheque, a l'autre bout : une ligne plus
+    -- bas, il tombait sur « Déclarer » des que la fenetre etait repliee — et
+    -- repliee, c'est son etat de depart (5 octobre 2026).
     f.replie = true
     f.basculer = UI.Bouton(f, "Configurer", 130, 22, function()
         f.replie = not f.replie
         f:Disposer()
         Ecran.Rendre()
     end)
-    Placer(f.basculer, "TOPRIGHT", f, "TOPRIGHT", -16, -140)
+    Placer(f.basculer, "TOPRIGHT", f, "TOPRIGHT", -16, -112)
 
     -- Tout ce qui ne sert qu'a composer : cache tant qu'on n'a pas deplie.
     function f:Disposer()

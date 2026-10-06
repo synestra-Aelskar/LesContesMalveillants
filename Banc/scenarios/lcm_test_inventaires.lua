@@ -269,4 +269,176 @@ grand.vue:Click()
 attendu("elle ne bouge plus", grand:GetHeight(), 250)
 grand:Hide()
 
+dire("== glisser un objet d'un sac a l'autre")
+-- Le glissement n'existait que depuis le compendium : d'un sac a l'autre, il
+-- fallait le menu contextuel et son sous-menu (5 octobre 2026).
+local function GlisserCase(source, caseIndex, cible)
+    __souris.LeftButton = true
+    source:GetScript("OnDragStart")(source)
+    cible.__survol = true
+    __avancer(0.02, 0.02)
+    __souris.LeftButton = false
+    __avancer(0.02, 0.02)
+    cible.__survol = nil
+end
+
+-- On repart d'un etat connu : un sac au premier emplacement, la dague dedans.
+if not I.Emplacement(moi, "sacs", 1) then I.Poser(moi, "sacs", 1, "sac_d_essai", true) end
+I.Vider(moi, "sacs", 1, 3)
+attendu("la dague est rangee",
+    I.Ranger(moi, "sacs", 1, 3, "objets/dague_d_assassin_du_culte", 1), true)
+local sacOuvert = LCM.UI.Inventaires.OuvrirSac("sacs", 1)
+local depart
+for _, b in ipairs(sacOuvert.cases) do if b:IsShown() and b.index == 3 then depart = b end end
+attendu("la case de depart existe", depart ~= nil, true)
+attendu("elle sait demarrer un glissement", type(depart:GetScript("OnDragStart")), "function")
+
+-- On la prend, et on regarde ce que le glissement porte.
+__souris.LeftButton = true
+depart:GetScript("OnDragStart")(depart)
+attendu("un glissement est en cours", LCM.UI.Glisser.EnCours(), true)
+attendu("il porte la reference", LCM.UI.Glisser.objet.ref, "objets/dague_d_assassin_du_culte")
+attendu("et d'ou il vient", LCM.UI.Glisser.objet.origine.case, 3)
+
+-- On la lache sur une case LIBRE du meme sac : elle demenage.
+local arrivee
+for _, b in ipairs(sacOuvert.cases) do
+    if b:IsShown() and b.index ~= 3 and not I.Case(I.Emplacement(moi, "sacs", 1), b.index) then
+        arrivee = b break
+    end
+end
+attendu("une case libre existe", arrivee ~= nil, true)
+arrivee.__survol = true
+__avancer(0.02, 0.02)
+__souris.LeftButton = false
+__avancer(0.02, 0.02)
+arrivee.__survol = nil
+attendu("la case de depart est vidée", I.Case(I.Emplacement(moi, "sacs", 1), 3), nil)
+attendu("et l'objet est arrivé",
+    I.Case(I.Emplacement(moi, "sacs", 1), arrivee.index).ref, "objets/dague_d_assassin_du_culte")
+
+dire("== glisser depuis le panneau de contenu de la fenetre Inventaires")
+-- Le panneau de DROITE de la fenetre Inventaires (f.lignes) est l'endroit ou on
+-- lit le contenu d'une sacoche — donc celui d'ou on veut sortir un objet. Seules
+-- les cases de la fenetre d'un sac savaient se glisser, si bien que le
+-- glisser-deposer semblait ne pas exister du tout (5 octobre 2026).
+f.cartes[1]:Click("LeftButton")
+I.Vider(moi, "sacs", 1, 1)
+I.Vider(moi, "sacs", 1, 2)
+attendu("un objet dans la premiere case",
+    I.Ranger(moi, "sacs", 1, 1, "objets/dague_d_assassin_du_culte", 1), true)
+f:Rafraichir()
+attendu("la ligne le montre", f.lignes[1].nom:GetText() ~= "Vide", true)
+attendu("elle sait demarrer un glissement", type(f.lignes[1]:GetScript("OnDragStart")), "function")
+
+__souris.LeftButton = true
+f.lignes[1]:GetScript("OnDragStart")(f.lignes[1])
+attendu("un glissement est en cours", LCM.UI.Glisser.EnCours(), true)
+attendu("il porte la reference", LCM.UI.Glisser.objet.ref, "objets/dague_d_assassin_du_culte")
+attendu("et d'ou il vient", LCM.UI.Glisser.objet.origine.case, 1)
+f.lignes[2].__survol = true
+__avancer(0.02, 0.02)
+__souris.LeftButton = false
+__avancer(0.02, 0.02)
+f.lignes[2].__survol = nil
+attendu("la case de depart est vidée", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
+attendu("et l'objet est arrivé",
+    I.Case(I.Emplacement(moi, "sacs", 1), 2).ref, "objets/dague_d_assassin_du_culte")
+
+-- Repose sur sa propre case : on annule, on ne perd pas l'objet.
+__souris.LeftButton = true
+f.lignes[2]:GetScript("OnDragStart")(f.lignes[2])
+f.lignes[2].__survol = true
+__avancer(0.02, 0.02)
+__souris.LeftButton = false
+__avancer(0.02, 0.02)
+f.lignes[2].__survol = nil
+attendu("repose sur elle-meme : l'objet est toujours la",
+    I.Case(I.Emplacement(moi, "sacs", 1), 2).ref, "objets/dague_d_assassin_du_culte")
+I.Vider(moi, "sacs", 1, 2)
+f:Rafraichir()
+
+dire("== glisser un objet vers un emplacement d'equipement")
+-- Equiper demandait d'ouvrir « + Ajouter » et de retrouver l'objet dans une
+-- liste, alors qu'on l'a sous la souris.
+local fe = LCM.UI.Vues.Fenetre("equipement")
+fe:Montrer(moi)
+fe:Afficher("arme")
+local emplacement
+for _, bloc in ipairs(fe.pages.arme.blocs) do
+    if bloc.conteneur then emplacement = bloc.conteneur.emplacements[1] end
+end
+attendu("un emplacement d'arme", emplacement ~= nil, true)
+attendu("il accepte un glissement", type(emplacement.glisserAccepte), "function")
+-- Une dague va dans un emplacement d'arme.
+local ok = emplacement.glisserAccepte({ ref = "objets/dague_d_assassin_du_culte" })
+attendu("la dague y est acceptée", ok, true)
+-- Une ressource, non.
+local okRes, pourquoi = emplacement.glisserAccepte({ ref = "ressources/eau" })
+attendu("une ressource est refusée", okRes, false)
+attendu("et on dit pourquoi", type(pourquoi), "string")
+
+-- Le RETOUR VISUEL. Une cible qui refusait ne montrait rien du tout : on ne
+-- savait pas si l'emplacement n'en voulait pas, ou si on avait rate la case.
+-- Et la raison n'arrivait qu'APRES avoir lache (5 octobre 2026).
+local G = LCM.UI.Glisser
+G.Commencer({ ref = "ressources/eau", nom = "Eau" })
+emplacement.__survol = true
+G.Suivre()
+attendu("la cible qui refuse s'allume en rouge", emplacement.glisserRefus:IsShown(), true)
+attendu("et pas en or", emplacement.glisserSurvol:IsShown(), false)
+attendu("la raison se lit avant de lacher", G.fantome.etat:GetText(), pourquoi)
+emplacement.__survol = nil
+G.Suivre()
+attendu("en sortant, le rouge s'eteint", emplacement.glisserRefus:IsShown(), false)
+attendu("et le fantome se tait", G.fantome.etat:GetText(), "")
+
+-- Ce qu'elle accepte s'allume en or, et seulement en or.
+G.Commencer({ ref = "objets/dague_d_assassin_du_culte", nom = "Dague" })
+emplacement.__survol = true
+G.Suivre()
+attendu("la cible qui accepte s'allume en or", emplacement.glisserSurvol:IsShown(), true)
+attendu("et pas en rouge", emplacement.glisserRefus:IsShown(), false)
+emplacement.__survol = nil
+__souris.LeftButton = false
+G.Lacher()
+attendu("apres le lacher, plus rien n'est allume",
+    emplacement.glisserSurvol:IsShown() or emplacement.glisserRefus:IsShown(), false)
+
+dire("== et dans l'autre sens : desequiper en glissant vers un sac")
+-- L'emplacement ne savait que RECEVOIR : on equipait en glissant, mais pour
+-- enlever il fallait le bouton. Le retour n'existait pas (5 octobre 2026).
+local cont
+for _, bloc in ipairs(fe.pages.arme.blocs) do if bloc.conteneur then cont = bloc.conteneur end end
+attendu("le conteneur d'armes", cont ~= nil, true)
+-- Elle a ete equipee juste au-dessus, par le lacher du test de retour visuel.
+cont:Actualiser(moi)
+local porte
+for _, e in ipairs(cont.emplacements) do if e.elementId and not porte then porte = e end end
+attendu("un emplacement la porte", porte ~= nil, true)
+attendu("il sait demarrer un glissement", type(porte:GetScript("OnDragStart")), "function")
+
+-- On vide une case du premier sac pour l'accueillir. La PREMIERE : le sac en
+-- place a ce stade du scenario n'a pas douze cases.
+f.cartes[1]:Click("LeftButton")
+I.Vider(moi, "sacs", 1, 1)
+f:Rafraichir()
+__souris.LeftButton = true
+porte:GetScript("OnDragStart")(porte)
+attendu("un glissement est en cours", LCM.UI.Glisser.EnCours(), true)
+attendu("il porte la reference du compendium",
+    LCM.UI.Glisser.objet.ref, "objets/dague_d_assassin_du_culte")
+attendu("et il vient d'un emplacement", LCM.UI.Glisser.objet.origine.equipement ~= nil, true)
+f.lignes[1].__survol = true
+__avancer(0.02, 0.02)
+__souris.LeftButton = false
+__avancer(0.02, 0.02)
+f.lignes[1].__survol = nil
+attendu("l'emplacement est libéré", porte.elementId, nil)
+attendu("et l'objet est dans le sac",
+    I.Case(I.Emplacement(moi, "sacs", 1), 1).ref, "objets/dague_d_assassin_du_culte")
+I.Vider(moi, "sacs", 1, 1)
+f:Rafraichir()
+fe:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

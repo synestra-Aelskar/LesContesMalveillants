@@ -205,10 +205,26 @@ function Forge.Valeur(jeu, rarete) return jeu.id .. "/" .. rarete.id end
 -- Ce que coute un jeu de valeurs : le total, et le detail par statistique.
 -- `valeurs` : cle -> nombre (le `bonus` d'une entree) ; absent = 0. Chaque
 -- ligne dit ce qui la met hors bareme, s'il y a quelque chose.
+--
+-- Deux regles sur les valeurs NEGATIVES (5 octobre 2026) :
+--
+--   * descendre une statistique sous sa base ne rend que la MOITIE de son
+--     cout. Force a -1 dans un jeu ou le point vaut 1 rend 0,5. Un defaut
+--     coute a jouer autant qu'il rapporte a construire ; a plein tarif, il
+--     etait toujours rentable d'en empiler.
+--   * ce que les negatives rendent en tout est PLAFONNE au pool de la rarete.
+--     Quinze statistiques a -10 ne financent pas une entree legendaire : avec
+--     un pool de 4, elles rendent 4, et l'on peut donc depenser 8 en tout.
+--     Sans ce plafond, il suffisait d'assez de defauts pour tout s'offrir.
+--
+-- Le bilan dit ce qui a ete rendu (`credit`), ce qu'on en garde
+-- (`creditRetenu`) et ce que le plafond a mange (`creditPerdu`), pour que
+-- l'ecran puisse l'expliquer plutot que d'afficher un total inexplicable.
 function Forge.Bilan(jeu, rareteId, valeurs)
     valeurs = type(valeurs) == "table" and valeurs or {}
     local categorie = LCM.Compendium.Get(jeu.categorie)
-    local lignes, total = {}, 0
+    local rarete = rareteId and Forge.Rarete(jeu, rareteId) or nil
+    local lignes, depenses, credit = {}, 0, 0
     for _, champ in ipairs(Statistiques(categorie)) do
         local l = Forge.Limites(jeu, champ.cle, rareteId)
         local v = tonumber(valeurs[champ.cle]) or 0
@@ -221,18 +237,48 @@ function Forge.Bilan(jeu, rareteId, valeurs)
         elseif l.max and v > l.max then
             hors = string.format("%s au-dessus de son maximum (%s > %s)", champ.label, N(v), N(l.max))
         end
-        local depense = (v - l.base) * l.cout
-        total = total + depense
+        local ecart = v - l.base
+        local depense
+        if ecart < 0 then
+            -- La moitie, et comptee a part : c'est elle que le pool plafonne.
+            depense = ecart * l.cout / 2
+            credit = credit - depense
+        else
+            depense = ecart * l.cout
+            depenses = depenses + depense
+        end
         lignes[#lignes + 1] = { champ = champ, valeur = v, limites = l, depense = depense, hors = hors }
     end
-    return { total = total, lignes = lignes }
+
+    -- Sans rarete connue (un jeu qu'on est en train d'ecrire), rien ne plafonne
+    -- : on n'a pas de pool a quoi se referer.
+    local retenu = credit
+    if rarete and credit > rarete.points then retenu = rarete.points end
+    return {
+        total = depenses - retenu,
+        lignes = lignes,
+        depenses = depenses,
+        credit = credit,
+        creditRetenu = retenu,
+        creditPerdu = credit - retenu,
+        valeurs = valeurs,
+    }
 end
 
--- La rarete la plus basse dont le pool couvre ce total, s'il y en a une.
-function Forge.RareteSuffisante(jeu, total)
+-- La rarete la plus basse dont le pool couvre ces valeurs, s'il y en a une.
+--
+-- On refait le bilan pour CHAQUE rarete : depuis que le credit des negatives
+-- est plafonne par le pool, le total depend de la rarete qu'on vise. Calcule
+-- une fois pour toutes, il proposait une rarete ou les valeurs ne rentraient
+-- pas.
+function Forge.RareteSuffisante(jeu, valeurs)
+    if type(valeurs) ~= "table" then return nil end
     local meilleure
     for _, r in ipairs(jeu.raretes) do
-        if total <= r.points and (not meilleure or r.points < meilleure.points) then meilleure = r end
+        local bilan = Forge.Bilan(jeu, r.id, valeurs)
+        if bilan.total <= r.points and (not meilleure or r.points < meilleure.points) then
+            meilleure = r
+        end
     end
     return meilleure
 end

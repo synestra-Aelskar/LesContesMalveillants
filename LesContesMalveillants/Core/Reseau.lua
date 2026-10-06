@@ -44,17 +44,28 @@ end
 function Reseau.Encoder(donnees)
     local morceaux = {}
     local function poser(prefixe, table_)
+        -- On garde la cle TELLE QUELLE et on trie sur son ecriture. Convertir
+        -- la cle en texte pour trier, puis s'en servir pour lire la table,
+        -- rendait nil sur toute cle numerique : les TABLEAUX disparaissaient
+        -- en silence, et avec eux les raretes d'un jeu d'equilibrage, qui ne
+        -- traversaient donc jamais le reseau (5 octobre 2026).
         local cles = {}
-        for cle in pairs(table_) do cles[#cles + 1] = tostring(cle) end
+        for cle in pairs(table_) do cles[#cles + 1] = cle end
         -- Trie : deux encodages du meme contenu doivent se ressembler, sinon
-        -- rien n'est comparable au banc.
-        table.sort(cles)
+        -- rien n'est comparable au banc. Les nombres d'abord, dans l'ordre,
+        -- pour qu'un tableau se relise dans le sien.
+        table.sort(cles, function(a, b)
+            local na, nb = type(a) == "number", type(b) == "number"
+            if na ~= nb then return na end
+            if na then return a < b end
+            return tostring(a) < tostring(b)
+        end)
         for _, cle in ipairs(cles) do
             local valeur = table_[cle]
             if type(valeur) == "table" then
-                poser(prefixe .. cle .. ".", valeur)
+                poser(prefixe .. tostring(cle) .. ".", valeur)
             elseif valeur ~= nil then
-                morceaux[#morceaux + 1] = Echapper(prefixe .. cle) .. "=" .. Echapper(valeur)
+                morceaux[#morceaux + 1] = Echapper(prefixe .. tostring(cle)) .. "=" .. Echapper(valeur)
             end
         end
     end
@@ -62,19 +73,35 @@ function Reseau.Encoder(donnees)
     return table.concat(morceaux, ";")
 end
 
+-- Rebatit la table, a TOUS les niveaux. Le decodeur ne coupait qu'au premier
+-- point : « e.raretes.1.label » donnait une cle plate « raretes.1.label » dans
+-- `e`, et tout ce qui etait imbrique arrivait casse — les bonus d'un trait, les
+-- raretes et les champs d'un jeu d'equilibrage. On ne s'en apercevait pas,
+-- parce que les paquets ecrits a la main sont plats (5 octobre 2026).
+--
+-- Une cle qui n'est QUE des chiffres redevient un indice de tableau : sans ca,
+-- `raretes` serait une table a cles « 1 », « 2 », qu'`ipairs` ne parcourt pas.
+--
+-- L'encodeur n'a PAS change : un ancien emetteur et un nouveau produisent le
+-- meme texte, donc les deux machines peuvent ne pas etre a jour en meme temps.
 function Reseau.Decoder(texte)
     local donnees = {}
     for morceau in tostring(texte or ""):gmatch("[^;]+") do
         local cle, valeur = morceau:match("^(.-)=(.*)$")
         if cle then
             cle, valeur = Desechapper(cle), Desechapper(valeur)
-            local parent, feuille = cle:match("^(.-)%.(.+)$")
-            if parent then
-                donnees[parent] = type(donnees[parent]) == "table" and donnees[parent] or {}
-                donnees[parent][feuille] = valeur
-            else
-                donnees[cle] = valeur
+            local table_ = donnees
+            local precedent
+            for partie in cle:gmatch("[^%.]+") do
+                local indice = partie:match("^%d+$")
+                local k = indice and tonumber(indice) or partie
+                if precedent ~= nil then
+                    table_[precedent] = type(table_[precedent]) == "table" and table_[precedent] or {}
+                    table_ = table_[precedent]
+                end
+                precedent = k
             end
+            if precedent ~= nil then table_[precedent] = valeur end
         end
     end
     return donnees
