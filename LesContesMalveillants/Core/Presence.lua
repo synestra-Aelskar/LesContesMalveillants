@@ -37,12 +37,17 @@ local derniereDemande = -math.huge
 local function Maintenant() return (GetTime and GetTime()) or 0 end
 local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostring(nom or "") end
 
-local function Noter(joueur, version, personnage)
+local function Noter(joueur, version, personnage, portrait)
     joueur = tostring(joueur or "")
     if joueur == "" then return end
     personnage = tostring(personnage or "")
     -- Le meme joueur peut arriver avec ou sans son royaume selon le canal.
-    vus[joueur] = { version = version, personnage = personnage ~= "" and personnage or nil }
+    portrait = tostring(portrait or "")
+    vus[joueur] = {
+        version = version,
+        personnage = personnage ~= "" and personnage or nil,
+        portrait = portrait ~= "" and portrait or nil,
+    }
     vus[Court(joueur)] = vus[joueur]
     if Presence.onChange then Presence.onChange(joueur) end
     for _, fn in ipairs(Presence.suivis) do fn(joueur) end
@@ -69,11 +74,43 @@ function Presence.Personnage(joueur)
     return v and v.personnage or nil
 end
 
+-- L'identifiant de l'artwork suffit pour le HUD de cible : les textures sont
+-- deja livrees avec l'addon, aucune fiche personnelle ne voyage pour cela.
+function Presence.Portrait(joueur)
+    local v = vus[tostring(joueur or "")] or vus[Court(joueur)]
+    return v and v.portrait or nil
+end
+
+local function NomNormalise(nom)
+    return tostring(nom or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+end
+
+-- Epsilon peut afficher sur l'unite cible le nom RP / LCM plutôt que le nom
+-- technique qui signe les messages addon. Cette recherche inverse permet de
+-- retrouver l'annonce réseau a partir du nom visible au-dessus du personnage.
+function Presence.ParPersonnage(personnage)
+    local cherche = NomNormalise(personnage)
+    if cherche == "" then return nil end
+    local deja = {}
+    for joueur, v in pairs(vus) do
+        if not deja[v] then
+            deja[v] = true
+            if NomNormalise(v.personnage) == cherche then return joueur, v end
+        end
+    end
+    return nil
+end
+
 -- Ce qu'on annonce de soi : la version, et le personnage joue, le sien meme
 -- quand le MJ incarne un PNJ.
 local function Moi()
     local perso = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
-    return { v = LCM.version, p = perso and perso.name or nil }
+    local definition = perso and LCM.Portraits and LCM.Portraits.Of and LCM.Portraits.Of(perso)
+    -- `Of` couvre aussi la convention portrait.id == personnage.id : une
+    -- fiche peut donc avoir un artwork sans champ `portrait` explicite.
+    local portrait = definition and definition.id
+        or (perso and LCM.Entities.Get_Value(perso, "portrait") or nil)
+    return { v = LCM.version, p = perso and perso.name or nil, a = portrait }
 end
 
 -- Ceux d'une liste qu'on n'a pas encore vus.
@@ -137,10 +174,10 @@ LCM.WhenReady(function()
     -- On me demande : je reponds en prive, et sa question prouve qu'il a
     -- l'addon lui aussi.
     R.Ecouter("ici?", function(expediteur, d)
-        Noter(expediteur, d.v, d.p)
+        Noter(expediteur, d.v, d.p, d.a)
         R.Envoyer("ici", Moi(), "WHISPER", expediteur)
     end)
-    R.Ecouter("ici", function(expediteur, d) Noter(expediteur, d.v, d.p) end)
+    R.Ecouter("ici", function(expediteur, d) Noter(expediteur, d.v, d.p, d.a) end)
     -- Le canal n'est pas toujours rejoignable des la connexion : s'il l'est
     -- deja, on pingue ; sinon, on pinguera en le rejoignant (plus bas).
     if Presence.Rejoindre() then Presence.Demander(true) end

@@ -469,7 +469,9 @@ local function PanneauEffets(f, genre)
         for _, ligne in ipairs(f.edition.bonus or {}) do
             bonus[ligne.champ] = tonumber(ligne.montant) or 0
         end
-        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus)
+        local multiplicateurPool = categorie == "armes"
+            and (tonumber(f.edition.taille) == 2 and 2 or 1) or 1
+        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus, multiplicateurPool)
         local hors
         for _, ligne in ipairs(bilan.lignes) do
             if ligne.hors then hors = ligne.hors break end
@@ -478,9 +480,10 @@ local function PanneauEffets(f, genre)
             self.bilanForge:SetText(hors)
             self.bilanForge:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
         else
-            local depasse = bilan.total > rarete.points
+            local pool = bilan.pool or rarete.points
+            local depasse = bilan.total > pool
             local texte = string.format("%s / %d points du pool %s",
-                LCM.Compendium.Nombre(bilan.total), rarete.points, rarete.label)
+                LCM.Compendium.Nombre(bilan.total), pool, rarete.label)
             -- Les negatives ne rendent que la moitie, et jamais plus que le
             -- pool : on le dit, sinon baisser une statistique de plus ne change
             -- rien sans qu'on comprenne.
@@ -640,7 +643,7 @@ local function PanneauEffets(f, genre)
                     table.sort(f.edition.bonus, function(a, b) return a.champ < b.champ end)
                     f.edition.forge = valeurForge
                     p:Remplir()
-                end)
+                end, f.edition.taille)
             if not ouverte then LCM.Alerte(tostring(raison)) end
             return
         end

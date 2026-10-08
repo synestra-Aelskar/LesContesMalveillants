@@ -189,8 +189,14 @@ function Combat.PeutPasser()
     return Combat.EstMJ() and courant ~= nil and courant.pnj == true
 end
 
+Combat.suivis = {}
+function Combat.Suivre(fn)
+    if type(fn) == "function" then Combat.suivis[#Combat.suivis + 1] = fn end
+end
+
 local function Prevenir()
     if Combat.onChange then Combat.onChange(Combat.etat) end
+    for _, fn in ipairs(Combat.suivis) do fn(Combat.etat) end
 end
 
 -- ===== Les annonces ========================================================
@@ -239,9 +245,34 @@ local function SuivreIncarnation()
     end
 end
 
+-- Les PA reviennent au debut d'un TOUR complet, pas a chaque round ni a
+-- chaque changement de combattant. Chaque joueur restaure sa propre fiche ;
+-- le MJ, seul proprietaire des instances de PNJ, restaure aussi celles qui
+-- participent au combat.
+local function RestaurerPADuTour(avant, apres)
+    if not (avant and apres and avant.s == apres.s and apres.t > avant.t) then return end
+    local faits = {}
+    local function Restaurer(entity)
+        if not entity or faits[entity] then return end
+        faits[entity] = true
+        local jauge = LCM.Entities.Gauge(entity, "pa")
+        if jauge then LCM.Entities.SetGauge(entity, "pa", jauge.max) end
+    end
+
+    local estMJ = apres.mj == Moi()
+    for _, entree in ipairs(apres.entrees or {}) do
+        if not entree.pnj and entree.id == Moi() then
+            Restaurer(LCM.Entities.Personnage())
+        elseif estMJ and entree.pnj and LCM.Incarnation then
+            Restaurer(LCM.Incarnation.Instance(entree.id))
+        end
+    end
+end
+
 local function Appliquer(etat)
     local avant = Combat.etat
     Combat.etat = etat
+    RestaurerPADuTour(avant, etat)
     if etat and etat.mj == Moi() then
         AnnoncerChangements(avant, etat)
         SuivreIncarnation()

@@ -121,7 +121,7 @@ local function Construire()
         -- Le template felicite au passage de palier ; ici, au chat.
         if apres.rang > avant.rang then
             LCM.Ok(string.format("Félicitations ! Le métier de %s passe : %s.",
-                Metiers.Get(self.metierId).label, apres.nom))
+                Metiers.Get(self.metierId).label, apres.libelle))
         end
         self:Afficher()
     end
@@ -130,10 +130,14 @@ local function Construire()
         local e = self.entity
         for _, b in ipairs(self.lignes) do
             local p = Metiers.Palier(e, b.metierId)
-            b.palier:SetText(p.nom)
-            Couleur(b.palier, p.couleur)
+            b.palier:SetText(p.libelle)
+            local appris = p.rang > 0
+            Couleur(b.palier, appris and p.couleur or UI.C.discret)
+            b.icone:SetDesaturated(not appris)
+            b.icone:SetAlpha(appris and 1 or 0.42)
             local choisi = b.metierId == self.metierId
-            if choisi then b.label:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
+            if not appris then b.label:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+            elseif choisi then b.label:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
             else b.label:SetTextColor(UI.C.texte[1], UI.C.texte[2], UI.C.texte[3]) end
         end
         local metier = Metiers.Get(self.metierId)
@@ -141,7 +145,7 @@ local function Construire()
         local p = Metiers.Palier(e, metier.id)
         d.icone:SetTexture(metier.icone)
         d.label:SetText(metier.label)
-        d.palier:SetText("Palier : " .. p.nom)
+        d.palier:SetText("Palier : " .. p.libelle)
         Couleur(d.palier, p.couleur)
         d.description:SetText(metier.description)
         local yb = d.bloc.hautTitre + 12 + 64 + (d.description:GetStringHeight() or 14) + 16
@@ -149,11 +153,11 @@ local function Construire()
         d.barre:SetPoint("TOPLEFT", d.bloc, "TOPLEFT", 16, -yb)
         if p.max then
             d.barre:Regler(1, 1)
-            d.barre.label:SetText("Palier maximal")
+            d.barre.label:SetText("Maîtrise complète")
             d.xp:SetText(string.format("%d XP au total", Metiers.XP(e, metier.id)))
         else
             d.barre:Regler(p.xpDansPalier, p.xpPalier)
-            d.xp:SetText(string.format("%d XP avant le palier suivant", p.xpRestante))
+            d.xp:SetText(string.format("%d XP avant le niveau suivant", p.xpRestante))
         end
         d.xp:ClearAllPoints()
         d.xp:SetPoint("TOPLEFT", d.barre, "BOTTOMLEFT", 0, -6)

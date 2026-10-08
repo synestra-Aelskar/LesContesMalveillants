@@ -214,7 +214,10 @@ local function Options(champ)
     end
     if champ.type == "palier" then
         local out = {}
-        for _, p in ipairs(LCM.Equilibrage.metiers.paliers) do out[#out + 1] = { id = p.nom, label = p.nom } end
+        for _, p in ipairs(LCM.Equilibrage.metiers.paliers) do
+            local libelle = p.niveau and string.format("%s %d", p.nom, p.niveau) or p.nom
+            out[#out + 1] = { id = libelle, label = libelle }
+        end
         return out
     end
     if champ.type == "table_niveaux" then
@@ -1351,7 +1354,86 @@ local function Fenetre()
     return Editeur.frame or Construire(parent)
 end
 
+-- Le bouton engrenage d'un PNJ ouvre sa vraie fiche. On travaille sur une
+-- entite locale (donc editable par les controles ordinaires de la fiche),
+-- puis chaque modification de contenu est reconvertie en definition de PNJ
+-- et rangee dans les brouillons du compendium.
+local function DefinitionPNJDepuisEntite(entity, original)
+    local niveaux = {}
+    for _, metier in ipairs(LCM.Metiers.list or {}) do
+        local rang = LCM.Metiers.Palier(entity, metier.id).rang
+        if rang > 0 then niveaux[metier.id] = rang end
+    end
+    return {
+        id = original.id,
+        label = entity.name or original.label,
+        icone = original.icone,
+        valeurs = LCM.Copie(entity.values or {}),
+        traits = LCM.Copie(entity.traits or {}),
+        metiersNiveaux = niveaux,
+        equipement = LCM.Copie(entity.equipement or {}),
+        etats = LCM.Copie(entity.etats or {}),
+        apprentissages = LCM.Copie(entity.apprentissages or {}),
+    }
+end
+
+local function OuvrirFichePNJ(element)
+    if not (UI.ConsultationMJ and UI.ConsultationMJ.Ouvrir) then
+        return false, "consultation de fiche indisponible."
+    end
+    local original = LCM.Copie(element)
+    local remplacePublie = Brouillons.EstPublie("pnj", element.id)
+    local entity = {
+        id = "edition-pnj:" .. tostring(element.id),
+        modele = element.id,
+        name = element.label,
+        icon = element.icone,
+        kind = "npc",
+        values = LCM.Copie(element.valeurs or {}),
+        traits = LCM.Copie(element.traits or {}),
+        metiers = LCM.Copie(element.metiers or {}),
+        equipement = LCM.Copie(element.equipement or {}),
+        etats = LCM.Copie(element.etats or {}),
+        apprentissages = LCM.Copie(element.apprentissages or {}),
+        editionPNJ = true,
+    }
+    entity.__sauverPNJ = function(courant)
+        local definition = DefinitionPNJDepuisEntite(courant, original)
+        local ok, raison = Brouillons.Enregistrer("pnj", definition, false, remplacePublie)
+        if ok and UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
+        return ok, raison
+    end
+    if Editeur.frame then Editeur.frame:Hide() end
+    UI.ConsultationMJ.Ouvrir(entity, "fiche")
+    return true
+end
+
 function Editeur.Ouvrir(categorie, element)
+    -- Un nouveau PNJ est une fiche, pas une collection de champs bruts. Le
+    -- compagnon confie donc sa creation au parcours complet de personnage puis
+    -- enregistre le resultat dans les brouillons du compendium MJ.
+    if not element and categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
+        if Editeur.frame then Editeur.frame:Hide() end
+        if not (UI.Creation and UI.Creation.OuvrirPNJ and LCM.Creation and LCM.Creation.DefinitionPNJ) then
+            LCM.Alerte("créateur de PNJ indisponible.")
+            return false
+        end
+        local fenetre, raison = UI.Creation.OuvrirPNJ(function(brouillon)
+            local definition, erreur = LCM.Creation.DefinitionPNJ(brouillon, Brouillons.NouvelIdentifiant())
+            if not definition then return false, erreur end
+            local ok, refus = Brouillons.Enregistrer("pnj", definition, true)
+            if not ok then return false, refus end
+            UI.Compendium.Actualiser()
+            return true, definition.label
+        end)
+        if not fenetre then LCM.Alerte(tostring(raison)) return false end
+        return true
+    end
+    if element and categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
+        local ok, raison = OuvrirFichePNJ(element)
+        if not ok then LCM.Alerte("PNJ : " .. tostring(raison)) end
+        return ok
+    end
     -- Les entrees dosees par la Forge se reprennent dans la Forge elle-meme :
     -- l'ancien panneau a champs du compendium faisait doublon et separait le
     -- nom/la description des statistiques et de leur pool.

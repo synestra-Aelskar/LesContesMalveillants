@@ -23,6 +23,40 @@ UI.Composeur = Ecran
 local LARGEUR, HAUTEUR = 760, 402
 local PAD, ECART_X, ECART_Y = 4, 8, 8
 local DORE = { 0.93, 0.80, 0.52 }
+local CANAUX_EMOTE = {
+    { id = "EMOTE", nom = "Émote" },
+    { id = "PARTY", nom = "Groupe" },
+    { id = "RAID", nom = "Raid" },
+}
+
+local function AvecEmoteFinale(composeur)
+    local id = composeur and composeur.ctx and composeur.ctx.resolution and composeur.ctx.resolution.id
+    -- Leur constructeur possede deja sa propre emote et son propre canal : ne
+    -- pas demander deux fois le meme texte avant d'ouvrir cet ecran.
+    return id ~= "generation_de_buff_composeur" and id ~= "generation_de_debuff_composeur"
+end
+
+local function EstControleMental(f)
+    local r = f and f.composeur and f.composeur.ctx and f.composeur.ctx.resolution
+    return r and r.id == "controle_mental"
+end
+
+local function BlocageFinal(f)
+    local blocage = f.composeur:Blocage()
+    if not blocage and EstControleMental(f) and not tostring(f.emoteFinale.zone:GetText() or ""):match("%S") then
+        blocage = "Écris la narration imposée dans Emotes."
+    end
+    return blocage
+end
+
+local function ActualiserDeclaration(f)
+    local blocage = BlocageFinal(f)
+    f.question:SetText(blocage and ("|cffff6060" .. blocage .. "|r")
+        or string.format("|cffffd200Prêt|r  —  %d étape(s) répondue(s)", #(f.visibles or {})))
+    f.declarer:SetEnabled(blocage == nil)
+    f.declarer:SetAlpha(blocage and 0.4 or 1)
+    return blocage
+end
 
 local function Panneau(parent, opacite, bordure)
     local p = CreateFrame("Frame", nil, parent)
@@ -142,25 +176,62 @@ local function Construire()
     f.corps:SetPoint("BOTTOMRIGHT", C, "BOTTOMRIGHT", -14, 34)
     f.boutons, f.cases = {}, {}
 
-    f.saisie = UI.Champ(f.corps.contenu, 180, 26, function(texte)
-        if f.q then f.composeur:Saisir(f.q, texte) Ecran.Entete() end
-    end)
+    -- Une question texte/nombre obligatoire doit deverrouiller « Suivant »
+    -- pendant la frappe. Refaire tout le rendu ferait perdre le curseur ; on
+    -- actualise donc seulement l'entete et l'etat du bouton.
+    local function TexteSaisi(texte)
+        if not f.q then return end
+        f.composeur:Saisir(f.q, texte)
+        Ecran.Entete()
+        local attend = f.q.mode ~= "multi" and f.composeur.reponses[f.q.id] == nil
+        f.suivant:SetEnabled(not attend)
+        f.suivant:SetAlpha(attend and 0.4 or 1)
+    end
+
+    f.saisie = UI.Champ(f.corps.contenu, 180, 26, TexteSaisi)
     f.saisie:Hide()
+
+    -- Les textes libres (notamment la narration du contrôle mental) ont leur
+    -- propre zone multiligne. Ils n'utilisent pas le petit champ prévu pour
+    -- une quantité : toute la surface centrale doit servir à écrire et relire.
+    f.narration = UI.Zone(f.corps.contenu, 400, 120, TexteSaisi)
+    f.narration:Hide()
+
+    -- Derniere etape commune : l'emote n'est envoyee qu'une fois la
+    -- declaration reellement partie (apres le choix des cibles).
+    f.emoteFinale = Panneau(f.corps.contenu, 0.26, true)
+    f.emoteFinale:SetSize(400, 116)
+    f.emoteFinale.titre = UI.Texte(f.emoteFinale, "EMOTES", DORE, "GameFontNormalSmall")
+    Placer(f.emoteFinale.titre, "TOPLEFT", f.emoteFinale, "TOPLEFT", 10, -9)
+    f.emoteFinale.canal = UI.Bouton(f.emoteFinale, "", 112, 22, function(self)
+        self.rang = self.rang % #CANAUX_EMOTE + 1
+        f.emoteCanal = CANAUX_EMOTE[self.rang].id
+        self.label:SetText("Canal : " .. CANAUX_EMOTE[self.rang].nom)
+    end)
+    Placer(f.emoteFinale.canal, "TOPRIGHT", f.emoteFinale, "TOPRIGHT", -8, -6)
+    f.emoteFinale.zone = UI.Zone(f.emoteFinale, 380, 76, function(texte)
+        f.emoteTexte = texte
+        if f.ecran == "fin" and EstControleMental(f) then ActualiserDeclaration(f) end
+    end)
+    f.emoteFinale.zone.saisie:SetMaxLetters(4000)
+    f.emoteFinale.zone:SetPoint("TOPLEFT", f.emoteFinale, "TOPLEFT", 8, -34)
+    f.emoteFinale.zone:SetPoint("BOTTOMRIGHT", f.emoteFinale, "BOTTOMRIGHT", -8, 8)
+    f.emoteFinale:Hide()
 
     f.precedent = UI.Bouton(C, "Précédent", 100, 22, function() Ecran.Aller(-1) end)
     Placer(f.precedent, "BOTTOMLEFT", C, "BOTTOMLEFT", 8, 6)
     f.suivant = UI.Bouton(C, "Suivant", 100, 22, function() Ecran.Aller(1) end)
     Placer(f.suivant, "BOTTOMRIGHT", C, "BOTTOMRIGHT", -8, 6)
-    f.declarer = UI.Bouton(C, "Déclarer mon action", 200, 34, function() Ecran.Declarer() end)
-    Placer(f.declarer, "TOP", C, "TOP", 0, -80)
-    f.enregistrer = UI.Bouton(C, "Enregistrer ce jeu de choix", 200, 26, function()
+    f.declarer = UI.Bouton(C, "Déclarer mon action", 190, 24, function() Ecran.Declarer() end)
+    Placer(f.declarer, "BOTTOM", C, "BOTTOM", 0, 6)
+    f.enregistrer = UI.Bouton(C, "Enregistrer", 108, 24, function()
         UI.Demande():Demander("Nom du jeu de choix", "", function(nom)
             local jeu = A.EnregistrerJeu(f.composeur.ctx.resolution.id, nom, f.composeur)
             LCM.Ok(string.format("jeu de choix « %s » enregistré.", jeu.nom))
             return true
         end)
     end)
-    Placer(f.enregistrer, "TOP", f.declarer, "BOTTOM", 0, -8)
+    Placer(f.enregistrer, "LEFT", f.declarer, "RIGHT", 8, 0)
     -- L'accueil et la liste des jeux : de gros boutons, puis une ligne par jeu.
     f.accueil = {}
     for i, texte in ipairs({ "Commencer mon action", "Charger un jeu de choix" }) do
@@ -222,6 +293,14 @@ function Ecran.Fenetre() return Ecran.frame or Construire() end
 
 local function Arrondi(v) return v ~= nil and tostring(math.floor(tonumber(v) + 0.5)) or "?" end
 
+local function NombreApercu(v)
+    local n = tonumber(v)
+    if not n then return "?" end
+    -- Arrondi arithmétique identique à celui employé au moment du jet :
+    -- 2,49 -> 2 ; 2,50 -> 3.
+    return tostring(math.floor(n + 0.5))
+end
+
 -- Les cases du pied : les calculs de la feuille (Degat normal, critique...),
 -- les apercus du composeur (« Distance (m) = ... »), et le perce-armure quand
 -- l'action en pose. Necronicon les recalculait en differe, pour ne pas geler ;
@@ -238,7 +317,7 @@ local function Cases(f)
         end
     end
     for _, p in ipairs(A.Paires(c.etape.previewText)) do
-        cases[#cases + 1] = { titre = p.k, valeur = A.Evaluer(p.v, ctx) }
+        cases[#cases + 1] = { titre = p.k, valeur = A.Evaluer(p.v, ctx), decimales = true }
     end
     local perce = false
     for _, q in ipairs(c.questions) do
@@ -320,7 +399,8 @@ function Ecran.Entete()
             case:SetSize(l, 58)
             case.titre:SetText(spec.titre)
             case.titre:SetWidth(l - 16)
-            case.valeur:SetText(spec.texte or (spec.valeur and Arrondi(spec.valeur)) or "—")
+            case.valeur:SetText(spec.texte or (spec.valeur and
+                (spec.decimales and NombreApercu(spec.valeur) or Arrondi(spec.valeur))) or "—")
             -- La deuxieme de deux calculs (le critique) en rouge.
             local rouge = i == 2 and not spec.texte
             case.valeur:SetTextColor(1, rouge and 0.35 or 0.82, rouge and 0.35 or 0.35)
@@ -337,6 +417,8 @@ local function Cacher(f)
     for _, b in ipairs(f.boutons) do b:Hide() end
     for _, c in ipairs(f.cases) do c:Hide() end
     f.saisie:Hide()
+    f.narration:Hide()
+    f.emoteFinale:Hide()
     f.declarer:Hide()
     f.enregistrer:Hide()
     for _, b in ipairs(f.accueil) do b:Hide() end
@@ -407,13 +489,24 @@ end
 local function Question(f, q)
     local c = f.composeur
     local largeur = f.corps:GetWidth()
-    if not largeur or largeur < 40 then largeur = 380 end
+    if not largeur or largeur < 40 then largeur = 408 end
     local visible = f.corps:GetHeight()
-    if not visible or visible < 40 then visible = 92 end
+    if not visible or visible < 40 then visible = 150 end
     local options = c:Options(q)
     local n = #options
 
-    if q.mode == "number" or q.mode == "text" then
+    if q.mode == "text" then
+        f.narration:SetText(tostring(c.reponses[q.id] or ""))
+        f.narration:ClearAllPoints()
+        f.narration:SetPoint("TOPLEFT", f.corps.contenu, "TOPLEFT", PAD, -PAD)
+        -- Une marge basse nette separe la zone de la rangee de navigation.
+        f.narration:SetSize(math.max(1, largeur - PAD * 2), math.max(1, visible - 12))
+        f.narration:Show()
+        f.corps:Regler(visible)
+        return
+    end
+
+    if q.mode == "number" then
         f.saisie:SetText(tostring(c.reponses[q.id] or ""))
         f.saisie:ClearAllPoints()
         f.saisie:SetPoint("TOP", f.corps.contenu, "TOP", 0, -12)
@@ -523,14 +616,35 @@ function Ecran.Rendre()
     if f.ecran ~= "fin" and #f.visibles == 0 then f.ecran = "fin" end
     if f.ecran == "fin" then
         f.q = nil
-        local blocage = c:Blocage()
-        f.question:SetText(blocage and ("|cffff6060" .. blocage .. "|r")
-            or string.format("|cffffd200Prêt|r  —  %d étape(s) répondue(s)", #f.visibles))
         f.declarer:Show()
-        f.declarer:SetEnabled(blocage == nil)
-        f.declarer:SetAlpha(blocage and 0.4 or 1)
         f.enregistrer:Show()
-        f.corps:Regler(0)
+        if f.avecEmoteFinale then
+            f.declarer:SetSize(190, 24)
+            Placer(f.declarer, "BOTTOM", f.centre, "BOTTOM", 0, 6)
+            f.enregistrer:SetSize(108, 24)
+            f.enregistrer.label:SetText("Enregistrer")
+            Placer(f.enregistrer, "LEFT", f.declarer, "RIGHT", 8, 0)
+            local largeur = f.corps:GetWidth()
+            if not largeur or largeur < 1 then largeur = 400 end
+            local hauteur = f.corps:GetHeight()
+            if not hauteur or hauteur < 1 then hauteur = 116 end
+            f.emoteFinale:ClearAllPoints()
+            f.emoteFinale:SetPoint("TOPLEFT", f.corps.contenu, "TOPLEFT", PAD, -PAD)
+            -- Ne jamais imposer un minimum superieur a l'espace disponible :
+            -- sur une faible resolution/UI scale, c'etait la cause du cadre
+            -- qui sortait du panneau et recouvrait les boutons.
+            f.emoteFinale:SetSize(math.max(1, largeur - PAD * 2), math.max(1, hauteur - 12))
+            f.emoteFinale:Show()
+            f.corps:Regler(hauteur)
+        else
+            f.declarer:SetSize(200, 34)
+            Placer(f.declarer, "TOP", f.centre, "TOP", 0, -80)
+            f.enregistrer:SetSize(200, 26)
+            f.enregistrer.label:SetText("Enregistrer ce jeu de choix")
+            Placer(f.enregistrer, "TOP", f.declarer, "BOTTOM", 0, -8)
+            f.corps:Regler(0)
+        end
+        ActualiserDeclaration(f)
         f.precedent:Show()
         f.suivant:Hide()
         return
@@ -583,12 +697,22 @@ end
 
 function Ecran.Declarer()
     local f = Ecran.frame
-    local blocage = f.composeur:Blocage()
+    local blocage = BlocageFinal(f)
     if blocage then
         f.blocage:SetText(blocage)
         return
     end
     local valider = f.valider
+    local texte = f.avecEmoteFinale and tostring(f.emoteFinale.zone:GetText() or "") or ""
+    if texte:match("%S") then
+        f.composeur.ctx.emoteAction = { texte = texte, canal = f.emoteCanal or "EMOTE" }
+    else
+        f.composeur.ctx.emoteAction = nil
+    end
+    -- Le contrôle mental utilisait auparavant une question texte séparée.
+    -- La zone Emotes est désormais son unique narration : elle alimente aussi
+    -- le paquet soumis au MJ avant la déclaration effective.
+    if EstControleMental(f) then f.composeur.ctx.vars.narration = texte end
     f.valider, f.annuler = nil, nil
     f:Hide()
     if valider then valider() end
@@ -603,6 +727,13 @@ function Ecran.Ouvrir(composeur, valider, annuler)
     -- L'accueil n'a de sens que s'il y a un jeu de choix a charger.
     f.ecran = #A.JeuxDeChoix(composeur.ctx.resolution.id) > 0 and "accueil" or "questions"
     f.pos = 1
+    f.avecEmoteFinale = AvecEmoteFinale(composeur)
+    f.emoteTexte = ""
+    f.emoteFinale.zone:SetText("")
+    local rang = (IsInRaid and IsInRaid()) and 3 or ((IsInGroup and IsInGroup()) and 2 or 1)
+    f.emoteFinale.canal.rang = rang
+    f.emoteCanal = CANAUX_EMOTE[rang].id
+    f.emoteFinale.canal.label:SetText("Canal : " .. CANAUX_EMOTE[rang].nom)
     local etape = composeur.etape
     f.titre:SetText(tostring(etape.label or "") ~= "" and etape.label or "Composer l'action")
     f.icone:SetTexture(LCM.Icone(composeur.ctx.icone))
@@ -623,6 +754,11 @@ A.onComposer = function(composeur, valider, annuler) Ecran.Ouvrir(composeur, val
 
 -- Ce qui a ete declare : celui qui agit voit ce qu'il a envoye, et a qui.
 A.onDeclaration = function(ctx)
+    local emote = ctx.emoteAction
+    ctx.emoteAction = nil
+    if emote and tostring(emote.texte or ""):match("%S") then
+        A.DireEmoteAction(emote.texte, emote.canal)
+    end
     local d, c = ctx.declaration, ctx.cibles or {}
     local lignes = {}
     for _, k in ipairs(d.ordre) do

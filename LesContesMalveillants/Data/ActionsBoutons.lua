@@ -1674,3 +1674,127 @@ Definir("levitation", {
     },
     natures = "Buff",
 })
+
+-- ===== Influences ==========================================================
+-- Intimidation, provocation, illusion, peur et controle mental partagent la
+-- meme resolution : Adresse ou Esprit, une statistique source, toutes les
+-- penetrations utiles, puis un niveau de sort. La competence ramene le bonus
+-- a 70 %, et chaque point investi / niveau de sort en rend 5 %.
+
+local PENS_INFLUENCE = table.concat({
+    "Q: Pénétrations physiques | multi | avg: penMoy @ Penetrations",
+    "- Tranchant", "- Perforant", "- Contondant",
+    "Q: Pénétrations élémentaires | multi | avg: penMoy @ Penetrations",
+    "- Feu", "- Eau", "- Air", "- Terre", "- Esprit", "- Pourriture",
+    "Q: Pénétrations cosmiques | multi | avg: penMoy @ Penetrations",
+    "- Lumière", "- Ombre", "- Ordre", "- Désordre", "- Vie", "- Mort",
+}, "\n")
+
+local function NiveauxInfluence()
+    -- Le niveau ne donne plus +5 % par cran et ne partage plus un prix fixe.
+    -- Niveau 1 est la puissance de référence ; chaque niveau suivant ajoute
+    -- dix points de pourcentage au bonus du rand.
+    local couts = {
+        { 1,  1,  3,  0 },
+        { 2,  1,  6, 10 },
+        { 3,  2,  9, 20 },
+        { 4,  2, 13, 30 },
+        { 5,  3, 18, 40 },
+        { 6,  4, 25, 50 },
+    }
+    local lignes = { "Q: Niveau du sort | single" }
+    for _, niveau in ipairs(couts) do
+        lignes[#lignes + 1] = string.format(
+            "- Niveau %d (+%d %%) | pa=%d pf=%d | niveauSort=%d ; niveauBonus=%d ; cibleMode=mono",
+            niveau[1], niveau[4], niveau[2], niveau[3], niveau[1], niveau[4])
+    end
+    return table.concat(lignes, "\n")
+end
+
+local function ActionInfluence(def)
+    local questions = {
+        "Q: Jet utilisé | single",
+        "- Adresse | | randSkill=Adresse ; mecaPts={stat:Répartition des expertises#" .. def.mecanique .. "}",
+        "- Esprit | | randSkill=Esprit ; mecaPts={stat:Répartition des expertises#" .. def.mecanique .. "}",
+        "Q: Statistique de base | single",
+    }
+    for _, source in ipairs(def.sources) do
+        questions[#questions + 1] = string.format("- %s (%s) | | srcName=%s ; srcVal={stat:%s} ; kStat=%s",
+            source[1], source[3], source[1], source[1], source[2])
+    end
+    questions[#questions + 1] = PENS_INFLUENCE
+    questions[#questions + 1] = NiveauxInfluence()
+    if def.questions then questions[#questions + 1] = def.questions end
+
+    Definir(def.id, {
+        id = def.id, label = def.label, categorie = "systeme", emission = true,
+        description = def.description,
+        feuilles = { {
+            id = "influence", nom = def.label,
+            etapes = {
+                {
+                    id = "compose", type = "compose", label = "Composer : " .. def.label,
+                    note = def.description,
+                    previewText = "Bonus au rand = (var:srcVal * var:kStat + var:penMoy * 0.2) * (0.7 + var:mecaPts * 0.05 + var:niveauBonus / 100)",
+                    questionsText = table.concat(questions, "\n"),
+                },
+                {
+                    id = "effet", type = "effect", label = "Effet : " .. def.label,
+                    effectMode = "debuff", effectName = def.etat, effectIcon = def.icone,
+                    effectDesc = def.etatDescription or def.description,
+                    effectContainer = "intangible", effectDuration = "",
+                    effectResist = "Esprit, Adresse", effectRollBonus = "var:srcVal * var:kStat + var:penMoy * 0.2",
+                    effectRollMult = "0.7 + var:mecaPts * 0.05 + var:niveauBonus / 100",
+                    effectDispellTag = "verrouille", effectControl = def.controle,
+                    effectControlA = def.controleA or "", effectControlB = def.controleB or "",
+                    effectControlText = def.controleTexte or "",
+                },
+                { id = "pa", type = "pay", label = "Coût PA", amount = "var:_coutPA", tag = "#pa", sign = "-" },
+                { id = "pf", type = "pay", label = "Coût PF", amount = "var:_coutPF", tag = "#fatigue", sign = "-" },
+                { id = "declarer", type = "declare", label = "Déclarer : " .. def.label, announce = "oui", nature = def.label },
+            },
+        } },
+        natures = def.label,
+    })
+end
+
+ActionInfluence({
+    id = "intimidation", label = "Intimidation", mecanique = "Intimidation", controle = "intimidation",
+    pa = 1, pf = 2, etat = "Intimidé", icone = "Interface\\Icons\\ability_warrior_intensifyrage",
+    sources = { { "Force", 0.25, "faible" }, { "Constitution", 0.5, "moyen" }, { "Mystique", 0.5, "moyen" } },
+    description = "Empêche la cible d'utiliser une action offensive contre l'auteur jusqu'à ce qu'elle surmonte le jet initial.",
+})
+
+ActionInfluence({
+    id = "provocation", label = "Provocation", mecanique = "Provocation", controle = "provocation",
+    pa = 1, pf = 2, etat = "Provoqué", icone = "Interface\\Icons\\ability_warrior_challange",
+    sources = { { "Constitution", 0.5, "moyen" }, { "Mystique", 0.5, "moyen" } },
+    description = "Force la cible à ne viser que l'auteur et lui interdit les actions de support jusqu'à libération.",
+})
+
+ActionInfluence({
+    id = "illusion", label = "Illusion", mecanique = "Illusion", controle = "illusion",
+    pa = 1, pf = 2, etat = "Confus par une illusion", icone = "Interface\\Icons\\spell_magic_lesserinvisibilty",
+    sources = { { "Mystique", 0.5, "moyen" }, { "Constitution", 0.25, "faible" } },
+    questions = table.concat({
+        "Q: Premier acteur à inverser | actors | acteurA | must",
+        "Q: Second acteur à inverser | actors | acteurB | exclude: acteurA | must",
+    }, "\n"),
+    controleA = "{var:acteurA}", controleB = "{var:acteurB}",
+    description = "Inverse pour la cible les deux acteurs choisis tant que l'état demeure.",
+})
+
+ActionInfluence({
+    id = "peur", label = "Peur", mecanique = "Peur", controle = "peur",
+    pa = 2, pf = 4, etat = "Terrifié", icone = "Interface\\Icons\\spell_shadow_possession",
+    sources = { { "Mystique", 0.5, "moyen" }, { "Constitution", 0.25, "faible" } },
+    description = "Interdit toute action offensive à la cible jusqu'à ce qu'elle surmonte le jet initial.",
+})
+
+ActionInfluence({
+    id = "controle_mental", label = "Contrôle mental", mecanique = "Contrôle mental", controle = "controle_mental",
+    pa = 2, pf = 4, etat = "Sous contrôle mental", icone = "Interface\\Icons\\spell_shadow_mindcontrol",
+    sources = { { "Mystique", 0.5, "moyen" }, { "Constitution", 0.25, "faible" } },
+    controleTexte = "{var:narration}", etatDescription = "{var:narration}",
+    description = "Impose une narration validée par le MJ, que la cible doit respecter jusqu'à libération.",
+})

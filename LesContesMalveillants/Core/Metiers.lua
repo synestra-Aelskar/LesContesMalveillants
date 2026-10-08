@@ -1,11 +1,11 @@
 -- Metiers : les 31 metiers du template (compendium « Liste metiers ») et
 -- l'experience qu'un personnage accumule dans chacun.
 --
--- Un metier progresse par paliers (table « XP METIER » du template, dans
--- Equilibrage.metiers.paliers). La table est INCREMENTALE, comme dans
--- Necronicon (Profession.lua) : chaque palier demande son XP pour passer au
--- suivant ; le dernier ne se depasse pas. Le bonus de jet d'un metier est le
--- rang de son palier.
+-- Un metier progresse par couleurs, cinq niveaux par couleur (table
+-- « XP METIER » dans Equilibrage.metiers.paliers). La table est INCREMENTALE :
+-- chaque ligne demande son XP pour achever le niveau courant. Le dernier cout
+-- est donc lui aussi consomme avant que le metier soit entierement maitrise.
+-- Le bonus de jet reste le rang de COULEUR, pas le rang global sur 30 niveaux.
 --
 -- Cote entite, seulement l'XP gagnee : entity.metiers = { [id] = xp }. Un
 -- metier a zero ne laisse rien dans la sauvegarde.
@@ -42,32 +42,59 @@ function Metiers.XP(entity, id)
     return type(stock) == "table" and math.max(0, math.floor(tonumber(stock[tostring(id)]) or 0)) or 0
 end
 
--- Le palier atteint : { rang, nom, xpDansPalier, xpPalier, xpRestante, max }.
+-- L'XP totale minimale qui correspond a un niveau global (1 a 30). Sert
+-- notamment a convertir les quatre points de creation en vrais niveaux de
+-- metier, sans dupliquer le bareme dans le createur.
+function Metiers.XPPourNiveau(niveau)
+    niveau = math.max(0, math.floor(tonumber(niveau) or 0))
+    local palier = Paliers()[niveau]
+    return palier and math.max(0, math.floor(tonumber(palier.cumul) or 0)) or 0
+end
+
+-- Le niveau acquis : { rang, nom, niveau, libelle, rangCouleur,
+-- xpDansPalier, xpPalier, xpRestante, max }.
 function Metiers.Palier(entity, id)
     local paliers = Paliers()
-    local reste = Metiers.XP(entity, id)
-    local rang = 1
-    while rang < #paliers do
-        local cout = math.max(0, math.floor(tonumber(paliers[rang].xp) or 0))
-        if cout > 0 and reste >= cout then
-            reste = reste - cout
-            rang = rang + 1
-        else
-            break
-        end
+    local xp = Metiers.XP(entity, id)
+    local rang = 0
+    for index, niveau in ipairs(paliers) do
+        if xp >= math.max(0, math.floor(tonumber(niveau.cumul) or 0)) then rang = index
+        else break end
     end
-    local palier = paliers[rang] or { nom = "?", xp = 0 }
-    local max = rang >= #paliers
+
+    -- Niveau zero : le metier n'est pas appris. La barre vise Rose 1, mais le
+    -- libelle et le bonus restent bien a zero.
+    if rang == 0 then
+        local suivant = paliers[1] or { xp = 0 }
+        local cout = math.max(0, math.floor(tonumber(suivant.xp) or 0))
+        return {
+            rang = 0, nom = "Non appris", niveau = 0, libelle = "Niveau 0",
+            rangCouleur = 0, couleur = { 0.45, 0.45, 0.45 },
+            xpDansPalier = xp, xpPalier = cout,
+            xpRestante = math.max(0, cout - xp), max = false,
+        }
+    end
+
+    local palier = paliers[rang] or { nom = "?", niveau = 0, xp = 0 }
+    local niveau = math.max(0, math.floor(tonumber(palier.niveau) or 0))
+    local libelle = niveau > 0 and string.format("%s %d", palier.nom, niveau) or palier.nom
+    local maitrise = rang >= #paliers
+    local suivant = paliers[rang + 1]
+    local debut = math.max(0, math.floor(tonumber(palier.cumul) or 0))
+    local cout = suivant and math.max(0, math.floor(tonumber(suivant.xp) or 0)) or 0
+    local dans = math.max(0, xp - debut)
     return {
-        rang = rang, nom = palier.nom, couleur = palier.couleur,
-        xpDansPalier = reste, xpPalier = palier.xp,
-        xpRestante = max and 0 or math.max(0, palier.xp - reste), max = max,
+        rang = rang, nom = palier.nom, niveau = niveau, libelle = libelle,
+        rangCouleur = math.max(1, math.floor(tonumber(palier.rangCouleur) or rang)),
+        couleur = palier.couleur,
+        xpDansPalier = maitrise and 1 or dans, xpPalier = maitrise and 1 or cout,
+        xpRestante = maitrise and 0 or math.max(0, cout - dans), max = maitrise,
     }
 end
 
 -- Bonus de jet d'un metier (Necronicon : GetProfessionRollBonus).
 function Metiers.Bonus(entity, id)
-    return Metiers.Palier(entity, id).rang
+    return Metiers.Palier(entity, id).rangCouleur
 end
 
 -- Ajoute (ou retire) de l'XP. Ne descend pas sous zero ; efface ce qui

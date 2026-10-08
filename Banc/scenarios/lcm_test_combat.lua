@@ -26,7 +26,11 @@ local C = LCM.Combat
 local I = LCM.Incarnation
 local B = LCM.UI.Combat
 local moi = LCM.PlayerId()
-LCM.Entities.Set_Value(LCM.Entities.Self(), "sec_initiative", 2)
+local maFiche = LCM.Personnages.Actif() or LCM.Entities.Self()
+LCM.Personnages.Choisir(maFiche.id)
+LCM.Entities.Set_Value(maFiche, "sec_initiative", 2)
+LCM.Entities.SetGauge(maFiche, "pa", 3, 5)
+LCM.Entities.SetGauge(maFiche, "fatigue", 47, 60)
 
 dire("== les reglages du profil")
 attendu("3 rounds par tour", LCM.Equilibrage.combat.roundsParTour, 3)
@@ -75,6 +79,15 @@ attendu("le premier est actif", f.cartes[1].actif:IsShown() and not f.cartes[2].
 attendu("pas de pages a seize ou moins", f.suivant:IsShown(), false)
 attendu("a 70 %", f:GetScale(), 0.7)
 attendu("decor en cinq morceaux", #f.decor, 5)
+attendu("cinq pastilles de PA", #f.ressourcesPA.pastilles, 5)
+attendu("trois PA rouges restants", f.ressourcesPA.pastilles[1].remplie
+    and f.ressourcesPA.pastilles[3].remplie and not f.ressourcesPA.pastilles[4].remplie, true)
+attendu("PF restant / maximum", f.ressourcesPF.barre.label:GetText(), "47 / 60")
+LCM.Entities.SetGauge(maFiche, "pa", 1)
+LCM.Entities.SetGauge(maFiche, "fatigue", 28)
+attendu("les PA suivent une depense", f.ressourcesPA.pastilles[1].remplie
+    and not f.ressourcesPA.pastilles[2].remplie, true)
+attendu("les PF suivent une depense", f.ressourcesPF.barre.label:GetText(), "28 / 60")
 
 dire("== le MJ suit l'initiative : il incarne le PNJ a son tour")
 local function allerA(id)

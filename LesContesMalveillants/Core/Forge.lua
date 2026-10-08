@@ -220,7 +220,16 @@ function Forge.Valeur(jeu, rarete) return jeu.id .. "/" .. rarete.id end
 -- Le bilan dit ce qui a ete rendu (`credit`), ce qu'on en garde
 -- (`creditRetenu`) et ce que le plafond a mange (`creditPerdu`), pour que
 -- l'ecran puisse l'expliquer plutot que d'afficher un total inexplicable.
-function Forge.Bilan(jeu, rareteId, valeurs)
+-- Le pool peut etre multiplie par la place physique prise par l'entree. Pour
+-- l'instant seules les armes l'emploient : une arme a deux emplacements a
+-- deux fois le budget de sa rarete. Le multiplicateur reste volontairement
+-- borne a 1 ou 2, comme le registre des objets.
+function Forge.Pool(rarete, multiplicateur)
+    local m = tonumber(multiplicateur) == 2 and 2 or 1
+    return (rarete and rarete.points or 0) * m
+end
+
+function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool)
     valeurs = type(valeurs) == "table" and valeurs or {}
     local categorie = LCM.Compendium.Get(jeu.categorie)
     local rarete = rareteId and Forge.Rarete(jeu, rareteId) or nil
@@ -252,8 +261,9 @@ function Forge.Bilan(jeu, rareteId, valeurs)
 
     -- Sans rarete connue (un jeu qu'on est en train d'ecrire), rien ne plafonne
     -- : on n'a pas de pool a quoi se referer.
+    local pool = rarete and Forge.Pool(rarete, multiplicateurPool) or nil
     local retenu = credit
-    if rarete and credit > rarete.points then retenu = rarete.points end
+    if pool and credit > pool then retenu = pool end
     return {
         total = depenses - retenu,
         lignes = lignes,
@@ -261,6 +271,7 @@ function Forge.Bilan(jeu, rareteId, valeurs)
         credit = credit,
         creditRetenu = retenu,
         creditPerdu = credit - retenu,
+        pool = pool,
         valeurs = valeurs,
     }
 end
@@ -271,12 +282,12 @@ end
 -- est plafonne par le pool, le total depend de la rarete qu'on vise. Calcule
 -- une fois pour toutes, il proposait une rarete ou les valeurs ne rentraient
 -- pas.
-function Forge.RareteSuffisante(jeu, valeurs)
+function Forge.RareteSuffisante(jeu, valeurs, multiplicateurPool)
     if type(valeurs) ~= "table" then return nil end
     local meilleure
     for _, r in ipairs(jeu.raretes) do
-        local bilan = Forge.Bilan(jeu, r.id, valeurs)
-        if bilan.total <= r.points and (not meilleure or r.points < meilleure.points) then
+        local bilan = Forge.Bilan(jeu, r.id, valeurs, multiplicateurPool)
+        if bilan.total <= bilan.pool and (not meilleure or r.points < meilleure.points) then
             meilleure = r
         end
     end
@@ -327,13 +338,14 @@ function Forge.Verifier(famille, element)
     if not rarete then
         return false, string.format("rareté inconnue dans « %s » (%s)", jeu.label, tostring(rareteId))
     end
-    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus)
+    local multiplicateurPool = categorie.id == "armes" and element.taille or 1
+    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool)
     for _, ligne in ipairs(bilan.lignes) do
         if ligne.hors then return false, ligne.hors end
     end
-    if bilan.total > rarete.points then
+    if bilan.total > bilan.pool then
         return false, string.format("%s pts dépensés, le pool %s en permet %d",
-            LCM.Compendium.Nombre(bilan.total), rarete.label, rarete.points)
+            LCM.Compendium.Nombre(bilan.total), rarete.label, bilan.pool)
     end
     return true
 end

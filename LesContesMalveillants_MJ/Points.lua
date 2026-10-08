@@ -11,7 +11,9 @@
 --
 -- Un point est du CONTENU : il vient des fichiers livres, pas de la sauvegarde.
 
-local _, LCM = ...
+local _, MJ = ...
+local LCM = _G.LCM
+if not LCM then return end
 
 LCM.Points = LCM.Registre({
     nom = "point", prefixe = "Points",
@@ -21,10 +23,17 @@ LCM.Points = LCM.Registre({
             Erreur(element.id .. " : nature inconnue (" .. nature .. ")")
         end
         element.nature = nature
+        element.arcId = definition.arcId and tostring(definition.arcId) or nil
+        element.icone = definition.icone and tostring(definition.icone):match("%S")
+            and LCM.Icone(definition.icone) or nil
+        element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
         element.offres = {}
-        for rang, offre in ipairs(definition.offres or {}) do
+        local ids = {}
+        local function ConstruireOffre(offre, rang)
             if type(offre) ~= "table" then Erreur(element.id .. " : offre " .. rang .. " illisible") end
             local id = tostring(offre.id or offre.entree or rang)
+            if ids[id] then Erreur(element.id .. " : offre en double (" .. id .. ")") end
+            ids[id] = true
             local construite = {
                 id = id,
                 entree = tostring(offre.entree or ""),
@@ -48,7 +57,47 @@ LCM.Points = LCM.Registre({
             if nature == "vendeur" and construite.prix == nil then
                 Erreur(element.id .. " : « " .. id .. " » est a vendre sans prix")
             end
-            element.offres[#element.offres + 1] = construite
+            if nature == "vendeur" and not construite.devise then
+                construite.devise = element.deviseDefaut
+            end
+            return construite
+        end
+
+        -- Les anciennes definitions portaient une liste plate. Le constructeur
+        -- complet range maintenant les ventes par onglet, sans casser ces
+        -- points deja publies ni les consommateurs qui lisent `offres`.
+        element.onglets = {}
+        local onglets = type(definition.onglets) == "table" and definition.onglets or nil
+        if not onglets or #onglets == 0 then
+            onglets = { { id = "onglet_1", label = "Articles", offres = definition.offres or {} } }
+        end
+        local rangGlobal = 0
+        for index, onglet in ipairs(onglets) do
+            local construit = {
+                id = tostring(onglet.id or ("onglet_" .. index)),
+                label = tostring(onglet.label or onglet.name or ("Onglet " .. index)),
+                offres = {},
+            }
+            for _, offre in ipairs(onglet.offres or onglet.entries or {}) do
+                rangGlobal = rangGlobal + 1
+                local o = ConstruireOffre(offre, rangGlobal)
+                construit.offres[#construit.offres + 1] = o
+                element.offres[#element.offres + 1] = o
+            end
+            element.onglets[#element.onglets + 1] = construit
+        end
+        element.rachats = {}
+        for index, onglet in ipairs(definition.rachats or {}) do
+            local construit = {
+                id = tostring(onglet.id or ("rachat_" .. index)),
+                label = tostring(onglet.label or onglet.name or ("Rachats " .. index)),
+                offres = {},
+            }
+            for _, offre in ipairs(onglet.offres or onglet.entries or {}) do
+                rangGlobal = rangGlobal + 1
+                construit.offres[#construit.offres + 1] = ConstruireOffre(offre, rangGlobal)
+            end
+            element.rachats[#element.rachats + 1] = construit
         end
     end,
 })
@@ -87,6 +136,33 @@ function Points.Offre(pointId, offreId)
     return nil
 end
 
+function Points.OffreRachat(pointId, offreId)
+    local point = Points.Get(pointId)
+    if not point then return nil end
+    for _, onglet in ipairs(point.rachats or {}) do
+        for _, offre in ipairs(onglet.offres or {}) do
+            if offre.id == tostring(offreId) then return offre, point end
+        end
+    end
+    return nil
+end
+
+-- Une creation faite en jeu arrive apres l'initialisation du contenu. Ses
+-- regles de stock doivent donc etre posees immediatement, et pas seulement au
+-- prochain /reload.
+function Points.ActualiserRegles(point)
+    if not point then return end
+    for _, offre in ipairs(point.offres or {}) do
+        if offre.stock and offre.stock.limite > 0 then
+            LCM.Stock.Declarer(offre.cle, offre.stock)
+        end
+        if offre.prix and offre.devise and not LCM.Devises.Get(offre.devise) then
+            LCM.Erreur(string.format("%s : « %s » se paie en « %s », qui n'existe pas.",
+                point.label, Points.Libelle(offre), offre.devise))
+        end
+    end
+end
+
 -- ===== Prendre une offre ===================================================
 -- Recolter et acheter font la meme chose : prendre au stock, puis ranger. Chez
 -- un vendeur, le prix est PRELEVE dans la bourse.
@@ -96,6 +172,7 @@ end
 -- perdue pour tout le monde.
 
 function Points.Prendre(entity, pointId, offreId)
+    if not LCM.IsMaster() then return false, "reserve au maitre du jeu." end
     local offre, point = Points.Offre(pointId, offreId)
     if not offre then return false, "offre inconnue." end
     if type(entity) ~= "table" then return false, "aucun personnage." end
@@ -134,6 +211,23 @@ function Points.Prendre(entity, pointId, offreId)
     return true, offre
 end
 
+-- Le versant « Achats » du constructeur : le vendeur reprend une entree du
+-- sac et verse son prix. Le retrait precede le credit, de sorte qu'un objet
+-- absent ne puisse jamais produire de monnaie.
+function Points.Racheter(entity, pointId, offreId)
+    if not LCM.IsMaster() then return false, "reserve au maitre du jeu." end
+    local offre = Points.OffreRachat(pointId, offreId)
+    if not offre then return false, "offre de rachat inconnue." end
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    if offre.entree == "" then return false, "cette offre ne designe aucun objet." end
+    local retire, raison = LCM.Inventaire.Prendre(entity, offre.entree)
+    if not retire then return false, raison or "objet absent des sacs." end
+    if offre.prix and offre.prix > 0 and offre.devise then
+        LCM.Bourse.Crediter(entity, offre.devise, offre.prix)
+    end
+    return true, offre
+end
+
 -- Declarer les regles de stock a la connexion : elles vivent dans le contenu,
 -- pas dans la sauvegarde, donc elles se reposent a chaque session.
 --
@@ -142,14 +236,6 @@ end
 -- demarrage, pas a la premiere tentative d'achat en seance.
 LCM.WhenReady(function()
     for _, point in ipairs(Points.list) do
-        for _, offre in ipairs(point.offres) do
-            if offre.stock.limite > 0 then
-                LCM.Stock.Declarer(offre.cle, offre.stock)
-            end
-            if offre.prix and offre.devise and not LCM.Devises.Get(offre.devise) then
-                LCM.Erreur(string.format("%s : « %s » se paie en « %s », qui n'existe pas.",
-                    point.label, Points.Libelle(offre), offre.devise))
-            end
-        end
+        Points.ActualiserRegles(point)
     end
 end)

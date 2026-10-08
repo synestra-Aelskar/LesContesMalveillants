@@ -7,9 +7,44 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 local function dernierMessage() return __sansCouleur(__sorties[#__sorties] or "") end
+local function aDitDepuis(debut, motif)
+    for index = debut + 1, #__sorties do
+        if __sansCouleur(__sorties[index]):find(motif, 1, true) then return true end
+    end
+    return false
+end
 
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
+
+local function TocDeclare(addon, fichier)
+    for _, chemin in ipairs(__toc[addon] or {}) do
+        if chemin == fichier then return true end
+    end
+    return false
+end
+
+if not LCM.IsMaster() then
+    dire("== un joueur ne charge pas les outils MJ")
+    attendu("aucun registre de points", LCM.Points, nil)
+    attendu("aucun moteur de stock", LCM.Stock, nil)
+    attendu("aucune interface de points", LCM.UI.Points, nil)
+    attendu("le stock n'est plus livre dans l'addon joueur",
+        TocDeclare("LesContesMalveillants", "Core/Stock.lua"), false)
+    attendu("les points ne sont plus livres dans l'addon joueur",
+        TocDeclare("LesContesMalveillants", "Core/Points.lua"), false)
+    attendu("l'interface n'est plus livree dans l'addon joueur",
+        TocDeclare("LesContesMalveillants", "UI/Points.lua"), false)
+    local debut = #__sorties
+    SlashCmdList["LCM"]("vendeur")
+    attendu("la commande vendeur n'existe pas", aDitDepuis(debut, "Commande inconnue : vendeur"), true)
+    debut = #__sorties
+    SlashCmdList["LCM"]("ressources")
+    attendu("la commande ressources n'existe pas", aDitDepuis(debut, "Commande inconnue : ressources"), true)
+    dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
+    return
+end
+
 local P = LCM.Points
 local moi = LCM.Entities.Self()
 __temps(50000)
@@ -143,5 +178,18 @@ attendu("la fenetre a suivi", v.offres[1].stock:GetText(), "0 / 2")
 dire("== les entrees du menu")
 attendu("vendeur", LCM.UI.Menu.EstLiee("vendeur"), true)
 attendu("ressources", LCM.UI.Menu.EstLiee("ressources"), true)
+
+dire("== la double protection MJ")
+f:Hide()
+v:Hide()
+LCM._masterCompanion = false
+__addonsCharges["LesContesMalveillants_MJ"] = false
+SlashCmdList["LCM"]("vendeur")
+attendu("la commande chargee reste refusee", dernierMessage():find("reservee au maitre du jeu", 1, true) ~= nil, true)
+attendu("elle n'ouvre rien", f:IsShown() or v:IsShown(), false)
+attendu("l'appel direct est refuse", LCM.UI.Points.Basculer("ressource"), nil)
+attendu("la prise directe est refusee", (P.Prendre(moi, "filon_cuivre", "poussiere")), false)
+LCM._masterCompanion = true
+__addonsCharges["LesContesMalveillants_MJ"] = true
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

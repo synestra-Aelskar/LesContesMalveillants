@@ -56,6 +56,44 @@ local function CadreActif(parent, l, h)
     return cadre
 end
 
+local function MaFiche()
+    local actif = LCM.Personnages and LCM.Personnages.Actif and LCM.Personnages.Actif()
+    return actif or (LCM.Entities and LCM.Entities.Self and LCM.Entities.Self())
+end
+
+-- Une pastille de PA : disque rouge plein tant que le point est disponible,
+-- anneau sombre une fois consomme. Le masque rond est natif au client ; le
+-- repli sans masque reste lisible sur les environnements simplifies.
+local function PastillePA(parent)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetSize(20, 20)
+    p.exterieur = UI.Aplat(p, { 0.78, 0.13, 0.12, 1 }, "ARTWORK")
+    p.exterieur:SetAllPoints(p)
+    p.interieur = UI.Aplat(p, { 0.07, 0.035, 0.03, 0.96 }, "OVERLAY")
+    p.interieur:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4)
+    p.interieur:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 4)
+    if p.CreateMaskTexture and p.exterieur.AddMaskTexture and p.interieur.AddMaskTexture then
+        p.masqueExterieur = p:CreateMaskTexture()
+        p.masqueExterieur:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
+            "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.masqueExterieur:SetAllPoints(p.exterieur)
+        p.exterieur:AddMaskTexture(p.masqueExterieur)
+        p.masqueInterieur = p:CreateMaskTexture()
+        p.masqueInterieur:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
+            "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        p.masqueInterieur:SetAllPoints(p.interieur)
+        p.interieur:AddMaskTexture(p.masqueInterieur)
+    end
+    function p:Regler(remplie)
+        self.remplie = remplie == true
+        self.exterieur:SetColorTexture(self.remplie and 0.88 or 0.46,
+            self.remplie and 0.12 or 0.08, self.remplie and 0.10 or 0.07, 1)
+        self.interieur:SetShown(not self.remplie)
+    end
+    p:Regler(false)
+    return p
+end
+
 -- Les combattants a montrer, au plus seize. Celui qui joue reste toujours
 -- visible : s'il sort de la page, il prend la premiere case
 -- (BuildVisibleInitiativeEntries de Necronicon).
@@ -186,6 +224,30 @@ local function Construire()
     f.avis:SetJustifyH("CENTER")
     Placer(f.avis, f, 430 + EXTRA / 2, 201, 240, 18)
 
+    -- Les ressources personnelles restent sous les extremites du rail afin de
+    -- ne jamais concurrencer l'ordre d'initiative ni l'avis central.
+    f.ressourcesPA = CreateFrame("Frame", nil, f)
+    Placer(f.ressourcesPA, f, 170, 158, 410, 30)
+    f.ressourcesPA.fond = UI.Aplat(f.ressourcesPA, { 0.035, 0.025, 0.02, 0.84 })
+    f.ressourcesPA.fond:SetAllPoints(f.ressourcesPA)
+    UI.BordureFine(f.ressourcesPA, 0.42)
+    f.ressourcesPA.titre = UI.Texte(f.ressourcesPA, "PA :", UI.C.titre)
+    f.ressourcesPA.titre:SetPoint("LEFT", f.ressourcesPA, "LEFT", 10, 0)
+    f.ressourcesPA.pastilles = {}
+
+    f.ressourcesPF = CreateFrame("Frame", nil, f)
+    f.ressourcesPF:SetSize(330, 30)
+    f.ressourcesPF:SetPoint("TOPRIGHT", f, "TOPRIGHT", -170, -158)
+    f.ressourcesPF.fond = UI.Aplat(f.ressourcesPF, { 0.025, 0.035, 0.055, 0.86 })
+    f.ressourcesPF.fond:SetAllPoints(f.ressourcesPF)
+    UI.BordureFine(f.ressourcesPF, 0.42)
+    f.ressourcesPF.titre = UI.Texte(f.ressourcesPF, "PF :", UI.C.titre)
+    f.ressourcesPF.titre:SetPoint("LEFT", f.ressourcesPF, "LEFT", 10, 0)
+    f.ressourcesPF.barre = UI.Barre(f.ressourcesPF, UI.C.fatigue, 270, 16)
+    f.ressourcesPF.barre:SetPoint("RIGHT", f.ressourcesPF, "RIGHT", -8, 0)
+    f.ressourcesPF.barre.vide:SetColorTexture(0.05, 0.09, 0.16, 0.96)
+    if UI.AelCadreJauge then f.ressourcesPF.barre.cadre = UI.AelCadreJauge(f.ressourcesPF.barre) end
+
     f:Hide()
     return f
 end
@@ -203,6 +265,27 @@ local function Positionner(f)
     end
 end
 
+function Ecran.RafraichirRessources()
+    local f = Ecran.frame
+    if not f then return end
+    local entity = MaFiche()
+    local pa = entity and LCM.Entities.Gauge(entity, "pa") or { current = 0, max = 0 }
+    local pf = entity and LCM.Entities.Gauge(entity, "fatigue") or { current = 0, max = 0 }
+    local maximum = math.max(0, math.floor(tonumber(pa.max) or 0))
+    local courant = math.max(0, math.min(maximum, math.floor(tonumber(pa.current) or 0)))
+
+    for index = #f.ressourcesPA.pastilles + 1, maximum do
+        local p = PastillePA(f.ressourcesPA)
+        p:SetPoint("LEFT", f.ressourcesPA, "LEFT", 47 + (index - 1) * 25, 0)
+        f.ressourcesPA.pastilles[index] = p
+    end
+    for index, p in ipairs(f.ressourcesPA.pastilles) do
+        p:SetShown(index <= maximum)
+        if index <= maximum then p:Regler(index <= courant) end
+    end
+    f.ressourcesPF.barre:Regler(pf.current, pf.max)
+end
+
 function Ecran.Rafraichir()
     local etat = LCM.Combat.Etat()
     if not etat then
@@ -214,6 +297,7 @@ function Ecran.Rafraichir()
     end
     local f = Ecran.Fenetre()
     Positionner(f)
+    Ecran.RafraichirRessources()
 
     f.tour:SetText(string.format("%02d", etat.t))
     f.round:SetText(string.format("Round %d / %d", etat.r, etat.rm))
@@ -303,3 +387,10 @@ end
 
 LCM.Combat.onChange = function() Ecran.Rafraichir() end
 LCM.Combat.onInvitationRecue = function(recue) Ecran.Invitation(recue) end
+
+-- Une action, une reaction ou un deplacement peut depenser des ressources
+-- sans faire avancer l'initiative : le bandeau doit alors suivre aussitot.
+LCM.Entities.Ecouter(function(entity)
+    local f = Ecran.frame
+    if f and f:IsShown() and entity == MaFiche() then Ecran.RafraichirRessources() end
+end)

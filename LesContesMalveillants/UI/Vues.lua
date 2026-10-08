@@ -333,12 +333,22 @@ local function Construire(vue, rang)
         f.artwork:SetPoint("TOPRIGHT", f, "TOPLEFT", 6, -(f.insetHaut or 0))
         f.artwork:SetPoint("BOTTOM", f, "BOTTOM", 0, (f.insetBas or 0))
 
+        -- Le pendant droit de l'artwork : identite LCM, description et coups
+        -- d'oeil TRP3. Lui aussi vit hors du cadre central, qui ne se deplace ni
+        -- ne se redimensionne quand un volet change d'etat.
+        local largeurIdentite = math.max(220, math.floor((vue.largeur - 12) * 0.76))
+        f.identite = UI.Fiche.Identite(f, largeurIdentite)
+        f.identite:SetWidth(largeurIdentite)
+        f.identite:SetPoint("TOPLEFT", f, "TOPRIGHT", -6, -(f.insetHaut or 0))
+        f.identite:SetPoint("BOTTOM", f, "BOTTOM", 0, (f.insetBas or 0))
+
         -- De quoi replier le volet de gauche. Il prend la moitie de la fenetre
         -- et ne sert pas a tout : quand on vient lire ses chiffres, l'artwork,
         -- le niveau et l'experience sont du decor. Le choix est RETENU — on ne
         -- replie pas la meme chose a chaque ouverture.
         LCM.EnsureDatabase()
         f.artworkReplie = LCM.db.settings.ficheArtworkReplie == true
+        f.identiteReplie = LCM.db.settings.ficheIdentiteReplie == true
         -- Une poignee au style des autres controles de l'habillage (le meme que
         -- la croix et les boutons de jauge). J'ai d'abord essaye d'y plaquer
         -- l'ornement du bas du cadre : il fait 385 x 200 dans la planche, et a
@@ -351,16 +361,24 @@ local function Construire(vue, rang)
         end)
         UI.Bulle(f.replierArtwork, "Artwork",
             "Replier ou déplier l'artwork, le niveau et l'expérience.")
+        f.replierIdentite = UI.Bouton(f, "›", 20, 26, function()
+            f.identiteReplie = not f.identiteReplie
+            LCM.db.settings.ficheIdentiteReplie = f.identiteReplie or nil
+            f:DisposerArtwork()
+        end)
+        UI.Bulle(f.replierIdentite, "Identité",
+            "Replier ou déplier l'identité, la description et les coups d'oeil TRP3.")
     end
 
     function f:DisposerArtwork()
         if not self.artwork then return end
-        -- Le volet n'existe que sur l'onglet Statistiques, et seulement si on
-        -- ne l'a pas replie. La FENETRE, elle, ne bouge pas : ni sa largeur, ni
-        -- sa position, ni ce qu'on etait en train d'y lire.
-        local possible = self.onglet == "statistiques"
+        -- Les deux volets appartiennent a la fiche entiere : changer d'onglet
+        -- ne doit plus refermer un artwork que le joueur avait choisi de garder.
+        local possible = true
         local ouvert = possible and not self.artworkReplie
         self.artwork:SetShown(ouvert)
+        local identiteOuverte = self.identite and not self.identiteReplie
+        if self.identite then self.identite:SetShown(identiteOuverte) end
         self.zone:ClearAllPoints()
         self.zone:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -haut)
         self.zone:SetPoint("BOTTOMRIGHT", self.contenu, "BOTTOMRIGHT", 0, 0)
@@ -368,6 +386,7 @@ local function Construire(vue, rang)
             self.artwork.entity = self.entity
             self.artwork:Actualiser(self.entity)
         end
+        if identiteOuverte and self.entity then self.identite:Actualiser(self.entity) end
         -- Le bouton ne s'offre que la ou il a un sens, et dit dans quel sens il
         -- va : « ‹ » pour replier vers la gauche, « › » pour redeplier.
         if self.replierArtwork then
@@ -379,6 +398,13 @@ local function Construire(vue, rang)
             self.replierArtwork:ClearAllPoints()
             self.replierArtwork:SetPoint("CENTER", self, "LEFT", 0, 0)
             self.replierArtwork:SetFrameLevel(self:GetFrameLevel() + 20)
+        end
+        if self.replierIdentite then
+            self.replierIdentite:Show()
+            self.replierIdentite.label:SetText(identiteOuverte and "›" or "‹")
+            self.replierIdentite:ClearAllPoints()
+            self.replierIdentite:SetPoint("CENTER", self, "RIGHT", 0, 0)
+            self.replierIdentite:SetFrameLevel(self:GetFrameLevel() + 20)
         end
     end
 
@@ -399,6 +425,7 @@ local function Construire(vue, rang)
         if self.sommaire then self.sommaire:Actualiser() end
         self:AjusterHauteur()
         if self.artwork and self.entity then self.artwork:Actualiser(self.entity) end
+        if self.identite and self.entity and self.identite:IsShown() then self.identite:Actualiser(self.entity) end
     end
 
     -- La fenetre prend la hauteur de son contenu : on ne fait pas defiler une
@@ -448,6 +475,7 @@ local function Construire(vue, rang)
         local page = self.onglet and self.pages[self.onglet]
         if self.entity and page then page:Actualiser(self.entity) end
         if self.artwork and self.entity then self.artwork:Actualiser(self.entity) end
+        if self.identite and self.entity and self.identite:IsShown() then self.identite:Actualiser(self.entity) end
     end
 
     -- Une vue qu'on lit se tire aux dimensions qu'on veut : un chapitre de

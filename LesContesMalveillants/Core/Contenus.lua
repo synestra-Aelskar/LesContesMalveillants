@@ -151,6 +151,31 @@ function LCM.Registre(def)
     return R
 end
 
+-- Publie une definition issue de l'atelier. Les fichiers generes sont charges
+-- apres le contenu importe : une entree corrigee en jeu peut donc porter le
+-- meme identifiant que sa version precedente. `Add` doit continuer a refuser
+-- les vrais doublons ; seule cette porte explicite remplace une version deja
+-- publiee, sur place, afin de ne pas casser les references tenues par l'UI.
+function LCM.Publier(registre, definition)
+    if type(registre) ~= "table" or type(registre.Construire) ~= "function"
+        or type(registre.Add) ~= "function" or type(registre.Get) ~= "function" then
+        error("LCM/Publication : registre invalide", 0)
+    end
+
+    local neuf = registre.Construire(definition)
+    local existant = registre.Get(neuf.id)
+    if not existant then
+        existant = registre.Add(definition)
+    else
+        for cle in pairs(existant) do existant[cle] = nil end
+        for cle, valeur in pairs(neuf) do existant[cle] = valeur end
+    end
+    if type(registre.ActualiserRegles) == "function" then
+        registre.ActualiserRegles(existant)
+    end
+    return existant
+end
+
 -- Une copie profonde : un brouillon ou un fichier genere ne doit partager
 -- aucune table avec ce qu'on enregistre.
 local function Copie(v)
@@ -333,6 +358,23 @@ LCM.PNJ = LCM.Registre({
         end
         element.valeurs = Copie(definition.valeurs or {})
         element.traits = ListeIds(element.id, "traits", definition.traits, Erreur) or {}
+        -- Le createur de PNJ retient des niveaux, comme le createur de joueur.
+        -- Une instance, elle, utilise le stockage ordinaire des metiers (XP).
+        element.metiers = {}
+        if definition.metiersNiveaux ~= nil and type(definition.metiersNiveaux) ~= "table" then
+            Erreur(element.id .. " : metiers illisibles")
+        end
+        for metierId, niveau in pairs(definition.metiersNiveaux or {}) do
+            metierId = tostring(metierId or "")
+            niveau = math.max(0, math.floor(tonumber(niveau) or 0))
+            if metierId ~= "" and niveau > 0 then
+                if not (LCM.Metiers and LCM.Metiers.Get(metierId)) then
+                    Erreur(element.id .. " : metier inconnu : " .. metierId)
+                end
+                element.metiers[metierId] = LCM.Metiers.XPPourNiveau(niveau)
+            end
+        end
+        if not next(element.metiers) then element.metiers = nil end
         for _, cle in ipairs({ "equipement", "etats", "apprentissages" }) do
             local v = definition[cle]
             if v ~= nil and type(v) ~= "table" then Erreur(element.id .. " : " .. cle .. " illisible") end

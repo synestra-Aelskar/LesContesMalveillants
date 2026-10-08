@@ -16,5 +16,7 @@
 --      })
 -- ============================================================================
 
-local _, LCM = ...
+local _, MJ = ...
+local LCM = _G.LCM
+if not LCM then return end
 local _ = LCM.Points

@@ -118,10 +118,20 @@ LCM.WhenReady(function()
             LCM.Debug(string.format("experience refusee de %s : hors du groupe.", tostring(expediteur)))
             return
         end
-        local moi = LCM.Entities.Self()
+        -- Un gain adresse au joueur appartient toujours a son personnage,
+        -- meme si une incarnation ou une autre entite est active a l'ecran.
+        local moi = LCM.Entities.Personnage and LCM.Entities.Personnage()
+            or (LCM.Entities.Self and LCM.Entities.Self())
         if not moi then return end
         local resultat = Experience.Donner(moi, donnees.m, donnees.r)
         if not resultat then return end
+        -- L'interface distingue un vrai gain RECU du reseau d'un ajustement
+        -- local de l'entite. Le bandeau et son son ne doivent accompagner que
+        -- le premier cas.
+        if Experience.onReception then
+            Experience.onReception(moi, math.floor(tonumber(donnees.m) or 0), donnees.r,
+                expediteur, resultat)
+        end
         local pourquoi = tostring(donnees.r or "")
         LCM.Ok(string.format("+%d XP de %s%s.", math.floor(tonumber(donnees.m) or 0),
             tostring(expediteur), pourquoi ~= "" and (" — " .. pourquoi) or ""))
@@ -129,5 +139,106 @@ LCM.WhenReady(function()
             LCM.Ok(string.format("|cffffd36b%d niveau%s en attente !|r Ouvre le menu Personnage pour répartir tes points.",
                 resultat.enAttente, resultat.enAttente > 1 and "x" or ""))
         end
+    end)
+end)
+
+-- ===== Regain des ressources ==============================================
+-- Le panneau MJ choisit plusieurs personnages, les ressources concernees et
+-- une seule operation : remplir, vider, ou rendre un nombre precis de points.
+-- Le client joueur ne possede aucune commande d'envoi pour ce protocole.
+
+local Regain = {}
+LCM.Regain = Regain
+
+local RESSOURCES = {
+    { cle = "fatigue", paquet = "f", label = "Fatigue", phrase = "fatigue" },
+    { cle = "pa",      paquet = "p", label = "PA",      phrase = "PA" },
+    { cle = "armure",  paquet = "b", label = "Bouclier", phrase = "bouclier" },
+}
+Regain.RESSOURCES = RESSOURCES
+
+local function SelectionDepuisPaquet(donnees)
+    return {
+        fatigue = tonumber(donnees and donnees.f) == 1,
+        pa = tonumber(donnees and donnees.p) == 1,
+        armure = tonumber(donnees and donnees.b) == 1,
+    }
+end
+
+function Regain.Appliquer(entity, selection, mode, montant)
+    if type(entity) ~= "table" then return nil, "aucun personnage." end
+    selection = type(selection) == "table" and selection or {}
+    mode = tostring(mode or "")
+    montant = math.floor(tonumber(montant) or 0)
+    if mode ~= "max" and mode ~= "min" and mode ~= "exact" then return nil, "choisis Max, Min ou Chiffre précis." end
+    if mode == "exact" and montant <= 0 then return nil, "indique un chiffre positif." end
+
+    local resultat = { mode = mode, ressources = {} }
+    for _, def in ipairs(RESSOURCES) do
+        if selection[def.cle] then
+            local jauge = LCM.Entities.Gauge(entity, def.cle)
+            if jauge then
+                local cible = mode == "max" and jauge.max or (mode == "min" and 0 or (jauge.current + montant))
+                LCM.Entities.SetGauge(entity, def.cle, cible)
+                local apres = LCM.Entities.Gauge(entity, def.cle)
+                resultat.ressources[#resultat.ressources + 1] = {
+                    id = def.cle, label = def.label, phrase = def.phrase,
+                    avant = jauge.current, apres = apres.current, max = apres.max,
+                    gain = apres.current - jauge.current,
+                }
+            end
+        end
+    end
+    if #resultat.ressources == 0 then return nil, "coche au moins une ressource." end
+    return resultat
+end
+
+function Regain.Texte(resultat)
+    if type(resultat) ~= "table" then return "" end
+    local morceaux = {}
+    if resultat.mode == "exact" then
+        for _, r in ipairs(resultat.ressources or {}) do
+            morceaux[#morceaux + 1] = string.format("%d %s", tonumber(r.gain) or 0, r.label)
+        end
+        return "Vous gagnez " .. table.concat(morceaux, " - ") .. "."
+    end
+    for _, r in ipairs(resultat.ressources or {}) do morceaux[#morceaux + 1] = r.phrase end
+    if resultat.mode == "max" then
+        return "Vous regagnez tous vos points de " .. table.concat(morceaux, " / ") .. "."
+    end
+    return "Vous perdez la totalité de vos points de " .. table.concat(morceaux, " / ") .. "."
+end
+
+local SUJET_REGAIN = "regain"
+
+function Regain.Envoyer(joueur, selection, mode, montant)
+    joueur = tostring(joueur or "")
+    if joueur == "" then return false, "a qui ?" end
+    if not LCM.IsMaster() then return false, "seul le maître du jeu utilise le regain." end
+    local paquet = { mode = mode, m = math.floor(tonumber(montant) or 0) }
+    local nombre = 0
+    for _, def in ipairs(RESSOURCES) do
+        if selection and selection[def.cle] then paquet[def.paquet] = 1 nombre = nombre + 1 end
+    end
+    if nombre == 0 then return false, "coche au moins une ressource." end
+    if mode ~= "max" and mode ~= "min" and mode ~= "exact" then return false, "choisis Max, Min ou Chiffre précis." end
+    if mode == "exact" and paquet.m <= 0 then return false, "indique un chiffre positif." end
+    LCM.Reseau.Envoyer(SUJET_REGAIN, paquet, "WHISPER", joueur)
+    return true
+end
+
+LCM.WhenReady(function()
+    LCM.Reseau.Ecouter(SUJET_REGAIN, function(expediteur, donnees)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then
+            LCM.Debug(string.format("regain refusé de %s : hors du groupe.", tostring(expediteur)))
+            return
+        end
+        local moi = LCM.Entities.Personnage and LCM.Entities.Personnage()
+            or (LCM.Entities.Self and LCM.Entities.Self())
+        if not moi then return end
+        local resultat = Regain.Appliquer(moi, SelectionDepuisPaquet(donnees), donnees.mode, donnees.m)
+        if not resultat then return end
+        if Regain.onReception then Regain.onReception(moi, resultat, expediteur) end
+        LCM.Ok(Regain.Texte(resultat) .. " — " .. tostring(expediteur))
     end)
 end)

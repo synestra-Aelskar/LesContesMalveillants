@@ -5,7 +5,8 @@
 -- qui rend les regles verifiables au banc sans dessiner quoi que ce soit.
 --
 -- Un brouillon est une table plate :
---     { nom, race, niveau, valeurs = { [champ] = n }, traits = { id, ... } }
+--     { nom, race, niveau, valeurs = { [champ] = n }, traits = { id, ... },
+--       metiers = { [id] = niveau } }
 -- Les identifiants de `valeurs` sont ceux du schema : au bout du compte, creer
 -- le personnage se resume a recopier cette table.
 
@@ -36,6 +37,7 @@ Creation.ETAPES = {
     { id = "penetrations", label = "Pénétrations" },
     { id = "resistances",  label = "Résistances" },
     { id = "traits",       label = "Traits" },
+    { id = "metiers",      label = "Métiers" },
 }
 
 function Creation.Nouveau(niveau)
@@ -45,7 +47,18 @@ function Creation.Nouveau(niveau)
         niveau = tonumber(niveau) or Eq().creation.niveauDepart,
         valeurs = {},
         traits = {},
+        metiers = {},
     }
+end
+
+-- Un PNJ se construit avec exactement le meme parcours qu'un personnage. Le
+-- marqueur ne change que les regles qui lui sont propres (metiers facultatifs,
+-- capital lie au niveau) et la destination finale : le compendium MJ, jamais
+-- la liste des personnages du joueur.
+function Creation.NouveauPNJ(niveau)
+    local brouillon = Creation.Nouveau(niveau)
+    brouillon.mode = "pnj"
+    return brouillon
 end
 
 function Creation.Valeur(brouillon, champ)
@@ -109,6 +122,7 @@ function Creation.Lignes(categorie)
     if categorie == "expertises" then return Creation.Expertises() end
     if categorie == "penetration" then return Creation.Types("penetration") end
     if categorie == "resistance" then return Creation.Types("resistance") end
+    if categorie == "metiers" then return LCM.Metiers and LCM.Metiers.list or {} end
     return {}
 end
 
@@ -145,6 +159,15 @@ function Creation.Total(brouillon, categorie)
     elseif categorie == "traits" then
         local t = Eq().creation.traits
         return t.base + math.floor(niveau / t.niveauxParPoint)
+    elseif categorie == "metiers" then
+        if brouillon.mode == "pnj" then
+            return math.max(0, math.floor(tonumber(niveau) or 0)) * 4
+        end
+        -- Indépendant du niveau d'aventure : tout nouveau personnage dispose
+        -- exactement de quatre niveaux de métier à répartir. Une réédition ou
+        -- une montée de niveau ne rouvre pas ce capital initial : l'XP gagnée
+        -- ensuite sur la feuille Métiers doit rester intacte.
+        return (brouillon.entite or brouillon.mode == "niveau") and 0 or 4
     end
     return 0
 end
@@ -177,6 +200,12 @@ function Creation.Depense(brouillon, categorie)
         for _, id in ipairs(brouillon.traits) do
             local trait = LCM.Traits.Get(id)
             total = total + (trait and trait.cout or 1)
+        end
+        return total
+    elseif categorie == "metiers" then
+        local total = 0
+        for _, niveau in pairs(brouillon.metiers or {}) do
+            total = total + math.max(0, math.floor(tonumber(niveau) or 0))
         end
         return total
     end
@@ -224,6 +253,8 @@ function Creation.Plafond(brouillon, categorie, champ)
     elseif categorie == "resistance" then
         local p = Eq().resistance.plafond
         return math.floor(Creation.Valeur(brouillon, "constitution") * p.parConstitution) + p.base
+    elseif categorie == "metiers" then
+        return 4
     end
     return 0
 end
@@ -243,7 +274,9 @@ function Creation.Definir(brouillon, categorie, champ, valeur)
         end
     end
 
-    local avant = Creation.Valeur(brouillon, champ)
+    local avant = categorie == "metiers"
+        and (tonumber((brouillon.metiers or {})[champ]) or 0)
+        or Creation.Valeur(brouillon, champ)
     local plafond = Creation.Plafond(brouillon, categorie, champ)
     -- Un depassement peut apparaitre APRES coup, quand une statistique baisse
     -- et rabote un plafond. Redescendre doit rester possible, sinon la ligne
@@ -252,11 +285,20 @@ function Creation.Definir(brouillon, categorie, champ, valeur)
         return false, string.format("plafond atteint : %d au maximum a ce niveau.", plafond)
     end
 
-    brouillon.valeurs[champ] = (valeur ~= 0) and valeur or nil
+    if categorie == "metiers" then
+        brouillon.metiers = type(brouillon.metiers) == "table" and brouillon.metiers or {}
+        brouillon.metiers[champ] = (valeur ~= 0) and valeur or nil
+    else
+        brouillon.valeurs[champ] = (valeur ~= 0) and valeur or nil
+    end
 
     local budget = Creation.Budget(brouillon, categorie)
     if budget.reste < 0 then
-        brouillon.valeurs[champ] = (avant ~= 0) and avant or nil
+        if categorie == "metiers" then
+            brouillon.metiers[champ] = (avant ~= 0) and avant or nil
+        else
+            brouillon.valeurs[champ] = (avant ~= 0) and avant or nil
+        end
         local reste = Creation.Budget(brouillon, categorie).reste
         return false, string.format("il ne reste que %d point%s.", reste, reste > 1 and "s" or "")
     end
@@ -270,10 +312,12 @@ end
 -- changement de niveau). Retourne une liste vide quand tout va bien.
 function Creation.Debordements(brouillon)
     local out = {}
-    for _, categorie in ipairs({ "primaires", "secondaires", "expertises", "mecaniques", "penetration", "resistance" }) do
+    for _, categorie in ipairs({ "primaires", "secondaires", "expertises", "mecaniques", "penetration", "resistance", "metiers" }) do
         for _, ligne in ipairs(Creation.Lignes(categorie)) do
             local plafond = Creation.Plafond(brouillon, categorie, ligne.id)
-            local valeur = Creation.Valeur(brouillon, ligne.id)
+            local valeur = categorie == "metiers"
+                and (tonumber((brouillon.metiers or {})[ligne.id]) or 0)
+                or Creation.Valeur(brouillon, ligne.id)
             if valeur > plafond then
                 out[#out + 1] = { categorie = categorie, id = ligne.id, label = ligne.label,
                     valeur = valeur, plafond = plafond }
@@ -288,7 +332,9 @@ end
 function Creation.Maximum(brouillon, categorie, champ)
     local plafond = Creation.Plafond(brouillon, categorie, champ)
     local cout = Creation.Cout(categorie, champ)
-    local valeur = Creation.Valeur(brouillon, champ)
+    local valeur = categorie == "metiers"
+        and (tonumber((brouillon.metiers or {})[champ]) or 0)
+        or Creation.Valeur(brouillon, champ)
     local reste = Creation.Budget(brouillon, categorie).reste
     if cout <= 0 then return plafond end
     return math.min(plafond, valeur + math.floor(reste / cout))
@@ -297,6 +343,11 @@ end
 -- Remet une ligne a zero, ou toute une categorie, ou tout le brouillon. Les
 -- valeurs partent : ce sont les points qu'on recupere, pas une mise en forme.
 function Creation.Remettre(brouillon, categorie, champ)
+    if categorie == "metiers" then
+        brouillon.metiers = type(brouillon.metiers) == "table" and brouillon.metiers or {}
+        brouillon.metiers[champ] = nil
+        return true
+    end
     local valeur = brouillon.mode == "niveau" and brouillon.base
         and Creation.Valeur(brouillon.base, champ) or 0
     brouillon.valeurs[champ] = valeur ~= 0 and valeur or nil
@@ -313,6 +364,10 @@ function Creation.RemettreCategorie(brouillon, categorie)
         end
         return true
     end
+    if categorie == "metiers" then
+        brouillon.metiers = {}
+        return true
+    end
     for _, ligne in ipairs(Creation.Lignes(categorie)) do
         brouillon.valeurs[ligne.id] = nil
     end
@@ -320,7 +375,7 @@ function Creation.RemettreCategorie(brouillon, categorie)
 end
 
 Creation.CATEGORIES = { "primaires", "secondaires", "expertises", "mecaniques",
-    "penetration", "resistance", "traits" }
+    "penetration", "resistance", "metiers", "traits" }
 
 -- Reste-t-il quelque chose a ACHETER dans cette categorie ? Un budget qu'on ne
 -- peut plus depenser ne doit pas interdire la creation : si toutes les lignes
@@ -339,7 +394,10 @@ function Creation.PeutEncoreDepenser(brouillon, categorie)
     end
     for _, ligne in ipairs(Creation.Lignes(categorie)) do
         local id = ligne.id or ligne
-        if Creation.Maximum(brouillon, categorie, id) > Creation.Valeur(brouillon, id) then return true end
+        local valeur = categorie == "metiers"
+            and (tonumber((brouillon.metiers or {})[id]) or 0)
+            or Creation.Valeur(brouillon, id)
+        if Creation.Maximum(brouillon, categorie, id) > valeur then return true end
     end
     return false
 end
@@ -349,7 +407,7 @@ end
 Creation.LIBELLES = {
     primaires = "statistiques", secondaires = "statistiques secondaires",
     expertises = "expertises", mecaniques = "mécaniques de compétence",
-    penetration = "pénétrations", resistance = "résistances", traits = "traits",
+    penetration = "pénétrations", resistance = "résistances", metiers = "métiers", traits = "traits",
 }
 
 function Creation.RemettreTout(brouillon)
@@ -426,12 +484,42 @@ function Creation.Problemes(brouillon)
         local budget = Creation.Budget(brouillon, categorie)
         if budget.reste < 0 then
             out[#out + 1] = string.format("budget %s depasse de %d.", categorie, -budget.reste)
-        elseif budget.reste > 0 and Creation.PeutEncoreDepenser(brouillon, categorie) then
+        elseif budget.reste > 0
+            and not (brouillon.mode == "pnj" and categorie == "metiers")
+            and Creation.PeutEncoreDepenser(brouillon, categorie)
+        then
             out[#out + 1] = string.format("il reste %d point%s de %s a placer.",
                 budget.reste, budget.reste > 1 and "s" or "", Creation.LIBELLES[categorie] or categorie)
         end
     end
     return out
+end
+
+-- Forme exportable d'un PNJ du compendium. Les metiers y sont conserves comme
+-- niveaux de creation ; le registre PNJ les convertit en XP quand il construit
+-- le modele, afin que les instances utilisent ensuite le moteur Metiers normal.
+function Creation.DefinitionPNJ(brouillon, id)
+    if type(brouillon) ~= "table" or brouillon.mode ~= "pnj" then
+        return nil, "creation de PNJ invalide."
+    end
+    local problemes = Creation.Problemes(brouillon)
+    if #problemes > 0 then return nil, problemes[1] end
+
+    local valeurs = { race = brouillon.race, niveau = brouillon.niveau }
+    if brouillon.valeurs.sexe == "Autre" and tostring(brouillon.sexeAutre or "") ~= "" then
+        valeurs.sexe = brouillon.sexeAutre
+    end
+    for champ, valeur in pairs(brouillon.valeurs or {}) do valeurs[champ] = valeur end
+
+    local race = LCM.Races.Get(brouillon.race)
+    return {
+        id = tostring(id or ""),
+        label = tostring(brouillon.nom or ""),
+        icone = race and race.icone or nil,
+        valeurs = valeurs,
+        traits = LCM.Copie(brouillon.traits or {}),
+        metiersNiveaux = LCM.Copie(brouillon.metiers or {}),
+    }
 end
 
 -- Rien n'oblige a tout depenser : un personnage peut garder des points de cote.
@@ -541,10 +629,12 @@ function Creation.Depuis(entity)
     -- ce que la creation sait depenser : le reste de la fiche (jauges, etats,
     -- inventaire) ne la regarde pas et doit survivre a la refonte.
     for _, categorie in ipairs(Creation.CATEGORIES or {}) do
-        for _, ligne in ipairs(Creation.Lignes(categorie.id or categorie) or {}) do
-            local id = ligne.id or ligne
-            local valeur = tonumber(LCM.Entities.Get_Value(entity, id))
-            if valeur and valeur ~= 0 then brouillon.valeurs[id] = valeur end
+        if (categorie.id or categorie) ~= "metiers" then
+            for _, ligne in ipairs(Creation.Lignes(categorie.id or categorie) or {}) do
+                local id = ligne.id or ligne
+                local valeur = tonumber(LCM.Entities.Get_Value(entity, id))
+                if valeur and valeur ~= 0 then brouillon.valeurs[id] = valeur end
+            end
         end
     end
     for _, champ in ipairs({ "sexe", "age", "poids", "taille", "portrait" }) do
@@ -595,7 +685,7 @@ function Creation.AppliquerNiveau(brouillon)
     if #problemes > 0 then return nil, problemes[1] end
 
     for _, categorie in ipairs(Creation.CATEGORIES) do
-        if categorie ~= "traits" then
+        if categorie ~= "traits" and categorie ~= "metiers" then
             for _, ligne in ipairs(Creation.Lignes(categorie)) do
                 local id = ligne.id or ligne
                 local valeur = Creation.Valeur(brouillon, id)
@@ -643,7 +733,7 @@ function Creation.Appliquer(brouillon)
             poids = true, taille = true, portrait = true,
         }
         for _, categorie in ipairs(Creation.CATEGORIES) do
-            if categorie ~= "traits" then
+            if categorie ~= "traits" and categorie ~= "metiers" then
                 for _, ligne in ipairs(Creation.Lignes(categorie)) do
                     aRemplacer[ligne.id or ligne] = true
                 end
@@ -673,5 +763,12 @@ function Creation.Appliquer(brouillon)
     entity, erreur = LCM.Personnages.Creer(brouillon.nom, valeurs)
     if not entity then return nil, erreur end
     for _, id in ipairs(brouillon.traits) do LCM.Traits.Grant(entity, id) end
+    -- Les points de creation donnent directement des NIVEAUX. La feuille des
+    -- metiers, elle, stocke toujours de l'XP : le bareme central fait la
+    -- conversion, de sorte qu'un point donne Rose 1 (40 XP), deux Rose 2, etc.
+    for id, niveau in pairs(brouillon.metiers or {}) do
+        local xp = LCM.Metiers.XPPourNiveau(niveau)
+        if xp > 0 then LCM.Metiers.Gagner(entity, id, xp) end
+    end
     return entity
 end

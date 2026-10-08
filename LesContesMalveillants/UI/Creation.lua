@@ -67,6 +67,9 @@ local TEXTES = {
     expertises = "Les expertises représentent les compétences diverses et variées qu'un personnage sait faire "
         .. "ou non.\n\nIl est possible que certaines expertises ne soient pas présentées dans cette liste ; le "
         .. "cas échéant, celles-ci sont traitées soit au feeling, soit par aval d'un maître du jeu.",
+    metiers = "Un personnage joueur dispose de 4 points de métier, quel que soit son niveau d'aventure. "
+        .. "Un PNJ dispose de 4 points par niveau et peut en laisser une partie inutilisée.\n\n"
+        .. "Chaque point augmente directement le niveau du métier choisi de 1.",
     penetrations = "Les pénétrations représentent les compétences du personnage dans un domaine lorsqu'il "
         .. "s'agit de manipuler ce dernier à des fins actives.\n\n"
         .. "Comprenez par là qu'une pénétration permet autant de définir les dégâts produits par un type que la "
@@ -820,6 +823,57 @@ function Pages.expertises(page, f)
     Grille(page, f, "Expertises et compétences", TEXTES.expertises, "expertises", 3)
 end
 
+function Pages.metiers(page, f)
+    local bloc = Bloc(page, "Métiers", TEXTES.metiers)
+    Budget(page, f, bloc, "metiers")
+    page.metiers = {}
+    local marge = UI.Fiche.MARGE_BLOC + 6
+    local haut = Haut(bloc)
+    local colonnes, ecart = 2, 8
+    local largeur = (LARGEUR_PAGE - 2 * marge - ecart) / colonnes
+    local hauteurLigne = 32
+
+    for index, metier in ipairs(LCM.Metiers.list) do
+        local metierLigne = metier
+        local colonne = (index - 1) % colonnes
+        local rangee = math.floor((index - 1) / colonnes)
+        local compteur = UI.Compteur(bloc, metierLigne.label, 190, {
+            change = function(valeur)
+                local ok, raison = C.Definir(f.brouillon, "metiers", metierLigne.id, valeur)
+                if not ok then
+                    LCM.Alerte(string.format("%s : %s", metierLigne.label, tostring(raison)))
+                    return false
+                end
+                f:Actualiser()
+            end,
+            max = function() return C.Maximum(f.brouillon, "metiers", metierLigne.id) end,
+        })
+        compteur:SetHeight(hauteurLigne - 4)
+        compteur:SetWidth(largeur)
+        compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT",
+            marge + colonne * (largeur + ecart), -(haut + rangee * hauteurLigne))
+        compteur.icone = compteur:CreateTexture(nil, "ARTWORK")
+        compteur.icone:SetSize(22, 22)
+        compteur.icone:SetPoint("LEFT", compteur, "LEFT", 5, 0)
+        compteur.icone:SetTexture(metierLigne.icone)
+        compteur.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        compteur.label:ClearAllPoints()
+        compteur.label:SetPoint("LEFT", compteur.icone, "RIGHT", 6, 0)
+        compteur.label:SetWidth(150)
+        compteur.metierId = metierLigne.id
+        page.metiers[#page.metiers + 1] = compteur
+    end
+    bloc.hauteurContenu = math.ceil(#LCM.Metiers.list / colonnes) * hauteurLigne
+
+    function page:Actualiser()
+        for _, compteur in ipairs(self.metiers) do
+            local valeur = tonumber((f.brouillon.metiers or {})[compteur.metierId]) or 0
+            compteur:Regler(valeur, C.Plafond(f.brouillon, "metiers", compteur.metierId))
+        end
+    end
+    page:Actualiser()
+end
+
 function Pages.mecaniques(page, f)
     Grille(page, f, "Mécanique de compétence", TEXTES.mecaniques, "mecaniques", 3)
 end
@@ -1040,6 +1094,20 @@ local function Construire()
 
     -- En bas : ce qui bloque, et les trois gestes.
     f.valider = UI.Bouton(f.contenu, "Créer le personnage", 190, 26, function()
+        if f.brouillon.mode == "pnj" then
+            if type(f.sauverPNJ) ~= "function" then
+                LCM.Alerte("enregistrement du PNJ indisponible.")
+                return
+            end
+            local ok, resultat = f.sauverPNJ(f.brouillon)
+            if not ok then
+                LCM.Alerte(tostring(resultat))
+                return
+            end
+            LCM.Ok(string.format("PNJ %s enregistré dans le compendium.", tostring(resultat or f.brouillon.nom)))
+            f:Hide()
+            return
+        end
         local montee = f.brouillon.mode == "niveau"
         local edition = f.brouillon.entite ~= nil
         local entity, resultat = C.Appliquer(f.brouillon)
@@ -1153,6 +1221,7 @@ local function Construire()
         { id = "penetration", label = "Pénétrations" },
         { id = "resistance",  label = "Résistances" },
         { id = "traits",      label = "Traits" },
+        { id = "metiers",     label = "Métiers" },
     }
 
     -- Ce qu'une categorie montre quand on la deplie. On ne liste que ce qui est
@@ -1183,6 +1252,13 @@ local function Construire()
                         brouillon.mode == "niveau" and ("+" .. tostring((trait and trait.cout) or 1))
                             or tostring((trait and trait.cout) or 1) }
                 end
+            end
+            return out
+        end
+        if categorie == "metiers" then
+            for _, metier in ipairs(LCM.Metiers.list) do
+                local niveau = tonumber((brouillon.metiers or {})[metier.id]) or 0
+                if niveau > 0 then out[#out + 1] = { metier.label, tostring(niveau) } end
             end
             return out
         end
@@ -1300,12 +1376,21 @@ local function Construire()
     local ETAPE_CATEGORIES = {
         statistiques = { "primaires", "secondaires" },
         expertises = { "expertises" }, mecaniques = { "mecaniques" },
+        metiers = { "metiers" },
         penetrations = { "penetration" }, resistances = { "resistance" },
         traits = { "traits" },
     }
 
     function f:EtapesDisponibles()
-        if self.brouillon.mode ~= "niveau" then return C.ETAPES end
+        if self.brouillon.mode ~= "niveau" then
+            local out = {}
+            for _, etape in ipairs(C.ETAPES) do
+                if etape.id ~= "metiers" or C.Total(self.brouillon, "metiers") > 0 then
+                    out[#out + 1] = etape
+                end
+            end
+            return out
+        end
         local out = {}
         for _, etape in ipairs(C.ETAPES) do
             local visible = etape.id == "generale"
@@ -1428,11 +1513,12 @@ local function Construire()
     function f:Montrer(brouillon)
         self.brouillon = brouillon or self.brouillon or C.Nouveau()
         local montee = self.brouillon.mode == "niveau"
+        local pnj = self.brouillon.mode == "pnj"
         local edition = self.brouillon.entite ~= nil
         self:Titre(montee and string.format("Niveau %d → %d", self.brouillon.niveauAvant, self.brouillon.niveau)
-            or (edition and "Réédition" or "Création"))
+            or (pnj and "Création d'un PNJ" or (edition and "Réédition" or "Création")))
         self.valider.label:SetText(montee and ("Valider le niveau " .. tostring(self.brouillon.niveau))
-            or (edition and "Valider la fiche" or "Créer le personnage"))
+            or (pnj and "Créer le PNJ" or (edition and "Valider la fiche" or "Créer le personnage")))
         self.recap.titre:SetText(montee and "Gains de ce niveau" or "Récapitulatif")
         self.remiseTotale.label:SetText(montee and "Réinitialiser ce niveau" or "Tout remettre à zéro")
         self:Afficher(montee and "generale" or C.ETAPES[1].id)
@@ -1451,7 +1537,19 @@ end
 -- les restes de la fois d'avant.
 function Ecran.Ouvrir()
     local f = Ecran.Fenetre()
+    f.sauverPNJ = nil
     f:Montrer(C.Nouveau())
+    return f
+end
+
+-- Point d'entree du compagnon MJ : meme createur, mais la validation lui rend
+-- une definition a enregistrer dans le compendium au lieu de creer un joueur.
+function Ecran.OuvrirPNJ(sauver)
+    if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
+    if type(sauver) ~= "function" then return nil, "enregistrement du PNJ indisponible." end
+    local f = Ecran.Fenetre()
+    f.sauverPNJ = sauver
+    f:Montrer(C.NouveauPNJ())
     return f
 end
 
@@ -1462,6 +1560,7 @@ function Ecran.Editer(entity)
     local brouillon, erreur = C.Depuis(entity)
     if not brouillon then return nil, erreur end
     local f = Ecran.Fenetre()
+    f.sauverPNJ = nil
     f:Montrer(brouillon)
     return f
 end
@@ -1471,6 +1570,7 @@ function Ecran.MonterNiveau(entity)
     local brouillon, erreur = C.DepuisNiveau(entity)
     if not brouillon then return nil, erreur end
     local f = Ecran.Fenetre()
+    f.sauverPNJ = nil
     f:Montrer(brouillon)
     return f
 end

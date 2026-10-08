@@ -29,7 +29,7 @@ LCM.Brouillons = Brouillons
 -- d'equilibrage, et les resolutions de categorie « mj ».
 Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
-    "jeux" }
+    "jeux", "points" }
 
 local function Store(famille)
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
@@ -102,6 +102,30 @@ local function DejaEnDur(registre, id)
     return existant ~= nil and existant.brouillon ~= true
 end
 
+-- Compare la forme construite du brouillon avec l'entree publiee. Les valeurs
+-- brutes peuvent differer sans que le contenu differe ("3" contre 3, chemin
+-- d'icone normalise, champs vides retires) : il faut donc comparer APRES le
+-- passage par le registre. `brouillon` est un marqueur de provenance, pas du
+-- contenu.
+local function MemeValeur(gauche, droite)
+    if type(gauche) ~= type(droite) then return false end
+    if type(gauche) ~= "table" then return gauche == droite end
+    for cle, valeur in pairs(gauche) do
+        if cle ~= "brouillon" and not MemeValeur(valeur, droite[cle]) then return false end
+    end
+    for cle, valeur in pairs(droite) do
+        if cle ~= "brouillon" and not MemeValeur(valeur, gauche[cle]) then return false end
+    end
+    return true
+end
+
+local function PublieIdentique(registre, entree)
+    local existant = registre and registre.Get(entree.id)
+    if not existant or existant.brouillon == true then return false end
+    local ok, construit = pcall(registre.Construire, entree)
+    return ok and MemeValeur(construit, existant)
+end
+
 function Brouillons.Published()
     local out = {}
     for _, famille in ipairs(Brouillons.FAMILLES) do
@@ -148,6 +172,7 @@ end
 -- Resolu a l'appel : les registres vivent dans l'addon principal. La table
 -- famille -> registre est celle du compendium, la seule.
 local function Registre(famille)
+    if tostring(famille or "") == "points" then return LCM.Points end
     local nom = LCM.Compendium and LCM.Compendium.FAMILLES[tostring(famille or "")]
     return nom and LCM[nom] or nil
 end
@@ -244,8 +269,12 @@ function Brouillons.Enregistrer(famille, entree, creation, remplacer)
     -- Le bareme de la forge BLOQUE (decision du 3 octobre 2026). Ici, et pas
     -- dans chaque fenetre : l'atelier, l'editeur et la modification groupee
     -- passent tous par cette porte.
-    local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
-    if not dansLeBareme then return false, horsBareme end
+    -- Les points de vente/recolte assemblent du contenu deja forge : ils
+    -- n'ont ni cout ni jeu d'equilibrage propre a verifier.
+    if famille ~= "points" then
+        local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
+        if not dansLeBareme then return false, horsBareme end
+    end
 
     -- Retenu DANS le brouillon : l'export doit savoir qu'il ecrase un publie,
     -- et l'atelier doit pouvoir le dire a chaque ouverture.
@@ -647,17 +676,34 @@ LCM.WhenReady(function()
 
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
+    local retiresCarPublies = 0
     for _, famille in ipairs(Brouillons.FAMILLES) do
         local registre = Registre(famille)
         for _, entree in ipairs(Brouillons.List(famille)) do
             if not registre.Get(entree.id) then
                 local ok, cree = pcall(registre.Add, entree)
-                if ok and type(cree) == "table" then cree.brouillon = true
+                if ok and type(cree) == "table" then
+                    cree.brouillon = true
+                    if famille == "points" and registre.ActualiserRegles then
+                        registre.ActualiserRegles(cree)
+                    end
                 elseif not ok then
                     LCM.Erreur(string.format("brouillon refuse (%s) : %s", famille, Raison(cree)))
                 end
+            elseif PublieIdentique(registre, entree) then
+                -- L'outil d'export ne touche volontairement jamais au WTF.
+                -- Quand la mise a jour revient, c'est donc l'addon qui retire
+                -- la copie devenue strictement redondante. Une version locale
+                -- differente reste intacte et continue d'etre signalee.
+                if Brouillons.Remove(famille, entree.id) then
+                    retiresCarPublies = retiresCarPublies + 1
+                end
             end
         end
+    end
+    if retiresCarPublies > 0 then
+        LCM.Info(string.format("%d brouillon(s) retire(s) : ils sont maintenant publies.",
+            retiresCarPublies))
     end
     local nombre = Brouillons.Count()
     if nombre > 0 then

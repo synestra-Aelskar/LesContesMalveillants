@@ -44,6 +44,23 @@ local function ConstruireBarre()
     Consultation.barre = barre
     barre.boutons = {}
     barre:SetWidth(TAILLE_ONGLET)
+    local function CommencerDeplacement()
+        local fenetre = Consultation.fenetre
+        if fenetre then fenetre:StartMoving() end
+    end
+    local function FinirDeplacement()
+        local fenetre = Consultation.fenetre
+        if not fenetre then return end
+        local finir = fenetre:GetScript("OnDragStop")
+        if finir then finir(fenetre) else fenetre:StopMovingOrSizing() end
+    end
+    barre:EnableMouse(true)
+    barre:RegisterForDrag("LeftButton")
+    -- La tranche appartient visuellement a la feuille. On peut donc aussi
+    -- saisir ses espaces pour deplacer l'ensemble, pas seulement le titre de
+    -- la feuille.
+    barre:SetScript("OnDragStart", CommencerDeplacement)
+    barre:SetScript("OnDragStop", FinirDeplacement)
 
     local y = 0
     for rang, definition in ipairs(Consultation.ONGLETS) do
@@ -83,6 +100,12 @@ local function ConstruireBarre()
             GameTooltip:Show()
         end)
         bouton:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        -- Les icones couvrent presque toute la tranche. Elles doivent donc
+        -- elles aussi servir de poignee : un clic change d'onglet, un glisser
+        -- deplace la feuille et toute sa barre.
+        bouton:RegisterForDrag("LeftButton")
+        bouton:SetScript("OnDragStart", CommencerDeplacement)
+        bouton:SetScript("OnDragStop", FinirDeplacement)
         barre.boutons[rang] = bouton
         y = y + TAILLE_ONGLET + ECART_ONGLETS
     end
@@ -102,26 +125,19 @@ local function Selectionner(id)
     end
 end
 
--- La premiere fiche decide de la position de la tranche. Ensuite la tranche
--- est rattachee a UIParent et ne bouge plus : ce sont les autres feuilles qui
--- viennent poser leur bord droit contre elle, quelle que soit leur position
--- par defaut ou leur largeur.
-local function Positionner(barre, fenetre)
-    if not Consultation.positionAncree then
-        barre:ClearAllPoints()
-        barre:SetPoint("LEFT", fenetre, "RIGHT", ESPACEMENT_FEUILLE, 0)
-        barre:Show()
-        local x, y = barre:GetCenter()
+-- La barre reste enfant logique de la feuille affichee : la deplacer entraine
+-- donc immediatement les icones. Lors d'un changement d'onglet, on conserve
+-- la position absolue de la barre, puis on rattache la nouvelle feuille.
+local function Positionner(barre, fenetre, centreX, centreY)
+    if centreX and centreY then
         local ux, uy = UIParent:GetCenter()
-        if x and y and ux and uy then
-            barre:ClearAllPoints()
-            barre:SetPoint("CENTER", UIParent, "CENTER", x - ux, y - uy)
-        end
-        Consultation.positionAncree = true
-        return
+        local bordDroit = centreX - barre:GetWidth() / 2 - ESPACEMENT_FEUILLE
+        fenetre:ClearAllPoints()
+        fenetre:SetPoint("RIGHT", UIParent, "CENTER", bordDroit - ux, centreY - uy)
     end
-    fenetre:ClearAllPoints()
-    fenetre:SetPoint("RIGHT", barre, "LEFT", -ESPACEMENT_FEUILLE, 0)
+    barre:ClearAllPoints()
+    barre:SetPoint("LEFT", fenetre, "RIGHT", ESPACEMENT_FEUILLE, 0)
+    Consultation.positionAncree = true
 end
 
 local function SuivreFermeture(fenetre)
@@ -142,6 +158,10 @@ function Consultation.Ouvrir(entity, id)
     local fenetre = Fenetre(id)
     if not fenetre then return nil end
     local barre = Consultation.barre or ConstruireBarre()
+    local centreX, centreY
+    if Consultation.positionAncree and barre:IsShown() then
+        centreX, centreY = barre:GetCenter()
+    end
 
     Consultation.enBascule = true
     if Consultation.fenetre and Consultation.fenetre ~= fenetre then
@@ -154,7 +174,7 @@ function Consultation.Ouvrir(entity, id)
     fenetre:Montrer(entity)
     Consultation.enBascule = false
 
-    Positionner(barre, fenetre)
+    Positionner(barre, fenetre, centreX, centreY)
     Selectionner(id)
     barre:Show()
     return fenetre

@@ -116,6 +116,16 @@ Radial.STRUCTURE = {
             { id = "levitation",     label = "Lévitation",     icone = ICONE .. "levitation.tga" },
         },
     },
+    {
+        id = "influences", label = "Influences", icone = ICONE .. "buff_debuff_mj.tga",
+        entrees = {
+            { id = "intimidation",    label = "Intimidation",     icone = ICONE .. "attaque_mj.tga" },
+            { id = "provocation",     label = "Provocation",      icone = ICONE .. "offensives.tga" },
+            { id = "illusion",        label = "Illusion",         icone = ICONE .. "permutation.tga" },
+            { id = "peur",            label = "Peur",             icone = ICONE .. "generation_debuff.tga" },
+            { id = "controle_mental", label = "Contrôle mental",  icone = ICONE .. "controles.tga" },
+        },
+    },
     -- Le second lanceur du template (« Action mj ») : une categorie reservee.
     {
         id = "animation", label = "Animation", icone = ICONE .. "animation.tga", mjSeulement = true,

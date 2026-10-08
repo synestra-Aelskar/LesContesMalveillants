@@ -151,7 +151,7 @@ def lua_valeur(valeur, indent=0):
 #           outils du compagnon MJ), et l'addon joueur se passe tres bien de
 #           leur absence : une entree dont le jeu est inconnu s'affiche, elle ne
 #           se VERIFIE pas, et seule la creation d'entree verifie.
-RESERVE_MJ = {'pnj', 'jeux'}
+RESERVE_MJ = {'pnj', 'jeux', 'points'}
 
 # Les resolutions se partagent en deux par leur categorie (Core/Contenus.lua) :
 # « systeme » decrit comment une action se resout — tout le monde en a besoin ;
@@ -185,7 +185,12 @@ def corps_de(par_famille, entete):
         corps.append('-- ----- %s (%d) %s\n'
                      % (famille, len(entrees), '-' * max(0, 56 - len(famille))))
         for identifiant in sorted(entrees.keys()):
-            corps.append('LCM.%s.Add(%s)\n\n' % (registre, lua_valeur(entrees[identifiant])))
+            # Le contenu importe est charge avant Atelier.lua. Une correction
+            # publiee avec le meme identifiant doit remplacer cette ancienne
+            # version ; `Add` seul transforme cette situation normale en
+            # erreur "en double" avant meme le chargement du compagnon MJ.
+            corps.append('LCM.Publier(LCM.%s, %s)\n\n'
+                         % (registre, lua_valeur(entrees[identifiant])))
         total += len(entrees)
     if total == 0:
         corps.append('-- Aucune entree creee en seance.\n')
@@ -238,6 +243,7 @@ def main():
         'devises': 'Devises', 'informations': 'Informations', 'listes': 'Listes',
         'connaissances': 'Connaissances', 'resolutions': 'Resolutions',
         'calculateurs': 'Calculateurs', 'pnj': 'PNJ', 'jeux': 'Forge',
+        'points': 'Points',
     }
 
     # Une famille peut nourrir les deux fichiers (les resolutions), d'ou le tri

@@ -319,19 +319,26 @@ local function Gauche(f)
     local c = f.constructeur
     local y = 0
     local nEntete, nLigne = 0, 0
-    for _, famille in ipairs(c.familles) do
+    local plages = {}
+    for indexFamille, famille in ipairs(c.familles) do
         nEntete = nEntete + 1
         local e = f.entetes[nEntete]
         if not e then
             e = UI.Bouton(f.champs.contenu, "", 100, 20, function(self)
                 -- `false` : ouverte. Un clic ouvre une famille fermee, et ferme
-                -- une famille ouverte.
-                f.replies[self.libelle] = (f.replies[self.libelle] == false)
+                -- une famille ouverte. La position dans la liste est la cle :
+                -- le libelle est du texte d'interface et peut etre homonyme ou
+                -- changer avec le schema de fiche.
+                local ouverte = f.replies[self.cleFamille] == false
+                f.replies[self.cleFamille] = ouverte
+                f.familleAReveler = not ouverte and self.cleFamille or nil
                 Ecran.Rendre()
             end)
+            e:RegisterForClicks("LeftButtonUp")
             e.label:SetJustifyH("LEFT")
             f.entetes[nEntete] = e
         end
+        e.cleFamille = indexFamille
         e.libelle = famille.libelle
         local mis = 0
         for _, ch in ipairs(famille.champs) do mis = mis + (c.points[ch.id] or 0) end
@@ -339,7 +346,7 @@ local function Gauche(f)
         -- prix ne s'affiche que s'il vaut pour toute la famille ; sinon il est
         -- sur chaque ligne, ou il est juste.
         e.label:SetText(string.format("[%s] %s  |cff9a9a9a(%d champ%s%s)|r%s",
-            f.replies[famille.libelle] == false and "-" or "+",
+            f.replies[indexFamille] == false and "-" or "+",
             famille.libelle, #famille.champs, #famille.champs > 1 and "s" or "",
             famille.cout and (", " .. tostring(famille.cout) .. " pt") or "",
             mis > 0 and ("  |cffffd200" .. mis .. "|r") or ""))
@@ -350,9 +357,10 @@ local function Gauche(f)
         y = y + 24
         -- Replie par defaut, sauf ce qu'on a deja touche : quatre-vingts champs
         -- deplies d'un coup ne se lisent pas.
-        local ouverte = f.replies[famille.libelle] == false or (f.replies[famille.libelle] == nil and mis > 0)
+        local hautFamille = y - 24
+        local ouverte = f.replies[indexFamille] == false or (f.replies[indexFamille] == nil and mis > 0)
         if ouverte then
-            f.replies[famille.libelle] = false
+            f.replies[indexFamille] = false
             for _, ch in ipairs(famille.champs) do
                 nLigne = nLigne + 1
                 local l = f.lignes[nLigne]
@@ -397,10 +405,26 @@ local function Gauche(f)
                 y = y + LIGNE
             end
         end
+        plages[indexFamille] = { haut = hautFamille, bas = y }
     end
     for i = nEntete + 1, #f.entetes do f.entetes[i]:Hide() end
     for i = nLigne + 1, #f.lignes do f.lignes[i]:Hide() end
     f.champs:Regler(y)
+
+    -- Une famille proche du bas s'ouvrait sous le bord rogne de la liste : le
+    -- signe changeait, mais aucun champ n'apparaissait a l'ecran et le menu
+    -- semblait inactif. Au clic d'ouverture, on garde son entete et ses lignes
+    -- dans la zone visible.
+    local cle = f.familleAReveler
+    local plage = cle and plages[cle]
+    if plage then
+        local debut = f.champs.decalage or 0
+        local finVisible = debut + (f.champs:GetHeight() or 0)
+        if plage.haut < debut or plage.bas > finVisible then
+            f.champs:Aller(plage.haut)
+        end
+    end
+    f.familleAReveler = nil
 end
 
 local function Droite(f)

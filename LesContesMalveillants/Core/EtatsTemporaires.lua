@@ -85,17 +85,19 @@ function Temporaires.Poser(entity, etat)
         -- Un etat sans duree se guerit : par la narration (le MJ le retire) ou
         -- par un jet { competence, dc } (Necronicon : cureMode « rand »).
         guerison = etat.guerison,
+        controle = type(etat.controle) == "table" and LCM.Copie(etat.controle) or nil,
     }
     if Temporaires.onChange then Temporaires.onChange(entity) end
     return liste[#liste]
 end
 
 -- Retire par nom, ou par identifiant (celui que la dissipation designe).
-function Temporaires.Retirer(entity, nom)
+function Temporaires.Retirer(entity, nom, force)
     local liste = Temporaires.Liste(entity)
     local retire = false
     for i = #liste, 1, -1 do
         if liste[i].nom == nom or (liste[i].id ~= nil and liste[i].id == nom) then
+            if liste[i].controle and not force and not LCM.IsMaster() then return false, "cet état ne peut pas être retiré par sa cible." end
             table.remove(liste, i)
             retire = true
         end
@@ -106,6 +108,8 @@ function Temporaires.Retirer(entity, nom)
     end
     return retire
 end
+
+function Temporaires.RetirerForce(entity, nom) return Temporaires.Retirer(entity, nom, true) end
 
 -- Un cumul (« stack ») draine, a chaque round, pct % du maximum de sa jauge
 -- par cumul : une zone du corps (« Torse »), la Fatigue ou les Boucliers.

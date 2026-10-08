@@ -21,6 +21,28 @@ LCM.Fiches = Fiches
 
 local recues = {}
 
+-- UnitName peut donner « Nom » pour un membre du meme royaume alors que
+-- CHAT_MSG_ADDON annonce « Nom-Royaume ». On privilegie toujours l'identite
+-- complete, puis on accepte le nom court uniquement s'il ne designe qu'une
+-- seule fiche recue (deux joueurs homonymes inter-royaumes restent distincts).
+local function NomCourt(joueur)
+    local court = tostring(joueur or ""):match("^([^-]+)") or ""
+    return court:lower()
+end
+
+local function EntreeRecue(joueur)
+    joueur = tostring(joueur or "")
+    if recues[joueur] then return recues[joueur] end
+    local court, trouve = NomCourt(joueur), nil
+    for nom, entree in pairs(recues) do
+        if NomCourt(nom) == court then
+            if trouve and trouve ~= entree then return nil end
+            trouve = entree
+        end
+    end
+    return trouve
+end
+
 -- Combien de temps une fiche recue reste consultable. Au-dela, on la redemande
 -- plutot que de montrer un etat d'il y a une heure pour l'etat actuel.
 Fiches.FRAICHEUR = 300
@@ -86,6 +108,13 @@ function Fiches.Paquet(entity)
     for champ, cle in pairs(ANNEXES) do
         if entity[champ] ~= nil then paquet[cle] = Copier(entity[champ]) end
     end
+    -- La fiche distante doit montrer le même volet d'identité que la fiche
+    -- locale. TRP3 ne sait lire directement que les profils connus du client
+    -- du MJ : le joueur joint donc un instantané strictement limité aux champs
+    -- visibles du volet.
+    if LCM.Identite and LCM.Identite.InstantaneTRP then
+        paquet.trp = LCM.Identite.InstantaneTRP()
+    end
     -- Les jauges calculees (l'armure portee) ne sont pas dans les valeurs, et
     -- restent aussi envoyees sous leur lecture afin que la vue supporte les
     -- personnages provenant d'une version precedente du paquet.
@@ -120,6 +149,7 @@ function Fiches.Entite(paquet)
     for champ, cle in pairs(ANNEXES) do
         if paquet[cle] ~= nil then entity[champ] = Copier(paquet[cle]) end
     end
+    if type(paquet.trp) == "table" then entity.trp = Copier(paquet.trp) end
     return entity
 end
 
@@ -135,14 +165,24 @@ end
 
 -- La derniere fiche recue de ce joueur, si elle est encore fraiche.
 function Fiches.Recue(joueur)
-    local entree = recues[tostring(joueur)]
+    local entree = EntreeRecue(joueur)
     if not entree then return nil end
     if Maintenant() - entree.quand > Fiches.FRAICHEUR then return nil, entree.entity end
     return entree.entity, entree.entity
 end
 
 function Fiches.Oublier(joueur)
-    recues[tostring(joueur)] = nil
+    joueur = tostring(joueur or "")
+    if recues[joueur] then recues[joueur] = nil return end
+    local court, nomTrouve
+    court = NomCourt(joueur)
+    for nom in pairs(recues) do
+        if NomCourt(nom) == court then
+            if nomTrouve then return end -- homonymes : ne rien effacer au hasard
+            nomTrouve = nom
+        end
+    end
+    if nomTrouve then recues[nomTrouve] = nil end
 end
 
 function Fiches.Connues()

@@ -849,9 +849,10 @@ Par ordre de ce qui bloque le plus :
       décision du 1er octobre 2026, qui revient sur « humain seulement ».
       Toutes sont humanoïdes ; les autres morphologies s'utilisent via le
       champ `morphologie` d'une entité.
-- [ ] **Les points eux-mêmes** : `Data/Genere/Points.lua` est vide. Les vendeurs
-      et les filons viendront de l'atelier MJ comme le reste du contenu ; la
-      forme d'un point est documentée en tête du fichier.
+- [x] **Les points eux-mêmes** : les fenêtres MJ « Vendeur » et « Ressources »
+      créent, modifient et suppriment leurs points et leurs offres. Ils vivent
+      comme brouillons MJ, se synchronisent entre MJ et s'exportent dans le
+      compagnon ; aucun de ces outils n'est chargé chez les joueurs.
 - [x] **Un outil MJ pour l'expérience** (3 octobre 2026). Le MJ donne l'XP
       depuis le Panel MJ : un montant par joueur, un motif commun pour la
       tablée. Le palier franchi fait monter le niveau tout seul

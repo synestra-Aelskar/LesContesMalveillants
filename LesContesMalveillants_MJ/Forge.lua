@@ -74,7 +74,7 @@ local RARETES_NEUVES = {
 -- En memoire seulement : jeu, rarete, nom, et les valeurs touchees (une
 -- statistique non touchee vaut sa base).
 
-local courant = { valeurs = {}, nom = "", creationId = Brouillons.NouvelIdentifiant() }
+local courant = { valeurs = {}, nom = "", taille = 1, creationId = Brouillons.NouvelIdentifiant() }
 ForgeUI.courant = courant
 
 -- Les categories dont les entrees sont creees et reprises dans cette fenetre.
@@ -123,6 +123,10 @@ local function Valeur(jeu, rarete, cle)
     return LCM.Forge.Limites(jeu, cle, rarete and rarete.id).base
 end
 
+local function MultiplicateurPool()
+    return courant.categorie == "armes" and tonumber(courant.taille) == 2 and 2 or 1
+end
+
 -- Les valeurs d'une entree : une statistique verrouillee vaut sa base, les
 -- autres ce qui est saisi. Un zero ne s'ecrit pas (le registre le refuse).
 local function Bonus(jeu, rarete)
@@ -155,6 +159,7 @@ function ForgeUI.Definition()
     def.id, def.label = id, nom
     def.bonus = Bonus(jeu, rarete)
     def.forge = LCM.Forge.Valeur(jeu, rarete)
+    if categorie.id == "armes" then def.taille = MultiplicateurPool() end
     -- Une race publique est proposee aux joueurs ; une race reservee reste
     -- visible et attribuable uniquement pour un MJ. La case de la Forge est
     -- la source de cette propriete, y compris lors d'une modification.
@@ -192,6 +197,7 @@ function ForgeUI.Creer()
         courant.remplacePublie = false
     else
         courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
+        courant.taille = 1
         courant.mjSeulement = nil
         courant.creationId = Brouillons.NouvelIdentifiant()
     end
@@ -335,6 +341,21 @@ local function Construire()
         courant.mjSeulement = cochee and true or nil
     end)
     f.mjSeulement:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -180)
+
+    f.emplacementsLibelle = Libelle("Emplacements occupés", 2, -184)
+    f.emplacements = UI.Bouton(c, "", 156, 22, function(b)
+        f.choix.titre:SetText("Emplacements occupés")
+        f.choix:Proposer(b, {
+            { id = "1", label = "1 emplacement" },
+            { id = "2", label = "2 emplacements" },
+        }, function(id)
+            courant.taille = tonumber(id) == 2 and 2 or 1
+            f:Rafraichir()
+        end)
+    end)
+    f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 132, -180)
+    UI.Bulle(f.emplacements, "Occupation de l'arme",
+        "Une arme à deux emplacements dispose de deux fois le pool de points de sa rareté.")
 
     -- Le compteur : points depenses sur le pool de la rarete.
     local k = CreateFrame("Frame", nil, c)
@@ -497,13 +518,14 @@ local function Construire()
             return
         end
         local total = bilan.total
-        local depasse = total > rarete.points
+        local pool = bilan.pool or rarete.points
+        local depasse = total > pool
         local r, g, b = RVB(rarete.couleur)
         k.points:SetText(C.Nombre(total) .. " pts")
         if depasse then Peindre(k.points, ROUGE) else k.points:SetTextColor(r, g, b) end
         -- Les VALEURS, pas le total : le credit des negatives est plafonne par
         -- le pool, donc le total depend de la rarete qu'on vise.
-        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs)
+        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs, MultiplicateurPool())
         if depasse then
             k.palier:SetText("Dépasse le pool de " .. rarete.label)
         elseif suffit and suffit.id ~= rarete.id then
@@ -517,8 +539,8 @@ local function Construire()
             k.palier:SetText(string.format("%s — %s pt(s) rendus perdus (plafond du pool)",
                 k.palier:GetText(), C.Nombre(bilan.creditPerdu)))
         end
-        k.pool:SetText(string.format("/ %d pts", rarete.points))
-        local part = rarete.points > 0 and math.min(1, math.max(0, total / rarete.points)) or (total > 0 and 1 or 0)
+        k.pool:SetText(string.format("/ %d pts", pool))
+        local part = pool > 0 and math.min(1, math.max(0, total / pool)) or (total > 0 and 1 or 0)
         k.barre:SetWidth(math.max(1, ((k:GetWidth() or (LARGEUR - 28)) - 2) * part))
         if depasse then k.barre:SetColorTexture(1, 0.2, 0.2, 0.22) else k.barre:SetColorTexture(r, g, b, 0.18) end
     end
@@ -552,6 +574,10 @@ local function Construire()
         self.mjSeulement:Cocher(courant.mjSeulement == true)
         self.mjSeulement:SetShown(ForgeUI.rendre == nil
             and categorie ~= nil and categorie.famille == "races")
+        local estArme = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "armes"
+        self.emplacementsLibelle:SetShown(estArme)
+        self.emplacements:SetShown(estArme)
+        self.emplacements.label:SetText(MultiplicateurPool() == 2 and "2 emplacements" or "1 emplacement")
         -- La zone suit la largeur de la fenetre (le tableau l'elargit) ; sa
         -- saisie multiligne, elle, a une largeur fixe a recaler.
         self.description.saisie:SetWidth(math.max(100, (self.description:GetWidth() or (LARGEUR - 28)) - 12))
@@ -562,7 +588,7 @@ local function Construire()
                 v[champ.cle] = Valeur(jeu, rarete, champ.cle)
             end
             return v
-        end)()) or nil
+        end)(), MultiplicateurPool()) or nil
         self:Compteur(jeu, rarete, bilan)
 
         -- Les statistiques ouvertes a l'investissement, par dossier. Les
@@ -716,11 +742,13 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.editionId, courant.original, courant.remplacePublie = nil, nil, nil
         courant.creationId = Brouillons.NouvelIdentifiant()
         courant.mjSeulement = nil
+        courant.taille = 1
         courant.nom, courant.icone, courant.description, courant.valeurs = "", nil, "", {}
     end
     if courant.categorie ~= categorie.id then
         courant.categorie, courant.jeuId, courant.rareteId, courant.valeurs = categorie.id, nil, nil, {}
         courant.mjSeulement = nil
+        courant.taille = 1
     end
     local f = ForgeUI.Fenetre()
     if f:IsShown() then f:Rafraichir() else f:Show() end
@@ -752,6 +780,7 @@ function ForgeUI.OuvrirEdition(categorie, element)
     courant.icone = element.icone
     courant.description = element.description or ""
     courant.mjSeulement = element.mjSeulement == true
+    courant.taille = categorie.id == "armes" and (tonumber(element.taille) == 2 and 2 or 1) or 1
     courant.editionId = tostring(element.id)
     courant.original = LCM.Copie(element)
     courant.remplacePublie = Brouillons.EstPublie(categorie.famille, element.id)
@@ -772,7 +801,7 @@ end
 --
 -- `valeurs` : les bonus deja poses. `forge` : « jeu/rarete » deja choisi, s'il
 -- y en a un. `onValider(bonus, valeurForge)` recoit le resultat.
-function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider)
+function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille)
     local ok, raison = ForgeUI.Ouvrir(categorieId)
     if not ok then return false, raison end
     local jeu, rarete = LCM.Forge.Lire(forge)
@@ -783,6 +812,7 @@ function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider)
     for cle, montant in pairs(valeurs or {}) do
         courant.valeurs[cle] = tonumber(montant) or montant
     end
+    courant.taille = categorieId == "armes" and (tonumber(taille) == 2 and 2 or 1) or 1
     ForgeUI.rendre = onValider
     local f = ForgeUI.Fenetre()
     f:Rafraichir()

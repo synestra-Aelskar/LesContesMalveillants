@@ -300,16 +300,22 @@ function Lignes.gauge(parent, field, c)
         LCM.Entities.SetGauge(e, field.id, cible)
         l:Actualiser(e)
     end
-    Jauge(l, c, COULEURS_JAUGE[field.id] or UI.C.vie, {
-        moins = function() Poser(-1) end,
-        plus = function() Poser(1) end,
-        -- Remise : au defaut du champ s'il en a un (l'armure ponctuelle
-        -- repart de zero), sinon au maximum.
-        remise = function()
-            local jauge = l.entity and LCM.Entities.Gauge(l.entity, field.id)
-            if jauge then Poser(0, field.default ~= nil and field.default or jauge.max) end
-        end,
-    })
+    -- PA, fatigue et bouclier sont des ressources de jeu : le joueur ne peut
+    -- plus les fabriquer ou les effacer depuis sa fiche. Leur modification
+    -- passe par les actions et par l'outil Regain du MJ.
+    local verrouillee = field.id == "pa" or field.id == "fatigue" or field.id == "armure"
+    local rappels
+    if not verrouillee then
+        rappels = {
+            moins = function() Poser(-1) end,
+            plus = function() Poser(1) end,
+            remise = function()
+                local jauge = l.entity and LCM.Entities.Gauge(l.entity, field.id)
+                if jauge then Poser(0, field.default ~= nil and field.default or jauge.max) end
+            end,
+        }
+    end
+    Jauge(l, c, COULEURS_JAUGE[field.id] or UI.C.vie, rappels)
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
         self.entity = e
@@ -694,14 +700,32 @@ function Lignes.traits(parent, field, c)
         end
         table.sort(options, function(a, b) return a.label:lower() < b.label:lower() end)
         self.choix:Proposer(self.ajouter, options, function(id)
-            if LCM.Traits.Grant(self.entity, id) then self:Changer() end
+            if LCM.Traits.Grant(self.entity, id) then
+                local sauver = self.entity and self.entity.__sauverPNJ
+                local ok, raison = true
+                if type(sauver) == "function" then ok, raison = sauver(self.entity) end
+                if not ok then
+                    LCM.Traits.Revoke(self.entity, id)
+                    LCM.Alerte("PNJ : " .. tostring(raison))
+                end
+                self:Changer()
+            end
         end)
     end
 
     -- Retirer se rattrape (on redonne le trait) : pas de confirmation.
     function l:Retirer(id)
         if not (self.entity and LCM.IsMaster()) or self.entity.distante then return end
-        if LCM.Traits.Revoke(self.entity, id) then self:Changer() end
+        if LCM.Traits.Revoke(self.entity, id) then
+            local sauver = self.entity and self.entity.__sauverPNJ
+            local ok, raison = true
+            if type(sauver) == "function" then ok, raison = sauver(self.entity) end
+            if not ok then
+                LCM.Traits.Grant(self.entity, id)
+                LCM.Alerte("PNJ : " .. tostring(raison))
+            end
+            self:Changer()
+        end
     end
 
     -- La hauteur change avec le nombre de cartes : la page se re-dispose.
@@ -1239,24 +1263,39 @@ function Lignes.conteneur(bloc, def, c)
     -- sacs. Les autres (etats, apprentissages) restent un geste du MJ.
     local depuisLesSacs = l.catalogue.Equiper ~= nil
 
+    -- Une fiche de modele PNJ n'a pas de sacs : le compendium lui attribue
+    -- directement ses objets. Les personnages ordinaires conservent le
+    -- circuit inventaire -> equipement.
+    function l:DepuisLesSacs()
+        return depuisLesSacs and not (self.entity and self.entity.editionPNJ)
+    end
+
+    function l:SauverPNJ()
+        if not (self.entity and type(self.entity.__sauverPNJ) == "function") then return true end
+        local ok, raison = self.entity.__sauverPNJ(self.entity)
+        if not ok then LCM.Alerte("PNJ : " .. tostring(raison)) end
+        return ok
+    end
+
     function l:Autorise(entity)
         if not entity then return false end
         if entity.distante then return false end
         if LCM.IsMaster() then return true end
-        return depuisLesSacs and LCM.Personnages.Actif() == entity
+        return self:DepuisLesSacs() and LCM.Personnages.Actif() == entity
     end
 
     function l:Proposer(ancre)
         if not self:Autorise(self.entity) then return end
         local categorie = self.catalogue.Categorie(self.categorie)
-        local candidats = depuisLesSacs and self.catalogue.CandidatsPossedes(self.entity, self.categorie)
+        local sacs = self:DepuisLesSacs()
+        local candidats = sacs and self.catalogue.CandidatsPossedes(self.entity, self.categorie)
             or self.catalogue.Candidats(self.entity, self.categorie)
         local options = {}
         for _, element in ipairs(candidats) do
             options[#options + 1] = { id = element.id, label = element.label }
         end
         if #options == 0 then
-            LCM.Alerte(depuisLesSacs
+            LCM.Alerte(sacs
                 and string.format("aucun objet de type %s dans les sacs.", categorie.label:lower())
                 or string.format("rien a ajouter en %s.", categorie.label:lower()))
             return
@@ -1265,9 +1304,13 @@ function Lignes.conteneur(bloc, def, c)
         local choix = Choix()
         choix.titre:SetText(categorie.label)
         choix:Proposer(ancre, options, function(id)
-            local placer = depuisLesSacs and self.catalogue.Equiper or self.catalogue.Placer
+            local placer = sacs and self.catalogue.Equiper or self.catalogue.Placer
             local ok, raison = placer(self.entity, id)
-            if not ok then LCM.Alerte(raison) end
+            if not ok then
+                LCM.Alerte(raison)
+            elseif not self:SauverPNJ() then
+                self.catalogue.Enlever(self.entity, id)
+            end
             self:Actualiser(self.entity)
         end)
     end
@@ -1276,7 +1319,7 @@ function Lignes.conteneur(bloc, def, c)
     -- retourne dans un sac ; sans place, il reste porte et c'est dit.
     function l:Retirer(id)
         if not self:Autorise(self.entity) then return end
-        if depuisLesSacs then
+        if self:DepuisLesSacs() then
             -- Un objet disparu de cette version ne peut pas retourner dans un
             -- sac (une case refuse l'inconnu) : seul le MJ l'enleve, d'un clic
             -- explicite, comme avant.
@@ -1288,6 +1331,7 @@ function Lignes.conteneur(bloc, def, c)
             if not ok then LCM.Alerte(raison) end
             self:Actualiser(self.entity)
         elseif self.catalogue.Enlever(self.entity, id) then
+            if not self:SauverPNJ() then self.catalogue.Placer(self.entity, id) end
             self:Actualiser(self.entity)
         end
     end
@@ -1768,6 +1812,125 @@ function Fiche.Artwork(parent, largeur)
             .. (progression.reste and ("\n" .. Nombre(progression.reste) .. " XP avant le niveau " .. progression.prochainNiveau .. ".") or ""))
     end
     p:SetScript("OnSizeChanged", function(self) if self.entity then self:Actualiser(self.entity) end end)
+    p:Hide()
+    return p
+end
+
+-- Volet d'identite, symetrique a l'artwork. Il rassemble ce que la fiche LCM
+-- connait (nom, age, poids) et ce que TRP3 expose deja (description et cinq
+-- coups d'oeil), sans recopier ces informations dans nos sauvegardes.
+function Fiche.Identite(parent, largeur)
+    local p = CreateFrame("Frame", nil, parent)
+    p:SetWidth(largeur)
+    p.fond = UI.Aplat(p, UI.C.fond)
+    p.fond:SetAllPoints(p)
+    if UI.Cadre then p.cadre = UI.Cadre(p) else UI.Bordure(p) end
+
+    p.titre = UI.Texte(p, "", UI.C.titre)
+    UI.Police(p.titre, 16)
+    p.titre:SetPoint("TOP", p, "TOP", 0, -18)
+    p.titre:SetWidth(largeur - 32)
+
+    p.zone = UI.Defilement(p)
+    p.zone:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -48)
+    p.zone:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -14, 18)
+    p.coupsOeil = {}
+
+    -- Age et poids forment une seule ligne compacte. La description suit sans
+    -- etiquette : dans ce volet etroit, les valeurs sont plus importantes que
+    -- les grands intertitres qui mangeaient la hauteur utile.
+    p.infos = UI.Texte(p.zone.contenu, "", UI.C.discret)
+    UI.Police(p.infos, 11)
+    p.infos:SetJustifyH("LEFT")
+    p.description = UI.Texte(p.zone.contenu, "", UI.C.texte)
+    UI.Police(p.description, 11)
+    p.description:SetJustifyH("LEFT")
+    p.description:SetWordWrap(true)
+
+    for index = 1, 5 do
+        local carte = CreateFrame("Frame", nil, p.zone.contenu)
+        if UI.AelCadre then UI.AelCadre(carte, "section") else UI.Bordure(carte) end
+        carte.nom = UI.Texte(carte, "", UI.C.titre)
+        UI.Police(carte.nom, 12)
+        carte.nom:SetPoint("TOPLEFT", carte, "TOPLEFT", 8, -8)
+        carte.nom:SetPoint("TOPRIGHT", carte, "TOPRIGHT", -8, -8)
+        carte.nom:SetJustifyH("LEFT")
+        carte.description = UI.Texte(carte, "", UI.C.texte)
+        UI.Police(carte.description, 11)
+        carte.description:SetPoint("TOPLEFT", carte.nom, "BOTTOMLEFT", 0, -4)
+        carte.description:SetPoint("TOPRIGHT", carte, "TOPRIGHT", -8, -38)
+        carte.description:SetJustifyH("LEFT")
+        carte.description:SetWordWrap(true)
+        p.coupsOeil[index] = carte
+    end
+
+    function p:Disposer()
+        local largeurUtile = math.max(80, self:GetWidth() - 38)
+        local y = 0
+        self.infos:SetWidth(largeurUtile)
+        self.infos:ClearAllPoints()
+        self.infos:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+        y = y + math.max(14, self.infos:GetStringHeight() or 14) + 12
+        self.description:SetWidth(largeurUtile)
+        self.description:ClearAllPoints()
+        self.description:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+        if self.description:IsShown() then
+            y = y + math.max(14, self.description:GetStringHeight() or 14) + 16
+        end
+        for _, carte in ipairs(self.coupsOeil) do
+            carte:SetWidth(largeurUtile)
+            carte.nom:SetWidth(largeurUtile - 16)
+            carte.description:SetWidth(largeurUtile - 16)
+            local h = 18 + math.max(14, carte.nom:GetStringHeight() or 14)
+                + math.max(14, carte.description:GetStringHeight() or 14)
+            carte:SetHeight(h)
+            carte:ClearAllPoints()
+            carte:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+            y = y + h + 8
+        end
+        self.zone:Regler(y)
+    end
+
+    function p:Actualiser(entity)
+        self.entity = entity
+        local estSoi = entity ~= nil and LCM.Entities.Self() == entity
+        local profilTRP = estSoi and LCM.Identite.ProfilTRP() or nil
+        local instantaneTRP = estSoi and LCM.Identite.InstantaneTRP()
+            or (entity and entity.trp)
+        local function Valeur(id, repli)
+            local valeur = entity and LCM.Entities.Get_Value(entity, id)
+            if valeur == nil or tostring(valeur) == "" then valeur = repli end
+            if valeur == nil or tostring(valeur) == "" then return "—" end
+            return tostring(valeur)
+        end
+        self.titre:SetText(Valeur("nom", entity and entity.name))
+        local age = Valeur("age", instantaneTRP and instantaneTRP.age
+            or (profilTRP and profilTRP.AG))
+        local poids = Valeur("poids", instantaneTRP and instantaneTRP.poids
+            or (profilTRP and profilTRP.WE))
+        self.infos:SetText("Âge : " .. age .. "     Poids : " .. poids)
+        local description = entity and LCM.Entities.Get_Value(entity, "description")
+        if description == nil or tostring(description) == "" then
+            description = instantaneTRP and instantaneTRP.description
+        end
+        description = tostring(description or "")
+        self.description:SetText(description)
+        self.description:SetShown(description ~= "")
+
+        local coups = instantaneTRP and instantaneTRP.coups or {}
+        for index, carte in ipairs(self.coupsOeil) do
+            local coup = coups[index]
+            local active = coup and (coup.actif == true or tostring(coup.actif) == "1")
+            local actif = active and (tostring(coup.nom or "") ~= ""
+                or tostring(coup.description or "") ~= "")
+            carte.nom:SetText(actif and (coup.nom ~= "" and coup.nom or "Sans nom") or "Non renseigné")
+            carte.description:SetText(actif and (coup.description ~= "" and coup.description or "—") or "")
+            local couleur = actif and UI.C.titre or UI.C.discret
+            carte.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+        end
+        self:Disposer()
+    end
+
     p:Hide()
     return p
 end

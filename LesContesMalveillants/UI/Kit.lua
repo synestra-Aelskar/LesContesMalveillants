@@ -860,8 +860,13 @@ function UI.Defilement(parent)
         -- quand on clique dans la table des matieres.
         if zone.onDefilement then zone.onDefilement(zone.decalage) end
 
-        barre:SetShown(debord > 0)
-        if debord > 0 then
+        -- La barre est une soeur de la zone (elle vit dans la marge du parent),
+        -- donc masquer la zone ne la masque pas avec elle. Un rendu peut encore
+        -- appeler Regler() pendant que la zone est repliee : ne jamais laisser
+        -- ce recalcul faire reapparaitre une barre orpheline.
+        local visibleZone = zone:IsShown()
+        barre:SetShown(visibleZone and debord > 0)
+        if visibleZone and debord > 0 then
             local hauteurBarre = barre:GetHeight()
             -- La poignee est a l'echelle de ce qu'on voit, jamais minuscule.
             local taille = math.max(24, hauteurBarre * visible / zone.hauteurContenu)
@@ -883,6 +888,8 @@ function UI.Defilement(parent)
     -- Une fenetre dont la taille n'est connue qu'apres la mise en page : on
     -- recalcule quand elle arrive.
     zone:SetScript("OnSizeChanged", Appliquer)
+    zone:HookScript("OnShow", Appliquer)
+    zone:HookScript("OnHide", function() barre:Hide() end)
 
     -- Clic dans la gouttiere : une page vers le haut ou le bas.
     barre:SetScript("OnClick", function(self)
@@ -1880,11 +1887,18 @@ function UI.SelecteurIcone(cle)
     local d = CreateFrame("Frame", "LCM_Icones_" .. tostring(cle), UIParent)
     d:SetSize(620, 520)
     d:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    d:SetFrameStrata("FULLSCREEN_DIALOG")
+    -- C'est une fenetre de choix ouverte depuis d'autres fenetres qui sont
+    -- elles-memes en FULLSCREEN_DIALOG et `SetToplevel(true)`. Au premier clic
+    -- sur le constructeur, celui-ci remontait donc devant le selecteur, qui ne
+    -- pouvait plus reprendre la main. TOOLTIP est la strate reservee aux
+    -- surcouches temporaires et reste au-dessus de ces fenetres principales.
+    d:SetFrameStrata("TOOLTIP")
+    d:SetToplevel(true)
     d:SetClampedToScreen(true)
     d:SetMovable(true)
     d:EnableMouse(true)
     d:RegisterForDrag("LeftButton")
+    d:SetScript("OnMouseDown", function(self) UI.Devant(self) end)
     d:SetScript("OnDragStart", d.StartMoving)
     d:SetScript("OnDragStop", d.StopMovingOrSizing)
     d.fond = UI.Aplat(d, { 0.045, 0.038, 0.03, 0.99 })
@@ -1996,8 +2010,11 @@ function UI.SelecteurIcone(cle)
         self:Remplir("")
         self:ClearAllPoints()
         self:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-        UI.Devant(self)
         self:Show()
+        -- Apres Show : certains clients recalculent le niveau d'une fenetre
+        -- cachee lorsqu'elle reapparait. La remonter ensuite rend la priorite
+        -- deterministe a chaque ouverture.
+        UI.Devant(self)
     end
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = d:GetName() end
     d:Hide()

@@ -20,7 +20,9 @@
 -- Mieux vaut un filon qu'on croit vide et qui ne l'est pas, que deux joueurs
 -- qui ramassent la meme chose.
 
-local _, LCM = ...
+local _, MJ = ...
+local LCM = _G.LCM
+if not LCM then return end
 
 local Stock = {}
 LCM.Stock = Stock

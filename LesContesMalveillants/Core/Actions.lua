@@ -447,6 +447,7 @@ function Actions.LireQuestions(texte)
                 or ((m2 == "number" or m2 == "num" or m2 == "nombre" or m2 == "saisie") and "number")
                 or ((m2 == "text" or m2 == "texte" or m2 == "libre") and "text")
                 or ((m2 == "multival" or m2 == "kv" or m2 == "listeval") and "multival")
+                or ((m2 == "actors" or m2 == "acteurs") and "actors")
                 or "single"
             local saisie = mode == "number" or mode == "text"
             local p3 = tostring(parts[3] or "")
@@ -470,6 +471,14 @@ function Actions.LireQuestions(texte)
             courante = { id = "q" .. (#questions + 1), label = parts[1] or "", mode = mode, signe = signe,
                          showIf = showIf, requis = requis, options = {} }
             if saisie or mode == "multival" then courante.variable = Trim(p3) end
+            if mode == "actors" then
+                courante.variable = Trim(p3)
+                for _, seg in ipairs(parts) do
+                    local ex = seg:match("^[Ee][Xx][Cc][Ll][Uu][Dd][Ee]%s*:%s*(.+)$")
+                    if ex then courante.excludeVar = Trim(ex) end
+                    if seg:lower() == "must" or seg:lower() == "obligatoire" then courante.obligatoire = true end
+                end
+            end
             if avg then
                 courante.avgVar = Trim((avg:gsub("@.*$", "")))
                 courante.avgOnglet = Trim(avg:match("@%s*(.+)$") or "")
@@ -520,6 +529,21 @@ function Actions.Composeur(etape, ctx)
     -- recalcul, pour qu'un choix defait ne laisse pas de trace.
     c.cles = {}
     for _, q in ipairs(c.questions) do
+        if q.mode == "actors" then
+            local joueurs, pnj = Actions.Cibles()
+            for _, acteur in ipairs(joueurs) do
+                local valeur = "j:" .. tostring(acteur.id)
+                q.options[#q.options + 1] = { id = "a" .. #q.options + 1, label = acteur.nom,
+                    pa = 0, pf = 0, pac = 0, pfc = 0, actorId = valeur,
+                    set = tostring(q.variable) .. "=" .. valeur }
+            end
+            for _, acteur in ipairs(pnj) do
+                local valeur = "p:" .. tostring(acteur.id)
+                q.options[#q.options + 1] = { id = "a" .. #q.options + 1, label = acteur.nom,
+                    pa = 0, pf = 0, pac = 0, pfc = 0, actorId = valeur,
+                    set = tostring(q.variable) .. "=" .. valeur }
+            end
+        end
         if q.avgVar and q.avgVar ~= "" then c.cles[q.avgVar] = true end
         if q.variable and q.variable ~= "" then c.cles[q.variable] = true end
         for _, o in ipairs(q.options) do
@@ -609,7 +633,10 @@ end
 
 function Composeur:Options(q)
     local out = {}
-    for _, o in ipairs(q.options) do if self:Proposee(q, o) then out[#out + 1] = o end end
+    for _, o in ipairs(q.options) do
+        local exclue = q.mode == "actors" and q.excludeVar and o.actorId == self.ctx.vars[q.excludeVar]
+        if not exclue and self:Proposee(q, o) then out[#out + 1] = o end
+    end
     return out
 end
 
@@ -701,6 +728,11 @@ end
 -- Ce qui empeche de declarer, ou nil.
 function Composeur:Blocage()
     if not self:Requis() then return "Il faut au moins un type d'attaque." end
+    for _, q in ipairs(self:Visibles()) do
+        if q.obligatoire and self.reponses[q.id] == nil then
+            return "Il faut choisir « " .. tostring(q.label) .. " »."
+        end
+    end
     local pa, pf = self:Deriver()
     local dpa, dpf = Actions.Disponible(self.ctx.entity)
     if dpa and pa > dpa + 0.005 then return "PA insuffisants pour cette action." end
@@ -983,6 +1015,70 @@ function Actions.DireEnChat(texte, canal)
     end
     Suivant()
     return #morceaux
+end
+
+-- L'emote qui accompagne une declaration d'action a une presentation propre
+-- au canal choisi. En groupe/raid, chaque morceau reste entierement encadre
+-- par < >. En emote, les morceaux intermediaires portent (...) afin que la
+-- continuation reste explicite meme si d'autres messages s'intercalent.
+function Actions.DireEmoteAction(texte, canal)
+    texte = Trim(tostring(texte or "")):gsub("%s+", " ")
+    if texte == "" or not SendChatMessage then return 0 end
+
+    canal = tostring(canal or "EMOTE"):upper()
+    if canal == "RAID" and not (IsInRaid and IsInRaid()) then
+        canal = (IsInGroup and IsInGroup()) and "PARTY" or "EMOTE"
+    elseif canal == "PARTY" and not (IsInGroup and IsInGroup()) then
+        canal = "EMOTE"
+    elseif canal ~= "RAID" and canal ~= "PARTY" then
+        canal = "EMOTE"
+    end
+
+    local encadre = canal == "RAID" or canal == "PARTY"
+    -- 250 octets est la marge deja employee par l'addon. Les decorations les
+    -- plus longues occupent douze octets : 238 garantit donc que chaque
+    -- message final reste sous la limite.
+    local limite = encadre and 246 or 238
+    local morceaux, courant = {}, ""
+    for mot in texte:gmatch("%S+") do
+        while #mot > limite do
+            if courant ~= "" then morceaux[#morceaux + 1], courant = courant, "" end
+            morceaux[#morceaux + 1] = mot:sub(1, limite)
+            mot = mot:sub(limite + 1)
+        end
+        if mot ~= "" then
+            local candidat = courant == "" and mot or (courant .. " " .. mot)
+            if #candidat > limite then
+                morceaux[#morceaux + 1], courant = courant, mot
+            else
+                courant = candidat
+            end
+        end
+    end
+    if courant ~= "" then morceaux[#morceaux + 1] = courant end
+
+    local total = #morceaux
+    for i, morceau in ipairs(morceaux) do
+        if encadre then
+            morceaux[i] = "< " .. morceau .. " >"
+        elseif total > 1 then
+            if i > 1 then morceau = "(...) " .. morceau end
+            if i < total then morceau = morceau .. " (...)" end
+            morceaux[i] = morceau
+        end
+    end
+
+    local i = 0
+    local function Suivant()
+        i = i + 1
+        if not morceaux[i] then return end
+        pcall(SendChatMessage, morceaux[i], canal)
+        if morceaux[i + 1] then
+            if C_Timer and C_Timer.After then C_Timer.After(0.8, Suivant) else Suivant() end
+        end
+    end
+    Suivant()
+    return total
 end
 
 -- ===== Jets (pas « roll ») =================================================
@@ -1819,7 +1915,12 @@ end
 function Constructeur:Cout(champ)
     local cout = self.regles.defaut
     for _, f in ipairs(self.familles) do
-        for _, ch in ipairs(f.champs) do if ch.id == champ then cout = f.cout end end
+        for _, ch in ipairs(f.champs) do
+            -- Une famille visuelle peut reunir des champs de prix differents ;
+            -- dans ce cas `f.cout` vaut volontairement nil (on n'affiche pas
+            -- un faux prix commun). Le prix reel reste porte par le champ.
+            if ch.id == champ then cout = ch.cout or f.cout or cout end
+        end
     end
     if champ:find("^pen_") or champ:find("^resi_") then
         local choisis = Cle(self.ctx.vars.penTypes)
@@ -2226,6 +2327,10 @@ function Pas.effect(etape, ctx, suite)
         deplacementForce = oui(etape.effectForcedMove),
         bonusJet = tonumber(bonus) or 0, multJet = (tonumber(mult) or 1) > 0 and tonumber(mult) or 1,
         dissipation = Sub(etape.effectDispellTag),
+        conteneur = Sub(etape.effectContainer),
+        controle = Sub(etape.effectControl),
+        controleA = Sub(etape.effectControlA), controleB = Sub(etape.effectControlB),
+        controleTexte = Sub(etape.effectControlText),
     }
     V._buffData = donnees
     Journal(ctx, string.format("Effet « %s » (%s%s)", ctx.effet.nom, ctx.effet.debuff and "débuff" or "buff",
@@ -2266,6 +2371,15 @@ local function DeclarerEffet(etape, ctx, suite)
         -- `fm` : cet effet POUSSE. Le montant (`mt`) devient alors des metres a
         -- franchir, et la cible ouvre sa jauge de deplacement force.
         fm = e.deplacementForce and 1 or nil,
+        ctl = Trim(e.controle) ~= "" and e.controle or nil,
+        -- Identité de l'ACTEUR, distincte du client qui transmet. Un MJ qui
+        -- incarne un PNJ doit provoquer/intimider au nom de ce PNJ, pas au nom
+        -- de son personnage joueur.
+        cs = ctx.entity and ctx.entity.kind == "npc" and ("p:" .. tostring(ctx.entity.id))
+            or ("j:" .. tostring(LCM.PlayerId())),
+        c1 = Trim(e.controleA) ~= "" and e.controleA or nil,
+        c2 = Trim(e.controleB) ~= "" and e.controleB or nil,
+        nt = Trim(e.controleTexte) ~= "" and e.controleTexte or nil,
         cu = e.cumul and { n = e.cumul.n, j = e.cumul.jauge, p = e.cumul.pct } or nil,
         gu = e.guerison and { m = e.guerison.mode, c = e.guerison.competence, d = e.guerison.dc } or nil,
     }
@@ -2286,35 +2400,60 @@ local function DeclarerEffet(etape, ctx, suite)
     ctx.declaration = { nature = e.nom, valeurs = {}, ordre = {} }
 
     local function Envoyer_(joueurs, pnj, soi)
-        local nombre = #joueurs + #pnj + (soi and 1 or 0)
-        local epa, epf = Actions.Supplement(ctx, nombre, mono)
-        ctx.dettes = ctx.dettes or {}
-        if epa > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#pa", montant = epa } end
-        if epf > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#fatigue", montant = epf } end
-        Regler(ctx)
-        local attente = ctx.annonces
-        ctx.annonces = nil
-        for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
-        if annonce then
-            Actions.Annoncer(string.format("%s lance %s : %s.", LCM.Identite.NomEnJeu(ctx.entity),
-                e.debuff and "un débuff" or "un buff", e.nom))
+        if LCM.Influences and LCM.Influences.PreparerCibles then
+            local ok, raison, j2, p2, s2 = LCM.Influences.PreparerCibles(ctx, joueurs, pnj, soi)
+            if not ok then
+                ctx.annonces = nil
+                return Arreter(ctx, raison)
+            end
+            joueurs, pnj, soi = j2, p2, s2
         end
-        for _, j in ipairs(joueurs) do LCM.Reseau.Envoyer("etat", paquet, "WHISPER", j) end
-        for _, p in ipairs(pnj) do
-            local copie = LCM.Copie(paquet)
-            copie.p, copie.pn = p.id, p.nom
-            local mj = p.mj or LCM.PlayerId()
-            if mj == LCM.PlayerId() then Actions.RecevoirEtat(copie, LCM.PlayerId())
-            else LCM.Reseau.Envoyer("etat", copie, "WHISPER", mj) end
+        local function Finaliser()
+            local nombre = #joueurs + #pnj + (soi and 1 or 0)
+            local epa, epf = Actions.Supplement(ctx, nombre, mono)
+            ctx.dettes = ctx.dettes or {}
+            if epa > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#pa", montant = epa } end
+            if epf > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#fatigue", montant = epf } end
+            Regler(ctx)
+            local attente = ctx.annonces
+            ctx.annonces = nil
+            for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
+            if annonce then
+                Actions.Annoncer(string.format("%s lance %s : %s.", LCM.Identite.NomEnJeu(ctx.entity),
+                    e.debuff and "un débuff" or "un buff", e.nom))
+            end
+            for _, j in ipairs(joueurs) do LCM.Reseau.Envoyer("etat", paquet, "WHISPER", j) end
+            for _, p in ipairs(pnj) do
+                local copie = LCM.Copie(paquet)
+                copie.p, copie.pn = p.id, p.nom
+                local mj = p.mj or LCM.PlayerId()
+                if mj == LCM.PlayerId() then Actions.RecevoirEtat(copie, LCM.PlayerId())
+                else LCM.Reseau.Envoyer("etat", copie, "WHISPER", mj) end
+            end
+            if soi then Actions.RecevoirEtat(LCM.Copie(paquet), LCM.PlayerId()) end
+            local noms = {}
+            for _, p in ipairs(pnj) do noms[#noms + 1] = p.id end
+            ctx.cibles = { joueurs = joueurs, pnj = noms, soi = soi }
+            Journal(ctx, string.format("%s « %s » envoyé à %d cible%s.", e.debuff and "Débuff" or "Buff", e.nom,
+                nombre, nombre > 1 and "s" or ""))
+            if Actions.onDeclaration then Actions.onDeclaration(ctx) end
+            return suite()
         end
-        if soi then Actions.RecevoirEtat(LCM.Copie(paquet), LCM.PlayerId()) end
-        local noms = {}
-        for _, p in ipairs(pnj) do noms[#noms + 1] = p.id end
-        ctx.cibles = { joueurs = joueurs, pnj = noms, soi = soi }
-        Journal(ctx, string.format("%s « %s » envoyé à %d cible%s.", e.debuff and "Débuff" or "Buff", e.nom,
-            nombre, nombre > 1 and "s" or ""))
-        if Actions.onDeclaration then Actions.onDeclaration(ctx) end
-        return suite()
+
+        -- Le contrôle mental n'existe réellement qu'après relecture du MJ.
+        -- Tant qu'il n'a pas répondu, on conserve annonces et dettes en
+        -- mémoire : aucun PA/PF n'est consommé, aucun jet n'est publié.
+        if paquet.ctl == "controle_mental" and LCM.Influences and LCM.Influences.SoumettreControleMental then
+            return LCM.Influences.SoumettreControleMental(paquet, joueurs, pnj, soi, function(ok, narration, raison)
+                if not ok then
+                    ctx.annonces = nil
+                    return Arreter(ctx, raison or "contrôle mental refusé par le MJ.")
+                end
+                paquet.nt = Trim(narration) ~= "" and Trim(narration) or paquet.nt
+                Finaliser()
+            end)
+        end
+        return Finaliser()
     end
 
     if mode:find("aoe") then
@@ -2441,12 +2580,24 @@ function Actions.Subir(recu, ecart)
         local bonus, inconnus = Bonus(p.d, recu.entity, facteur)
         local rounds = tonumber(p.r) and math.floor(tonumber(p.r) * facteur + 0.5) or nil
         local cumul = type(p.cu) == "table" and { n = tonumber(p.cu.n) or 1, jauge = p.cu.j, pct = tonumber(p.cu.p) or 5 } or nil
-        LCM.EtatsTemporaires.Poser(recu.entity, { nom = p.nom, icone = p.ic, description = p.desc, bonus = bonus,
+        local nomEtat, description = p.nom, p.desc
+        if p.ctl == "intimidation" then nomEtat = "Intimidé par " .. lanceur
+        elseif p.ctl == "provocation" then nomEtat = "Provoqué par " .. lanceur
+        elseif p.ctl == "peur" then nomEtat = "Terrifié"
+        elseif p.ctl == "illusion" then nomEtat = "Confus par une illusion"
+        elseif p.ctl == "controle_mental" then
+            nomEtat = "Sous contrôle mental"
+            description = Trim(p.nt) ~= "" and p.nt or description
+        end
+        LCM.EtatsTemporaires.Poser(recu.entity, { nom = nomEtat, icone = p.ic, description = description, bonus = bonus,
             rounds = rounds, lanceur = lanceur, debuff = recu.debuff, dissipation = p.dis, cumul = cumul,
             id = p.t, jet = p.js and { competence = p.js, valeur = tonumber(p.jr) or 0 } or nil,
             conteneur = p.ct,
-            guerison = type(p.gu) == "table" and { mode = p.gu.m, competence = p.gu.c, dc = tonumber(p.gu.d) or 0 } or nil })
-        texte = string.format("%s « %s » appliqué à %s (%s)%s.", recu.debuff and "Débuff" or "Buff", tostring(p.nom),
+            guerison = type(p.gu) == "table" and { mode = p.gu.m, competence = p.gu.c, dc = tonumber(p.gu.d) or 0 } or nil,
+            controle = p.ctl and { type = p.ctl, source = p.cs or ("j:" .. tostring(p.a)), sourceNom = lanceur,
+                seuil = tonumber(p.jr) or 0, bonus = 0, acteurA = p.c1, acteurB = p.c2,
+                narration = p.nt, prochainHorsCombat = (GetTime and GetTime() or 0) + 20 * 60 } or nil })
+        texte = string.format("%s « %s » appliqué à %s (%s)%s.", recu.debuff and "Débuff" or "Buff", tostring(nomEtat),
             cible, rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'à retrait",
             facteur > 1 and " — critique, durée doublée" or "")
         if #inconnus > 0 then
@@ -2548,6 +2699,14 @@ function Pas.declare(etape, ctx, suite)
     -- Cibles choisies (ou zone) : c'est ICI que l'action est debitee, annoncee
     -- et envoyee. Une declaration annulee ne coute rien et ne dit rien.
     local function Declarer(joueurs, pnj, soi)
+        if LCM.Influences and LCM.Influences.PreparerCibles then
+            local ok, raison, j2, p2, s2 = LCM.Influences.PreparerCibles(ctx, joueurs, pnj, soi)
+            if not ok then
+                ctx.annonces = nil
+                return Arreter(ctx, raison)
+            end
+            joueurs, pnj, soi = j2, p2, s2
+        end
         local nombre = #joueurs + #pnj + (soi and 1 or 0)
         local epa, epf = Actions.Supplement(ctx, nombre, mono)
         ctx.dettes = ctx.dettes or {}

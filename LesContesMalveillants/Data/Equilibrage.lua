@@ -214,17 +214,47 @@ E.experience = {
 }
 
 -- ===== Metiers ============================================================
--- Table « XP METIER » du template : l'XP pour PASSER au palier suivant
--- (incrementale). La couleur suit le nom du palier.
+-- Table « XP METIER » : chaque couleur comporte cinq niveaux. `xp` est le
+-- cout incremental pour ACHEVER le niveau courant ; `cumul` permet de relire
+-- directement le seuil total correspondant. Le cinquieme niveau Violet est
+-- donc maitrise apres 6 300 XP, pas des son entree a 5 760 XP.
 E.metiers = {
     paliers = {
-        { nom = "Rose",   xp = 5,    couleur = { 1.00, 0.55, 0.75 } },
-        { nom = "Vert",   xp = 20,   couleur = { 0.40, 0.85, 0.40 } },
-        { nom = "Bleu",   xp = 50,   couleur = { 0.40, 0.65, 1.00 } },
-        { nom = "Orange", xp = 100,  couleur = { 1.00, 0.60, 0.20 } },
-        { nom = "Rouge",  xp = 200,  couleur = { 0.95, 0.30, 0.30 } },
-        { nom = "Violet", xp = 500,  couleur = { 0.70, 0.45, 0.95 } },
-        { nom = "Noir",   xp = 2500, couleur = { 0.55, 0.55, 0.55 } },
+        { nom = "Rose", niveau = 1, rangCouleur = 1, xp = 40,  cumul = 40,   couleur = { 1.00, 0.55, 0.75 } },
+        { nom = "Rose", niveau = 2, rangCouleur = 1, xp = 60,  cumul = 100,  couleur = { 1.00, 0.55, 0.75 } },
+        { nom = "Rose", niveau = 3, rangCouleur = 1, xp = 80,  cumul = 180,  couleur = { 1.00, 0.55, 0.75 } },
+        { nom = "Rose", niveau = 4, rangCouleur = 1, xp = 100, cumul = 280,  couleur = { 1.00, 0.55, 0.75 } },
+        { nom = "Rose", niveau = 5, rangCouleur = 1, xp = 120, cumul = 400,  couleur = { 1.00, 0.55, 0.75 } },
+
+        { nom = "Vert", niveau = 1, rangCouleur = 2, xp = 125, cumul = 525,  couleur = { 0.40, 0.85, 0.40 } },
+        { nom = "Vert", niveau = 2, rangCouleur = 2, xp = 135, cumul = 660,  couleur = { 0.40, 0.85, 0.40 } },
+        { nom = "Vert", niveau = 3, rangCouleur = 2, xp = 145, cumul = 805,  couleur = { 0.40, 0.85, 0.40 } },
+        { nom = "Vert", niveau = 4, rangCouleur = 2, xp = 155, cumul = 960,  couleur = { 0.40, 0.85, 0.40 } },
+        { nom = "Vert", niveau = 5, rangCouleur = 2, xp = 165, cumul = 1125, couleur = { 0.40, 0.85, 0.40 } },
+
+        { nom = "Bleu", niveau = 1, rangCouleur = 3, xp = 185, cumul = 1310, couleur = { 0.40, 0.65, 1.00 } },
+        { nom = "Bleu", niveau = 2, rangCouleur = 3, xp = 190, cumul = 1500, couleur = { 0.40, 0.65, 1.00 } },
+        { nom = "Bleu", niveau = 3, rangCouleur = 3, xp = 195, cumul = 1695, couleur = { 0.40, 0.65, 1.00 } },
+        { nom = "Bleu", niveau = 4, rangCouleur = 3, xp = 200, cumul = 1895, couleur = { 0.40, 0.65, 1.00 } },
+        { nom = "Bleu", niveau = 5, rangCouleur = 3, xp = 205, cumul = 2100, couleur = { 0.40, 0.65, 1.00 } },
+
+        { nom = "Orange", niveau = 1, rangCouleur = 4, xp = 206, cumul = 2306, couleur = { 1.00, 0.60, 0.20 } },
+        { nom = "Orange", niveau = 2, rangCouleur = 4, xp = 207, cumul = 2513, couleur = { 1.00, 0.60, 0.20 } },
+        { nom = "Orange", niveau = 3, rangCouleur = 4, xp = 208, cumul = 2721, couleur = { 1.00, 0.60, 0.20 } },
+        { nom = "Orange", niveau = 4, rangCouleur = 4, xp = 209, cumul = 2930, couleur = { 1.00, 0.60, 0.20 } },
+        { nom = "Orange", niveau = 5, rangCouleur = 4, xp = 210, cumul = 3140, couleur = { 1.00, 0.60, 0.20 } },
+
+        { nom = "Rouge", niveau = 1, rangCouleur = 5, xp = 210, cumul = 3350, couleur = { 0.95, 0.30, 0.30 } },
+        { nom = "Rouge", niveau = 2, rangCouleur = 5, xp = 211, cumul = 3561, couleur = { 0.95, 0.30, 0.30 } },
+        { nom = "Rouge", niveau = 3, rangCouleur = 5, xp = 212, cumul = 3773, couleur = { 0.95, 0.30, 0.30 } },
+        { nom = "Rouge", niveau = 4, rangCouleur = 5, xp = 213, cumul = 3986, couleur = { 0.95, 0.30, 0.30 } },
+        { nom = "Rouge", niveau = 5, rangCouleur = 5, xp = 214, cumul = 4200, couleur = { 0.95, 0.30, 0.30 } },
+
+        { nom = "Violet", niveau = 1, rangCouleur = 6, xp = 300, cumul = 4500, couleur = { 0.70, 0.45, 0.95 } },
+        { nom = "Violet", niveau = 2, rangCouleur = 6, xp = 360, cumul = 4860, couleur = { 0.70, 0.45, 0.95 } },
+        { nom = "Violet", niveau = 3, rangCouleur = 6, xp = 420, cumul = 5280, couleur = { 0.70, 0.45, 0.95 } },
+        { nom = "Violet", niveau = 4, rangCouleur = 6, xp = 480, cumul = 5760, couleur = { 0.70, 0.45, 0.95 } },
+        { nom = "Violet", niveau = 5, rangCouleur = 6, xp = 540, cumul = 6300, couleur = { 0.70, 0.45, 0.95 } },
     },
 }
 
@@ -409,6 +439,7 @@ E.mecaniques = {
     { id = "confusion",        label = "Confusion" },
     { id = "controle_mental",  label = "Contrôle mental" },
     { id = "illusion",         label = "Illusion" },
+    { id = "peur",             label = "Peur" },
 }
 
 -- Les six statistiques primaires, dans l'ordre de la feuille.

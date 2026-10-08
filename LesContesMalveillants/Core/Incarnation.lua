@@ -65,6 +65,10 @@ function Incarnation.Instancier(pnjId, nom)
         -- Copie des valeurs du modele : a partir d'ici, l'instance vit sa vie.
         values = LCM.Copie(modele.valeurs or {}),
         traits = LCM.Copie(modele.traits or {}),
+        metiers = LCM.Copie(modele.metiers or {}),
+        equipement = LCM.Copie(modele.equipement or {}),
+        etats = LCM.Copie(modele.etats or {}),
+        apprentissages = LCM.Copie(modele.apprentissages or {}),
     }
     InstancesPourEcrire()[id] = instance
     return instance

@@ -352,7 +352,10 @@ function Compendium.Texte(categorie, champ, brut, mode)
     elseif t == "table_xp" then
         local out = {}
         for _, palier in ipairs(brut) do
-            out[#out + 1] = palier.nom .. " : " .. Nombre(palier.xp)
+            local nom = palier.niveau and string.format("%s %d", palier.nom, palier.niveau) or palier.nom
+            local cumul = tonumber(palier.cumul)
+            out[#out + 1] = nom .. " : " .. Nombre(palier.xp)
+                .. (cumul and (" XP (" .. Nombre(cumul) .. " cumulés)") or "")
         end
         if mode == "compact" and #out > 2 then
             return string.format("%s / %s (+%d)", out[1], out[2], #out - 2)

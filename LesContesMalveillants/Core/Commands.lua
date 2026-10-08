@@ -6,6 +6,19 @@ local _, LCM = ...
 local commandes = {}
 local ordre = {}
 
+-- Elles restent utilisables lorsqu'un autre morceau de l'interface en a
+-- besoin, mais ce sont des commandes techniques ou de mise au point : elles
+-- n'encombrent pas la liste courte presentee aux joueurs.
+local cacheesJoueur = {
+    combat = true,
+    debug = true,
+    etats = true,
+    doc = true,
+    switch = true,
+    pousse = true,
+    outils = true,
+}
+
 -- LCM.AddCommand("version", "Affiche la version", function(argument) end)
 function LCM.AddCommand(nom, description, handler, masterOnly)
     nom = tostring(nom or ""):lower()
@@ -18,7 +31,8 @@ local function Aide()
     LCM.Info("Commandes disponibles :")
     for _, nom in ipairs(ordre) do
         local commande = commandes[nom]
-        if not commande.masterOnly or LCM.IsMaster() then
+        local master = LCM.IsMaster()
+        if (not commande.masterOnly or master) and (master or not cacheesJoueur[nom]) then
             LCM.Info(string.format("   |cffffd36b/lcm %s|r  %s", nom, commande.description))
         end
     end
