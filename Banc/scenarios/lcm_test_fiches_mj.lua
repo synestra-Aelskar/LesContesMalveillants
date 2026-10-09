@@ -80,7 +80,8 @@ attendu("et part en chuchotement", __envois[#__envois].canal, "WHISPER")
 -- fenetre a part, ouverte par un bouton).
 local onglets = {}
 for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
-attendu("quatre onglets", #p.barre.boutons, 4)
+-- Six : Joueurs, Combat, PNJ, Contenus, Outils, Equilibrage.
+attendu("les onglets du panneau", #p.barre.boutons, 6)
 onglets.combat:Click()
 attendu("l'onglet Combat montre le combat", p.onglet == "combat" and p.pages.combat:IsShown(), true)
 attendu("et cache les joueurs", p.pages.joueurs:IsShown(), false)

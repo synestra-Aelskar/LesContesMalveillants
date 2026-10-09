@@ -130,7 +130,8 @@ attendu("un trait a 5 points est refuse au chargement", ok2, false)
 
 dire("== mecaniques de competence")
 local m = C.Nouveau()
-attendu("vingt-deux mecaniques", #C.Lignes("mecaniques"), 22)
+-- Vingt-trois depuis le « Dot » (9 octobre 2026).
+attendu("les mecaniques de competence", #C.Lignes("mecaniques"), 24)
 attendu("budget 2 + 3x5", C.Budget(m, "mecaniques").total, 17)
 C.Definir(m, "secondaires", "sec_mecanique", 4)
 attendu("quatre points secondaires = quatre de plus", C.Total(m, "mecaniques"), 21)

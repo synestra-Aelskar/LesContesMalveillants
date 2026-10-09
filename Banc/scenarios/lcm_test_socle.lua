@@ -14,7 +14,9 @@ __personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== schema")
 -- 158 : la jauge d'armure, puis les mécaniques Provocation et Intimidation.
-attendu("champs declares", LCM.Schema.Count(), 158)
+-- Le compte monte avec chaque mecanique ou statistique ajoutee : il dit
+-- seulement que les deux addons voient LA MEME feuille.
+attendu("champs declares", LCM.Schema.Count(), 160)
 attendu("onglets", #LCM.Schema.Tabs(), 8)
 attendu("le champ armure existe", LCM.Schema.Field("armure") ~= nil, true)
 attendu("son type", LCM.Schema.Field("armure").kind, "gauge")
@@ -26,7 +28,7 @@ attendu("mon identite", moi.id, "Reika-Apertus")
 attendu("mon type", moi.kind, "player")
 local golem = LCM.Entities.Create("pnj_golem", "Golem de glace", "npc")
 attendu("pnj cree", golem.name, "Golem de glace")
-attendu("meme feuille pour les deux", LCM.Schema.Count(), 158)
+attendu("meme feuille pour les deux", LCM.Schema.Count(), 160)
 
 dire("== valeurs")
 attendu("force par defaut", LCM.Entities.Get_Value(moi, "force"), 0)

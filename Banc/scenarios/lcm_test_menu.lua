@@ -23,7 +23,7 @@ local f = R.frame
 local A, F = f.couronnes.actions, f.couronnes.fenetres
 attendu("le sceau est visible", f:IsShown(), true)
 local attendus = { offensives = 4, supports = 4, competences = 0, controles = 6, animation = 3 }
-attendu("cinq categories", #R.STRUCTURE, 5)
+attendu("les categories du radial", #R.STRUCTURE, 6)
 for _, categorie in ipairs(R.STRUCTURE) do
     attendu("  " .. categorie.id, #(categorie.entrees or {}), attendus[categorie.id])
 end
@@ -31,10 +31,10 @@ attendu("Animation reservee au MJ", R.Trouver("animation").mjSeulement, true)
 attendu("aucune fenetre dans les actions", R.Trouver("fiche"), nil)
 
 dire("== le MJ voit une categorie de plus")
-attendu("avec le compagnon MJ", #R.Categories(), 5)
+attendu("avec le compagnon MJ", #R.Categories(), 6)
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
-attendu("sans le compagnon", #R.Categories(), 4)
+attendu("sans le compagnon", #R.Categories(), 5)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 

@@ -634,8 +634,6 @@ function Fiche.Carte(parent, onRetirer, largeur)
             -- Un element disparu reste montre : il est encore sur l'entite, et
             -- redevient actif s'il revient. Le taire ferait croire a une
             -- fiche saine.
-            self.vies.texte:SetText("")
-            self.vies:Hide()
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.cout:SetText("")
@@ -1217,6 +1215,10 @@ local function Emplacement(conteneur, c)
             -- revient.
             self.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
             UI.TeinterBrise(self.icone, false)
+            -- Un objet disparu n'a pas de vies a montrer : son chiffre doit
+            -- s'effacer, sinon il garde celui de l'objet d'avant.
+            self.vies.texte:SetText("")
+            self.vies:Hide()
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.description:SetText("")

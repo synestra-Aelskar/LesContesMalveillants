@@ -266,7 +266,13 @@ end
 function Objets.PiecesArmure(entity)
     local out = {}
     for _, piece in ipairs(Objets.EquipementsEtat(entity)) do
-        if piece.categorie == CATEGORIE_ARMURE then out[#out + 1] = piece end
+        -- Une piece BRISEE ne protege plus. Depuis que l'etat a zero ne detruit
+        -- plus l'objet (il perd une vie et reste porte), une loque restait dans
+        -- la jauge et continuait d'encaisser — alors qu'elle n'apporte deja
+        -- plus aucune statistique (10 octobre 2026).
+        if piece.categorie == CATEGORIE_ARMURE and piece.reste > 0 then
+            out[#out + 1] = piece
+        end
     end
     return out
 end
