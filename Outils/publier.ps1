@@ -98,6 +98,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $clone '.git'))) {
 } else {
     & git -C $clone remote set-url origin $LcmRepo
 }
+# La base est maintenant modifiee directement dans le clone Git. Un reset la
+# detruirait : on refuse donc de publier tant que ces changements n'ont pas ete
+# envoyes avec « Base - Envoyer.bat ».
+$baseLocale = & git -C $clone status --porcelain -- database 2>$null
+if ($baseLocale) {
+    Stop-Erreur 'La base commune contient des changements non envoyes. Lance d''abord « Base - Envoyer.bat ».'
+}
 & git -C $clone fetch origin --prune --quiet
 if (& git -C $clone ls-remote --heads origin $LcmBranch) {
     & git -C $clone checkout -B $LcmBranch ('origin/' + $LcmBranch) --quiet
@@ -134,6 +141,14 @@ if ((Test-Path -LiteralPath $traceBase) -and $distant) {
                 "Si tu sais ce que tu fais : publier.ps1 -Forcer")
         }
     }
+}
+
+# Les brouillons crees depuis le dernier /reload entrent dans la base APRES le
+# garde-fou distant, mais avant la copie des addons. Le build actualise
+# Atelier.lua ; Copy-Addon prendra donc les fichiers reconstruits dans ce commit.
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'base.ps1')) {
+    & (Join-Path $PSScriptRoot 'base.ps1') -Mode importer
+    if ($LASTEXITCODE -ne 0) { Stop-Erreur 'import de la base commune impossible.' }
 }
 
 # Les empreintes de « ce qui est publie » ne s'ecrivent qu'APRES l'envoi : les
@@ -271,6 +286,15 @@ foreach ($fichier in (Get-ChildItem -LiteralPath $outils -File)) {
     $nOutils++
 }
 Ok ("$nOutils fichier(s) d'outillage.")
+
+# Les raccourcis que l'utilisateur lance vivent a la racine du dossier de
+# travail. Ils voyagent aussi, afin que le binome obtienne exactement les memes
+# boutons et le meme mode d'emploi apres une recuperation.
+$racineLocale = Split-Path $PSScriptRoot -Parent
+foreach ($nom in @('Base - Recuperer.bat', 'Base - Envoyer.bat', 'GUIDE_BASE_COMMUNE.md')) {
+    $source = Join-Path $racineLocale $nom
+    if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $clone $nom) -Force }
+}
 
 # Aucune normalisation de fins de ligne : ce qui arrive doit etre identique.
 Set-Content -LiteralPath (Join-Path $clone '.gitattributes') -Value @(

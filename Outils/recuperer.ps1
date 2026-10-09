@@ -64,6 +64,10 @@ if (-not (Test-Path -LiteralPath (Join-Path $clone '.git'))) {
 } else {
     & git -C $clone remote set-url origin $LcmRepo
 }
+$baseLocale = & git -C $clone status --porcelain -- database 2>$null
+if ($baseLocale) {
+    Stop-Erreur 'La base commune contient des changements non envoyes. Lance « Base - Envoyer.bat » avant de recuperer.'
+}
 & git -C $clone fetch origin --prune --quiet
 if (-not (& git -C $clone ls-remote --heads origin $LcmBranch)) {
     Stop-Erreur ("la branche " + $LcmBranch + " n'existe pas encore sur le depot.")
@@ -156,6 +160,15 @@ if (Test-Path -LiteralPath $outilsDepot) {
     }
 }
 
+# Raccourcis de la base et guide, a la racine du dossier de travail local.
+$racineLocale = Split-Path $PSScriptRoot -Parent
+foreach ($nom in @('Base - Recuperer.bat', 'Base - Envoyer.bat', 'GUIDE_BASE_COMMUNE.md')) {
+    $source = Join-Path $clone $nom
+    if (Test-Path -LiteralPath $source) {
+        Ajouter-Banc $source (Join-Path $racineLocale $nom) $nom
+    }
+}
+
 if ($aCopier.Count -eq 0) {
     Ok 'Ton dossier d''addon est deja celui du depot : rien a recuperer.'
 } else {
@@ -229,5 +242,12 @@ Alerte 'Relance WoW ou fais /reload pour voir les fichiers recuperes.'
 Info  'Le banc est a jour lui aussi : relance la suite avant de reprendre.'
 Info  "Si l'outillage a ete recupere, relance Recuperer.bat une fois : tu viens"
 Info  "de remplacer le script qui tourne."
+
+# Le pull a peut-etre apporte de nouvelles entrees. Elles deviennent aussitot
+# les deux Atelier.lua charges par WoW.
+if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'base.ps1')) {
+    & (Join-Path $PSScriptRoot 'base.ps1') -Mode construire
+    if ($LASTEXITCODE -ne 0) { Stop-Erreur 'reconstruction depuis la base commune impossible.' }
+}
 
 Pause-Fin 'Appuyez sur Entree pour fermer'
