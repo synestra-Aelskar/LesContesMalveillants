@@ -22,7 +22,10 @@ local R = LCM.UI.Radial
 local f = R.frame
 local A, F = f.couronnes.actions, f.couronnes.fenetres
 attendu("le sceau est visible", f:IsShown(), true)
-local attendus = { offensives = 4, supports = 4, competences = 0, controles = 6, animation = 3 }
+-- Offensives passe a 5 avec le Dot (9 octobre 2026) ; « influences » est la
+-- categorie des controles mentaux ajoutee par Codex.
+local attendus = { offensives = 5, supports = 4, competences = 0, controles = 6,
+                   animation = 3, influences = 5 }
 attendu("les categories du radial", #R.STRUCTURE, 6)
 for _, categorie in ipairs(R.STRUCTURE) do
     attendu("  " .. categorie.id, #(categorie.entrees or {}), attendus[categorie.id])

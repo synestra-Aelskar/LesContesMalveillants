@@ -23,6 +23,9 @@ local _, LCM = ...
 -- cinq pieces d'armure, les cinq accessoires se lisent d'un coup d'oeil).
 local Objets = LCM.Catalogue({
     nom = "objet", prefixe = "Objets", cleEntite = "equipement", primaires = true,
+    -- Porter deux fois la meme dague est normal : ce sont les TYPES qui
+    -- bornent (« une seule cape »), pas l'identifiant (10 octobre 2026).
+    doublons = true,
     -- Ce qu'une piece apporte suit son etat : voir Objets.ApportSelonEtat.
     apport = function(entity, objet, montant)
         return LCM.Objets.ApportSelonEtat(entity, objet, montant)

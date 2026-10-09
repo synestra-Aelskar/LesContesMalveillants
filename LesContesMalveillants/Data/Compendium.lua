@@ -143,11 +143,19 @@ local function Liste(id, label, listeId)
         defaut = { liste = listeId },
         champs = {
             Icone(), Description(false),
+            -- Combien d'objets de CE type on peut porter a la fois. Vide : pas
+            -- de limite. C'est ici et non dans le code : « une seule cape » est
+            -- une decision de jeu, elle doit se regler en seance
+            -- (10 octobre 2026).
+            { cle = "maxEquipe", label = "Max équipé", type = "nombre", emplacement = "meta", min = 0 },
             { cle = "niveaux", label = "Table de niveaux", type = "table_niveaux", emplacement = "meta", carte = false },
         },
     })
 end
 Liste("type_armures", "Type Armures", "type_armures")
+-- Les accessoires empruntaient la « Liste Armes », faute d'en avoir une : un
+-- anneau se choisissait parmi des types d'armes (10 octobre 2026).
+Liste("type_accessoires", "Type Accessoires", "type_accessoires")
 Liste("liste_armes", "Liste Armes", "armes")
 Liste("liste_origine", "Liste origine", "origines")
 Liste("liste_ressources", "Liste ressources", "ressources")
@@ -319,7 +327,7 @@ Objet("armures", "Armures", "equipement", "type_armures", {
     { cle = "armure", label = "Armure", type = "nombre", emplacement = "meta", min = 0,
       defaut = LCM.Equilibrage.armure.parDefaut },
 })
-Objet("accessoires", "Accessoires", "accessoire", "armes")
+Objet("accessoires", "Accessoires", "accessoire", "type_accessoires")
 
 -- Races, traits, etats, maladies, apprentissages : le template leur donne la
 -- « Liste Armes » pour Type, sans doute par copie ; garde tel quel, a trancher.

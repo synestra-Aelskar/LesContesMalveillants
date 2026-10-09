@@ -202,6 +202,9 @@ LCM.Devises = LCM.Registre({ nom = "devise", prefixe = "Devises" })
 -- registre des metiers (Core/Metiers.lua).
 LCM.LISTES = {
     { id = "type_armures", label = "Type Armures" },
+    -- Les accessoires empruntaient la « Liste Armes », faute d'en avoir une :
+    -- un anneau se choisissait parmi des types d'armes (10 octobre 2026).
+    { id = "type_accessoires", label = "Type Accessoires" },
     { id = "armes",        label = "Liste Armes" },
     { id = "origines",     label = "Liste origine" },
     { id = "ressources",   label = "Liste ressources" },
@@ -224,6 +227,16 @@ LCM.Listes = LCM.Registre({
             Erreur(element.id .. " : table de niveaux inconnue « " .. niveaux .. " »")
         end
         element.niveaux = niveaux ~= "" and niveaux or nil
+        -- Combien d'objets de ce TYPE on peut porter a la fois (« une seule
+        -- cape »). Vide : pas de limite. C'est une decision de jeu, portee par
+        -- l'entree de type pour se regler en seance (10 octobre 2026).
+        local max = tonumber(definition.maxEquipe)
+        if definition.maxEquipe ~= nil and Texte(definition.maxEquipe) ~= "" then
+            if not max or max < 0 or max ~= math.floor(max) then
+                Erreur(element.id .. " : max equipe invalide (" .. tostring(definition.maxEquipe) .. ")")
+            end
+            element.maxEquipe = max > 0 and max or nil
+        end
     end,
 })
 

@@ -317,4 +317,45 @@ local fige
 for _, e in ipairs(D.Liste(moi)) do if e.id == "dot_rouille" then fige = e.dot.facteur end end
 attendu("le facteur est retenu sur l'état", fige, 0.5)
 
+dire("== le bouton du radial et sa fenetre")
+-- Le Dot a sa PROPRE fenetre et non une resolution du composeur : son bareme
+-- vit en Lua, il n'a pas besoin du DSL importe de Necronicon.
+local R = LCM.UI.Radial
+local bouton
+for _, cat in ipairs(R.STRUCTURE) do
+    for _, e in ipairs(cat.entrees or {}) do
+        if e.id == "dot" then bouton = { entree = e, categorie = cat.id } end
+    end
+end
+attendu("le bouton existe", bouton ~= nil, true)
+attendu("il est dans les offensives", bouton and bouton.categorie, "offensives")
+attendu("et il est branché", R.EstLiee("dot"), true)
+
+local F = LCM.UI.DotComposeur.Ouvrir()
+attendu("la fenêtre s'ouvre", F:IsShown(), true)
+attendu("elle part d'un choix vide", (D.Cout(F.choix)), 0)
+
+-- Le pool se lit a l'ecran, et il vient de la source, de la penetration et du
+-- niveau.
+F.choix.source = "force"
+F.pen:SetText("4")
+F.niveau:SetText("3")
+F:Rendre()
+local attenduPool = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
+attendu("le pool est affiché",
+    F.pool:GetText():find("Pool : " .. attenduPool, 1, true) ~= nil, true)
+
+-- Depenser : une ligne par cible, plus les rounds et les stacks.
+attendu("une ligne par vecteur", #D.Cibles() + 2 <= #F.lignes, true)
+F.choix.pf = 1
+F:Rendre()
+attendu("le coût suit", F.pool:GetText():find("dépensé 3", 1, true) ~= nil, true)
+
+-- Et on ne depasse pas : c'est la regle du pool.
+F.choix.pa = 99
+attendu("au-delà du pool, ça ne tient pas", F:Tient(), false)
+F.choix.pa = nil
+attendu("revenu dans le pool", F:Tient(), true)
+F:Hide()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

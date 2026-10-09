@@ -7,6 +7,61 @@
 
 local _, LCM = ...
 
+-- ----- listes (7) --------------------------------------------------
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_jewelry_ring_03",
+    id = "anneau",
+    label = "Anneau",
+    liste = "type_accessoires",
+    maxEquipe = 2,
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_misc_gem_pearl_03",
+    id = "bijou",
+    label = "Bijou",
+    liste = "type_accessoires",
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_bracer_07",
+    id = "bracelet",
+    label = "Bracelet",
+    liste = "type_accessoires",
+    maxEquipe = 2,
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_misc_cape_11",
+    id = "cape",
+    label = "Cape",
+    liste = "type_accessoires",
+    maxEquipe = 1,
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_belt_15",
+    id = "ceinture",
+    label = "Ceinture",
+    liste = "type_accessoires",
+    maxEquipe = 1,
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_jewelry_necklace_07",
+    id = "pendentif",
+    label = "Pendentif",
+    liste = "type_accessoires",
+    maxEquipe = 1,
+})
+
+LCM.Publier(LCM.Listes, {
+    icone = "Interface\\ICONS\\inv_misc_idol_03",
+    id = "talisman",
+    label = "Talisman",
+    liste = "type_accessoires",
+})
+
 -- ----- objets (27) --------------------------------------------------
 LCM.Publier(LCM.Objets, {
     avantage = {  },

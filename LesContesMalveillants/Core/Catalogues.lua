@@ -202,10 +202,17 @@ function LCM.Catalogue(def)
         local element = C.Get(id)
         if not element then return false, def.nom .. " inconnu." end
         -- Deux fois le meme cumulerait ses bonus : refuse — sauf pour une
-        -- famille sans effets ou chaque exemplaire compte (deux sacs).
+        -- famille sans effets ou chaque exemplaire compte (deux sacs), et sauf
+        -- pour les objets, ou porter deux dagues identiques est normal
+        -- (10 octobre 2026). Ce sont les TYPES qui bornent, pas l'identifiant.
         if not def.doublons and C.Porte(entity, element.id) then
             return false, string.format("%s est deja porte.", element.label)
         end
+        -- La limite par type : « une seule cape ». Elle est portee par l'entree
+        -- de type elle-meme (`maxEquipe` sur la liste), pour que le MJ la regle
+        -- dans le compendium au lieu d'attendre une version de l'addon.
+        local refusType, raisonType = C.TypeSature(entity, element)
+        if refusType then return false, raisonType end
         local places = C.Capacite(element.categorie)
         local occupees = C.Occupation(entity, element.categorie)
         local taille = C.Taille(element)
@@ -222,6 +229,30 @@ function LCM.Catalogue(def)
         stock[element.categorie] = type(stock[element.categorie]) == "table" and stock[element.categorie] or {}
         table.insert(stock[element.categorie], element.id)
         return true
+    end
+
+    -- Le type d'un element, et ce que ce type autorise. `nil` : pas de limite.
+    function C.LimiteDuType(element)
+        local type_ = element and element.type
+        if not (type_ and LCM.Listes and LCM.Listes.Get) then return nil end
+        local entree = LCM.Listes.Get(tostring(type_))
+        local max = entree and tonumber(entree.maxEquipe)
+        if not max or max <= 0 then return nil end
+        return max, entree
+    end
+
+    -- Ce type est-il deja au complet sur cette entite ?
+    function C.TypeSature(entity, element)
+        local max, entree = C.LimiteDuType(element)
+        if not max then return false end
+        local portes = 0
+        for _, id in ipairs(C.Ids(entity, element.categorie)) do
+            local autre = C.Get(id)
+            if autre and autre.type == element.type then portes = portes + 1 end
+        end
+        if portes < max then return false end
+        return true, string.format("%s : %d au maximum, et tu en portes déjà %d.",
+            (entree and entree.label) or tostring(element.type), max, portes)
     end
 
     -- Enleve un element (un seul exemplaire), qu'il existe encore ou non.

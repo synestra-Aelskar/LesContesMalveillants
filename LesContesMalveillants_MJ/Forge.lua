@@ -180,6 +180,13 @@ function ForgeUI.Definition()
     end
     -- L'entree prend la couleur et le tag de sa rarete, comme dans Necronicon
     -- (ForgeCreateEntry).
+    -- Le TYPE de l'objet (« Cape », « Anneau », « Plastron »). Il commande la
+    -- limite d'equipement : on ne porte qu'une cape. La forge le demandait
+    -- jamais, il fallait rouvrir l'entree dans le compendium pour le poser
+    -- (10 octobre 2026).
+    if ForgeUI.ListeDuType(categorie) and Texte(courant.type) ~= "" then
+        def.type = Texte(courant.type)
+    end
     def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
     -- Ces marques appartiennent au registre en memoire, pas a la definition
     -- que ses constructeurs valident.
@@ -191,6 +198,20 @@ function ForgeUI.Definition()
         if def[k] == nil then def[k] = LCM.Copie(v) end
     end
     return def, categorie
+end
+
+-- La liste ou puise le champ « Type » de cette categorie, s'il en a un. C'est
+-- la meme source que le compendium (`listes:<id>`) : une seule verite, et le
+-- MJ retrouve les memes choix des deux cotes.
+function ForgeUI.ListeDuType(categorie)
+    if not categorie then return nil end
+    for _, champ in ipairs(LCM.Compendium.Champs(categorie) or {}) do
+        if champ.cle == "type" then
+            local liste = tostring(champ.source or ""):match("^listes:(.+)$")
+            if liste then return liste end
+        end
+    end
+    return nil
 end
 
 -- Cree l'entree. Renvoie true et l'element, ou false et la raison.
@@ -351,6 +372,30 @@ local function Construire()
     f.description = UI.Zone(c, LARGEUR - 28, 56, function(texte) courant.description = texte end)
     f.description:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -118)
     f.description:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -118)
+
+    -- Le type, a cote du nom : c'est lui qui dira combien on peut en porter.
+    f.typeLibelle = Libelle("Type", 2, -148)
+    f.type = UI.Bouton(c, "— type —", 170, 22, function(bouton)
+        local jeu = JeuCourant()
+        local categorie = jeu and C.Get(jeu.categorie) or nil
+        local liste = categorie and ForgeUI.ListeDuType(categorie) or nil
+        if not liste then LCM.Alerte("cette catégorie n'a pas de types.") return end
+        local options = {}
+        for _, entree in ipairs(LCM.Listes.De(liste)) do
+            local limite = entree.maxEquipe and string.format(" (%d max)", entree.maxEquipe) or ""
+            options[#options + 1] = { id = entree.id, label = entree.label .. limite }
+        end
+        if #options == 0 then
+            LCM.Alerte("aucun type déclaré dans cette liste : crée-les dans le compendium.")
+            return
+        end
+        ForgeUI.choixType = ForgeUI.choixType or UI.Choix("forge_type", "Type")
+        ForgeUI.choixType:Proposer(bouton, options, function(id)
+            courant.type = id
+            f:Rafraichir()
+        end)
+    end)
+    f.type:SetPoint("TOPLEFT", c, "TOPLEFT", 46, -148)
 
     f.mjSeulement = UI.Case(c, "Réservée au MJ — les joueurs ne la voient pas", function(cochee)
         courant.mjSeulement = cochee and true or nil

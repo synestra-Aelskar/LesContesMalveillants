@@ -64,6 +64,7 @@ Radial.STRUCTURE = {
             { id = "perce_armure",       label = "Perce-armure",         icone = ICONE .. "perce_armure.tga" },
             { id = "brise_armure",       label = "Brise-armure",         icone = ICONE .. "brise_armure.tga" },
             { id = "generation_debuff",  label = "Génération de débuff", icone = ICONE .. "generation_debuff.tga" },
+            { id = "dot",               label = "Dot",                  icone = ICONE .. "generation_debuff.tga" },
         },
     },
     {

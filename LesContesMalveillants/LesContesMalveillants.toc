@@ -105,6 +105,7 @@ UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua
 UI\Composeur.lua
+UI\DotComposeur.lua
 UI\Resolution.lua
 UI\Constructeur.lua
 UI\Radial.lua

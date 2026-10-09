@@ -784,7 +784,12 @@ LCM.WhenReady(function()
         local entrees = (categorie.mjSeulement and not LCM.IsMaster()) and {} or categorie.entrees or {}
         for _, entree in ipairs(entrees) do
             local action = LCM.ActionsBoutons.DuBouton(entree.id)
-            if action then
+            -- Un bouton peut porter sa propre fenetre au lieu d'une resolution
+            -- du composeur : le Dot a son ecran a lui (UI/DotComposeur.lua),
+            -- parce que son bareme est en Lua et n'a pas besoin du DSL importe.
+            if (LCM.BoutonsPropres or {})[entree.id] then
+                -- Ce bouton porte sa propre fenetre : rien a lier ici.
+            elseif action then
                 -- Une seule icone : celle du bouton, que le composeur reprend.
                 -- Les deux montraient chacun la sienne (le lanceur ses
                 -- dessins, le composeur l'icone WoW importee de Necronicon).
