@@ -131,7 +131,11 @@ attendu("bloc titre", armes.titre:GetText(), "ARMES")
 attendu("deux emplacements d'arme", #armes.conteneur.emplacements, 2)
 attendu("occupation", armes.occupation:GetText(), "1 / 2")
 local ligne = armes.conteneur.emplacements[1]
-attendu("l'arme portee", __sansCouleur(ligne.nom:GetText()):find("^Lame de givre") ~= nil, true)
+-- Le nom porte son ETAT devant lui depuis le 9 octobre 2026 : « (10/10) Lame
+-- de givre ». On ne le lisait que dans la carte au survol.
+local nomPorte = __sansCouleur(ligne.nom:GetText())
+attendu("l'arme portee", nomPorte:find("Lame de givre") ~= nil, true)
+attendu("et son etat devant", nomPorte:find("^%(%d+/%d+%) Lame de givre") ~= nil, true)
 attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_QuestionMark")
 attendu("ses effets", ligne.effets:GetText(), "Eau +2")
 attendu("bouton retirer (MJ)", ligne.action.label:GetText(), "Retirer")
@@ -139,7 +143,8 @@ attendu("bouton retirer (MJ)", ligne.action.label:GetText(), "Retirer")
 -- 3 octobre 2026 : la ligne d'un objet porte se lit sans la souris.
 attendu("l'icone est doublee", ligne.iconeCote, 32)
 attendu("et tient dans sa ligne", ligne.iconeCote <= ligne:GetHeight() - 4, true)
-attendu("le nom n'est plus tronque", __sansCouleur(ligne.nom:GetText()):find("^Lame de givre") ~= nil, true)
+attendu("le nom n'est plus tronque",
+    __sansCouleur(ligne.nom:GetText()):find("Lame de givre") ~= nil, true)
 attendu("la description est sous le nom", ligne.description:GetText() ~= "", true)
 -- Clic droit : la fiche de l'objet. C'est un BOUTON, sinon le clic n'existe pas.
 attendu("la ligne est cliquable", type(ligne.Click), "function")

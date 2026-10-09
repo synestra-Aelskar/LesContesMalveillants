@@ -154,15 +154,42 @@ local RESSOURCES = {
     { cle = "fatigue", paquet = "f", label = "Fatigue", phrase = "fatigue" },
     { cle = "pa",      paquet = "p", label = "PA",      phrase = "PA" },
     { cle = "armure",  paquet = "b", label = "Bouclier", phrase = "bouclier" },
+    { cle = "pv_tete",     paquet = "t", label = "PV (Tête)",     phrase = "PV de la tête",     partie = "tete" },
+    { cle = "pv_buste",    paquet = "o", label = "PV (Torse)",    phrase = "PV du torse",       partie = "buste" },
+    { cle = "pv_bras",     paquet = "r", label = "PV (Bras)",     phrase = "PV des bras",       partie = "bras" },
+    { cle = "pv_jambe",    paquet = "j", label = "PV (Jambes)",  phrase = "PV des jambes",     partie = "jambe" },
+    { cle = "pv_internes", paquet = "i", label = "PV (Internes)", phrase = "PV des internes",   partie = "internes" },
 }
 Regain.RESSOURCES = RESSOURCES
 
+local PAR_CLE = {}
+for _, def in ipairs(RESSOURCES) do PAR_CLE[def.cle] = def end
+
 local function SelectionDepuisPaquet(donnees)
-    return {
-        fatigue = tonumber(donnees and donnees.f) == 1,
-        pa = tonumber(donnees and donnees.p) == 1,
-        armure = tonumber(donnees and donnees.b) == 1,
-    }
+    local selection = {}
+    for _, def in ipairs(RESSOURCES) do
+        selection[def.cle] = tonumber(donnees and donnees[def.paquet]) == 1
+    end
+    return selection
+end
+
+-- Etat agrege d'une ressource. Une categorie corporelle peut contenir
+-- plusieurs zones (deux bras, plusieurs tetes...) : le panneau les regroupe
+-- proprement, et l'operation s'applique a chacune.
+function Regain.Etat(entity, cle)
+    local def = PAR_CLE[tostring(cle or "")]
+    if not def or type(entity) ~= "table" then return nil end
+    if not def.partie then return LCM.Entities.Gauge(entity, def.cle) end
+    local courant, maximum, parties = 0, 0, {}
+    for _, partie in ipairs(LCM.Body.State(entity)) do
+        if partie.part.category == def.partie then
+            courant = courant + partie.current
+            maximum = maximum + partie.max
+            parties[#parties + 1] = partie
+        end
+    end
+    if #parties == 0 then return nil end
+    return { current = courant, max = maximum, parties = parties }
 end
 
 function Regain.Appliquer(entity, selection, mode, montant)
@@ -176,11 +203,20 @@ function Regain.Appliquer(entity, selection, mode, montant)
     local resultat = { mode = mode, ressources = {} }
     for _, def in ipairs(RESSOURCES) do
         if selection[def.cle] then
-            local jauge = LCM.Entities.Gauge(entity, def.cle)
+            local jauge = Regain.Etat(entity, def.cle)
             if jauge then
-                local cible = mode == "max" and jauge.max or (mode == "min" and 0 or (jauge.current + montant))
-                LCM.Entities.SetGauge(entity, def.cle, cible)
-                local apres = LCM.Entities.Gauge(entity, def.cle)
+                if def.partie then
+                    for _, partie in ipairs(jauge.parties) do
+                        local cible = mode == "max" and partie.max
+                            or (mode == "min" and 0 or math.min(partie.max, partie.current + montant))
+                        LCM.Body.SetCurrent(entity, partie.id, cible)
+                    end
+                else
+                    local cible = mode == "max" and jauge.max
+                        or (mode == "min" and 0 or math.min(jauge.max, jauge.current + montant))
+                    LCM.Entities.SetGauge(entity, def.cle, cible)
+                end
+                local apres = Regain.Etat(entity, def.cle)
                 resultat.ressources[#resultat.ressources + 1] = {
                     id = def.cle, label = def.label, phrase = def.phrase,
                     avant = jauge.current, apres = apres.current, max = apres.max,

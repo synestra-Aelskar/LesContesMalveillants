@@ -329,6 +329,25 @@ attendu("un objet dans la premiere case",
     I.Ranger(moi, "sacs", 1, 1, "objets/dague_d_assassin_du_culte", 1), true)
 f:Rafraichir()
 attendu("la ligne le montre", f.lignes[1].nom:GetText() ~= "Vide", true)
+-- L'ETAT de l'objet au bout de la ligne (9 octobre 2026) : ce qui reste de
+-- solide se lisait seulement dans la carte au survol, et pas du tout dans le
+-- sac. L'usure est portee par le personnage, donc le sac et l'emplacement
+-- d'equipement doivent montrer LE MEME chiffre.
+attendu("la ligne porte un etat", f.lignes[1].etat:GetText():find("^%d+/%d+$") ~= nil, true)
+local plein = f.lignes[1].etat:GetText()
+moi.usureArmure = moi.usureArmure or {}
+moi.usureArmure["dague_d_assassin_du_culte"] = 3
+f:Rafraichir()
+attendu("l'usure se voit", f.lignes[1].etat:GetText() ~= plein, true)
+attendu("et elle compte trois crans",
+    tonumber(plein:match("^(%d+)")) - tonumber(f.lignes[1].etat:GetText():match("^(%d+)")), 3)
+moi.usureArmure["dague_d_assassin_du_culte"] = nil
+f:Rafraichir()
+attendu("reparee, elle redevient pleine", f.lignes[1].etat:GetText(), plein)
+-- Une case vide ne dit rien.
+local vide
+for _, l in ipairs(f.lignes) do if l:IsShown() and l.nom:GetText() == "Vide" and not vide then vide = l end end
+attendu("une case vide n'a pas d'etat", vide and vide.etat:GetText(), "")
 attendu("elle sait demarrer un glissement", type(f.lignes[1]:GetScript("OnDragStart")), "function")
 
 __souris.LeftButton = true

@@ -442,6 +442,13 @@ function Lignes.body(parent, field, c, options)
         z.nomX = c.nom
         local function Agir(fonction, montant)
             if not (l.entity and z.partieId) then return end
+            -- Les blessures ne sont jamais une jauge que le joueur ajuste a
+            -- la main. Seul le compagnon MJ peut blesser ou soigner depuis la
+            -- fiche ; les actions de combat restent le chemin normal.
+            if not LCM.IsMaster() then
+                LCM.Erreur("Seul le maître du jeu peut modifier les PV.")
+                return
+            end
             fonction(l.entity, z.partieId, montant)
             l:Actualiser(l.entity)
             if l.onChange then l.onChange(l.entity) end
@@ -477,7 +484,7 @@ function Lignes.body(parent, field, c, options)
             z.barre:Regler(partie.current, partie.max)
             z:CaleBarre()
             for _, bouton in ipairs(z.boutons or {}) do
-                bouton:SetShown(not e.distante)
+                bouton:SetShown(LCM.IsMaster() and not e.distante)
             end
             z:ClearAllPoints()
             z:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
@@ -627,6 +634,8 @@ function Fiche.Carte(parent, onRetirer, largeur)
             -- Un element disparu reste montre : il est encore sur l'entite, et
             -- redevient actif s'il revient. Le taire ferait croire a une
             -- fiche saine.
+            self.vies.texte:SetText("")
+            self.vies:Hide()
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.cout:SetText("")
@@ -987,9 +996,30 @@ local function Emplacement(conteneur, c)
 
     -- Le nom en ENTIER : il etait coupe des « Capuche de... ». Il a toute la
     -- largeur jusqu'au bouton, et sa propre ligne.
+    -- Les VIES, devant tout le reste : un chiffre vert tant qu'il en reste, et
+    -- rouge a zero. C'est un cadre a lui pour porter son propre survol — le nom
+    -- est un seul texte, on ne peut pas survoler le debut d'un texte.
+    l.vies = CreateFrame("Frame", nil, l)
+    l.vies:SetSize(18, math.max(14, c.police + 2))
+    l.vies:SetPoint("TOPLEFT", l, "TOPLEFT", depart, -8)
+    l.vies.texte = UI.Texte(l.vies, "", UI.C.discret)
+    UI.Police(l.vies.texte, c.police)
+    l.vies.texte:SetAllPoints(l.vies)
+    l.vies.texte:SetJustifyH("LEFT")
+    l.vies:EnableMouse(true)
+    l.vies:SetScript("OnEnter", function(self)
+        if not self.texte:GetText() or self.texte:GetText() == "" then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Vies", 1, 0.82, 0)
+        GameTooltip:AddLine(UI.AIDE_VIES, 0.8, 0.75, 0.62, true)
+        GameTooltip:Show()
+    end)
+    l.vies:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+
     l.nom = UI.Texte(l, "", UI.C.texte)
     UI.Police(l.nom, c.police)
-    l.nom:SetPoint("TOPLEFT", l, "TOPLEFT", depart, -8)
+    -- Le nom commence apres le chiffre des vies.
+    l.nom:SetPoint("TOPLEFT", l.vies, "TOPRIGHT", 6, 0)
     l.nom:SetPoint("TOPRIGHT", l, "TOPLEFT", finTexte, -8)
     l.nom:SetJustifyH("LEFT")
     l.nom:SetWordWrap(false)
@@ -1056,6 +1086,16 @@ local function Emplacement(conteneur, c)
             -- en deux exemplaires. C'est la SOURCE qui sait comment : une case
             -- de sac se vide, un autre emplacement se deshabille.
             if objet.retirer then objet.retirer() end
+            -- La fiche d'un modele PNJ ouverte depuis le compendium est une
+            -- entite de travail. Le bouton « Ajouter » passait deja par cette
+            -- sauvegarde, mais pas le glisser-deposer : l'objet semblait porte
+            -- jusqu'a la fermeture, puis disparaissait a la reouverture.
+            -- En cas de refus, on remet aussi bien la destination que la source
+            -- dans leur etat initial afin de ne perdre aucun objet.
+            if not conteneur:SauverPNJ() then
+                conteneur.catalogue.Enlever(conteneur.entity, id)
+                if objet.rendre then objet.rendre() end
+            end
             conteneur:Actualiser(conteneur.entity)
         end)
 
@@ -1122,6 +1162,9 @@ local function Emplacement(conteneur, c)
         local element = id and catalogue.Get(id)
         if not id then
             self.icone:SetTexture(VIDE)
+            UI.TeinterBrise(self.icone, false)
+            self.vies.texte:SetText("")
+            self.vies:Hide()
             self.nom:SetText("Emplacement")
             self.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
             self.description:SetText("")
@@ -1131,17 +1174,36 @@ local function Emplacement(conteneur, c)
             self.action.label:SetText("+  Ajouter")
         elseif element then
             self.icone:SetTexture(element.icone)
-            self.nom:SetText(element.label)
-            self.nom:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
-            local effets = Effets(element)
-            -- Une piece d'armure dit ce qui la protege encore : son usure la
-            -- suit (Core/Objets.lua), elle doit se voir la ou on la porte.
-            if element.armure then
-                local usure = math.min(element.armure, LCM.Objets.Usure(conteneur.entity, element.id))
-                local armure = usure > 0 and string.format("Armure %d / %d", element.armure - usure, element.armure)
-                    or string.format("Armure %d", element.armure)
-                effets = effets ~= "" and (armure .. "  ·  " .. effets) or armure
+            -- L'etat DEVANT le nom : « (8/12) Rempart de guerre ». Il n'etait
+            -- lisible que dans la carte au survol, alors que c'est en regardant
+            -- ce qu'on porte qu'on veut savoir ce qui tient encore.
+            local vies, _, _, couleurVies = UI.ViesObjet(conteneur.entity, element)
+            self.vies.texte:SetText(vies or "")
+            if couleurVies then
+                self.vies.texte:SetTextColor(couleurVies[1], couleurVies[2], couleurVies[3])
             end
+            self.vies:SetShown(vies ~= nil)
+            local etat, reste, plein = UI.EtatObjet(conteneur.entity, element)
+            local brise = UI.ObjetBrise(conteneur.entity, element)
+            local marque = brise and (UI.MARQUE_BRISE .. " ") or ""
+            if etat then
+                self.nom:SetText(string.format("|cff%s(%s)|r %s%s",
+                    UI.Hex(UI.CouleurEtat(reste, plein)), etat, marque, element.label))
+            else
+                self.nom:SetText(marque .. element.label)
+            end
+            local couleurNom = brise and UI.C.plein or UI.C.titre
+            self.nom:SetTextColor(couleurNom[1], couleurNom[2], couleurNom[3])
+            UI.TeinterBrise(self.icone, brise)
+            local effets = Effets(element)
+            -- L'etat forge suit chaque arme, armure et accessoire. L'afficher
+            -- ici rend visible ce que le dispatch de degats peut casser.
+            local maximum = LCM.Objets.EtatMax(element)
+            local courant = math.max(0, maximum - LCM.Objets.Usure(conteneur.entity, element.id))
+            local infos = { string.format("État %d / %d", courant, maximum) }
+            if element.armure then infos[#infos + 1] = string.format("Armure %d", element.armure) end
+            local etat = table.concat(infos, "  ·  ")
+            effets = effets ~= "" and (etat .. "  ·  " .. effets) or etat
             self.effets:SetText(effets)
             -- La description sous le nom : elle n'existait que dans l'infobulle,
             -- qu'il fallait aller chercher a la souris.
@@ -1154,6 +1216,7 @@ local function Emplacement(conteneur, c)
             -- Disparu : il occupe toujours sa case, et redevient actif s'il
             -- revient.
             self.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            UI.TeinterBrise(self.icone, false)
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.description:SetText("")

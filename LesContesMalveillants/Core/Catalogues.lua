@@ -86,6 +86,15 @@ function LCM.Catalogue(def)
             avantage = avantage,
         }
         LCM.ChampsCommuns(definition, element, Erreur)
+        -- Certaines familles portent une jauge d'etat meme quand une ancienne
+        -- definition ne la declarait pas encore. Le defaut reste ici, au coeur
+        -- du registre, afin que contenu publie, brouillon et PNJ soient egaux.
+        if element.etat == nil and def.etatDefaut ~= nil then
+            local maximum = type(def.etatDefaut) == "function" and def.etatDefaut() or def.etatDefaut
+            maximum = tonumber(maximum)
+            if not maximum or maximum < 0 then Erreur(id .. " : etat par defaut illisible") end
+            element.etat = { courant = maximum, max = maximum }
+        end
         -- Champs propres a une famille (les places d'un sac) : des entiers,
         -- bornes, avec un defaut, ou des cases a cocher (sac du MJ). Un nombre
         -- illisible est refuse, pas devine. `categories` limite un champ a
@@ -248,6 +257,8 @@ function LCM.Catalogue(def)
         return out
     end
 
-    LCM.Effets.Source(def.nom, C.Portes, function() return C.list end)
+    -- `def.apport` : ce que la famille donne vraiment. Les objets le reglent
+    -- sur leur etat ; les autres familles donnent ce qu'elles annoncent.
+    LCM.Effets.Source(def.nom, C.Portes, function() return C.list end, def.apport)
     return C
 end

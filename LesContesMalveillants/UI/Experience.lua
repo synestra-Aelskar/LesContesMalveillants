@@ -9,6 +9,31 @@ UI.Experience = Ecran
 
 local DUREE = 4
 local LARGEUR, HAUTEUR = 720, 132
+local TEXTURE_FOND = "Interface\\AddOns\\LesContesMalveillants\\ressources\\hud\\panneau-fondu.tga"
+
+-- Le client Epsilon gere mal SetGradient avec de la transparence. Le HUD
+-- fournit deja un vrai fondu alpha continu : on le reutilise ici afin de ne
+-- plus simuler le degrade avec une succession de bandes visibles.
+local function HabillerBandeau(parent, marge)
+    marge = tonumber(marge) or 34
+
+    local fond = parent:CreateTexture(nil, "BACKGROUND")
+    fond:SetTexture(TEXTURE_FOND)
+    fond:SetAllPoints(parent)
+    parent.fond = fond
+
+    local haut = UI.Aplat(parent, { 0.78, 0.57, 0.24, 0.72 }, "ARTWORK")
+    haut:SetPoint("TOPLEFT", parent, "TOPLEFT", marge, -4)
+    haut:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -marge, -4)
+    haut:SetHeight(1)
+    parent.haut = haut
+
+    local bas = UI.Aplat(parent, { 0.46, 0.30, 0.12, 0.48 }, "ARTWORK")
+    bas:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", marge, 4)
+    bas:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -marge, 4)
+    bas:SetHeight(1)
+    parent.bas = bas
+end
 
 local function Construire()
     local f = CreateFrame("Frame", "LCM_GainExperience", UIParent)
@@ -17,29 +42,7 @@ local function Construire()
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
 
-    -- Degrade brun-noir sans texture externe : des bandes non superposees
-    -- s'intensifient vers le centre. Cela conserve la transparence en jeu,
-    -- contrairement a certains SetGradient du client Epsilon.
-    local bandes = 24
-    local largeurBande = LARGEUR / bandes
-    f.fond = {}
-    for index = 1, bandes do
-        local distance = math.abs((index - 0.5) - bandes / 2) / (bandes / 2)
-        local force = math.max(0, 1 - distance)
-        local fond = UI.Aplat(f, { 0.075, 0.052, 0.031, 0.10 + force * 0.72 }, "BACKGROUND")
-        fond:SetPoint("TOPLEFT", f, "TOPLEFT", (index - 1) * largeurBande, 0)
-        fond:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", (index - 1) * largeurBande, 0)
-        fond:SetWidth(largeurBande + 1)
-        f.fond[index] = fond
-
-        local alphaFilet = 0.08 + force * 0.70
-        local haut = UI.Aplat(f, { 0.78, 0.57, 0.24, alphaFilet }, "ARTWORK")
-        haut:SetPoint("TOPLEFT", f, "TOPLEFT", (index - 1) * largeurBande, -5)
-        haut:SetSize(largeurBande + 1, 1)
-        local bas = UI.Aplat(f, { 0.46, 0.30, 0.12, alphaFilet * 0.75 }, "ARTWORK")
-        bas:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", (index - 1) * largeurBande, 5)
-        bas:SetSize(largeurBande + 1, 1)
-    end
+    HabillerBandeau(f, 42)
 
     f.titre = UI.Texte(f, "GAIN D'EXPÉRIENCE !", UI.C.titre)
     UI.Police(f.titre, 22, "OUTLINE")
@@ -66,23 +69,7 @@ local function Construire()
     f.niveau = CreateFrame("Frame", nil, f)
     f.niveau:SetSize(560, 72)
     f.niveau:SetPoint("TOP", f, "BOTTOM", 0, -6)
-    f.niveau.fond = {}
-    local bandesNiveau = 18
-    local largeurNiveau = 560 / bandesNiveau
-    for index = 1, bandesNiveau do
-        local distance = math.abs((index - 0.5) - bandesNiveau / 2) / (bandesNiveau / 2)
-        local force = math.max(0, 1 - distance)
-        local fond = UI.Aplat(f.niveau,
-            { 0.075, 0.052, 0.031, 0.10 + force * 0.72 }, "BACKGROUND")
-        fond:SetPoint("TOPLEFT", f.niveau, "TOPLEFT", (index - 1) * largeurNiveau, 0)
-        fond:SetPoint("BOTTOMLEFT", f.niveau, "BOTTOMLEFT", (index - 1) * largeurNiveau, 0)
-        fond:SetWidth(largeurNiveau + 1)
-        f.niveau.fond[index] = fond
-    end
-    f.niveau.haut = UI.Aplat(f.niveau, { 0.78, 0.57, 0.24, 0.72 }, "ARTWORK")
-    f.niveau.haut:SetPoint("TOPLEFT", f.niveau, "TOPLEFT", 34, -3)
-    f.niveau.haut:SetPoint("TOPRIGHT", f.niveau, "TOPRIGHT", -34, -3)
-    f.niveau.haut:SetHeight(1)
+    HabillerBandeau(f.niveau, 34)
     f.niveau.titre = UI.Texte(f.niveau, "", UI.C.titre)
     UI.Police(f.niveau.titre, 17, "OUTLINE")
     f.niveau.titre:SetPoint("TOP", f.niveau, "TOP", 0, -13)
@@ -154,26 +141,7 @@ local function ConstruireRegain()
     f:SetPoint("TOP", UIParent, "TOP", 0, -145)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
-    f.fond = {}
-    local bandes = 24
-    local largeurBande = LARGEUR / bandes
-    for index = 1, bandes do
-        local distance = math.abs((index - 0.5) - bandes / 2) / (bandes / 2)
-        local force = math.max(0, 1 - distance)
-        local fond = UI.Aplat(f, { 0.075, 0.052, 0.031, 0.10 + force * 0.72 }, "BACKGROUND")
-        fond:SetPoint("TOPLEFT", f, "TOPLEFT", (index - 1) * largeurBande, 0)
-        fond:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", (index - 1) * largeurBande, 0)
-        fond:SetWidth(largeurBande + 1)
-        f.fond[index] = fond
-    end
-    f.haut = UI.Aplat(f, { 0.78, 0.57, 0.24, 0.72 }, "ARTWORK")
-    f.haut:SetPoint("TOPLEFT", f, "TOPLEFT", 30, -5)
-    f.haut:SetPoint("TOPRIGHT", f, "TOPRIGHT", -30, -5)
-    f.haut:SetHeight(1)
-    f.bas = UI.Aplat(f, { 0.46, 0.30, 0.12, 0.55 }, "ARTWORK")
-    f.bas:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 30, 5)
-    f.bas:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -30, 5)
-    f.bas:SetHeight(1)
+    HabillerBandeau(f, 42)
 
     f.titre = UI.Texte(f, "REGAIN", UI.C.titre)
     UI.Police(f.titre, 22, "OUTLINE")

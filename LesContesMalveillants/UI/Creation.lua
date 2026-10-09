@@ -84,8 +84,8 @@ local TEXTES = {
         .. "Celles-ci sont divisées en 3 catégories : physiques, élémentaires et cosmologiques.\n\n"
         .. "Il n'y a aucune restriction au nombre de types que votre personnage sait ou non manier, mais un type "
         .. "ne peut être augmenté qu'à un seuil maximal lié à votre constitution.",
-    traits = "Tout personnage commence avec 2 traits de personnage. Il peut ensuite sélectionner un trait "
-        .. "supplémentaire tous les 5 niveaux.\n\n"
+    traits = "Tout personnage commence au niveau 5 avec 3 points de traits. Il gagne ensuite un point "
+        .. "supplémentaire aux niveaux 8, 12, 15, 19, 22, 25, 30, 35, 40, 45 et 50.\n\n"
         .. "Les traits doivent être confectionnés par un maître du jeu.\n\n"
         .. "Ils apportent ou retirent des statistiques directement à la fiche. Ils représentent les affinités, "
         .. "particularités, etc., du personnage. À la différence de l'équipement, ils ne peuvent pas être amputés "
@@ -1504,6 +1504,19 @@ local function Construire()
 
     f:SetScript("OnHide", function(self)
         self.confirmation:Hide()
+        -- Echap fait partie des UISpecialFrames et peut donc cacher la fenetre
+        -- sans passer par notre croix. Une refonte obligatoire revient tant
+        -- qu'elle n'a pas ete validee, sauf pendant une deconnexion/recharge.
+        if self.brouillon and self.brouillon.mode == "reequilibrage"
+            and C.ReequilibrageRequis(self.brouillon.entite)
+            and not Ecran.deconnexion
+        then
+            local function Rouvrir()
+                if self.brouillon and C.ReequilibrageRequis(self.brouillon.entite) then self:Show() end
+            end
+            if C_Timer and C_Timer.After then C_Timer.After(0, Rouvrir) else Rouvrir() end
+            return
+        end
         if self.retourSelection then
             self.retourSelection = nil
             UI.Personnages.Fenetre():Montrer()
@@ -1514,13 +1527,19 @@ local function Construire()
         self.brouillon = brouillon or self.brouillon or C.Nouveau()
         local montee = self.brouillon.mode == "niveau"
         local pnj = self.brouillon.mode == "pnj"
+        local reequilibrage = self.brouillon.mode == "reequilibrage"
         local edition = self.brouillon.entite ~= nil
-        self:Titre(montee and string.format("Niveau %d → %d", self.brouillon.niveauAvant, self.brouillon.niveau)
-            or (pnj and "Création d'un PNJ" or (edition and "Réédition" or "Création")))
+        self:Titre(reequilibrage and "Rééquilibrage requis"
+            or (montee and string.format("Niveau %d → %d", self.brouillon.niveauAvant, self.brouillon.niveau)
+            or (pnj and "Création d'un PNJ" or (edition and "Réédition" or "Création"))))
         self.valider.label:SetText(montee and ("Valider le niveau " .. tostring(self.brouillon.niveau))
-            or (pnj and "Créer le PNJ" or (edition and "Valider la fiche" or "Créer le personnage")))
-        self.recap.titre:SetText(montee and "Gains de ce niveau" or "Récapitulatif")
+            or (reequilibrage and "Valider le rééquilibrage"
+            or (pnj and "Créer le PNJ" or (edition and "Valider la fiche" or "Créer le personnage"))))
+        self.recap.titre:SetText(montee and "Gains de ce niveau"
+            or (reequilibrage and "Nouvel équilibrage" or "Récapitulatif"))
         self.remiseTotale.label:SetText(montee and "Réinitialiser ce niveau" or "Tout remettre à zéro")
+        self.fermer:SetShown(not reequilibrage)
+        self.abandonner:SetShown(not reequilibrage)
         self:Afficher(montee and "generale" or C.ETAPES[1].id)
         self:Show()
     end
@@ -1533,9 +1552,16 @@ function Ecran.Fenetre()
     return Ecran.frame
 end
 
+local function ProfilActifAReequilibrer()
+    local entity = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+    return entity and C.ReequilibrageRequis(entity) and entity or nil
+end
+
 -- Toujours sur un brouillon neuf : « creer un personnage » ne doit pas reprendre
 -- les restes de la fois d'avant.
 function Ecran.Ouvrir()
+    local impose = ProfilActifAReequilibrer()
+    if impose then return Ecran.Reequilibrer(impose) end
     local f = Ecran.Fenetre()
     f.sauverPNJ = nil
     f:Montrer(C.Nouveau())
@@ -1545,6 +1571,8 @@ end
 -- Point d'entree du compagnon MJ : meme createur, mais la validation lui rend
 -- une definition a enregistrer dans le compendium au lieu de creer un joueur.
 function Ecran.OuvrirPNJ(sauver)
+    local impose = ProfilActifAReequilibrer()
+    if impose then return Ecran.Reequilibrer(impose) end
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     if type(sauver) ~= "function" then return nil, "enregistrement du PNJ indisponible." end
     local f = Ecran.Fenetre()
@@ -1554,10 +1582,17 @@ function Ecran.OuvrirPNJ(sauver)
 end
 
 function Ecran.Editer(entity)
+    local impose = ProfilActifAReequilibrer()
+    if impose and entity ~= impose then return Ecran.Reequilibrer(impose) end
     entity = entity or (LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage())
     local peut, raison = C.PeutEditer(entity)
     if not peut then return nil, raison end
-    local brouillon, erreur = C.Depuis(entity)
+    local brouillon, erreur
+    if C.ReequilibrageRequis(entity) then
+        brouillon, erreur = C.DepuisReequilibrage(entity)
+    else
+        brouillon, erreur = C.Depuis(entity)
+    end
     if not brouillon then return nil, erreur end
     local f = Ecran.Fenetre()
     f.sauverPNJ = nil
@@ -1565,7 +1600,21 @@ function Ecran.Editer(entity)
     return f
 end
 
+function Ecran.Reequilibrer(entity)
+    entity = entity or (LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage())
+    if not C.ReequilibrageRequis(entity) then return nil, "aucun rééquilibrage requis." end
+    local brouillon, erreur = C.DepuisReequilibrage(entity)
+    if not brouillon then return nil, erreur end
+    local f = Ecran.Fenetre()
+    f.sauverPNJ = nil
+    f:Montrer(brouillon)
+    LCM.Alerte("les règles de création ont évolué : répartis à nouveau tes points pour continuer.")
+    return f
+end
+
 function Ecran.MonterNiveau(entity)
+    local impose = ProfilActifAReequilibrer()
+    if impose then return Ecran.Reequilibrer(impose) end
     entity = entity or (LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage())
     local brouillon, erreur = C.DepuisNiveau(entity)
     if not brouillon then return nil, erreur end
@@ -1580,7 +1629,24 @@ LCM.WhenReady(function()
         local f, erreur = Ecran.MonterNiveau()
         if not f then LCM.Alerte(tostring(erreur)) end
     end)
+    local function VerifierReequilibrage()
+        local entity = LCM.Entities and LCM.Entities.Personnage and LCM.Entities.Personnage()
+        if entity and C.ReequilibrageRequis(entity) then Ecran.Reequilibrer(entity) end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0, VerifierReequilibrage)
+    else VerifierReequilibrage() end
+    if LCM.Entities and LCM.Entities.EcouterSoi then
+        LCM.Entities.EcouterSoi(function(_, entity)
+            if not C.applicationEnCours and entity and entity.kind == "player"
+                and C.ReequilibrageRequis(entity)
+            then
+                Ecran.Reequilibrer(entity)
+            end
+        end)
+    end
 end)
+
+LCM.On("PLAYER_LOGOUT", function() Ecran.deconnexion = true end)
 
 LCM.AddCommand("creer", "cree un personnage", function() Ecran.Ouvrir() end)
 LCM.AddCommand("editer", "réédite ton personnage (MJ ou avec un jeton)", function()

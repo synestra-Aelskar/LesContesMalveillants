@@ -57,6 +57,13 @@ local function Statistiques(categorie)
     return out
 end
 
+local CATEGORIES_OBJETS = { armes = true, armures = true, accessoires = true }
+
+local function EstObjet(categorie)
+    local id = type(categorie) == "table" and categorie.id or tostring(categorie or "")
+    return CATEGORIES_OBJETS[id] == true
+end
+
 -- Min, base, max d'un reglage, coherents entre eux.
 local function Bornes(id, quoi, r, Erreur)
     local minimum = EntierOuRien(id, quoi .. " : minimum", r.min, Erreur)
@@ -224,16 +231,52 @@ function Forge.Valeur(jeu, rarete) return jeu.id .. "/" .. rarete.id end
 -- l'instant seules les armes l'emploient : une arme a deux emplacements a
 -- deux fois le budget de sa rarete. Le multiplicateur reste volontairement
 -- borne a 1 ou 2, comme le registre des objets.
-function Forge.Pool(rarete, multiplicateur)
+function Forge.Pool(rarete, multiplicateur, categorie)
     local m = tonumber(multiplicateur) == 2 and 2 or 1
-    return (rarete and rarete.points or 0) * m
+    local bonus = EstObjet(categorie) and (tonumber(Eq().etatObjet.bonusPool) or 0) or 0
+    return (rarete and rarete.points or 0) * m + bonus
 end
 
-function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool)
+function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
     valeurs = type(valeurs) == "table" and valeurs or {}
     local categorie = LCM.Compendium.Get(jeu.categorie)
     local rarete = rareteId and Forge.Rarete(jeu, rareteId) or nil
     local lignes, depenses, credit = {}, 0, 0
+    -- Premiere caracteristique des objets : leur maximum d'etat. Elle est
+    -- commune a tous les jeux d'armes, d'armures et d'accessoires, et n'a
+    -- donc pas a etre redefinie dans chaque jeu d'equilibrage.
+    if EstObjet(categorie) then
+        local regle = Eq().etatObjet
+        local base, minimum, pas = tonumber(regle.base) or 10, tonumber(regle.min) or 2,
+            tonumber(regle.pas) or 2
+        local v = tonumber(etatObjet) or base
+        local hors
+        if v ~= math.floor(v) then
+            hors = "Pts d'armures doit être un nombre entier"
+        elseif v < minimum then
+            hors = string.format("Pts d'armures sous son minimum (%s < %s)",
+                LCM.Compendium.Nombre(v), LCM.Compendium.Nombre(minimum))
+        elseif (v - base) % pas ~= 0 then
+            hors = string.format("Pts d'armures se règle par pas de %d", pas)
+        end
+        local coutPoint = (tonumber(regle.coutParPas) or 0.5) / pas
+        local ecart = v - base
+        local depense = ecart * coutPoint
+        if ecart < 0 then
+            depense = depense / 2
+            credit = credit - depense
+        else
+            depenses = depenses + depense
+        end
+        lignes[#lignes + 1] = {
+            champ = { cle = "etatObjet", label = "Pts d'armures", dossier = "Pts d'armures" },
+            valeur = v,
+            limites = { base = base, min = minimum, cout = coutPoint, pas = pas },
+            depense = depense,
+            hors = hors,
+            etatObjet = true,
+        }
+    end
     for _, champ in ipairs(Statistiques(categorie)) do
         local l = Forge.Limites(jeu, champ.cle, rareteId)
         local v = tonumber(valeurs[champ.cle]) or 0
@@ -261,7 +304,7 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool)
 
     -- Sans rarete connue (un jeu qu'on est en train d'ecrire), rien ne plafonne
     -- : on n'a pas de pool a quoi se referer.
-    local pool = rarete and Forge.Pool(rarete, multiplicateurPool) or nil
+    local pool = rarete and Forge.Pool(rarete, multiplicateurPool, categorie) or nil
     local retenu = credit
     if pool and credit > pool then retenu = pool end
     return {
@@ -282,11 +325,11 @@ end
 -- est plafonne par le pool, le total depend de la rarete qu'on vise. Calcule
 -- une fois pour toutes, il proposait une rarete ou les valeurs ne rentraient
 -- pas.
-function Forge.RareteSuffisante(jeu, valeurs, multiplicateurPool)
+function Forge.RareteSuffisante(jeu, valeurs, multiplicateurPool, etatObjet)
     if type(valeurs) ~= "table" then return nil end
     local meilleure
     for _, r in ipairs(jeu.raretes) do
-        local bilan = Forge.Bilan(jeu, r.id, valeurs, multiplicateurPool)
+        local bilan = Forge.Bilan(jeu, r.id, valeurs, multiplicateurPool, etatObjet)
         if bilan.total <= bilan.pool and (not meilleure or r.points < meilleure.points) then
             meilleure = r
         end
@@ -339,7 +382,8 @@ function Forge.Verifier(famille, element)
         return false, string.format("rareté inconnue dans « %s » (%s)", jeu.label, tostring(rareteId))
     end
     local multiplicateurPool = categorie.id == "armes" and element.taille or 1
-    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool)
+    local etatObjet = type(element.etat) == "table" and element.etat.max or nil
+    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool, etatObjet)
     for _, ligne in ipairs(bilan.lignes) do
         if ligne.hors then return false, ligne.hors end
     end
@@ -356,8 +400,10 @@ function Forge.Options(categorieId)
     local out = {}
     for _, jeu in ipairs(Forge.PourCategorie(categorieId)) do
         for _, r in ipairs(jeu.raretes) do
+            local categorie = LCM.Compendium.Get(jeu.categorie)
             out[#out + 1] = { id = Forge.Valeur(jeu, r),
-                              label = string.format("%s (%d pts)", r.label, r.points), groupe = jeu.label }
+                              label = string.format("%s (%s pts)", r.label,
+                                  LCM.Compendium.Nombre(Forge.Pool(r, 1, categorie))), groupe = jeu.label }
         end
     end
     return out

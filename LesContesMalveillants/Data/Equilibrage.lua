@@ -12,6 +12,13 @@ local _, LCM = ...
 local E = {}
 LCM.Equilibrage = E
 
+-- A augmenter des qu'une modification change les budgets, les plafonds ou les
+-- champs repartis a la creation. Chaque personnage conserve la derniere
+-- version qu'il a validee ; une version plus ancienne impose une refonte a sa
+-- prochaine connexion. La version 2 introduit les nouveaux budgets de traits
+-- et de mecaniques d'octobre 2026.
+E.VERSION_CREATION = 2
+
 -- ===== Formules de fiche ===================================================
 -- Releve du TEMPLATE Necronicon (« Template Fiche LVL 5 - Contes Malveillants
 -- V2 », fenetre Equilibrage et formules de la fenetre Creation). C'est lui qui
@@ -297,6 +304,15 @@ E.armure = {
 
 E.forge = {
     coutParDefaut = 1,
+    -- Etat des armes, armures et accessoires. Les cinq points ajoutes au
+    -- pool compensent l'arrivee de cette caracteristique obligatoire.
+    etatObjet = {
+        base = 10,
+        min = 2,
+        pas = 2,
+        coutParPas = 0.5,
+        bonusPool = 1,
+    },
 }
 
 -- ===== Inventaires ==========================================================
@@ -319,10 +335,21 @@ E.creation = {
     primaires   = { base = 17, parNiveau = 3 },
     secondaires = { base = 12, parNiveau = 4 },
     expertises  = { base = 8,  parNiveau = 2 },
-    mecaniques  = { base = 2,  parNiveau = 3 },
-    -- Traits : 2 au depart, puis un point tous les cinq niveaux. Un trait
-    -- coute de 1 a 4 points selon sa force.
-    traits      = { base = 2, niveauxParPoint = 5 },
+    -- Dix points au niveau de depart. Chaque niveau suivant donne un point,
+    -- sauf les multiples de cinq qui en donnent quatre a la place.
+    mecaniques  = {
+        base = 10,
+        niveauDepart = 5,
+        parNiveau = 1,
+        niveauxParPalier = 5,
+        gainPalier = 4,
+    },
+    -- Traits : trois points au niveau de depart, puis un point aux niveaux
+    -- annonces par la campagne. Un trait coute de 1 a 4 points selon sa force.
+    traits      = {
+        base = 3,
+        niveaux = { 8, 12, 15, 19, 22, 25, 30, 35, 40, 45, 50 },
+    },
 }
 
 -- Ce qu'un point secondaire rapporte quand on l'investit dans un pool.
@@ -381,9 +408,9 @@ E.secondaires = {
     { id = "sec_deplacement", label = "Déplacement",             cout = 2, plafond = { parNiveau = 2 } },
     { id = "sec_penetration", label = "Pénétration",             cout = 1, plafond = { parNiveau = 2 } },
     { id = "sec_resistance",  label = "Résistance",              cout = 1, plafond = { parNiveau = 2 } },
-    -- Le template fait payer DEUX points secondaires par point d'expertises.
+    -- Expertises et mécaniques coûtent DEUX points secondaires par point.
     { id = "sec_expertises",  label = "Expertises",              cout = 2, plafond = { parNiveau = 2 } },
-    { id = "sec_mecanique",   label = "Mécanique de compétence", cout = 1, plafond = { parNiveau = 2 } },
+    { id = "sec_mecanique",   label = "Mécanique de compétence", cout = 2, plafond = { parNiveau = 2 } },
 }
 
 -- ===== Types de degats =====================================================
@@ -409,6 +436,39 @@ E.types = {
 }
 
 E.groupesTypes = { "Physiques", "Élémentaires", "Cosmiques" }
+
+-- ===== Vies d'un objet =====================================================
+-- Un objet qui tombe a zero d'etat perdait tout : il etait detruit, et rien ne
+-- pouvait le rendre. C'etait trop dur — on perdait une piece sur un mauvais jet
+-- (9 octobre 2026).
+--
+-- Desormais il a des VIES. A zero d'etat, il en perd une et se brise sans
+-- disparaitre : on peut encore le reparer. C'est quand il tombe a zero d'etat
+-- SANS vie qu'il est detruit pour de bon.
+--
+-- Combien de vies : sa RARETE, donc la couleur de son titre, que la forge lui
+-- donne (`rarete.couleur` -> `couleurTitre`). On la lit par sa couleur et non
+-- par son identifiant : les jeux d'equilibrage nomment leurs raretes comme ils
+-- veulent, mais la couleur, elle, est la meme pour tous.
+--
+-- `nil` = illimitee : l'objet se brise autant de fois qu'on veut, jamais detruit.
+
+E.VIES_ILLIMITEES = nil
+
+E.viesParRarete = {
+    ["FF8CB8"] = { label = "Commun",     couleur = "rose",   vies = 0 },
+    ["4DE04D"] = { label = "Inhabituel", couleur = "vert",   vies = 1 },
+    ["4D8CFF"] = { label = "Rare",       couleur = "bleu",   vies = 1 },
+    ["FF9926"] = { label = "Épique",     couleur = "orange", vies = 2 },
+    ["FF3838"] = { label = "Légendaire", couleur = "rouge",  vies = 2 },
+    ["BF4DFF"] = { label = "Mythique",   couleur = "violet", vies = 3 },
+    ["9999A6"] = { label = "Unique",     couleur = "noir",   vies = nil, illimitees = true },
+}
+
+-- Une couleur qu'aucune rarete ne declare : zero vie, c'est-a-dire ce que
+-- faisait l'addon avant. On ne devine pas une generosite que personne n'a
+-- decidee.
+E.viesParDefaut = 0
 
 -- ===== Mecaniques de competence ============================================
 -- Ce qu'une competence sait FAIRE. Relevees de la grille « Mecanique de

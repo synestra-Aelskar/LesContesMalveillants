@@ -1519,6 +1519,85 @@ LCM.Entities.Ecouter(function(entity)
     end
 end)
 
+-- ===== L'etat d'un objet ===================================================
+-- Ce qui reste de solide a une arme, une armure, un accessoire : « 8/12 ».
+--
+-- L'usure est portee par le PERSONNAGE, pas par la case (Core/Objets.lua) : un
+-- objet montre donc le meme etat dans son sac, sur la fiche et dans sa carte.
+-- Un seul endroit le calcule et le colore, pour que les trois s'accordent —
+-- ils le disaient chacun a leur facon, et seule la carte le disait vraiment.
+
+function UI.Hex(couleur)
+    couleur = couleur or UI.C.texte
+    return string.format("%02x%02x%02x",
+        math.floor((couleur[1] or 1) * 255 + 0.5),
+        math.floor((couleur[2] or 1) * 255 + 0.5),
+        math.floor((couleur[3] or 1) * 255 + 0.5))
+end
+
+-- Intact, on l'oublie ; entame, il se voit ; a zero, il crie. L'objet casse
+-- reste affiche : savoir qu'on porte une loque est une information.
+function UI.CouleurEtat(courant, maximum)
+    if (tonumber(courant) or 0) <= 0 then return UI.C.plein end
+    if (tonumber(courant) or 0) < (tonumber(maximum) or 0) then return UI.C.accent end
+    return UI.C.discret
+end
+
+-- Les VIES d'un objet : combien de fois il peut encore tomber a zero d'etat
+-- avant d'etre detruit (Data/Equilibrage.lua, par rarete).
+--
+-- Vert des qu'il en reste une, ROUGE a zero : a zero, le prochain coup qui le
+-- met a plat le detruit pour de bon, et ca doit se voir avant d'aller se
+-- battre.
+UI.AIDE_VIES = "Vie de votre équipement. Une fois à zéro, l'objet sera brisé "
+    .. "lorsque son état atteindra 0 d'état. Sa vie baisse lorsqu'un équipement "
+    .. "passe à 0 d'état."
+
+function UI.ViesObjet(entity, element)
+    if not (LCM.Objets and type(element) == "table" and element.id) then return nil end
+    if not LCM.Objets.Get(element.id) then return nil end
+    local restantes, maximum = LCM.Objets.Vies(entity, element)
+    -- Illimitees : rien a compter, et le signe le dit mieux qu'un chiffre.
+    if restantes == nil then return "∞", nil, nil, UI.C.vert or { 0.42, 0.78, 0.42 } end
+    local couleur = restantes > 0 and (UI.C.vert or { 0.42, 0.78, 0.42 }) or UI.C.plein
+    return tostring(restantes), restantes, maximum, couleur
+end
+
+-- Un objet brise se voit de loin : son icone passe au rouge et « [BRISÉ] »
+-- precede son nom. C'est l'etat dont on doit s'apercevoir SANS lire les
+-- chiffres, parce qu'il ne protege plus et n'apporte plus rien.
+UI.MARQUE_BRISE = "[BRISÉ]"
+UI.TEINTE_BRISE = { 1, 0.35, 0.35 }
+
+function UI.ObjetBrise(entity, element)
+    if not (LCM.Objets and type(element) == "table" and element.id) then return false end
+    if not LCM.Objets.Get(element.id) then return false end
+    return LCM.Objets.EstBrise(entity, element)
+end
+
+-- Pose ou retire la teinte rouge d'une icone. Toujours appelee, dans les deux
+-- cas : une icone teintee qu'on oublie de rendre blanche reste rouge pour
+-- l'objet suivant qui passe dans la meme case.
+function UI.TeinterBrise(texture, brise)
+    if not texture or not texture.SetVertexColor then return end
+    if brise then
+        texture:SetVertexColor(UI.TEINTE_BRISE[1], UI.TEINTE_BRISE[2], UI.TEINTE_BRISE[3])
+    else
+        texture:SetVertexColor(1, 1, 1)
+    end
+end
+
+-- Rend « 8/12 », l'etat courant et le maximum ; nil pour ce qui n'a pas
+-- d'etat (une ressource, une devise : on n'use pas une pomme).
+function UI.EtatObjet(entity, element)
+    if not (LCM.Objets and type(element) == "table" and element.id) then return nil end
+    if not LCM.Objets.Get(element.id) then return nil end
+    local maximum = LCM.Objets.EtatMax(element)
+    if not maximum or maximum <= 0 then return nil end
+    local courant = math.max(0, maximum - LCM.Objets.Usure(entity, element.id))
+    return string.format("%d/%d", courant, maximum), courant, maximum
+end
+
 -- ===== Glisser-deposer =====================================================
 -- Repris de Necronicon (Inventory.lua : ShowInventoryDragGhost) : on glisse
 -- une entree (une ligne du compendium), un fantome de 180 x 42 — icone et nom

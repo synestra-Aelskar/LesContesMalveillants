@@ -1454,8 +1454,8 @@ local function Apercu(etape, ctx)
         { titre = "Coup normal", valeur = normal and math.floor(normal + 0.5), couleur = { 1, 0.9, 0.55 } },
         { titre = "Coup critique", valeur = critique and math.floor(critique + 0.5), couleur = { 1, 0.35, 0.35 } },
     }
-    local pct = tonumber(Jeton("recu", "Perce armure", ctx))
-    if pct and pct > 0 then
+    local pct = Actions.PercePourcentage(ctx)
+    if pct > 0 then
         cases[3] = { titre = string.format("Perce-armure %d%%", math.floor(pct + 0.5)),
                      texte = string.format("%s / |cffff5959%s|r",
                          normal and math.ceil(normal * pct / 100 - 1e-9) or "?",
@@ -2955,12 +2955,10 @@ end
 
 -- ===== Repartir ce qui est applique ========================================
 
--- Ou l'on peut encaisser : les zones du corps pour #sante, les Boucliers pour
--- #bouclier, chaque piece d'armure portee pour #armure. Chaque case porte ce
--- qu'elle peut encore absorber : une zone ne se blesse pas au-dela de son
--- maximum (Core/Body.lua), des Boucliers vides n'absorbent plus rien, une
--- piece epuisee non plus. Nu, #armure ne propose rien : ce n'est pas une
--- erreur, il n'y a rien a toucher.
+-- Ou l'on peut encaisser : les zones du corps pour #sante, la jauge temporaire
+-- et TOUS les objets equipes pour #bouclier. #armure reste un alias accepte
+-- pour les anciennes actions et vise les memes objets. Chaque objet expose son
+-- etat forge ; a zero il est detruit (Core/Objets.lua).
 function Actions.Zones(entity, tags)
     local voulus = {}
     for _, t in ipairs(tags or {}) do voulus[Cle(t:gsub("#", ""))] = true end
@@ -2977,12 +2975,10 @@ function Actions.Zones(entity, tags)
         out[#out + 1] = { genre = "jauge", id = "armure", nom = "Boucliers", courant = j.current, max = j.max,
                           plafond = j.current, tag = "#bouclier" }
     end
-    if voulus.armure then
-        -- `courant` : ce qui protege encore ; la jauge de la fiche, elle,
-        -- compte l'inverse (l'encaisse).
-        for _, piece in ipairs(LCM.Objets.PiecesArmure(entity)) do
-            out[#out + 1] = { genre = "piece", id = piece.id, nom = piece.label, courant = piece.reste,
-                              max = piece.valeur, plafond = piece.reste, tag = "#armure" }
+    if voulus.bouclier or voulus.armure then
+        for _, objet in ipairs(LCM.Objets.EquipementsEtat(entity)) do
+            out[#out + 1] = { genre = "objet", id = objet.id, nom = objet.label, courant = objet.reste,
+                              max = objet.valeur, plafond = objet.reste, tag = "#bouclier" }
         end
     end
     local inconnus = {}
@@ -2993,17 +2989,26 @@ function Actions.Zones(entity, tags)
     return out, inconnus
 end
 
+-- Pourcentage de degats qui doit traverser les protections. Une valeur issue
+-- d'une ancienne fiche ou saisie a la main peut depasser 100 : on la borne ici
+-- afin que la repartition ne puisse jamais devenir impossible.
+function Actions.PercePourcentage(ctx)
+    local pct = tonumber(Jeton("recu", "Perce armure", ctx)) or 0
+    return math.max(0, math.min(100, pct))
+end
+
 -- Le perce-armure : la part du degat qui DOIT aller en sante (arrondie au
 -- superieur), quoi que le joueur repartisse.
 function Actions.PerceMinimum(ctx, montant)
-    local pct = tonumber(Jeton("recu", "Perce armure", ctx)) or 0
-    if pct <= 0 then return 0 end
-    return math.ceil(montant * pct / 100 - 1e-9)
+    local pct = Actions.PercePourcentage(ctx)
+    montant = math.max(0, tonumber(montant) or 0)
+    if pct <= 0 or montant <= 0 then return 0 end
+    return math.min(math.ceil(montant - 1e-9), math.ceil(montant * pct / 100 - 1e-9))
 end
 
 -- Applique une repartition : { [index de case] = points }. Les degats d'une
 -- zone s'ecrivent en blessures (Core/Body.lua), ceux des Boucliers en jauge,
--- ceux d'une piece d'armure en usure (Core/Objets.lua) ; un gain la repare.
+-- ceux d'un objet dans son etat (Core/Objets.lua) ; un gain le repare.
 function Actions.Repartir(ctx, cases, repartition, signe)
     local lignes = {}
     for i, case in ipairs(cases) do
@@ -3011,13 +3016,15 @@ function Actions.Repartir(ctx, cases, repartition, signe)
         if n > 0 then
             if case.genre == "zone" then
                 if signe == "+" then LCM.Body.Heal(ctx.entity, case.id, n) else LCM.Body.Damage(ctx.entity, case.id, n) end
-            elseif case.genre == "piece" then
-                LCM.Objets.Encaisser(ctx.entity, case.id, signe == "+" and -n or n)
+            elseif case.genre == "objet" or case.genre == "piece" then
+                local _, detruit = LCM.Objets.Encaisser(ctx.entity, case.id, signe == "+" and -n or n)
+                if detruit then case.detruit = true end
             else
                 local j = LCM.Entities.Gauge(ctx.entity, case.id)
                 LCM.Entities.SetGauge(ctx.entity, case.id, j.current + (signe == "+" and n or -n))
             end
-            lignes[#lignes + 1] = string.format("%s %s%d", case.nom, signe, n)
+            lignes[#lignes + 1] = string.format("%s %s%d%s", case.nom, signe, n,
+                case.detruit and " (détruit)" or "")
         end
     end
     Journal(ctx, "Réparti : " .. (#lignes > 0 and table.concat(lignes, ", ") or "rien"))

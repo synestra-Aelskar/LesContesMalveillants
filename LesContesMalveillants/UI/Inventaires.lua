@@ -208,9 +208,15 @@ local function Construire()
                 l.icone:SetSize(20, 20)
                 l.icone:SetPoint("LEFT", l, "LEFT", 4, 0)
                 l.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                -- L'etat de l'objet au BOUT de la ligne : ce qui reste de
+                -- solide se lit dans le sac comme sur la fiche, sans ouvrir la
+                -- carte (9 octobre 2026).
+                l.etat = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
+                l.etat:SetPoint("RIGHT", l, "RIGHT", -8, 0)
+                l.etat:SetJustifyH("RIGHT")
                 l.nom = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
                 l.nom:SetPoint("LEFT", l.icone, "RIGHT", 8, 0)
-                l.nom:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+                l.nom:SetPoint("RIGHT", l.etat, "LEFT", -8, 0)
                 l.nom:SetJustifyH("LEFT")
                 l.nom:SetWordWrap(false)
                 l.survol = UI.Aplat(l, UI.C.survol, "HIGHLIGHT")
@@ -286,11 +292,22 @@ local function Construire()
             l.icone:SetTexture(element and element.icone or VIDE)
             if element then
                 local quantite = tonumber(c.quantite) or 1
-                l.nom:SetText(quantite > 1 and (element.label .. "  x" .. quantite) or element.label)
-                Peindre(l.nom, UI.C.texte)
+                -- Brise : icone rouge et « [BRISÉ] » devant le nom. On le voit
+                -- dans le sac comme sur la fiche, sans ouvrir la carte.
+                local brise = UI.ObjetBrise(entity, element)
+                local marque = brise and (UI.MARQUE_BRISE .. " ") or ""
+                l.nom:SetText(marque .. (quantite > 1
+                    and (element.label .. "  x" .. quantite) or element.label))
+                Peindre(l.nom, brise and UI.C.plein or UI.C.texte)
+                UI.TeinterBrise(l.icone, brise)
+                local etat, reste, plein = UI.EtatObjet(entity, element)
+                l.etat:SetText(etat or "")
+                if etat then Peindre(l.etat, UI.CouleurEtat(reste, plein)) end
             else
                 l.nom:SetText(Inv.EstCaseDevise(e, n) and "Case de devise" or "Vide")
                 Peindre(l.nom, UI.C.discret)
+                l.etat:SetText("")
+                UI.TeinterBrise(l.icone, false)
             end
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
@@ -475,6 +492,10 @@ local function NouvelleCase(s, n)
     -- En liste : une ligne de 28, icone de 20 et nom.
     b.nom = UI.Texte(b, "", UI.C.texte, "GameFontNormalSmall")
     b.nom:SetWordWrap(false)
+    -- Le meme etat qu'au panneau de contenu : les deux listes montrent la meme
+    -- chose, sinon l'une des deux ment.
+    b.etat = UI.Texte(b, "", UI.C.discret, "GameFontNormalSmall")
+    b.etat:SetJustifyH("RIGHT")
     b.survol = UI.Aplat(b, { 0.80, 0.70, 0.40, 0.12 }, "HIGHLIGHT")
     b.survol:SetAllPoints(b)
     UI.Glisser.Cible(b, function(objet)
@@ -603,6 +624,8 @@ local function ConstruireSac(onglet, index)
             b:ClearAllPoints()
             b.icone:ClearAllPoints()
             b.nom:ClearAllPoints()
+            b.etat:ClearAllPoints()
+            b.etat:SetText("")
             if vue == "grille" then
                 local col, rang = (n - 1) % colonnes, math.floor((n - 1) / colonnes)
                 b:SetSize(CASE, CASE)
@@ -610,20 +633,38 @@ local function ConstruireSac(onglet, index)
                 b.icone:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -5)
                 b.icone:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 5)
                 b.nom:Hide()
+                -- En grille, une case fait 48 pixels : l'etat n'y tiendrait
+                -- pas. La carte au survol le dit.
+                b.etat:Hide()
             else
                 b:SetHeight(28)
                 b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -(n - 1) * 30)
                 b:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -(n - 1) * 30)
                 b.icone:SetSize(20, 20)
                 b.icone:SetPoint("LEFT", b, "LEFT", 6, 0)
+                -- L'etat au bout, puis la quantite a sa gauche : le nom
+                -- s'arrete avant les deux.
+                b.etat:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+                local etat, reste, plein = c and element and UI.EtatObjet(Entite(), element) or nil
+                b.etat:SetText(etat or "")
+                if etat then
+                    b.etat:SetTextColor(unpack(UI.CouleurEtat(reste, plein)))
+                end
+                b.etat:Show()
+                local brise = c and element and UI.ObjetBrise(Entite(), element) or false
                 b.nom:SetPoint("LEFT", b.icone, "RIGHT", 8, 0)
-                b.nom:SetPoint("RIGHT", b, "RIGHT", -40, 0)
-                b.nom:SetText(c and (element and element.label or ("? " .. tostring(c.ref)))
+                b.nom:SetPoint("RIGHT", b.etat, "LEFT", -34, 0)
+                b.nom:SetText(c and ((brise and (UI.MARQUE_BRISE .. " ") or "")
+                        .. (element and element.label or ("? " .. tostring(c.ref))))
                     or (b.devise and "Emplacement devise" or "Emplacement"))
+                b.nom:SetTextColor(unpack(brise and UI.C.plein or UI.C.texte))
                 b.nom:Show()
             end
             if c then
                 b.icone:SetTexture(element and element.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
+                -- La teinte se repose a CHAQUE passage : une case qui garde la
+                -- sienne la donnerait a l'objet suivant.
+                UI.TeinterBrise(b.icone, element and UI.ObjetBrise(Entite(), element) or false)
                 b.icone:Show()
                 b.fond:SetColorTexture(0, 0, 0, 0.28)
                 -- Une devise montre toujours son nombre ; le reste, a partir de deux.
@@ -632,6 +673,7 @@ local function ConstruireSac(onglet, index)
             else
                 b.icone:SetShown(vue ~= "grille")
                 if vue ~= "grille" then b.icone:SetTexture(VIDE) end
+                UI.TeinterBrise(b.icone, false)
                 b.fond:SetColorTexture(0, 0, 0, 0.2)
                 b.nombre:SetText(b.devise and "DEV" or "")
             end

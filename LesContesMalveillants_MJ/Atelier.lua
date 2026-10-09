@@ -70,6 +70,10 @@ end
 local function CategorieForge(famille, edition)
     if famille == "traits" then return "traits" end
     if famille == "races" then return "races" end
+    if famille == "objets" then
+        return edition and ({ arme = "armes", equipement = "armures", accessoire = "accessoires" })[edition.categorie]
+            or nil
+    end
     local registre = Brouillons.Registre(famille)
     if not registre then return nil end
     if #registre.CATEGORIES == 1 then return registre.CATEGORIES[1].id end
@@ -471,7 +475,8 @@ local function PanneauEffets(f, genre)
         end
         local multiplicateurPool = categorie == "armes"
             and (tonumber(f.edition.taille) == 2 and 2 or 1) or 1
-        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus, multiplicateurPool)
+        local etatObjet = type(f.edition.etat) == "table" and f.edition.etat.max or nil
+        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus, multiplicateurPool, etatObjet)
         local hors
         for _, ligne in ipairs(bilan.lignes) do
             if ligne.hors then hors = ligne.hors break end
@@ -631,7 +636,7 @@ local function PanneauEffets(f, genre)
                 return
             end
             local ouverte, raison = forgeUI.OuvrirPourBonus(categorieForge, valeurs, f.edition.forge,
-                function(bonus, valeurForge)
+                function(bonus, valeurForge, etat)
                     f.edition.bonus = {}
                     for cle, montant in pairs(bonus or {}) do
                         -- Zero n'est pas un bonus : l'ecrire encombrerait la
@@ -642,8 +647,9 @@ local function PanneauEffets(f, genre)
                     end
                     table.sort(f.edition.bonus, function(a, b) return a.champ < b.champ end)
                     f.edition.forge = valeurForge
+                    if etat ~= nil then f.edition.etat = etat end
                     p:Remplir()
-                end, f.edition.taille)
+                end, f.edition.taille, f.edition.etat)
             if not ouverte then LCM.Alerte(tostring(raison)) end
             return
         end

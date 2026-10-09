@@ -332,9 +332,11 @@ local function Cases(f)
         local pct = tonumber(ctx.vars.perceArmure or ctx.vars["Perce Armure"] or ctx.vars.perce)
         local texte = "—"
         if pct then
+            pct = math.max(0, math.min(100, pct))
             local n, cr = tonumber(cases[1] and cases[1].valeur), tonumber(cases[2] and cases[2].valeur)
             texte = string.format("|cffffffff%d|r / |cffff5959%d|r  |cff9a9a9a(%d %%)|r",
-                math.floor((n or 0) * pct / 100), math.floor((cr or 0) * pct / 100), math.floor(pct + 0.5))
+                math.ceil((n or 0) * pct / 100 - 1e-9), math.ceil((cr or 0) * pct / 100 - 1e-9),
+                math.floor(pct + 0.5))
         end
         cases[#cases + 1] = { titre = "Perce-armure #santé  (norm / crit)", texte = texte }
     end

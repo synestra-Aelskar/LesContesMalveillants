@@ -171,6 +171,17 @@ local function Construire()
         carte.fond:SetAllPoints(carte)
         carte.icone = carte:CreateTexture(nil, "ARTWORK")
         Placer(carte.icone, carte, 7, 7, 60, 60)
+        -- KO : le portrait reste reconnaissable sous un voile rouge, tandis
+        -- qu'un crane noir translucide donne l'information sans texte.
+        carte.koRouge = UI.Aplat(carte, { 0.78, 0.02, 0.02, 0.48 }, "OVERLAY")
+        Placer(carte.koRouge, carte, 7, 7, 60, 60)
+        carte.koCrane = carte:CreateTexture(nil, "OVERLAY", nil, 3)
+        carte.koCrane:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
+        carte.koCrane:SetVertexColor(0, 0, 0)
+        carte.koCrane:SetAlpha(0.68)
+        Placer(carte.koCrane, carte, 23, 23, 28, 28)
+        carte.koRouge:Hide()
+        carte.koCrane:Hide()
         carte.actif = CadreActif(carte, CASE, CASE)
         -- Le nom et l'initiative au survol, comme dans Necronicon : seize noms
         -- sous seize portraits ne tiendraient pas.
@@ -179,6 +190,7 @@ local function Construire()
             GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
             GameTooltip:SetText(self.entree.nom)
             GameTooltip:AddLine("Initiative : " .. tostring(self.entree.v), 0.85, 0.76, 0.57)
+            if self.entree.ko then GameTooltip:AddLine("Inconscient", 1, 0.16, 0.16) end
             GameTooltip:Show()
         end)
         carte:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -314,6 +326,10 @@ function Ecran.Rafraichir()
         f.vides[index]:SetShown(entree == nil)
         if entree then
             carte.icone:SetTexture(LCM.Icone(entree.icone))
+            carte.icone:SetVertexColor(entree.ko and 0.92 or 1, entree.ko and 0.18 or 1,
+                entree.ko and 0.18 or 1)
+            carte.koRouge:SetShown(entree.ko == true)
+            carte.koCrane:SetShown(entree.ko == true)
             local actif = source == etat.c
             carte.actif:SetShown(actif)
             if actif then

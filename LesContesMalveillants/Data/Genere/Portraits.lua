@@ -12,6 +12,7 @@
 local _, LCM = ...
 local Portraits = LCM.Portraits
 
+Portraits.Add({ id = "aiwe", label = "Aiwe" })
 Portraits.Add({ id = "archibald", label = "Archibald" })
 Portraits.Add({ id = "iridia", label = "Iridia" })
 Portraits.Add({ id = "moon", label = "Moon" })

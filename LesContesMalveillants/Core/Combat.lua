@@ -27,6 +27,8 @@
 --   combat>  joueur -> MJ   « j'ai fini mon tour »          { s }
 --   combat.  MJ -> groupe   fin du combat                   { s }
 --   combat!  joueur -> groupe  « ou en est-on ? » (apres un /reload)
+--   combatK  joueur -> MJ   changement de son etat KO       { s, k }
+--   combatK= MJ -> groupe   changement KO d'un combattant   { s, j, k }
 -- L'etat complet n'est envoye qu'au lancement et sur demande : WoW limite le
 -- debit des messages d'addon, et un pas de tour tient en un seul message.
 
@@ -199,6 +201,35 @@ local function Prevenir()
     for _, fn in ipairs(Combat.suivis) do fn(Combat.etat) end
 end
 
+local function EstKO(entity)
+    return entity ~= nil and LCM.Body and LCM.Body.Inconscient
+        and LCM.Body.Inconscient(entity) or false
+end
+
+local function EntreeParId(id)
+    local etat = Combat.etat
+    if not etat then return nil end
+    id = tostring(id or "")
+    for _, entree in ipairs(etat.entrees or {}) do
+        if entree.id == id then return entree end
+    end
+end
+
+-- Met a jour le bandeau immediatement. Le MJ peut ensuite relayer ce nouvel
+-- etat a tout le groupe ; les clients ne peuvent modifier que leur propre KO.
+local function DefinirKO(id, ko, diffuser)
+    local entree = EntreeParId(id)
+    if not entree then return false end
+    ko = ko == true
+    if (entree.ko == true) == ko then return false end
+    entree.ko = ko or nil
+    Prevenir()
+    if diffuser then
+        Envoyer("combatK=", { s = Combat.etat.s, j = entree.id, k = ko and 1 or 0 }, Combat.CanalGroupe())
+    end
+    return true
+end
+
 -- ===== Les annonces ========================================================
 
 local function Annoncer(texte)
@@ -311,6 +342,7 @@ function Combat.Paquet(etat)
         p["v" .. k] = e.v
         if e.icone then p["ic" .. k] = e.icone end
         if e.pnj then p["p" .. k] = 1 end
+        if e.ko then p["k" .. k] = 1 end
     end
     return p
 end
@@ -329,6 +361,7 @@ function Combat.Depaqueter(p, mj)
                 id = tostring(id), nom = tostring(p["n" .. k] or id),
                 v = tonumber(p["v" .. k]) or 0,
                 icone = p["ic" .. k], pnj = p["p" .. k] ~= nil,
+                ko = p["k" .. k] ~= nil,
             }
         end
     end
@@ -402,7 +435,10 @@ function Combat.Lancer()
     if invitation.moi then
         local fiche = MaFiche()
         local nom, icone = MonIdentite()
-        entrees[#entrees + 1] = { id = Moi(), nom = nom, v = (Combat.Jet(fiche)), icone = icone }
+        entrees[#entrees + 1] = {
+            id = Moi(), nom = nom, v = (Combat.Jet(fiche)), icone = icone,
+            ko = EstKO(fiche) or nil,
+        }
     end
     for _, id in ipairs(invitation.pnj) do
         local instance = LCM.Incarnation.Instance(id)
@@ -410,13 +446,16 @@ function Combat.Lancer()
             entrees[#entrees + 1] = {
                 id = instance.id, nom = Tronquer(instance.name, Combat.NOM_MAX),
                 v = (Combat.Jet(instance)), icone = Tronquer(LCM.Icone(instance.icon), Combat.ICONE_MAX),
-                pnj = true,
+                pnj = true, ko = EstKO(instance) or nil,
             }
         end
     end
     for joueur, reponse in pairs(invitation.reponses) do
         if reponse.ok then
-            entrees[#entrees + 1] = { id = joueur, nom = reponse.nom, v = reponse.v, icone = reponse.icone }
+            entrees[#entrees + 1] = {
+                id = joueur, nom = reponse.nom, v = reponse.v, icone = reponse.icone,
+                ko = reponse.ko or nil,
+            }
         end
     end
     if #entrees == 0 then return nil, "personne au combat." end
@@ -491,6 +530,7 @@ function Combat.Repondre(accepte)
         local total, resultat = Combat.Jet(LCM.Entities.Self())
         local nom, icone = MonIdentite()
         paquet.n, paquet.ic, paquet.v = nom, icone, total
+        paquet.k = EstKO(LCM.Entities.Self()) and 1 or nil
         if resultat then LCM.Info(LCM.Roll.Describe(resultat)) end
     end
     if Combat.onInvitationRecue then Combat.onInvitationRecue(nil) end
@@ -533,6 +573,7 @@ LCM.WhenReady(function()
                 ok = true, v = tonumber(d.v) or 0,
                 nom = Tronquer(Nettoyer(d.n) ~= "" and d.n or joueur, Combat.NOM_MAX),
                 icone = d.ic and Tronquer(d.ic, Combat.ICONE_MAX) or nil,
+                ko = tostring(d.k) == "1",
             }
         else
             invitation.reponses[joueur] = { ok = false }
@@ -569,6 +610,24 @@ LCM.WhenReady(function()
         Appliquer(nouveau)
     end)
 
+    -- Un joueur annonce uniquement son propre changement ; le MJ choisit
+    -- l'entree a partir de l'expediteur et relaie une version autoritaire.
+    R.Ecouter("combatK", function(expediteur, d)
+        local etat = Combat.etat
+        if not etat or not Combat.EstMJ() or etat.s ~= tostring(d.s) then return end
+        local joueur = IdJoueur(expediteur)
+        local entree = EntreeParId(joueur)
+        if not entree or entree.pnj then return end
+        DefinirKO(joueur, tostring(d.k) == "1", true)
+    end)
+
+    R.Ecouter("combatK=", function(expediteur, d)
+        local etat = Combat.etat
+        if not etat or Combat.EstMJ() then return end
+        if etat.mj ~= IdJoueur(expediteur) or etat.s ~= tostring(d.s) then return end
+        DefinirKO(tostring(d.j or ""), tostring(d.k) == "1", false)
+    end)
+
     R.Ecouter("combat.", function(expediteur, d)
         local etat = Combat.etat
         if not etat or Combat.EstMJ() then return end
@@ -603,6 +662,28 @@ LCM.WhenReady(function()
     -- Au chargement, si l'on est en groupe, on demande ou en est le combat.
     local canal = Combat.CanalGroupe()
     if canal then Envoyer("combat!", {}, canal) end
+
+    -- Les blessures changent en dehors du pas d'initiative. On actualise le
+    -- bandeau sur-le-champ, puis le proprietaire de l'etat le synchronise.
+    LCM.Entities.Ecouter(function(entity, fieldId)
+        local etat = Combat.etat
+        -- Body est enveloppe par Core/Direct : hors geste on recoit « corps »,
+        -- a la fin d'un geste atomique on recoit « direct ».
+        if not etat or (fieldId ~= "corps" and fieldId ~= "direct") then return end
+        local id
+        if entity.kind == "npc" and Combat.EstMJ() then
+            id = entity.id
+        elseif entity == LCM.Entities.Personnage() then
+            id = Moi()
+        end
+        if not id or not EntreeParId(id) then return end
+        local ko = EstKO(entity)
+        if Combat.EstMJ() then
+            DefinirKO(id, ko, true)
+        elseif id == Moi() and DefinirKO(id, ko, false) then
+            Envoyer("combatK", { s = etat.s, k = ko and 1 or 0 }, "WHISPER", etat.mj)
+        end
+    end)
 end)
 
 LCM.AddCommand("combat", "le combat : passer (son tour), fin (MJ) ; seul, ouvre la fenetre du MJ", function(argument)

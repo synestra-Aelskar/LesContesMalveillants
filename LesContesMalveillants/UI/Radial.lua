@@ -707,7 +707,20 @@ local function Basculer(f, c)
     Dessiner(f, c, true, false)
 end
 
+function Radial.EstKO()
+    local entity = LCM.Entities and LCM.Entities.Self and LCM.Entities.Self()
+    return entity ~= nil and LCM.Body and LCM.Body.Inconscient
+        and LCM.Body.Inconscient(entity) or false
+end
+
+local function RefuserSiKO(c)
+    if c.id ~= "actions" or not Radial.EstKO() then return false end
+    LCM.Erreur("Vous êtes KO !")
+    return true
+end
+
 local function Lancer(f, c, cible)
+    if RefuserSiKO(c) then return end
     if type(cible.onClick) == "function" then
         -- La couronne RESTE ouverte. Elle se refermait a chaque clic, et il
         -- fallait rouvrir le sceau puis redescendre dans la categorie pour
@@ -735,6 +748,7 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
     end
 
     local categories = c.def.Categories()
+    local inconscient = c.id == "actions" and Radial.EstKO()
     local choisie, angleChoisi
     for i, categorie in ipairs(categories) do
         local b = c.boutonsCategorie[i]
@@ -758,12 +772,17 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         local prete = not direct or type(categorie.onClick) == "function"
         b.disponible = prete
         local teinte = (not prete and 0.42) or (b.choisi and 1) or 0.95
-        b.icone:SetVertexColor(teinte, teinte, teinte)
-        Bulle(b, categorie.label, (not prete and "Pas encore disponible.")
+        if inconscient then
+            b.icone:SetVertexColor(prete and 1 or 0.48, prete and 0.14 or 0.06, prete and 0.14 or 0.06)
+        else
+            b.icone:SetVertexColor(teinte, teinte, teinte)
+        end
+        Bulle(b, categorie.label, inconscient and "Vous êtes KO !" or (not prete and "Pas encore disponible.")
             or (direct and "Clic : ouvrir.") or "Clic : déployer.")
         Eclairer(b, b.choisi, false)
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function(bouton)
+            if RefuserSiKO(c) then return end
             local cat = bouton.cible
             if cat.direct or #c.def.Entrees(cat) == 0 then
                 Lancer(f, c, cat)
@@ -823,8 +842,13 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         local prete = type(entree.onClick) == "function"
         b.disponible = prete
         local teinte = prete and 1 or 0.42
-        b.icone:SetVertexColor(teinte, teinte, teinte)
-        Bulle(b, entree.label, prete and "Clic : ouvrir." or "Pas encore disponible.")
+        if inconscient then
+            b.icone:SetVertexColor(prete and 1 or 0.48, prete and 0.14 or 0.06, prete and 0.14 or 0.06)
+        else
+            b.icone:SetVertexColor(teinte, teinte, teinte)
+        end
+        Bulle(b, entree.label, inconscient and "Vous êtes KO !"
+            or (prete and "Clic : ouvrir." or "Pas encore disponible."))
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function(bouton) Lancer(f, c, bouton.cible) end)
         b:Show()
@@ -845,6 +869,13 @@ function Radial.Rafraichir()
         if c.ouvert then Dessiner(f, c, false, false) end
     end
 end
+
+LCM.Entities.Ecouter(function(entity, fieldId)
+    if (fieldId == "corps" or fieldId == "direct") and entity == LCM.Entities.Self() then
+        Radial.Rafraichir()
+    end
+end)
+LCM.Entities.EcouterSoi(function() Radial.Rafraichir() end)
 
 local function ConstruireCouronne(f, def)
     local c = { def = def, id = def.id, boutonsCategorie = {}, boutonsEntree = {},

@@ -301,3 +301,11 @@ function Body.Totals(entity, total)
     end
     return current, maximum
 end
+
+-- Une seule definition de l'inconscience pour toute l'interface. Les zones
+-- peuvent faire descendre le total sous zero ; zero et moins signifient KO.
+-- Un corps sans aucun PV maximum (fiche incomplete) n'est pas declare KO.
+function Body.Inconscient(entity)
+    local current, maximum = Body.Totals(entity)
+    return maximum > 0 and current <= 0
+end

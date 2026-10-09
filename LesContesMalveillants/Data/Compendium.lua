@@ -94,7 +94,8 @@ local function Generique(def)
     local champs = {
         Icone(),
         { cle = "type", label = "Type", type = "liste", source = "listes:" .. def.liste, emplacement = "header" },
-        { cle = "etat", label = "Etat", type = "jauge", emplacement = "meta", defaut = { courant = 100, max = 100 } },
+        { cle = "etat", label = "Etat", type = "jauge", emplacement = "meta",
+          defaut = def.etatDefaut or { courant = 100, max = 100 } },
         Description(true),
         { cle = "metiers", label = "Metier", type = "liste", source = "metiers", multiple = true, emplacement = "body" },
     }
@@ -301,7 +302,9 @@ local function Objet(id, label, categorie, liste, extras)
     Generique({ id = id, label = label, liste = liste,
         registre = "Objets", famille = "objets",
         filtre = function(element) return element.categorie == categorie end,
-        defaut = { categorie = categorie }, extras = extras })
+        defaut = { categorie = categorie }, extras = extras,
+        etatDefaut = { courant = LCM.Equilibrage.forge.etatObjet.base,
+                       max = LCM.Equilibrage.forge.etatObjet.base } })
 end
 Objet("armes", "Armes", "arme", "armes", {
     -- Ajout de l'addon (5 octobre 2026) : combien de mains l'arme demande.

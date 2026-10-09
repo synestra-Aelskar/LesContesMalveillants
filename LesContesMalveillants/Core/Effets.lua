@@ -49,16 +49,30 @@ end
 -- les elements (tables a `label`, `bonus`, `avantage`), `liste()` tout ce
 -- qui existe (pour la verification au demarrage). L'ordre de declaration est
 -- l'ordre de priorite quand deux sources accordent le meme avantage.
-function Effets.Source(nom, portes, liste)
-    Effets.sources[#Effets.sources + 1] = { nom = nom, portes = portes, liste = liste }
+--
+-- `apport(entity, element, montant)` : ce que l'element donne VRAIMENT. Sans
+-- lui, il donne ce qu'il annonce. L'equipement s'en sert pour n'apporter que
+-- ce que son etat permet encore (9 octobre 2026) — la regle vit chez les
+-- objets, et les effets n'ont pas a savoir ce qu'est une armure abimee.
+function Effets.Source(nom, portes, liste, apport)
+    Effets.sources[#Effets.sources + 1] = { nom = nom, portes = portes, liste = liste,
+                                            apport = apport }
 end
+
+-- Ce qu'un element d'une source donne sur un champ, module s'il y a lieu.
+local function Apport(source, entity, element, cible)
+    local montant = element.bonus[cible] or 0
+    if montant == 0 or not source.apport then return montant end
+    return source.apport(entity, element, montant) or 0
+end
+Effets.Apport = Apport
 
 -- Somme de tous les bonus portes sur un champ.
 function Effets.Bonus(entity, fieldId)
     local total, cible = 0, tostring(fieldId)
     for _, source in ipairs(Effets.sources) do
         for _, element in ipairs(source.portes(entity)) do
-            total = total + (element.bonus[cible] or 0)
+            total = total + Apport(source, entity, element, cible)
         end
     end
     return total
@@ -75,7 +89,7 @@ function Effets.Detail(entity, fieldId)
     for _, source in ipairs(Effets.sources) do
         local total = 0
         for _, element in ipairs(source.portes(entity)) do
-            total = total + (element.bonus[cible] or 0)
+            total = total + Apport(source, entity, element, cible)
         end
         if total ~= 0 then out[#out + 1] = { nom = source.nom, total = total } end
     end

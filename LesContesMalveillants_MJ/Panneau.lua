@@ -343,9 +343,10 @@ function Pages.joueurs(page, f)
         self:Raise()
     end
 
-    -- Regain de groupe : les fiches servent uniquement a afficher l'etat des
-    -- trois ressources. L'ordre est ensuite envoye au personnage coche.
-    local regain = UI.Fenetre("regain_groupe", "Regain des ressources", 600, 500,
+    -- Regain de groupe : ressources generales sur une ligne, puis les cinq
+    -- zones de PV sur une seconde. Cette separation garde les choix lisibles
+    -- sans transformer la fenetre en grille compacte.
+    local regain = UI.Fenetre("regain_groupe", "Regain des ressources", 640, 520,
         { x = 105, y = 20 })
     page.regainPanneau = regain
     regain.selection = {}
@@ -353,37 +354,37 @@ function Pages.joueurs(page, f)
 
     regain.enteteNom = UI.Texte(regain.contenu, "Personnage", UI.C.discret)
     regain.enteteNom:SetPoint("TOPLEFT", regain.contenu, "TOPLEFT", 32, -2)
-    regain.enteteJauges = UI.Texte(regain.contenu, "Fatigue  ·  PA  ·  Bouclier", UI.C.discret)
-    regain.enteteJauges:SetPoint("TOPLEFT", regain.contenu, "TOPLEFT", 250, -2)
+    regain.enteteJauges = UI.Texte(regain.contenu, "Ressources actuelles", UI.C.discret)
+    regain.enteteJauges:SetPoint("TOPLEFT", regain.contenu, "TOPLEFT", 220, -2)
     regain.zone = UI.Defilement(regain.contenu)
     regain.zone:SetPoint("TOPLEFT", regain.contenu, "TOPLEFT", 0, -24)
-    regain.zone:SetPoint("BOTTOMRIGHT", regain.contenu, "BOTTOMRIGHT", 0, 156)
+    regain.zone:SetPoint("BOTTOMRIGHT", regain.contenu, "BOTTOMRIGHT", 0, 184)
     regain.lignes = {}
     regain.vide = UI.Texte(regain.zone.contenu, "Personne dans le groupe.", UI.C.discret)
     regain.vide:SetPoint("CENTER", regain.zone, "CENTER", 0, 0)
 
     local function EtatJauge(entity, id)
-        local j = entity and LCM.Entities.Gauge(entity, id)
+        local j = entity and LCM.Regain.Etat(entity, id)
         return j and string.format("%d/%d", j.current, j.max) or "—/—"
     end
 
     local function LigneRegain(rang)
-        local l = Rangee(regain.zone.contenu, 46)
+        local l = Rangee(regain.zone.contenu, 58)
         l.case = UI.Case(l, "", function(cochee)
             if l.joueur then regain.selection[l.joueur] = cochee or nil end
         end)
         l.case:SetPoint("LEFT", l, "LEFT", 5, 0)
         l.nom = UI.Texte(l, "", UI.C.texte)
         l.nom:SetPoint("TOPLEFT", l, "TOPLEFT", 34, -5)
-        l.nom:SetWidth(210)
+        l.nom:SetWidth(176)
         l.nom:SetJustifyH("LEFT")
         l.jauges = UI.Texte(l, "", UI.C.titre)
-        l.jauges:SetPoint("TOPLEFT", l, "TOPLEFT", 250, -5)
+        l.jauges:SetPoint("TOPLEFT", l, "TOPLEFT", 220, -5)
         l.jauges:SetPoint("TOPRIGHT", l, "TOPRIGHT", -8, -5)
         l.jauges:SetJustifyH("LEFT")
         l.detail = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
-        l.detail:SetPoint("TOPLEFT", l.nom, "BOTTOMLEFT", 0, -5)
-        l.detail:SetPoint("TOPRIGHT", l, "TOPRIGHT", -8, -23)
+        l.detail:SetPoint("TOPLEFT", l, "TOPLEFT", 34, -30)
+        l.detail:SetPoint("TOPRIGHT", l, "TOPRIGHT", -8, -30)
         regain.lignes[rang] = l
         return l
     end
@@ -400,14 +401,17 @@ function Pages.joueurs(page, f)
             if entity then
                 l.jauges:SetText(string.format("Fatigue %s   ·   PA %s   ·   Bouclier %s",
                     EtatJauge(entity, "fatigue"), EtatJauge(entity, "pa"), EtatJauge(entity, "armure")))
-                l.detail:SetText("")
+                l.detail:SetText(string.format("PV  Tête %s  ·  Torse %s  ·  Bras %s  ·  Jambes %s  ·  Internes %s",
+                    EtatJauge(entity, "pv_tete"), EtatJauge(entity, "pv_buste"),
+                    EtatJauge(entity, "pv_bras"), EtatJauge(entity, "pv_jambe"),
+                    EtatJauge(entity, "pv_internes")))
             else
                 l.jauges:SetText("Fatigue —/—   ·   PA —/—   ·   Bouclier —/—")
                 l.detail:SetText("fiche en attente…")
                 if redemander and not EstMoi(joueur) then DemanderPourXP(joueur) end
             end
             Poser(l, self.zone.contenu, y)
-            y = y + 46
+            y = y + 58
         end
         for joueur in pairs(self.selection) do
             if not presents[joueur] then self.selection[joueur] = nil end
@@ -419,11 +423,11 @@ function Pages.joueurs(page, f)
     end
 
     regain.ressourceTitre = UI.Texte(regain.contenu, "Ressources concernées :", UI.C.libelle)
-    regain.ressourceTitre:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", 0, 116)
+    regain.ressourceTitre:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", 0, 148)
     local ressourcesUI = {
         { id = "fatigue", label = "Fatigue", x = 0 },
-        { id = "pa", label = "PA", x = 150 },
-        { id = "armure", label = "Bouclier", x = 260 },
+        { id = "pa", label = "PA", x = 145 },
+        { id = "armure", label = "Bouclier", x = 250 },
     }
     regain.casesRessources = {}
     for _, def in ipairs(ressourcesUI) do
@@ -431,7 +435,24 @@ function Pages.joueurs(page, f)
         local case = UI.Case(regain.contenu, def.label, function(cochee)
             regain.ressources[id] = cochee or nil
         end)
-        case:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", def.x, 88)
+        case:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", def.x, 120)
+        regain.casesRessources[id] = case
+    end
+
+    regain.pvTitre = UI.Texte(regain.contenu, "PV :", UI.C.libelle)
+    regain.pvTitre:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", 0, 88)
+    for _, def in ipairs({
+        { id = "pv_tete", label = "Tête", x = 48 },
+        { id = "pv_buste", label = "Torse", x = 145 },
+        { id = "pv_bras", label = "Bras", x = 242 },
+        { id = "pv_jambe", label = "Jambes", x = 339 },
+        { id = "pv_internes", label = "Internes", x = 452 },
+    }) do
+        local id = def.id
+        local case = UI.Case(regain.contenu, def.label, function(cochee)
+            regain.ressources[id] = cochee or nil
+        end)
+        case:SetPoint("BOTTOMLEFT", regain.contenu, "BOTTOMLEFT", def.x, 82)
         regain.casesRessources[id] = case
     end
 

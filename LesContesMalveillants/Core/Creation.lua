@@ -23,6 +23,21 @@ end
 local Creation = {}
 LCM.Creation = Creation
 
+function Creation.VersionEquilibrage()
+    return math.max(1, math.floor(tonumber(Eq().VERSION_CREATION) or 1))
+end
+
+function Creation.ReequilibrageRequis(entity)
+    if type(entity) ~= "table" or entity.kind ~= "player" then return false end
+    return (tonumber(entity.versionCreation) or 0) < Creation.VersionEquilibrage()
+end
+
+function Creation.MarquerAJour(entity)
+    if type(entity) ~= "table" then return false end
+    entity.versionCreation = Creation.VersionEquilibrage()
+    return true
+end
+
 -- Les cinq etapes, dans l'ordre. L'ecran s'y conforme ; il ne les invente pas.
 -- Les onglets de la fenetre Creation du template, dans son ordre.
 Creation.ETAPES = {
@@ -142,7 +157,15 @@ function Creation.Total(brouillon, categorie)
         return Eq().Bareme(Eq().creation.expertises, niveau)
             + Eq().conversion.expertises * Creation.Valeur(brouillon, "sec_expertises")
     elseif categorie == "mecaniques" then
-        return Eq().Bareme(Eq().creation.mecaniques, niveau)
+        local m = Eq().creation.mecaniques
+        local niveauxGagnes = math.max(0,
+            math.floor(tonumber(niveau) or 0) - (tonumber(m.niveauDepart) or 0))
+        local intervalle = math.max(1, tonumber(m.niveauxParPalier) or 5)
+        local paliers = math.floor(niveauxGagnes / intervalle)
+        local total = (tonumber(m.base) or 0)
+            + niveauxGagnes * (tonumber(m.parNiveau) or 0)
+            + paliers * ((tonumber(m.gainPalier) or 0) - (tonumber(m.parNiveau) or 0))
+        return total
             + Eq().conversion.mecaniques * Creation.Valeur(brouillon, "sec_mecanique")
     elseif categorie == "penetration" then
         local p = Eq().penetration.points
@@ -158,7 +181,11 @@ function Creation.Total(brouillon, categorie)
             + p.parSecondaire * Creation.Valeur(brouillon, "sec_resistance"))
     elseif categorie == "traits" then
         local t = Eq().creation.traits
-        return t.base + math.floor(niveau / t.niveauxParPoint)
+        local total = tonumber(t.base) or 0
+        for _, niveauGain in ipairs(t.niveaux or {}) do
+            if niveau >= niveauGain then total = total + 1 end
+        end
+        return total
     elseif categorie == "metiers" then
         if brouillon.mode == "pnj" then
             return math.max(0, math.floor(tonumber(niveau) or 0)) * 4
@@ -277,6 +304,7 @@ function Creation.Definir(brouillon, categorie, champ, valeur)
     local avant = categorie == "metiers"
         and (tonumber((brouillon.metiers or {})[champ]) or 0)
         or Creation.Valeur(brouillon, champ)
+    local resteAvant = Creation.Budget(brouillon, categorie).reste
     local plafond = Creation.Plafond(brouillon, categorie, champ)
     -- Un depassement peut apparaitre APRES coup, quand une statistique baisse
     -- et rabote un plafond. Redescendre doit rester possible, sinon la ligne
@@ -293,13 +321,20 @@ function Creation.Definir(brouillon, categorie, champ, valeur)
     end
 
     local budget = Creation.Budget(brouillon, categorie)
-    if budget.reste < 0 then
+    -- Une ancienne fiche peut commencer la refonte avec un budget negatif.
+    -- Toute baisse qui rapproche ce budget de zero doit rester possible, meme
+    -- si un seul clic ne suffit pas encore a effacer tout le depassement.
+    if budget.reste < 0 and budget.reste <= resteAvant then
         if categorie == "metiers" then
             brouillon.metiers[champ] = (avant ~= 0) and avant or nil
         else
             brouillon.valeurs[champ] = (avant ~= 0) and avant or nil
         end
         local reste = Creation.Budget(brouillon, categorie).reste
+        if reste < 0 then
+            return false, string.format("budget déjà dépassé de %d point%s : retire d'abord des points.",
+                -reste, reste < -1 and "s" or "")
+        end
         return false, string.format("il ne reste que %d point%s.", reste, reste > 1 and "s" or "")
     end
 
@@ -611,6 +646,7 @@ end
 -- Qui peut rouvrir cette fiche, et sinon pourquoi.
 function Creation.PeutEditer(entity)
     if type(entity) ~= "table" then return false, "aucun personnage." end
+    if Creation.ReequilibrageRequis(entity) then return true end
     if LCM.IsMaster() then return true end
     if Creation.ADesJetons(entity) then return true end
     return false, "il faut un jeton de réédition : demande-le au maître du jeu."
@@ -648,11 +684,25 @@ function Creation.Depuis(entity)
     return brouillon
 end
 
+function Creation.DepuisReequilibrage(entity)
+    if not Creation.ReequilibrageRequis(entity) then
+        return nil, "cette fiche utilise déjà l'équilibrage actuel."
+    end
+    local brouillon, erreur = Creation.Depuis(entity)
+    if not brouillon then return nil, erreur end
+    brouillon.mode = "reequilibrage"
+    brouillon.versionCreationCible = Creation.VersionEquilibrage()
+    return brouillon
+end
+
 -- Un passage ne rouvre pas toute la fiche : il part des investissements deja
 -- valides, vise exactement le niveau suivant et conserve une photographie de
 -- depart. Budgets et remises a zero ne portent alors que sur CE niveau.
 function Creation.DepuisNiveau(entity)
     if type(entity) ~= "table" then return nil, "aucun personnage." end
+    if Creation.ReequilibrageRequis(entity) then
+        return nil, "rééquilibre d'abord ta fiche avec les règles actuelles."
+    end
     if not (LCM.Experience and LCM.Experience.PeutMonter(entity)) then
         return nil, "aucun niveau en attente."
     end
@@ -723,6 +773,8 @@ function Creation.Appliquer(brouillon)
     -- personnage on l'aurait perdu.
     local entity, erreur = brouillon.entite, nil
     if entity then
+        local reequilibrageImpose = brouillon.mode == "reequilibrage"
+            or Creation.ReequilibrageRequis(entity)
         local peut, pourquoi = Creation.PeutEditer(entity)
         if not peut then return nil, pourquoi end
         -- On efface d'abord tout ce que l'outil de création gouverne. Sinon
@@ -755,12 +807,18 @@ function Creation.Appliquer(brouillon)
         -- Le jeton se consomme ICI, pas a l'ouverture : rouvrir sa fiche pour
         -- regarder, puis renoncer, ne doit rien couter. Le MJ, lui, n'en
         -- consomme pas.
-        if not LCM.IsMaster() then Creation.RetirerJeton(entity) end
+        if not LCM.IsMaster() and not reequilibrageImpose then Creation.RetirerJeton(entity) end
+        Creation.MarquerAJour(entity)
         if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
         return entity
     end
 
+    -- Choisir le personnage nouvellement cree emet immediatement SoiChange.
+    -- Le controle de versions ne doit pas prendre cette fiche pour un ancien
+    -- profil pendant les quelques instructions qui precedent son marquage.
+    Creation.applicationEnCours = true
     entity, erreur = LCM.Personnages.Creer(brouillon.nom, valeurs)
+    Creation.applicationEnCours = nil
     if not entity then return nil, erreur end
     for _, id in ipairs(brouillon.traits) do LCM.Traits.Grant(entity, id) end
     -- Les points de creation donnent directement des NIVEAUX. La feuille des
@@ -770,5 +828,6 @@ function Creation.Appliquer(brouillon)
         local xp = LCM.Metiers.XPPourNiveau(niveau)
         if xp > 0 then LCM.Metiers.Gagner(entity, id, xp) end
     end
+    Creation.MarquerAJour(entity)
     return entity
 end

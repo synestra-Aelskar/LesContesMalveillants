@@ -23,6 +23,11 @@ local _, LCM = ...
 -- cinq pieces d'armure, les cinq accessoires se lisent d'un coup d'oeil).
 local Objets = LCM.Catalogue({
     nom = "objet", prefixe = "Objets", cleEntite = "equipement", primaires = true,
+    -- Ce qu'une piece apporte suit son etat : voir Objets.ApportSelonEtat.
+    apport = function(entity, objet, montant)
+        return LCM.Objets.ApportSelonEtat(entity, objet, montant)
+    end,
+    etatDefaut = function() return LCM.Equilibrage.forge.etatObjet.base end,
     categories = {
         { id = "arme",       label = "Arme",       onglet = "Armes",       bloc = "Armes" },
         { id = "equipement", label = "Armure",     onglet = "Armures",     bloc = "Armures et vêtements", toutesLesCases = true },
@@ -49,6 +54,45 @@ Objets.Icone = LCM.Icone
 Objets.Emplacements = Objets.Capacite
 Objets.EstEquipe = Objets.Porte
 Objets.Equipes = Objets.Portes
+
+-- Un objet BRISE : son etat est tombe a zero et il a survecu (il lui restait
+-- une vie, ou il en a d'illimitees). Il reste porte, n'apporte plus rien, et
+-- redevient normal des qu'on le repare au-dessus de zero.
+--
+-- On le DEDUIT de l'etat au lieu de le ranger quelque part : un drapeau de plus
+-- serait un drapeau a tenir a jour, et il finirait par mentir apres une
+-- reparation faite ailleurs.
+function Objets.EstBrise(entity, objet)
+    if type(objet) ~= "table" then objet = Objets.Get(objet) end
+    if not objet then return false end
+    local maximum = Objets.EtatMax(objet)
+    if not maximum or maximum <= 0 then return false end
+    return (maximum - Objets.Usure(entity, objet.id)) <= 0
+end
+
+-- ===== Ce qu'un objet apporte encore =======================================
+-- Un objet abime donne moins. Il a perdu 20 % de son etat : il apporte 20 % de
+-- moins (9 octobre 2026). Une armure en loques ne protege pas comme une neuve,
+-- et cela rend la reparation utile avant la rupture, pas seulement apres.
+--
+-- ARRONDI AU SUPERIEUR, et sur la VALEUR ABSOLUE : « +5 » a 70 % d'etat donne
+-- 3,5, donc 4. Un malus suit la meme pente — « -4 » devient « -3 » — sinon un
+-- objet qui penalise deviendrait meilleur en s'abimant.
+--
+-- Brise (zero d'etat) : il n'apporte plus rien. Il reste porte, et la case
+-- qu'il occupe ne donne rien tant qu'on ne l'a pas repare.
+function Objets.ApportSelonEtat(entity, objet, montant)
+    montant = tonumber(montant) or 0
+    if montant == 0 then return 0 end
+    local maximum = Objets.EtatMax(objet)
+    if not maximum or maximum <= 0 then return montant end
+    local reste = math.max(0, maximum - Objets.Usure(entity, objet.id))
+    if reste >= maximum then return montant end
+    if reste <= 0 then return 0 end
+    local brut = math.abs(montant) * reste / maximum
+    local garde = math.ceil(brut - 1e-9)
+    return montant < 0 and -garde or garde
+end
 
 -- ===== Equiper depuis les sacs =============================================
 -- `Placer` et `Enlever` (le catalogue) restent les gestes bruts, sans sac :
@@ -112,15 +156,17 @@ function Objets.CandidatsPossedes(entity, categorieId)
     return out
 end
 
--- ===== L'armure portee =====================================================
--- Chaque piece d'armure equipee apporte sa valeur ; la jauge #armure compte
--- ce que les pieces portees ont ENCAISSE sur leur total (0 / 2 : un t-shirt
--- neuf). L'usure est retenue PIECE PAR PIECE, sur l'entite : un t-shirt
--- abime qu'on enleve puis remet reste abime. On ne stocke que l'usure, par
--- identifiant d'objet (un objet ne se porte pas deux fois), et seulement
--- quand elle n'est pas nulle.
+-- ===== Etat des objets portes ==============================================
+-- Toute arme, armure ou accessoire porte possede son propre etat. La valeur
+-- maximale vient de la jauge `etat` definie par la Forge ; une ancienne entree
+-- qui n'en a pas encore recu part du defaut d'equilibrage. L'usure suit
+-- l'objet quand on le range puis le reequipe.
 --
 --     entity.usureArmure = { tshirt_de_lin = 1 }
+--
+-- Le nom historique `usureArmure` est conserve dans la sauvegarde et dans le
+-- paquet de fiche pour rester compatible avec les personnages existants. Il
+-- contient maintenant l'usure de TOUS les objets portes.
 
 local CATEGORIE_ARMURE = "equipement"
 
@@ -128,24 +174,99 @@ function Objets.Armure(objet)
     return type(objet) == "table" and math.max(0, math.floor(tonumber(objet.armure) or 0)) or 0
 end
 
+function Objets.EtatMax(objet)
+    if type(objet) ~= "table" then objet = Objets.Get(objet) end
+    local maximum = objet and type(objet.etat) == "table" and tonumber(objet.etat.max) or nil
+    maximum = maximum or (LCM.Equilibrage.forge.etatObjet and LCM.Equilibrage.forge.etatObjet.base) or 10
+    return math.max(0, math.floor(tonumber(maximum) or 0))
+end
+
+-- ===== Les vies d'un objet =================================================
+-- Voir Data/Equilibrage.lua : la rarete (couleur du titre) dit combien de fois
+-- un objet peut tomber a zero d'etat avant d'etre detruit.
+
+-- Le reglage de sa rarete, ou le defaut si sa couleur n'en declare aucune.
+local function Rarete(objet)
+    local table_ = (LCM.Equilibrage and LCM.Equilibrage.viesParRarete) or {}
+    local couleur = type(objet) == "table" and tostring(objet.couleurTitre or ""):upper() or ""
+    return table_[couleur]
+end
+
+-- Combien de vies un objet a au depart. nil = illimitees.
+function Objets.ViesMax(objet)
+    if type(objet) ~= "table" then objet = Objets.Get(objet) end
+    if not objet then return 0 end
+    local r = Rarete(objet)
+    if r then
+        if r.illimitees then return nil end
+        return math.max(0, math.floor(tonumber(r.vies) or 0))
+    end
+    return math.max(0, math.floor(tonumber(
+        LCM.Equilibrage and LCM.Equilibrage.viesParDefaut or 0) or 0))
+end
+
+function Objets.ViesIllimitees(objet)
+    return Objets.ViesMax(objet) == nil
+end
+
+-- Combien il en a DEJA perdu. Range comme l'usure : sur le personnage, pas sur
+-- l'objet — deux exemplaires du meme modele ne se brisent pas ensemble.
+function Objets.ViesPerdues(entity, id)
+    local vies = type(entity) == "table" and entity.viesObjet
+    return type(vies) == "table" and math.max(0, math.floor(tonumber(vies[tostring(id)]) or 0)) or 0
+end
+
+-- Ce qu'il lui reste, et son maximum. `nil, nil` pour les illimitees.
+function Objets.Vies(entity, objet)
+    if type(objet) ~= "table" then objet = Objets.Get(objet) end
+    if not objet then return 0, 0 end
+    local maximum = Objets.ViesMax(objet)
+    if maximum == nil then return nil, nil end
+    return math.max(0, maximum - Objets.ViesPerdues(entity, objet.id)), maximum
+end
+
+local function PerdreUneVie(entity, id)
+    entity.viesObjet = type(entity.viesObjet) == "table" and entity.viesObjet or {}
+    entity.viesObjet[tostring(id)] = Objets.ViesPerdues(entity, id) + 1
+end
+
+local function OublierLesVies(entity, id)
+    if type(entity.viesObjet) ~= "table" then return end
+    entity.viesObjet[tostring(id)] = nil
+    if next(entity.viesObjet) == nil then entity.viesObjet = nil end
+end
+
 function Objets.Usure(entity, id)
     local usure = type(entity) == "table" and entity.usureArmure
     return type(usure) == "table" and math.max(0, math.floor(tonumber(usure[tostring(id)]) or 0)) or 0
 end
 
--- Les pieces d'armure portees, dans l'ordre des emplacements :
--- { { id, label, valeur, usure, reste } }. Une piece dont la definition a
--- disparu ne protege plus : elle n'y figure pas.
+-- Tous les objets portes, dans l'ordre des categories et des emplacements.
+-- `reste` est l'etat actuel ; a zero, l'objet est detruit et retire.
+function Objets.EquipementsEtat(entity)
+    local out = {}
+    for _, categorie in ipairs(Objets.CATEGORIES) do
+        for _, id in ipairs(Objets.Ids(entity, categorie.id)) do
+            local objet = Objets.Get(id)
+            if objet then
+                local valeur = Objets.EtatMax(objet)
+                local usure = math.min(valeur, Objets.Usure(entity, id))
+                out[#out + 1] = { id = objet.id, label = objet.label, categorie = objet.categorie,
+                                  objet = objet, valeur = valeur, usure = usure,
+                                  reste = valeur - usure }
+            end
+        end
+    end
+    return out
+end
+
+
+-- Les armures seulement, pour la jauge « Armure » de la fiche. Sa capacite
+-- est maintenant leur etat forge, et non plus la petite statistique `armure`.
 function Objets.PiecesArmure(entity)
     local out = {}
-    for _, id in ipairs(Objets.Ids(entity, CATEGORIE_ARMURE)) do
-        local objet = Objets.Get(id)
-        if objet then
-            local valeur = Objets.Armure(objet)
-            local usure = math.min(valeur, Objets.Usure(entity, id))
-            out[#out + 1] = { id = objet.id, label = objet.label, valeur = valeur, usure = usure,
-                              reste = valeur - usure }
-        end
+    for _, piece in ipairs(Objets.EquipementsEtat(entity)) do
+        if piece.categorie == CATEGORIE_ARMURE then out[#out + 1] = piece end
     end
     return out
 end
@@ -159,14 +280,40 @@ function Objets.Protection(entity)
     return { current = encaisse, max = total }
 end
 
--- Une piece encaisse `n` points (negatif : on la repare), bornee entre neuve
--- et epuisee. Renvoie ce qui a reellement ete pris. Efface ce qui revient a
--- zero.
+-- Un objet encaisse `n` points (negatif : on le repare), borne entre neuf et
+-- detruit.
+--
+-- A zero d'etat il se BRISE : il perd une vie et reste porte, reparable. C'est
+-- seulement quand il tombe a zero sans vie qu'il est detruit et retire, sans
+-- revenir dans le sac (9 octobre 2026 : avant, le premier zero le detruisait,
+-- ce qui etait trop dur).
+--
+-- `apres > avant` garde le compte juste : on ne perd une vie qu'en TOMBANT a
+-- zero, pas a chaque coup encaisse une fois qu'on y est.
+--
+-- Renvoie la variation d'usure, le verdict de destruction, et si une vie vient
+-- d'etre perdue.
 function Objets.Encaisser(entity, id, n)
     local objet = Objets.Get(id)
-    if type(entity) ~= "table" or not objet or objet.categorie ~= CATEGORIE_ARMURE then return 0 end
+    if type(entity) ~= "table" or not objet or not Objets.Porte(entity, objet.id) then return 0, false end
+    local maximum = Objets.EtatMax(objet)
     local avant = Objets.Usure(entity, objet.id)
-    local apres = math.max(0, math.min(Objets.Armure(objet), avant + math.floor(tonumber(n) or 0)))
+    local apres = math.max(0, math.min(maximum, avant + math.floor(tonumber(n) or 0)))
+    local aZero = maximum > 0 and apres >= maximum and apres > avant
+    local detruit, briseMaintenant = false, false
+    if aZero then
+        local restantes = Objets.Vies(entity, objet)
+        if restantes == nil then
+            -- Illimitees : il se brise, on ne compte rien, il n'est jamais
+            -- detruit.
+            briseMaintenant = true
+        elseif restantes > 0 then
+            PerdreUneVie(entity, objet.id)
+            briseMaintenant = true
+        else
+            detruit = true
+        end
+    end
     if apres == 0 then
         if type(entity.usureArmure) == "table" then
             entity.usureArmure[objet.id] = nil
@@ -176,7 +323,17 @@ function Objets.Encaisser(entity, id, n)
         entity.usureArmure = type(entity.usureArmure) == "table" and entity.usureArmure or {}
         entity.usureArmure[objet.id] = apres
     end
-    return apres - avant
+    if detruit then
+        Objets.Enlever(entity, objet.id)
+        if type(entity.usureArmure) == "table" then
+            entity.usureArmure[objet.id] = nil
+            if next(entity.usureArmure) == nil then entity.usureArmure = nil end
+        end
+        -- Detruit, il n'a plus d'histoire : un exemplaire neuf du meme modele
+        -- repart avec toutes ses vies.
+        OublierLesVies(entity, objet.id)
+    end
+    return apres - avant, detruit, briseMaintenant
 end
 
 -- Porte la jauge a `encaisse` en repartissant l'ecart sur les pieces portees :

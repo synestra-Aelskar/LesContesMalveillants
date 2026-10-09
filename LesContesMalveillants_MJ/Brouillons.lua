@@ -234,6 +234,33 @@ function Brouillons.Original(famille, id)
     return parFamille and parFamille[tostring(id or "")] or nil
 end
 
+-- Garde l'entree publiee AVANT qu'un brouillon ne l'ecrase. Sans cette copie,
+-- supprimer le brouillon ensuite emporterait le contenu publie avec lui. Deux
+-- chemins y passent — l'enregistrement en seance et l'application au
+-- chargement — et ils doivent garder la meme chose.
+local function RetenirOriginal(famille, existant)
+    if type(existant) ~= "table" or existant.brouillon == true then return end
+    if Brouillons.Original(famille, existant.id) then return end
+    local copie = {}
+    for cle, valeur in pairs(existant) do copie[cle] = valeur end
+    originaux[famille] = originaux[famille] or {}
+    originaux[famille][tostring(existant.id)] = copie
+end
+
+-- Pose un brouillon SUR une entree deja presente, en place : les ecrans
+-- ouverts tiennent la table elle-meme, les entites ne connaissent que son
+-- identifiant.
+local function Recouvrir(famille, registre, existant, neuf)
+    RetenirOriginal(famille, existant)
+    for cle in pairs(existant) do existant[cle] = nil end
+    for cle, valeur in pairs(neuf) do existant[cle] = valeur end
+    existant.brouillon = true
+    if type(registre.ActualiserRegles) == "function" then
+        registre.ActualiserRegles(existant)
+    end
+    return existant
+end
+
 function Brouillons.EstPublie(famille, id)
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
@@ -287,18 +314,7 @@ function Brouillons.Enregistrer(famille, entree, creation, remplacer)
     -- mais les ecrans ouverts tiennent la table elle-meme.
     local existant = registre.Get(neuf.id)
     if existant then
-        -- On ECRASE une entree publiee : il faut en garder une copie, sinon
-        -- supprimer le brouillon ensuite emporterait le contenu publie avec
-        -- lui. Ce n'est pas theorique : le banc l'a attrape immediatement.
-        if remplacer and existant.brouillon ~= true and not Brouillons.Original(famille, neuf.id) then
-            local copie = {}
-            for cle, valeur in pairs(existant) do copie[cle] = valeur end
-            originaux[famille] = originaux[famille] or {}
-            originaux[famille][neuf.id] = copie
-        end
-        for cle in pairs(existant) do existant[cle] = nil end
-        for cle, valeur in pairs(neuf) do existant[cle] = valeur end
-        existant.brouillon = true
+        Recouvrir(famille, registre, existant, neuf)
     else
         registre.Add(entree).brouillon = true
     end
@@ -676,7 +692,7 @@ LCM.WhenReady(function()
 
     -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
     -- reperer un brouillon devenu redondant avec un fichier genere.
-    local retiresCarPublies = 0
+    local retiresCarPublies, recouverts = 0, 0
     for _, famille in ipairs(Brouillons.FAMILLES) do
         local registre = Registre(famille)
         for _, entree in ipairs(Brouillons.List(famille)) do
@@ -698,12 +714,33 @@ LCM.WhenReady(function()
                 if Brouillons.Remove(famille, entree.id) then
                     retiresCarPublies = retiresCarPublies + 1
                 end
+            else
+                -- Le brouillon RECOUVRE une entree publiee, et il en differe :
+                -- on l'applique.
+                --
+                -- Ce cas manquait (9 octobre 2026). Modifier une entree publiee
+                -- tenait le temps de la seance — l'enregistrement la changeait
+                -- bien en memoire — puis le rechargement rechargeait le fichier
+                -- et ignorait le brouillon : la correction disparaissait sans un
+                -- mot, alors qu'elle etait toujours dans la sauvegarde.
+                local ok, neuf = pcall(registre.Construire, entree)
+                if ok and type(neuf) == "table" then
+                    Recouvrir(famille, registre, registre.Get(entree.id), neuf)
+                    recouverts = recouverts + 1
+                else
+                    LCM.Erreur(string.format("brouillon refuse (%s / %s) : %s",
+                        famille, tostring(entree.id), Raison(neuf)))
+                end
             end
         end
     end
     if retiresCarPublies > 0 then
         LCM.Info(string.format("%d brouillon(s) retire(s) : ils sont maintenant publies.",
             retiresCarPublies))
+    end
+    if recouverts > 0 then
+        LCM.Info(string.format("%d entrée(s) publiée(s) modifiée(s) en séance : "
+            .. "ta version est appliquée, elle reste à exporter.", recouverts))
     end
     local nombre = Brouillons.Count()
     if nombre > 0 then

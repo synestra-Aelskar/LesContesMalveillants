@@ -612,11 +612,24 @@ local function Etat(f)
     return place, sante, math.min(f.montant, place_max)
 end
 
+local function MinimumSantePossible(f, possible)
+    local capacite = 0
+    for _, case in ipairs(f.cases) do
+        if case.sante then capacite = capacite + case.plafond end
+    end
+    return math.min(f.minimum or 0, capacite, possible or f.montant)
+end
+
 local function Rafraichir(f)
     local place, sante, possible = Etat(f)
+    local requis = MinimumSantePossible(f, possible)
+    local perceOk = sante >= requis
     f.reste.valeur:SetText(tostring(f.montant - place))
     f.place.valeur:SetText(tostring(place))
-    f.perce.valeur:SetText(string.format("%d / %d", math.min(sante, f.minimum), f.minimum))
+    f.perce.valeur:SetText(string.format("%d / %d", math.min(sante, requis), requis))
+    f.perce.valeur:SetTextColor(perceOk and 0.4 or 1, perceOk and 1 or 0.55, perceOk and 0.4 or 0.2)
+    f.reste.valeur:SetTextColor(place == possible and 0.4 or 1, place == possible and 1 or 0.82,
+        place == possible and 0.4 or 0.2)
     for i, case in ipairs(f.cases) do
         local l = f.lignes[i]
         local n = f.valeurs[i] or 0
@@ -625,9 +638,7 @@ local function Rafraichir(f)
     end
     -- On a tout place (ou tout ce qui pouvait l'etre), et la sante a recu au
     -- moins le perce-armure (ou tout ce qu'elle pouvait encore recevoir).
-    local santeMax = 0
-    for _, case in ipairs(f.cases) do if case.sante then santeMax = santeMax + case.plafond end end
-    local ok = place == possible and sante >= math.min(f.minimum, santeMax)
+    local ok = place == possible and perceOk
     f.appliquer:SetEnabled(ok)
     f.appliquer:SetAlpha(ok and 1 or 0.4)
     f.pret = ok
@@ -646,6 +657,7 @@ function Ecran.Repartir(ctx, fin)
     local cases, inconnus = A.Zones(ctx.entity, tags)
     f.ctx, f.fin, f.cases, f.montant, f.signe = ctx, fin, cases, montant, signe
     f.minimum = signe == "-" and A.PerceMinimum(ctx, montant) or 0
+    f.pourcentagePerce = signe == "-" and A.PercePourcentage(ctx) or 0
     f.valeurs = {}
     f.emote:SetText("")
     f.titre:SetText(string.format("%s : %d point%s à répartir", signe == "-" and "Dégâts" or "Gain", montant,
@@ -656,6 +668,19 @@ function Ecran.Repartir(ctx, fin)
         aide = aide .. "\n|cffff8080Sans jauge sur la fiche : " .. table.concat(inconnus, ", ") .. "|r"
     end
     f.aide.texte:SetText(aide)
+
+    -- Sans perce-armure, le troisieme compteur est inutile : « Total reparti »
+    -- reprend toute la largeur disponible. Avec perce-armure, on montre aussi le
+    -- pourcentage recu afin que la contrainte soit explicite.
+    f.perce:SetShown(f.minimum > 0)
+    f.place:ClearAllPoints()
+    f.place:SetPoint("TOPLEFT", f.reste, "TOPRIGHT", 6, 0)
+    if f.minimum > 0 then
+        f.place:SetWidth(160)
+        f.perce.titre:SetText(string.format("Perce-armure %d%% (santé mini)", math.floor(f.pourcentagePerce + 0.5)))
+    else
+        f.place:SetPoint("TOPRIGHT", f.aide, "BOTTOMRIGHT", 0, -8)
+    end
 
     local y = 0
     for i, case in ipairs(cases) do
@@ -708,11 +733,19 @@ end
 function Ecran.Ajuster(i, pas)
     local f = Ecran.repartition
     local case = f.cases[i]
-    local place = Etat(f)
+    local place, sante, possible = Etat(f)
     local n = f.valeurs[i] or 0
     local voulu = n + pas
     if pas == math.huge then voulu = n + (f.montant - place) end
     voulu = math.max(0, math.min(voulu, case.plafond, n + (f.montant - place)))
+    -- Reserve des le clic la part obligatoire aux PV. Ainsi « Tout » sur un
+    -- bouclier ou une piece d'armure ne remplit plus une repartition qu'il faut
+    -- ensuite defaire a la main pour respecter le perce-armure.
+    if not case.sante and f.minimum > 0 then
+        local requis = MinimumSantePossible(f, possible)
+        local horsSanteSansCetteCase = (place - sante) - n
+        voulu = math.min(voulu, math.max(0, possible - requis - horsSanteSansCetteCase))
+    end
     f.valeurs[i] = voulu
     Rafraichir(f)
 end
@@ -763,9 +796,11 @@ local function Depense(f)
     return t
 end
 
-local function RafraichirDistribution(f)
+local function RafraichirDistribution(f, saisieEnCours)
     local reste = f.montant - Depense(f)
-    for i, z in ipairs(f.zones) do f.lignes[i].valeur:SetText(tostring(f.parts[z] or 0)) end
+    for i, z in ipairs(f.zones) do
+        if i ~= saisieEnCours then f.lignes[i].valeur:SetText(tostring(f.parts[z] or 0)) end
+    end
     f.reste:SetText(string.format("Total : %d  —  reste à répartir : |cff%s%d|r", f.montant,
         reste == 0 and "9be08f" or "ffd200", reste))
     f.valider:SetEnabled(reste == 0)
@@ -801,8 +836,24 @@ function Ecran.Repartition(titre, montant, zones, ctx, rappel, note)
                 return b
             end
             l.moins = Pas_(140, "−", function(z_, pas) f.parts[z_] = math.max(0, (f.parts[z_] or 0) - pas) end)
-            l.valeur = UI.Texte(l, "0", UI.C.titre)
-            l.valeur:SetWidth(44)
+            -- La valeur est une vraie saisie numérique : les gros soins ne
+            -- demandent plus un clic par point. Elle reste synchronisée avec
+            -- les boutons −, +, maximum et zéro.
+            l.valeur = UI.Champ(l, 44, 20, function(texte)
+                local zone = f.zones[i]
+                if not zone then return end
+                local ancienne = f.parts[zone] or 0
+                local nombre = math.max(0, math.floor(tonumber(texte) or 0))
+                local disponible = math.max(0, f.montant - (Depense(f) - ancienne))
+                nombre = math.min(nombre, disponible)
+                f.parts[zone] = nombre
+                if texte ~= "" and tostring(nombre) ~= texte then
+                    l.valeur:SetText(tostring(nombre))
+                end
+                RafraichirDistribution(f, i)
+            end)
+            l.valeur:SetNumeric(true)
+            l.valeur:SetMaxLetters(6)
             l.valeur:SetJustifyH("CENTER")
             Placer(l.valeur, "LEFT", l, "LEFT", 170, 0)
             l.plus = Pas_(218, "+", function(z_, pas)
@@ -819,6 +870,10 @@ function Ecran.Repartition(titre, montant, zones, ctx, rappel, note)
         l:Show()
     end
     for i = #zones + 1, #f.lignes do f.lignes[i]:Hide() end
+    for i = 1, #zones do
+        f.lignes[i].valeur.precedent = f.lignes[i - 1] and f.lignes[i - 1].valeur or nil
+        f.lignes[i].valeur.suivant = f.lignes[i + 1] and f.lignes[i + 1].valeur or nil
+    end
     f:SetHeight(-haut + #zones * 26 + 50)
     RafraichirDistribution(f)
     f:Show()
