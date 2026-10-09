@@ -1,15 +1,15 @@
 -- lcm-db: {"family": "objets", "id": "harnois_blanc", "registry": "Objets", "side": "player"}
 return {
-    avantage = {},
+    avantage = {  },
     bonus = {
-        acrobaties = -1,
+        acrobaties = -2,
         depl_nage = -1,
         depl_terrestre = -1,
-        equilibre = -1,
-        escalade = -1,
+        equilibre = -2,
+        escalade = -2,
         initiative = -1,
-        meca_intervention = 2,
-        pen_contondant = 4,
+        meca_intervention = 1,
+        pen_contondant = 2,
         resi_contondant = 3,
         resi_perforant = 3,
         resi_tranchant = 3,
@@ -17,10 +17,15 @@ return {
     categorie = "arme",
     couleurTitre = "4DE04D",
     description = "le pavois est intégralement composé de métal le rendant particulièrement lourd. Porte des enchantements qui décuple la force du porteur, lui permettant de supporter un tel fardeau.\nLe pavois donne un instinct de protectecteur.",
+    etat = {
+        courant = 30,
+        max = 30,
+    },
     forge = "equilibrage_arme/inhabituel",
     icone = "Interface\\ICONS\\inv_shield_1h_kultirasquest_b_01",
     id = "harnois_blanc",
     label = "Pavois du gardien",
+    remplacePublie = true,
     tags = "Inhabituel",
     taille = 1,
 }
