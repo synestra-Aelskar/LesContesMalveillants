@@ -437,6 +437,72 @@ E.types = {
 
 E.groupesTypes = { "Physiques", "Élémentaires", "Cosmiques" }
 
+-- ===== Le dot ==============================================================
+-- Un etat pose sur un adversaire qui GRIGNOTE une jauge a chaque round, aussi
+-- longtemps qu'il dure (9 octobre 2026). Il se compose comme un debuff : un
+-- pool de points qu'on repartit.
+--
+-- Trois jauges se grignotent toutes seules : elles sont UNIQUES et communes a
+-- tout le monde (bouclier, PA, fatigue). Les deux autres — les points de vie et
+-- l'etat des armures — sont reparties en zones propres a la silhouette de la
+-- cible : personne d'autre que son porteur ne sait ou le coup tombe. Pour
+-- celles-la, le dot ne touche a rien et pose une NOTE a jouer : c'est la cible
+-- qui applique, selon ce que la note raconte.
+--
+-- `taux` : une part du MAXIMUM de la jauge, par point investi et par round.
+-- `plat` : un nombre fixe, pour une jauge trop petite pour un pourcentage —
+-- les PA se comptent en unites, 5 % n'y voudrait rien dire. D'ou leur prix :
+-- un point de PA par round coute cher parce qu'il empeche d'AGIR.
+
+E.dot = {
+    -- Ce qu'on peut grignoter. `cout` : le prix d'un point dans ce pool.
+    cibles = {
+        { id = "bouclier", label = "Bouclier", jauge = "armure",  cout = 2,  taux = 0.05 },
+        { id = "pf",       label = "PF",       jauge = "fatigue", cout = 3,  taux = 0.05 },
+        { id = "pa",       label = "PA",       jauge = "pa",      cout = 15, plat = 1 },
+        -- Zonees : on ne touche a rien, on ecrit la note.
+        { id = "pv",       label = "PV",       cout = 4, taux = 0.05, zonee = true,
+          note = "points de vie" },
+        { id = "armure",   label = "État d'armure", cout = 4, taux = 0.05, zonee = true,
+          note = "état d'armure" },
+    },
+
+    -- Les deux autres facons de depenser.
+    coutRound = 4,          -- un round de grignotage en plus
+    coutStack = 10,         -- un stack en plus
+
+    -- Ce qu'un dot vaut sans rien y mettre : un round, un stack. Les points
+    -- achetes s'y ajoutent.
+    roundsBase = 1,
+    stacksBase = 1,
+
+    -- Le jet a battre pour dissiper BAISSE d'autant a chaque round : un dot
+    -- ancien se decroche plus facilement qu'un dot frais.
+    randParRound = 1,
+
+    -- ----- Ce qu'on a a depenser -------------------------------------------
+    -- Le pool est bati comme celui du buff : une statistique source, la moyenne
+    -- des penetrations choisies, le niveau du sort — le tout module par la
+    -- puissance de la mecanique « Dot » (puissanceMecanique).
+    sources = { "force", "mystique", "perception", "constitution" },
+    pool = { parSource = 1, parPen = 1, parNiveau = 3 },
+
+    -- ----- La resistance adverse -------------------------------------------
+    -- Ce n'est pas le pool qu'elle reduit, c'est le GRIGNOTAGE : une armure qui
+    -- resiste au feu ne rend pas le sort moins cher a lancer, elle encaisse
+    -- moins.
+    --
+    -- Penetration et resistance doivent s'equilibrer : a valeurs egales, ni
+    -- l'un ni l'autre ne l'emporte. D'ou le rapport 2 x pen / (pen + resi), qui
+    -- vaut exactement 1 quand les deux se valent, descend quand la cible
+    -- resiste mieux, et monte quand elle resiste moins.
+    --
+    -- Borne des deux cotes : sans plancher, une cible tres resistante annulerait
+    -- le dot et le lanceur aurait depense pour rien ; sans plafond, une cible
+    -- sans resistance le prendrait de plein fouet multiplie par trois.
+    resistance = { plancher = 0.25, plafond = 1.5 },
+}
+
 -- ===== Vies d'un objet =====================================================
 -- Un objet qui tombe a zero d'etat perdait tout : il etait detruit, et rien ne
 -- pouvait le rendre. C'etait trop dur — on perdait une piece sur un mauvais jet
@@ -486,6 +552,7 @@ E.mecaniques = {
     { id = "soin",             label = "Soin" },
     { id = "buff",             label = "Buff" },
     { id = "debuff",           label = "Debuff" },
+    { id = "dot",              label = "Dot" },
     { id = "attraction",       label = "Attraction" },
     { id = "repulsion",        label = "Répulsion" },
     { id = "immobilisation",   label = "Immobilisation" },

@@ -86,6 +86,9 @@ function Temporaires.Poser(entity, etat)
         -- par un jet { competence, dc } (Necronicon : cureMode « rand »).
         guerison = etat.guerison,
         controle = type(etat.controle) == "table" and LCM.Copie(etat.controle) or nil,
+        -- Ce qui fait d'un etat un DOT (Core/Dot.lua) : stacks, morsures, rand.
+        -- Sans cette ligne, l'etat se posait mais ne mordait jamais.
+        dot = type(etat.dot) == "table" and LCM.Copie(etat.dot) or nil,
     }
     if Temporaires.onChange then Temporaires.onChange(entity) end
     return liste[#liste]
@@ -138,6 +141,24 @@ end
 function Temporaires.Round(entity)
     local liste = Temporaires.Liste(entity)
     local eteints = {}
+    -- Les dots mordent AVANT que les durees ne baissent : un dot d'un round
+    -- doit mordre une fois, pas zero.
+    --
+    -- On DIT ce qui s'est passe. Pour une jauge unique c'est deja applique et
+    -- l'on informe ; pour une jauge zonee, rien n'a bouge et c'est une consigne
+    -- a jouer — elle passe donc en alerte, pour qu'elle ne se perde pas au
+    -- milieu du journal.
+    if LCM.Dot then
+        for _, fait in ipairs(LCM.Dot.Tic(entity)) do
+            if fait.zonee then
+                LCM.Alerte(fait.note)
+            elseif (fait.retire or 0) > 0 then
+                local champ = LCM.Schema.Field(fait.jauge)
+                LCM.Info(string.format("« %s » grignote %d %s.", fait.etat, fait.retire,
+                    champ and champ.label or fait.jauge))
+            end
+        end
+    end
     for _, e in ipairs(liste) do
         if type(e.cumul) == "table" then
             local n, ou = Drainer(entity, e.cumul)

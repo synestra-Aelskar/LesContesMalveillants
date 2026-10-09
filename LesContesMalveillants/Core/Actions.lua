@@ -2109,8 +2109,15 @@ local function Resume(liste)
     local out = {}
     for _, e in ipairs(liste) do
         if e.id then
+            -- Un DOT annonce son rand COURANT, pas le jet d'origine : il baisse
+            -- d'un point par round (Core/Dot.lua), et c'est lui qu'il faut
+            -- battre. Ses stacks voyagent aussi — dissiper n'est pas tout ou
+            -- rien sur un dot (9 octobre 2026).
+            local dot = type(e.dot) == "table" and e.dot or nil
             out[#out + 1] = { id = e.id, nom = e.nom, icone = e.icone, competence = e.jet and e.jet.competence,
-                              seuil = e.jet and e.jet.valeur or 0, restant = e.restant, lanceur = e.lanceur }
+                              seuil = dot and (tonumber(dot.rand) or 0) or (e.jet and e.jet.valeur or 0),
+                              restant = e.restant, lanceur = e.lanceur,
+                              stacks = dot and dot.stacks or nil }
         end
     end
     return out
@@ -2153,22 +2160,41 @@ function Actions.Dissiper(ctx, cfg, selection, choix)
             Actions.Annoncer(string.format("[Rand %s] D%d : %d + %d = %d", cle, field.dice.max or 0, de, fixe, de + fixe))
         end
         local ok = jets[cle] >= (tonumber(etat.seuil) or 0)
+        -- Un DOT ne part pas d'un bloc : battre son rand en retire un stack, et
+        -- chaque point au-dessus en retire un de plus. On envoie donc le SCORE,
+        -- et c'est le porteur qui compte — lui seul connait l'etat exact de ses
+        -- stacks (9 octobre 2026).
+        local estDot = etat.stacks ~= nil
+        local partis
         if ok then
             reussis = reussis + 1
             local c = s.cible
             if c.soi then
-                LCM.EtatsTemporaires.Retirer(ctx.entity, etat.id)
+                if estDot and LCM.Dot then partis = LCM.Dot.Dissiper(ctx.entity, etat.id, jets[cle])
+                else LCM.EtatsTemporaires.Retirer(ctx.entity, etat.id) end
             elseif c.pnj and (c.mj or LCM.PlayerId()) == LCM.PlayerId() then
                 local instance = LCM.Incarnation.Instance(c.id)
-                if instance then LCM.EtatsTemporaires.Retirer(instance, etat.id) end
+                if instance then
+                    if estDot and LCM.Dot then partis = LCM.Dot.Dissiper(instance, etat.id, jets[cle])
+                    else LCM.EtatsTemporaires.Retirer(instance, etat.id) end
+                end
             else
-                LCM.Reseau.Envoyer("dissipe", { id = etat.id, p = c.pnj and c.id or nil, nom = etat.nom },
+                LCM.Reseau.Envoyer("dissipe", { id = etat.id, p = c.pnj and c.id or nil, nom = etat.nom,
+                    sc = estDot and jets[cle] or nil },
                     "WHISPER", c.pnj and c.mj or c.id)
             end
         end
+        local verdict
+        if not ok then verdict = "échec"
+        elseif estDot then
+            -- Chez un autre joueur, c'est lui qui compte : on annonce ce qu'on
+            -- sait plutot que d'inventer un nombre.
+            verdict = partis and string.format("%d stack%s dissipé%s", partis,
+                partis > 1 and "s" or "", partis > 1 and "s" or "") or "stacks dissipés"
+        else verdict = "dissipé" end
         resultats[#resultats + 1] = string.format("%s%s : %d contre %d -> %s", tostring(etat.nom),
             s.cible.soi and "" or (" (" .. tostring(s.cible.nom) .. ")"), jets[cle], tonumber(etat.seuil) or 0,
-            ok and "dissipé" or "échec")
+            verdict)
     end
     local qui = LCM.Identite.NomEnJeu(ctx.entity)
     Actions.Annoncer(string.format("%s dissipe (%s, niveau %d) : %s.", qui, choix.competence, choix.niveau,
@@ -2589,6 +2615,19 @@ function Actions.Subir(recu, ecart)
             nomEtat = "Sous contrôle mental"
             description = Trim(p.nt) ~= "" and p.nt or description
         end
+        -- Un paquet qui porte `dt` est un DOT : ce n'est pas un malus de
+        -- statistique mais une morsure qui revient chaque round, et c'est
+        -- Core/Dot.lua qui sait la composer (sa duree et ses stacks viennent de
+        -- ce qu'on a depense, pas du paquet).
+        if type(p.dt) == "table" and LCM.Dot then
+            LCM.Dot.Poser(recu.entity, {
+                nom = nomEtat, icone = p.ic, description = description,
+                choix = p.dt, lanceur = lanceur, id = p.t, conteneur = p.ct,
+                dissipation = p.dis,
+                jet = { competence = p.js, valeur = tonumber(p.jr) or 0 },
+            })
+            texte = string.format("Dot « %s » appliqué à %s.", tostring(nomEtat), cible)
+        else
         LCM.EtatsTemporaires.Poser(recu.entity, { nom = nomEtat, icone = p.ic, description = description, bonus = bonus,
             rounds = rounds, lanceur = lanceur, debuff = recu.debuff, dissipation = p.dis, cumul = cumul,
             id = p.t, jet = p.js and { competence = p.js, valeur = tonumber(p.jr) or 0 } or nil,
@@ -2600,6 +2639,7 @@ function Actions.Subir(recu, ecart)
         texte = string.format("%s « %s » appliqué à %s (%s)%s.", recu.debuff and "Débuff" or "Buff", tostring(nomEtat),
             cible, rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'à retrait",
             facteur > 1 and " — critique, durée doublée" or "")
+        end
         if #inconnus > 0 then
             LCM.Alerte(string.format("« %s » : effets sans champ sur la fiche, ignorés — %s", tostring(p.nom),
                 table.concat(inconnus, ", ")))
@@ -3051,6 +3091,7 @@ LCM.WhenReady(function()
             paquet.nb = k
             paquet["i" .. k], paquet["n" .. k], paquet["c" .. k] = e.id, e.nom, e.competence
             paquet["s" .. k], paquet["r" .. k] = e.seuil, e.restant
+            paquet["k" .. k] = e.stacks
         end
         R.Envoyer("etats", paquet, "WHISPER", expediteur)
     end)
@@ -3058,7 +3099,8 @@ LCM.WhenReady(function()
         local liste = {}
         for k = 1, tonumber(d.nb) or 0 do
             liste[#liste + 1] = { id = d["i" .. k], nom = d["n" .. k], competence = d["c" .. k],
-                                  seuil = tonumber(d["s" .. k]) or 0, restant = tonumber(d["r" .. k]) }
+                                  seuil = tonumber(d["s" .. k]) or 0, restant = tonumber(d["r" .. k]),
+                                  stacks = tonumber(d["k" .. k]) }
         end
         local cle = d.p or expediteur
         Actions.etatsConnus[cle] = liste
@@ -3072,6 +3114,18 @@ LCM.WhenReady(function()
             if not LCM.IsMaster() then return end
             entity = LCM.Incarnation.Instance(d.p)
             if not entity then return end
+        end
+        -- `sc` : le score du dissipateur. Present, c'est un dot — on retire des
+        -- stacks, et on dit combien.
+        local score = tonumber(d.sc)
+        if score and LCM.Dot then
+            local partis, reste = LCM.Dot.Dissiper(entity, d.id, score)
+            if partis and partis > 0 then
+                LCM.Info(string.format("%s dissipe %d stack%s de « %s »%s.", expediteur, partis,
+                    partis > 1 and "s" or "", tostring(d.nom or d.id),
+                    (reste or 0) > 0 and string.format(" (il en reste %d)", reste) or " : il s'éteint"))
+            end
+            return
         end
         if LCM.EtatsTemporaires.Retirer(entity, d.id) then
             LCM.Info(string.format("%s dissipe « %s ».", expediteur, tostring(d.nom or d.id)))

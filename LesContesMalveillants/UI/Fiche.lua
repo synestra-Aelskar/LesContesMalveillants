@@ -1275,7 +1275,11 @@ function Lignes.temporaires(bloc, c, conteneur)
             end
             r.etat = etat
             r.icone:SetTexture(LCM.Icone(etat.icone))
-            r.nom:SetText(etat.nom)
+            -- Un DOT porte ses stacks devant son nom : c'est le nombre qui dit
+            -- combien il mord, et celui qu'une dissipation fait tomber.
+            local dotResume, dotStacks, dotRand
+            if LCM.Dot then dotResume, dotStacks, dotRand = LCM.Dot.Resume(e, etat) end
+            r.nom:SetText(dotStacks and string.format("x%d  %s", dotStacks, etat.nom) or etat.nom)
             local couleur = etat.debuff and UI.C.plein or UI.C.titre
             r.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
             local effets = {}
@@ -1284,9 +1288,22 @@ function Lignes.temporaires(bloc, c, conteneur)
                 effets[#effets + 1] = string.format("%s %+d", field and field.label or champ, n)
             end
             table.sort(effets)
+            -- Ce qu'il grignote passe AVANT la durée : c'est ce qu'on regarde.
+            if dotResume and dotResume ~= "" then
+                table.insert(effets, 1, dotResume)
+            end
             r.effets:SetText(table.concat(effets, ", ") .. "  |cff9a9a9a" .. T.Duree(etat) .. "|r")
-            Bulle(r, etat.nom, ((etat.description or "") ~= "" and (etat.description .. "\n\n") or "")
-                .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat))
+            local aide = ((etat.description or "") ~= "" and (etat.description .. "\n\n") or "")
+                .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat)
+            if dotStacks then
+                -- Le rand COURANT, puisqu'il baisse d'un round a l'autre : sans
+                -- lui on ne peut pas juger si une dissipation valait le coup.
+                aide = aide .. string.format("\n\n%d stack%s, %s par round."
+                    .. "\nÀ battre pour dissiper : %d — et chaque point au-dessus"
+                    .. " emporte un stack de plus.", dotStacks, dotStacks > 1 and "s" or "",
+                    dotResume ~= "" and dotResume or "rien", dotRand or 0)
+            end
+            Bulle(r, etat.nom, aide)
             local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
             r.action.label:SetText(guerir and string.format("Guérir (%s)", etat.guerison.competence) or "Retirer")
             r.action:SetShown(not e.distante and (LCM.IsMaster() or guerir))

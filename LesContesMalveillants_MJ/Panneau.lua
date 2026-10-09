@@ -37,6 +37,7 @@ Ecran.ONGLETS = {
     { id = "pnj",     label = "PNJ" },
     { id = "contenus", label = "Contenus" },
     { id = "outils",  label = "Outils" },
+    { id = "equilibrage", label = "Équilibrage" },
 }
 
 -- Le groupe, vu d'ici. Le MJ reste toujours visible : sa fiche locale est
@@ -763,6 +764,152 @@ function Pages.contenus(page, f)
 end
 
 -- ===== Outils partages =====================================================
+
+-- ===== Equilibrage =========================================================
+-- Le tableau de tous les nombres du jeu, reglables en seance.
+--
+-- « Le perce-armure est trop fort, on passe ses degats a 90 % » demandait
+-- d'ouvrir Data/Equilibrage.lua, de republier, et de faire mettre a jour tout
+-- le monde (9 octobre 2026). Ici on regle, ca s'applique tout de suite, ca part
+-- chez les joueurs, et ca reste a exporter.
+--
+-- Deux colonnes : les GROUPES a gauche (pv, dot, forge...), leurs nombres a
+-- droite. Sans ce decoupage, les quelque deux cents vecteurs faisaient une
+-- liste ou l'on ne trouvait rien.
+
+local LIGNE_REGLAGE = 24
+
+function Pages.equilibrage(page, f)
+    local R = LCM.Reglages
+    local largeur = LARGEUR - 24
+    local largeurGroupes = 150
+
+    page.titre = Titre(page, "Vecteurs d'équilibrage")
+    page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+
+    page.resume = UI.Texte(page, "", UI.C.discret)
+    UI.Police(page.resume, 11)
+    page.resume:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -18)
+    page.resume:SetPoint("RIGHT", page, "RIGHT", -4, 0)
+    page.resume:SetJustifyH("LEFT")
+    page.resume:SetWordWrap(true)
+
+    -- La colonne des groupes.
+    page.groupes = UI.Defilement(page)
+    page.groupes:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -48)
+    page.groupes:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
+    page.groupes:SetWidth(largeurGroupes)
+    page.boutonsGroupe = {}
+
+    -- Le tableau.
+    page.zone = UI.Defilement(page)
+    page.zone:SetPoint("TOPLEFT", page, "TOPLEFT", largeurGroupes + 12, -48)
+    page.zone:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -4, 0)
+    page.lignes = {}
+    page.groupe = nil
+
+    function page:Choisir(groupe)
+        self.groupe = groupe
+        self:Afficher()
+    end
+
+    function page:Afficher()
+        if not LCM.IsMaster() then return end
+        local groupes = R.Groupes()
+        if not self.groupe then self.groupe = groupes[1] end
+
+        local n = R.Compte()
+        self.resume:SetText(n > 0
+            and string.format("%d réglage(s) en cours — ils s'appliquent chez tout le monde "
+                .. "et restent à exporter.", n)
+            or "Aucun réglage : le jeu tourne sur les valeurs du fichier.")
+
+        local y = 0
+        for rang, groupe in ipairs(groupes) do
+            local b = self.boutonsGroupe[rang]
+            if not b then
+                b = UI.Bouton(self.groupes.contenu, "", largeurGroupes - 20, 22, function()
+                    page:Choisir(page.boutonsGroupe[rang].groupe)
+                end)
+                self.boutonsGroupe[rang] = b
+            end
+            b.groupe = groupe
+            b.label:SetText(groupe)
+            b:Selectionner(groupe == self.groupe)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", self.groupes.contenu, "TOPLEFT", 0, -y)
+            b:Show()
+            y = y + 24
+        end
+        for rang = #groupes + 1, #self.boutonsGroupe do self.boutonsGroupe[rang]:Hide() end
+        self.groupes:Regler(math.max(1, y))
+
+        local vecteurs = R.Vecteurs(self.groupe)
+        local yv = 0
+        for rang, v in ipairs(vecteurs) do
+            local l = self.lignes[rang]
+            if not l then
+                l = CreateFrame("Frame", nil, self.zone.contenu)
+                l:SetHeight(LIGNE_REGLAGE - 2)
+                if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+                l.nom = UI.Texte(l, "", UI.C.texte)
+                UI.Police(l.nom, 11)
+                l.nom:SetPoint("LEFT", l, "LEFT", 6, 0)
+                l.nom:SetWordWrap(false)
+                -- Remettre par defaut : le bouton n'apparait que s'il y a
+                -- quelque chose a defaire.
+                l.defaut = UI.Bouton(l, "Défaut", 62, 18, function()
+                    local ok, raison = R.Retirer(l.chemin)
+                    if not ok then LCM.Alerte(tostring(raison)) end
+                    page:Afficher()
+                end)
+                l.defaut:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+                l.saisie = UI.Champ(l, 70, 18, nil)
+                l.saisie:SetPoint("RIGHT", l.defaut, "LEFT", -6, 0)
+                l.poser = UI.Bouton(l, "OK", 32, 18, function()
+                    local ok, raison = R.Definir(l.chemin, l.saisie:GetText())
+                    if not ok then LCM.Alerte(tostring(raison)) return end
+                    LCM.Ok(string.format("%s = %s", l.chemin, l.saisie:GetText()))
+                    page:Afficher()
+                end)
+                l.poser:SetPoint("RIGHT", l.saisie, "LEFT", -4, 0)
+                l.nom:SetPoint("RIGHT", l.poser, "LEFT", -8, 0)
+                self.lignes[rang] = l
+            end
+            l.chemin = v.chemin
+            -- Le chemin SANS son groupe : il est deja dans la colonne de
+            -- gauche, le repeter sur chaque ligne mangeait la place.
+            l.nom:SetText((v.chemin:gsub("^" .. self.groupe .. "%.", "")))
+            if not l.saisie:HasFocus() then l.saisie:SetText(tostring(v.valeur)) end
+            -- Regle : on le voit. La valeur du fichier reste lisible a cote.
+            local regle = R.Surcharges()[v.chemin] ~= nil
+            local couleur = regle and UI.C.accent or UI.C.texte
+            l.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+            l.defaut:SetShown(regle)
+            if regle then
+                UI.Bulle(l, v.chemin, string.format("Réglé à %s. Le fichier dit %s.",
+                    tostring(v.valeur), tostring(v.defaut)))
+            else
+                UI.Bulle(l, v.chemin, "Valeur du fichier.")
+            end
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -yv)
+            l:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -yv)
+            l:Show()
+            yv = yv + LIGNE_REGLAGE
+        end
+        for rang = #vecteurs + 1, #self.lignes do self.lignes[rang]:Hide() end
+        self.zone:Regler(math.max(1, yv))
+    end
+
+    -- Un reglage reçu d'ailleurs rafraichit le tableau : les deux MJ regardent
+    -- la meme chose.
+    local avant = R.onChange
+    R.onChange = function(...)
+        if avant then avant(...) end
+        if f:IsShown() and f.onglet == "equilibrage" then page:Afficher() end
+    end
+end
 
 function Pages.outils(page, f)
     local O = LCM.Outils
