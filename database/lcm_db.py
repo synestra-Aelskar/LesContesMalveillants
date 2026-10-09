@@ -29,6 +29,11 @@ PROJECT = Path(__file__).resolve().parents[1]
 DATABASE = PROJECT / "database"
 ENTRIES = DATABASE / "entries"
 TOMBSTONES = DATABASE / "tombstones"
+# Les reglages d'equilibrage : un fichier par CHEMIN, comme une entree par
+# contenu. Deux maitres du jeu qui touchent deux reglages differents modifient
+# deux fichiers differents, et Git les fusionne ; s'ils touchent le meme, le
+# conflit se voit — c'est precisement un cas ou il faut se parler.
+REGLAGES = DATABASE / "reglages"
 
 
 def addons_directory() -> Path:
@@ -387,6 +392,61 @@ def newest_saved_variables() -> Path:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def player_saved_variables() -> Path | None:
+    """La sauvegarde de l'addon JOUEUR, ou vivent les reglages d'equilibrage.
+
+    Ils y sont et non dans celle du compagnon parce qu'ils doivent s'appliquer
+    chez tout le monde : un reglage que seul le MJ voit ferait jouer deux jeux
+    differents.
+    """
+    mj = newest_saved_variables()
+    joueur = mj.with_name("LesContesMalveillants.lua")
+    return joueur if joueur.is_file() else None
+
+
+def reglage_path(chemin: str) -> Path:
+    return REGLAGES / (safe_id(chemin) + ".lua")
+
+
+def import_reglages() -> tuple[int, int]:
+    """Reprend les surcharges d'equilibrage dans la base. Rend (ecrits, inchanges)."""
+    saved = player_saved_variables()
+    if saved is None:
+        return 0, 0
+    data = parse_assignments(saved.read_text(encoding="utf-8", errors="replace"))
+    db = data.get("LCM_DB") or {}
+    reglages = ((db.get("settings") or {}).get("equilibrage")) or {}
+    ecrits, inchanges = 0, 0
+    REGLAGES.mkdir(parents=True, exist_ok=True)
+    for chemin, valeur in sorted(reglages.items()):
+        if not isinstance(valeur, (int, float)):
+            continue
+        corps = (
+            "-- chemin: %s\n" % chemin
+            + "return { chemin = %s, valeur = %s }\n"
+            % (lua_string(str(chemin)), lua_value(valeur))
+        )
+        cible = reglage_path(str(chemin))
+        if cible.is_file() and cible.read_text(encoding="utf-8") == corps:
+            inchanges += 1
+            continue
+        cible.write_text(corps, encoding="utf-8", newline="\n")
+        ecrits += 1
+    return ecrits, inchanges
+
+
+def lire_reglages() -> list[tuple[str, float]]:
+    out = []
+    if not REGLAGES.is_dir():
+        return out
+    for path in sorted(REGLAGES.glob("*.lua")):
+        table = parse_return_table(path.read_text(encoding="utf-8"))
+        chemin, valeur = table.get("chemin"), table.get("valeur")
+        if isinstance(chemin, str) and isinstance(valeur, (int, float)):
+            out.append((chemin, valeur))
+    return out
+
+
 def import_drafts(saved: Path, apply_deletions: bool = False) -> tuple[int, int, int]:
     root = parse_assignments(saved.read_text(encoding="utf-8")).get("LCM_MJ_DB", {})
     drafts = root.get("brouillons", {}) if isinstance(root, dict) else {}
@@ -490,6 +550,19 @@ def build() -> dict[str, int]:
             for _, registry, table_source in entries:
                 chunks.append(f"LCM.Publier(LCM.{registry}, {table_source})\n\n")
             total += len(entries)
+        # Les reglages d'equilibrage partent chez TOUT LE MONDE : le MJ et ses
+        # joueurs doivent calculer avec les memes nombres. Ils vont donc dans le
+        # fichier du joueur, dont le compagnon depend.
+        if side == "player":
+            reglages = lire_reglages()
+            if reglages:
+                chunks.append("-- ----- equilibrage (%d) %s\n"
+                              % (len(reglages), "-" * 45))
+                for chemin, valeur in reglages:
+                    chunks.append("LCM.Reglages.Publier(%s, %s)\n"
+                                  % (lua_string(chemin), lua_value(valeur)))
+                chunks.append("\n")
+                total += len(reglages)
         if total == 0:
             chunks.append("-- Aucune entree.\n")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -538,6 +611,12 @@ def main(argv=None) -> int:
             imported, unchanged, deleted = import_drafts(saved, args.apply_deletions)
             print(f"Brouillons : {imported} importe(s), {unchanged} inchange(s), {deleted} suppression(s).")
             print(f"Source : {saved}")
+            # Les reglages d'equilibrage suivent le meme chemin : ils vivent
+            # dans la sauvegarde de l'addon JOUEUR, puisqu'ils s'appliquent chez
+            # tout le monde.
+            regles, regles_inchanges = import_reglages()
+            if regles or regles_inchanges:
+                print(f"Reglages : {regles} importe(s), {regles_inchanges} inchange(s).")
             if args.command == "sync":
                 counts = build()
                 print(f"Addons reconstruits : {counts['player']} joueur, {counts['mj']} MJ.")
