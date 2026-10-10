@@ -50,7 +50,13 @@ Radial.ACTION = Radial.VIGNETTE
 Radial.RAYON_CATEGORIE = 94
 Radial.RAYON_ACTION = 172
 Radial.FOND = 436
-Radial.MAX_ENTREES = 8 -- au-dela, l'eventail n'a plus de dessin (fan-1..8)
+-- Le plafond, c'est le nombre de BANDEAUX dessines dans
+-- ressources/radial (grimoire-fan-1..9) : au-dela, l'eventail n'a plus de
+-- fond a poser derriere ses branches. Le neuvieme a ete fabrique le
+-- 10 octobre 2026 a partir du huitieme — les bandeaux sont le meme objet a
+-- N longueurs (meme rayon, empan qui croit d'un pas constant de ~20,6°),
+-- donc on etire le cuir du milieu en gardant les deux embouts dores.
+Radial.MAX_ENTREES = 9
 
 -- ===== La structure, figee =================================================
 -- Ajouter une entree ici est un acte de developpement, pas un reglage : les
@@ -79,9 +85,11 @@ Radial.STRUCTURE = {
     -- La seule categorie dont le contenu n'est pas ecrit ici : ce sont les
     -- sorts du personnage joue, qui changent de personnage en personnage.
     -- Dans Necronicon, la barre « Compétences » portait la meme chose
-    -- (RunGrimoireShortcutExec). Huit au plus : un eventail ne sait pas
-    -- dessiner davantage de branches, et au-dela on ne choisit plus, on
-    -- cherche.
+    -- (RunGrimoireShortcutExec). Autant que l'eventail sait dessiner de
+    -- branches, pas plus : au-dela on ne choisit plus, on cherche. Le plafond
+    -- se LIT (MAX_ENTREES) au lieu de se recopier — ecrit en dur ici, il n'a
+    -- pas suivi quand l'eventail a gagne une neuvieme branche, et la neuvieme
+    -- competence restait introuvable sans un mot (10 octobre 2026).
     { id = "competences", label = "Compétences", icone = ICONE .. "competences.tga",
       contenu = function()
           local moi = LCM.Entities.Self()
@@ -102,7 +110,7 @@ Radial.STRUCTURE = {
                       end
                   end,
               }
-              if #out >= 8 then break end
+              if #out >= Radial.MAX_ENTREES then break end
           end
           return out
       end },

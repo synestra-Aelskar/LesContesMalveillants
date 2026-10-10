@@ -81,6 +81,11 @@ Menu.STRUCTURE = {
           -- en attendant de lui trouver sa place. Pas encore d'icone noire et
           -- doree : celle du jeu en attendant.
           { id = "campement",  label = "Campement",  icone = ICONE .. "spell_fire_fire" },
+          -- Ajout du 10 octobre 2026. Le dossier etait plein a huit : c'est
+          -- pour cette entree qu'un neuvieme bandeau d'eventail a ete
+          -- fabrique (UI/Radial.lua, MAX_ENTREES). Pas encore d'icone noire et
+          -- doree : celle du jeu en attendant.
+          { id = "lieux",      label = "Lieux",      icone = ICONE .. "inv_misc_map_01", mjSeulement = true },
       } },
     -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,
     -- les resolutions et les actions MJ, et un joueur n'a rien a y lire. Sa
@@ -92,11 +97,15 @@ Menu.STRUCTURE = {
     { id = "deplacement", label = "Déplacement", icone = RADIAL .. "fenetres-deplacement.tga" },
 }
 
--- Un dossier s'ouvre en eventail, et un eventail ne sait dessiner que 1 a 8
--- branches (UI/Radial.lua, MAX_ENTREES). Verifie au chargement.
+-- Un dossier s'ouvre en eventail, et un eventail ne sait dessiner que les
+-- longueurs de bandeau qui existent. Le plafond se lit chez celui qui le sait
+-- (UI/Radial.lua, MAX_ENTREES) plutot que de se recopier ici : repete, il
+-- aurait fallu penser a le changer aux deux endroits.
+local PLAFOND = (UI.Radial and UI.Radial.MAX_ENTREES) or 8
 for _, noeud in ipairs(Menu.STRUCTURE) do
-    if noeud.enfants and #noeud.enfants > 8 then
-        error(string.format("menu : le dossier %s a %d fenetres (maximum 8)", noeud.id, #noeud.enfants))
+    if noeud.enfants and #noeud.enfants > PLAFOND then
+        error(string.format("menu : le dossier %s a %d fenetres (maximum %d)",
+            noeud.id, #noeud.enfants, PLAFOND))
     end
 end
 

@@ -57,6 +57,8 @@ Core\ActionsBoutons.lua
 Core\Direct.lua
 Core\Echange.lua
 Core\Campement.lua
+Core\Lieux.lua
+Core\Bannieres.lua
 Data\Equilibrage.lua
 Data\Icones.lua
 Data\Morphologies.lua
@@ -103,6 +105,7 @@ UI\Parametres.lua
 UI\Bourse.lua
 UI\Echange.lua
 UI\Campement.lua
+UI\Banniere.lua
 UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua

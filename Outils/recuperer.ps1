@@ -203,6 +203,7 @@ if ($DejaAJour) {
     $racine = Split-Path $PSScriptRoot -Parent
     $n = (Maj-Empreintes (Join-Path $racine 'Depot') $clone)
     $n += (Maj-Empreintes (Join-Path $racine 'Banc') (Join-Path $clone 'Banc'))
+    $n += (Maj-Empreintes (Join-Path $racine 'Outils') (Join-Path $clone 'Outils'))
     Ok ('Base connue mise a jour (' + $n + ' empreinte(s)) : tu peux republier.')
     Pause-Fin 'Appuyez sur Entree pour fermer'
     exit 0
@@ -235,6 +236,10 @@ Set-Content -LiteralPath $traceBase -Value $distant -Encoding UTF8
 $racine = Split-Path $PSScriptRoot -Parent
 $n = (Maj-Empreintes (Join-Path $racine 'Depot') $clone)
 $n += (Maj-Empreintes (Join-Path $racine 'Banc') (Join-Path $clone 'Banc'))
+# Outils\ manquait a l'appel : ses empreintes ne se rafraichissaient donc
+# jamais, et la publication restait bloquee meme apres avoir recupere le
+# fichier a l'identique (10 octobre 2026).
+$n += (Maj-Empreintes (Join-Path $racine 'Outils') (Join-Path $clone 'Outils'))
 Ok ('Base connue mise a jour (' + $n + ' empreinte(s)) : tu peux republier.')
 
 Write-Host ''

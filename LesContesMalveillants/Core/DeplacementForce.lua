@@ -155,6 +155,25 @@ local function Position(source)
     return nil
 end
 
+-- Rendue publique pour les Lieux (Core/Lieux.lua), qui mesurent des
+-- franchissements de frontiere et ont donc besoin de la MEME position que les
+-- deplacements — avec les trois sources et, surtout, avec le NOM de celle qui a
+-- repondu. Deux modules qui lisent la position autrement finiraient par ne plus
+-- parler du meme endroit.
+function DeplacementForce.Position(source)
+    return Position(source)
+end
+
+-- La carte courante, telle qu'on l'inscrit dans un seuil : deux portes posees
+-- sur deux cartes differentes ne doivent jamais se repondre, meme si leurs
+-- coordonnees se ressemblent.
+function DeplacementForce.Carte()
+    if type(C_Map) ~= "table" then return nil end
+    local ok, carte = pcall(C_Map.GetBestMapForUnit, "player")
+    if not ok then return nil end
+    return tonumber(carte)
+end
+
 -- Demande une position au serveur, sans inonder le chat.
 local INTERVALLE_GPS = 0.5
 function DeplacementForce.DemanderGPS(force)

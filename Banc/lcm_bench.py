@@ -107,6 +107,14 @@ function UnitPosition(unite)
     return posX, posY, posZ
 end
 
+-- Ou regarde le personnage. `__cap(radians)` le fait pivoter. La convention du
+-- client (0 = nord, sens trigonometrique) n'est pas verifiable d'ici : c'est
+-- justement pour ca que les Lieux la mesurent au lieu de la croire, et ce
+-- reglage sert a jouer les deux sens.
+local cap = 0
+function _G.__cap(radians) cap = tonumber(radians) or 0 end
+function GetPlayerFacing() return cap end
+
 -- Le client REFUSE UnitPosition sur les cartes de type instance : il rend nil,
 -- et l'addon doit alors passer par la carte. `__positionMonde(false)` reproduit
 -- ce refus ; `__carte(id, largeur, hauteur)` dit ce que la carte declare, et
@@ -120,6 +128,15 @@ function _G.__carte(id, largeur, hauteur)
     carteL, carteH = largeur or 0, hauteur or 0
 end
 
+-- Les axes de la carte ne sont pas ceux du monde : dans le vrai client ils ne
+-- se correspondent ni dans le meme ordre ni dans le meme sens, et c'est ce
+-- desaccord que la boussole des Lieux mesure. La matrice qui passe de la
+-- position a la fraction de carte se pose ici ; par defaut, l'identite.
+local ca, cb, cc, cd = 1, 0, 0, 1
+function _G.__carteAxes(a, b, c, d)
+    ca, cb, cc, cd = a or 1, b or 0, c or 0, d or 1
+end
+
 C_Map = {
     GetBestMapForUnit = function() return carteId end,
     GetMapWorldSize = function(id)
@@ -130,7 +147,8 @@ C_Map = {
     GetPlayerMapPosition = function(id, unite)
         if id ~= carteId or unite ~= "player" then return nil end
         if carteL <= 0 or carteH <= 0 then return { x = 0, y = 0 } end
-        return { x = posX / carteL, y = posY / carteH }
+        return { x = (ca * posX + cb * posY) / carteL,
+                 y = (cc * posX + cd * posY) / carteH }
     end,
 }
 
@@ -623,6 +641,16 @@ def charger(chemin_scenario):
                 lignes.append(l.replace(chr(92), '/'))
         declares[addon] = lignes
     lua.globals().__toc = lua.table_from({a: lua.table_from(v) for a, v in declares.items()})
+
+    # Un fichier livre avec l'addon existe-t-il ? Chemin relatif au dossier
+    # AddOns, antislashs ou barres obliques indifferemment. Une texture
+    # manquante ne leve rien dans le jeu : la surface reste vide, et on ne le
+    # voit qu'en seance.
+    def __fichierExiste(chemin):
+        bout = str(chemin or '').replace(chr(92), '/')
+        return os.path.isfile(os.path.join(ROOT, *bout.split('/')))
+
+    lua.globals().__fichierExiste = __fichierExiste
 
     src = io.open(chemin_scenario, encoding='utf-8').read()
     err = lua.eval("""

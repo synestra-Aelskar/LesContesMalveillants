@@ -21,6 +21,8 @@ Forge.lua
 Compendium.lua
 Consultation.lua
 Panneau.lua
+Lieux.lua
+Bannieres.lua
 Incarner.lua
 Combat.lua
 ValidationMentale.lua

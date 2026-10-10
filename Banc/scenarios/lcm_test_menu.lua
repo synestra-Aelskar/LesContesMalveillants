@@ -113,9 +113,14 @@ dire("   " .. table.concat(noms, " | "))
 attendu("six entrees de premier niveau (Compendium retire le 3 octobre)", #M.STRUCTURE, 6)
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
--- Huit depuis le 10 octobre 2026 : le Campement y est range en attendant sa
--- place (demande du MJ). C'est le plafond d'un eventail.
-attendu("Outils : huit fenetres (Regles, puis Campement)", #M.Trouver("outils").enfants, 8)
+-- Neuf depuis le 10 octobre 2026 : le Campement y est range en attendant sa
+-- place, puis les Lieux. Huit etait le plafond parce qu'il n'existait que huit
+-- bandeaux d'eventail ; un neuvieme a ete dessine pour cette entree, et le
+-- compte se lit maintenant chez celui qui le sait.
+attendu("Outils : neuf fenetres (Regles ... Campement, Lieux)",
+    #M.Trouver("outils").enfants, 9)
+attendu("et c'est le plafond de l'eventail", #M.Trouver("outils").enfants,
+    LCM.UI.Radial.MAX_ENTREES)
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
 

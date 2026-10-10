@@ -110,7 +110,7 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
 code de retour — ce serait le vrai correctif.
 
-### L'état au 10 octobre 2026 : 38 verts, 24 rouges
+### L'état au 10 octobre 2026 : 45 verts, 23 rouges
 
 Le banc **n'est pas au vert**, et ce n'est pas une négligence : la plupart des
 rouges sont des attentes devenues fausses après des changements voulus. Avant
@@ -200,6 +200,30 @@ verts.
 `\\n` arrive comme vrai saut de ligne et casse la chaîne. Utilise l'outil
 d'écriture de fichier, ou construis les chaînes avec `chr(92)`.
 
+### Un plafond qui n'était pas une règle, et un plafond en double
+
+Le dossier Outils du menu radial était « plein à huit, le maximum qu'un
+éventail sait dessiner ». Ce n'était pas une règle de dessin : c'était le
+nombre de **bandeaux** présents dans `ressources/radial`
+(`grimoire-fan-1..8`), l'arc de cuir posé derrière la rangée de boutons. Les
+huit sont le même objet à huit longueurs — même rayon intérieur (~308) et
+extérieur (~470), et un empan qui croît d'un pas constant de 20,57°, qui est
+exactement l'angle d'une branche (`math.pi / 8.75` dans `UI/Radial.lua`).
+
+La neuvième longueur se **fabrique** donc : on étire angulairement la huitième
+en gardant ses deux embouts dorés au 1:1, seul le cuir du milieu s'allonge.
+Rien n'est repeint. La méthode a été vérifiée avant de servir, en refabriquant
+le bandeau de **huit** à partir de celui de **sept** : 97,6 % de recouvrement
+avec le vrai, écart médian 4/255. Si une dixième branche devient nécessaire,
+c'est le même geste.
+
+Au passage, `lcm_test_radial_competences` a trouvé ce que relever le plafond
+n'avait pas suivi : les Compétences se plafonnaient **une seconde fois**, en
+dur (`if #out >= 8`). Le test comparait au constant et non à huit, et c'est
+pour cela qu'il l'a vu. Les deux plafonds lisent maintenant
+`Radial.MAX_ENTREES`, y compris la vérification au chargement de
+`UI/Menu.lua`.
+
 ## Le ton du code
 
 Regarde n'importe quel fichier existant : tu verras des commentaires qui
@@ -268,6 +292,125 @@ devenue identique au fichier s'oublie toute seule.
 quelqu'un ; s'il a l'addon, une fenêtre s'ouvre des deux côtés. Ce qu'on offre
 **quitte le sac tout de suite** (mise en gage) et sait revenir ; tout changement
 de contenu remet les deux accords à zéro.
+
+**Les lieux** (`Core/Lieux.lua`, `UI/Banniere.lua`, `MJ/Lieux.lua`, branche
+**Lieux** du dossier Outils du menu radial, ou `/lcm atelier-lieux`). Nommer un
+endroit, et le dire à celui qui y entre. Un **lieu** porte des **seuils** ; franchir un
+seuil affiche une bannière avec le nom du lieu et celui du seuil.
+
+L'idée vient du module **Zone Gate** d'Omega Hub (Akriaxx). Trois écarts, et
+chacun répare quelque chose :
+
+* **une porte se pose avec deux bornes**, pas avec l'orientation du personnage.
+  Zone Gate capture `GetPlayerFacing` et en déduit la normale de la porte ;
+  `UnitPosition` rend **y avant x**, et une normale calculée sur des axes
+  inversés se retourne sans prévenir. Deux bornes donnent en plus au passage sa
+  largeur réelle au lieu d'un nombre à deviner. Tant que la seconde manque, le
+  seuil est **inerte** et le dit ;
+* **la position passe par `LCM.DeplacementForce.Position`**, rendue publique
+  pour l'occasion. Zone Gate appelle `UnitPosition` directement — qui ne répond
+  pas sur une carte d'instance, et nos cartes de campagne en sont. Il y a trois
+  sources (le monde, la carte, `.gps`) et elles **ne comptent pas dans la même
+  unité** : un seuil retient celle qui l'a capturé et ne se mesure qu'avec elle.
+  Mélanger des yards du monde et des yards de carte ferait franchir une porte
+  sans bouger ;
+* **le nom se découvre en entrant**, par défaut. Zone Gate masque tout jusqu'à
+  ce que l'auteur débloque le nom joueur par joueur : utile pour un secret, pas
+  pour une région ordinaire. Le MJ coupe la découverte automatique sur ce qu'il
+  veut tenir caché, et révèle à la main (`Reveler`).
+
+Trois formes de seuil : **porte** (deux bornes, plus un débord toléré au-delà),
+**cercle** (centre et rayon) et **région** (contour de 3 à 20 points, qu'il faut
+*fermer*). Une bande morte de 1,5 m autour de la frontière évite qu'un
+personnage posté sur le seuil fasse clignoter la bannière. L'état de chaque
+seuil ne va **pas** en sauvegarde : au `/reload` on réarme, et le premier
+battement note le côté sans rien annoncer — se reconnecter dans un lieu ne doit
+pas faire croire qu'on vient d'y entrer.
+
+L'atelier a un **radar** : le joueur au centre, nord en haut, et le seuil
+dessiné à l'échelle — le segment entre les deux bornes d'une porte avec ses
+côtés nommés ENTRÉE et RETOUR, le disque d'un cercle, le contour d'une région
+(ouvert tant qu'il n'est pas validé). Les boutons de pose sont **à côté** : on
+pose une frontière en marchant, il faut voir où l'on est au moment où l'on
+clique. L'échelle se choisit seule, parmi des paliers, pour que le seuil tienne
+toujours dedans.
+
+**Le nord se mesure, il ne se suppose pas** (`Lieux.Boussole`,
+`Lieux.Calibrer`, `Lieux.ResoudreBoussole`). Les trois sources de position ne
+nomment pas leurs axes pareil, et jusqu'à ce radar personne n'avait eu besoin
+de le savoir : une distance est la même quel que soit le sens des axes. Une
+carte, non — et un radar en miroir se lit très bien, on ne s'en aperçoit qu'en
+posant une porte à l'envers.
+
+La première version portait une table de conventions, déduite. Elle a été
+remplacée par une **mesure**, parce que le client sait répondre :
+`C_Map.GetPlayerMapPosition` rend une fraction du rectangle de carte, et une
+carte est au nord par construction — sa fraction *x* va vers l'est, sa *y*
+descend vers le sud. Ça, ce n'est pas une convention d'axes, c'est la
+définition d'une image de carte.
+
+Il suffit donc de regarder marcher le MJ, ce qu'il fait de toute façon pour
+poser ses bornes. Deux déplacements non parallèles donnent la matrice qui passe
+de la source à la carte ; son inverse, appliquée à l'est et au nord de la
+carte, donne l'est et le nord **dans la source**. On ne se sert que des
+directions, jamais de l'échelle : la mesure marche donc aussi sur une carte qui
+ne déclare pas sa taille — c'est-à-dire sur les cartes de campagne. Le résultat
+est gardé par carte et par source, en sauvegarde.
+
+Deux garde-fous : des déplacements trop parallèles sont refusés, et un est et
+un nord qui ne sortent pas perpendiculaires le sont aussi — c'est le signe que
+les deux relevés ne viennent pas du même repère. Mieux vaut jeter la mesure que
+poser un nord de travers.
+
+La table `Lieux.CONVENTION` reste, en **dernier recours**, pour le cas où la
+carte ne répond pas du tout ; l'atelier affiche alors « N ? » et « nord par
+convention — marche un peu pour le mesurer », pour qu'un nord supposé ne passe
+jamais pour un nord su. Le banc (`lcm_test_boussole`) vérifie le solveur sur
+des transformations connues, confirme que la convention de « monde » disait
+vrai, et mesure une carte tournée que la convention aurait ratée.
+
+Ce qui n'a **pas** été repris de Zone Gate : l'atelier de bannières (42
+modèles, 18 polices, musiques, ornements). Une bannière se lit en deux
+secondes. Le seul réglage d'apparence est la **couleur du lieu**, parce que
+c'est le seul qui raconte quelque chose.
+
+**Limite connue** : les lieux vivent dans `LCM_DB` et voyagent par le réseau
+(un message par lieu, clés courtes, points pliés en une chaîne). Ils ne passent
+**pas encore** par la base commune — deux MJ qui en créent chacun de leur côté
+ne les fusionnent pas, ils se les diffusent. Un lieu reçu n'écrase jamais un
+lieu dont on est l'auteur.
+
+**Les bannières** (`Core/Bannieres.lua`, `UI/Banniere.lua`, `MJ/Bannieres.lua`,
+`/lcm atelier-bannieres` ou le bouton « Atelier… » depuis un lieu). De quoi a
+l'air le nom d'un lieu quand on y entre : composition de fond, police,
+couleurs, filets, cadre, mouvement, place à l'écran, durées, sons.
+
+**Les images et les polices sont l'ouvrage d'Akriaxx**, reprises de son module
+Zone Gate avec son accord (10 octobre 2026) : 42 compositions et 15 polices
+(SIL Open Font License, les `OFL-*.txt` sont à côté des fichiers), dans
+`ressources/bannieres`. **C'est 47 Mo dans l'addon joueur** — de loin le plus
+gros poste de la distribution. À savoir avant d'en ajouter.
+
+Le rendu est porté de son `UI_Banner.lua`, avec deux simplifications : son
+groupe d'animation est abandonné (il était créé, configuré… et jamais joué —
+c'est `Chercher`, appelé par le OnUpdate, qui fait réellement l'alpha et les
+mouvements), et un franchissement pendant une bannière la relance au lieu de
+faire la queue, comme chez lui.
+
+Deux choses à savoir si on y touche :
+
+* **le formulaire de l'atelier est ENGENDRÉ** par `Bannieres.CHAMPS`. Ajouter
+  un réglage, c'est ajouter une ligne à cette table : le formulaire, la
+  validation et le transport réseau la lisent tous les trois. Vingt-quatre
+  contrôles posés à la main auraient divergé au premier ajout ;
+* **pas de galerie de vignettes**, contrairement à chez lui. Une composition
+  pèse un mégaoctet : les afficher ensemble, c'est 42 Mo de textures pour en
+  choisir une. La liste déroulante les range par famille et l'aperçu montre
+  celle qu'on vient de prendre — une image à la fois.
+
+Un thème se pose sur un **lieu** (tous ses seuils en héritent) ou sur un
+**seuil** en particulier, qui l'emporte. Il voyage avec le lieu sur le réseau,
+sinon le MJ verrait sa bannière et ses joueurs du texte nu.
 
 **Un brouillon recouvre une entrée publiée** (`MJ/Brouillons.lua`). Modifier du
 contenu publié tenait le temps de la séance puis disparaissait au `/reload` :
