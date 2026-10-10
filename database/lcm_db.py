@@ -67,6 +67,8 @@ FAMILIES = {
     "pnj": "PNJ",
     "jeux": "Forge",
     "points": "Points",
+    "tentes": "Tentes",
+    "accessoires_camping": "AccessoiresCamping",
 }
 REGISTRY_TO_FAMILY = {registry: family for family, registry in FAMILIES.items()}
 RESERVED_MJ = {"pnj", "jeux", "points"}

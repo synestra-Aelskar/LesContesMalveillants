@@ -13,6 +13,7 @@ return {
         },
         age = {
             min = -10,
+            verrou = true,
         },
         communication = {
             base = 0,
@@ -66,6 +67,7 @@ return {
         },
         depl_vol = {
             min = -10,
+            verrou = true,
         },
         discretion = {
             base = 0,
@@ -114,9 +116,11 @@ return {
         },
         existence_ame = {
             min = -10,
+            verrou = true,
         },
         existence_esprit = {
             min = -10,
+            verrou = true,
         },
         fatigue = {
             base = 0,
@@ -141,121 +145,121 @@ return {
         },
         meca_attaque_simple = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_attraction = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_bouclier = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_brise_armure = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_buff = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_confusion = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_controle_mental = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_creation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_debuff = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_deviation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_dissipation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_entrave = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_illusion = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_immobilisation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_intervention = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_levitation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_perce_armure = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_permutation = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_repulsion = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
         meca_soin = {
             base = 0,
-            cout = 2,
+            cout = "2",
             max = 4,
             min = -4,
         },
@@ -270,6 +274,7 @@ return {
         },
         niveau = {
             min = -10,
+            verrou = true,
         },
         odorat_gout = {
             base = 0,
@@ -390,6 +395,7 @@ return {
         },
         poids = {
             min = -10,
+            verrou = true,
         },
         prise = {
             base = 0,
@@ -513,30 +519,39 @@ return {
         },
         sec_deplacement = {
             min = -10,
+            verrou = true,
         },
         sec_expertises = {
             min = -10,
+            verrou = true,
         },
         sec_fatigue = {
             min = -10,
+            verrou = true,
         },
         sec_initiative = {
             min = -10,
+            verrou = true,
         },
         sec_mecanique = {
             min = -10,
+            verrou = true,
         },
         sec_pa = {
             min = -10,
+            verrou = true,
         },
         sec_penetration = {
             min = -10,
+            verrou = true,
         },
         sec_resistance = {
             min = -10,
+            verrou = true,
         },
         sec_vitalite = {
             min = -10,
+            verrou = true,
         },
         toucher = {
             base = 0,
@@ -561,26 +576,30 @@ return {
     icone = "Interface\\Icons\\INV_Misc_QuestionMark",
     id = "traits",
     label = "Traits",
-    raretes = { {
+    raretes = {
+        {
             couleur = "FF8CB8",
             id = "commun",
             label = "Commun",
             points = 6,
-        }, {
+        },
+        {
             couleur = "4DE04D",
             id = "inhabituel",
             label = "Inhabituel",
             points = 12,
-        }, {
+        },
+        {
             couleur = "4D8CFF",
             id = "rare",
             label = "Rare",
             points = 18,
-        }, {
+        },
+        {
             couleur = "FF9926",
             id = "epique",
             label = "Épique",
             points = 26,
-        } },
-    remplacePublie = true,
+        },
+    },
 }
