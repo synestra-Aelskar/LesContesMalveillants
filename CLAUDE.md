@@ -241,8 +241,8 @@ La limite à ne pas franchir : pousser le noir jusqu'au bout de la tranche
 ferait **dépasser un bandeau par-dessus la bordure**, le piège déjà payé en
 haut. Le fond s'arrête donc là où la bande devient franchement opaque, et
 cette fraction est **mesurée sur l'alpha de l'atlas**, pas devinée :
- la relève pour les deux thèmes, et elle vit dans
- à côté de . Si l'atlas change, on remesure.
+`Outils/mesurer_bandes.py` la relève pour les deux thèmes, et elle vit dans
+`bandeOpaque`, à côté de `railOpaque`. Si l'atlas change, on remesure.
 
 ## Le ton du code
 
