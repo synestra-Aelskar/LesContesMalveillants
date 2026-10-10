@@ -352,8 +352,11 @@ function UI.ReplacerFenetres()
     LCM.db.fenetres = {}
     local nombre = 0
     for _, f in ipairs(UI.fenetres) do
+        local d = f.defautPosition
         f:ClearAllPoints()
-        f:SetPoint("CENTER", UIParent, "CENTER", f.defautPosition.x, f.defautPosition.y)
+        -- Toutes les fenetres naissent au centre, sauf le HUD, qui se range
+        -- dans l'angle : forcer CENTER l'aurait plante au milieu de l'ecran.
+        f:SetPoint(d.point or "CENTER", UIParent, d.relPoint or "CENTER", d.x, d.y)
         nombre = nombre + 1
     end
     return nombre

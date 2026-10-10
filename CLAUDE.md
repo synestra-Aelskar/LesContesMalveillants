@@ -110,7 +110,7 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
 code de retour — ce serait le vrai correctif.
 
-### L'état au 10 octobre 2026 : 45 verts, 23 rouges
+### L'état au 10 octobre 2026 : 46 verts, 23 rouges
 
 Le banc **n'est pas au vert**, et ce n'est pas une négligence : la plupart des
 rouges sont des attentes devenues fausses après des changements voulus. Avant

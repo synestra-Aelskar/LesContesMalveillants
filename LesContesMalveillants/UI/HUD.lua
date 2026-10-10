@@ -260,14 +260,31 @@ local function Construire()
     -- logique puis on la ramene a 72 % pour qu'elle remplace le portrait sans
     -- occuper tout le quart superieur de l'ecran.
     f:SetScale(0.72)
-    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 18, -18)
+    -- Au ras de l'angle : a dix-huit unites, son bas mordait sur les cadres de
+    -- groupe, qui commencent juste en dessous.
+    f.cle = "hud"
+    f.defautPosition = { point = "TOPLEFT", relPoint = "TOPLEFT", x = 4, y = -4 }
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 4, -4)
     f:SetFrameStrata("MEDIUM")
     f:SetClampedToScreen(true)
     f:SetMovable(true)
     f:EnableMouse(true)
     f:RegisterForDrag("LeftButton")
+
+    -- Sa place est RETENUE, comme celle de toutes les autres fenetres. Elle ne
+    -- l'etait pas : on le poussait hors des cadres de groupe, et le /reload
+    -- suivant le ramenait dessus. Ca ne se voyait pas, parce qu'on ne deplace
+    -- un HUD qu'une fois.
+    local function Retenir()
+        f:StopMovingOrSizing()
+        LCM.EnsureDatabase()
+        LCM.db.fenetres = type(LCM.db.fenetres) == "table" and LCM.db.fenetres or {}
+        local point, _, relPoint, x, y = f:GetPoint()
+        LCM.db.fenetres.hud = { point = point, relPoint = relPoint, x = x, y = y }
+    end
     f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
+    f:SetScript("OnDragStop", Retenir)
+    f.Retenir = Retenir
     f.fond = TextureHUD(f, "BACKGROUND", "panneau-fondu")
     f.fond:SetAllPoints(f)
     f.separateurs = {}
@@ -292,7 +309,7 @@ local function Construire()
         if bouton == "RightButton" then MenuUnite("player") end
     end)
     f.entete:SetScript("OnDragStart", function() f:StartMoving() end)
-    f.entete:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
+    f.entete:SetScript("OnDragStop", function() f.Retenir() end)
     f.total = OrbeTotal(f)
     InstallerBasculeBlizzard()
     f.fatigue = BarreFatigue(f)
@@ -314,6 +331,18 @@ local function Construire()
     f.cible.art = f.cible:CreateTexture(nil, "ARTWORK")
     f.cible.art:SetPoint("TOPLEFT", f.cible, "TOPLEFT", 4, -4)
     f.cible.art:SetPoint("BOTTOMRIGHT", f.cible, "BOTTOMRIGHT", -4, 4)
+
+    -- La place retenue, s'il y en a une.
+    LCM.EnsureDatabase()
+    local memoire = LCM.db.fenetres and LCM.db.fenetres.hud
+    if type(memoire) == "table" then
+        f:ClearAllPoints()
+        f:SetPoint(memoire.point or "TOPLEFT", UIParent, memoire.relPoint or "TOPLEFT",
+            tonumber(memoire.x) or 4, tonumber(memoire.y) or -4)
+    end
+    -- Dans la liste des fenetres : « remettre les fenetres a leur place » doit
+    -- pouvoir le ramener dans son angle quand il est parti hors de l'ecran.
+    UI.fenetres[#UI.fenetres + 1] = f
     f.cible.modele = CreateFrame("PlayerModel", nil, f.cible)
     f.cible.modele:SetPoint("TOPLEFT", f.cible, "TOPLEFT", 4, -4)
     f.cible.modele:SetPoint("BOTTOMRIGHT", f.cible, "BOTTOMRIGHT", -4, 4)
