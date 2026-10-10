@@ -734,6 +734,15 @@ Lieux.CONVENTION = {
     carte = { droite = { 1, 0 },  haut = { 0, -1 } },
 }
 
+-- Ramene un angle dans ]-pi, pi]. Elle vivait plus bas, avec le cap ; le nord
+-- par la marche en a besoin aussi, et une seconde copie aurait derive.
+local DEUXPI = math.pi * 2
+local function RamenerAngle(a)
+    a = a % DEUXPI
+    if a > math.pi then a = a - DEUXPI end
+    return a
+end
+
 local function Normaliser(x, y)
     local n = math.sqrt(x * x + y * y)
     if n < 1e-9 then return nil end
@@ -783,14 +792,17 @@ local function Cle(carte, source)
     return tostring(carte or "?") .. "/" .. tostring(source or "?")
 end
 
--- Rend droite, haut, mesuree. `mesuree` est faux quand on retombe sur la
--- convention : l'atelier le dit, pour qu'un nord suppose ne passe jamais pour
--- un nord su.
+-- Rend droite, haut, connue, origine. `connue` est faux quand on retombe sur
+-- la convention ; `origine` vaut « mesure », « main » ou « convention ».
+-- L'atelier le dit, pour qu'un nord suppose ne passe jamais pour un nord su —
+-- ni un nord pose au doigt pour un nord mesure.
 function Lieux.Boussole(carte, source)
     local b = Boussoles()[Cle(carte, source)]
-    if b and b.droite and b.haut then return b.droite, b.haut, true end
+    if b and b.droite and b.haut then
+        return b.droite, b.haut, true, b.origine or "mesure"
+    end
     local c = Lieux.CONVENTION[source] or Lieux.CONVENTION.monde
-    return c.droite, c.haut, false
+    return c.droite, c.haut, false, "convention"
 end
 
 function Lieux.OublierBoussole(carte, source)
@@ -817,65 +829,158 @@ local function Fraction()
     return tonumber(carte), x, y
 end
 
+-- Le nord par la MARCHE, quand la carte se tait.
+--
+-- Marcher droit devant, c'est avancer vers son cap. Si `theta` est la
+-- direction prise dans les coordonnees de la source et `phi` le cap annonce
+-- par le client, alors theta = A*phi + C, avec A valant +1 ou -1 (le sens dans
+-- lequel tourne la source par rapport au monde) et C une constante. Deux
+-- trajets droits de caps differents donnent A et C.
+--
+-- Et C, c'est le nord : la direction qu'on prend en regardant au cap zero.
+-- A dit le reste — l'est est a un quart de tour horaire du nord, et c'est A
+-- qui dit de quel cote est l'horaire dans cette source.
+--
+-- Rend droite (l'est) et haut (le nord), ou nil et la raison.
+function Lieux.ResoudreBoussoleParMarche(phi1, theta1, phi2, theta2)
+    if math.abs(RamenerAngle(phi1 - phi2)) < 0.5 then
+        return nil, "les deux trajets suivaient le même cap."
+    end
+    local essais = {}
+    for _, A in ipairs({ 1, -1 }) do
+        local c1, c2 = RamenerAngle(theta1 - A * phi1), RamenerAngle(theta2 - A * phi2)
+        essais[#essais + 1] = { A = A, c1 = c1, c2 = c2,
+                                ecart = math.abs(RamenerAngle(c1 - c2)) }
+    end
+    table.sort(essais, function(u, v) return u.ecart < v.ecart end)
+    local bon, autre = essais[1], essais[2]
+    if bon.ecart > 0.30 then
+        return nil, "relevés incohérents : le personnage n'allait pas droit."
+    end
+    if (autre.ecart - bon.ecart) < 0.30 then
+        return nil, "les deux sens se valent : il faut des trajets plus francs."
+    end
+    local C = RamenerAngle(bon.c1 + RamenerAngle(bon.c2 - bon.c1) / 2)
+    local est = (bon.A == 1) and (C - math.pi / 2) or (C + math.pi / 2)
+    return { math.cos(est), math.sin(est) }, { math.cos(C), math.sin(C) }
+end
+
+-- Redresser une boussole a la main, quand la mesure tombe a cote ou tarde.
+-- Un quart de tour et un miroir suffisent a atteindre les huit orientations.
+local function PoserBoussole(carte, source, droite, haut, origine)
+    Boussoles()[Cle(carte, source)] = { droite = droite, haut = haut, origine = origine }
+    if Lieux.onChange then Lieux.onChange() end
+    return true
+end
+
+function Lieux.TournerBoussole(carte, source)
+    local droite, haut = Lieux.Boussole(carte, source)
+    -- Un quart de tour : ce qui etait a l'est passe au nord.
+    return PoserBoussole(carte, source,
+        { -haut[1], -haut[2] }, { droite[1], droite[2] }, "main")
+end
+
+function Lieux.MiroirBoussole(carte, source)
+    local droite, haut = Lieux.Boussole(carte, source)
+    -- Gauche et droite echangees : le nord ne bouge pas, l'est se retourne.
+    return PoserBoussole(carte, source,
+        { -droite[1], -droite[2] }, { haut[1], haut[2] }, "main")
+end
+
 -- Les releves en cours, en memoire vive : un deplacement a moitie mesure n'a
 -- aucune raison de survivre a un /reload.
 local releves = {}
 
--- A appeler avec la position courante dans `source`. La carte, elle, se lit
--- ici meme : voir Fraction. Accumule les releves et resout des que deux
--- deplacements sont assez francs et assez differents. Rend true le jour ou la
--- mesure aboutit.
+-- A appeler avec la position courante dans `source`. Accumule les trajets et
+-- resout des que deux d'entre eux sont assez francs et assez differents.
+--
+-- DEUX chemins, dans cet ordre : contre la carte si elle repond (elle tranche
+-- aussi le sens sans rien supposer), par la marche sinon. La carte manquait
+-- sur les cartes qui ne repondent pas, et la mesure n'aboutissait alors
+-- jamais — c'est ce qui laissait le radar sur « N ? » et la convention aux
+-- commandes (10 octobre 2026).
+--
+-- Rend true le jour ou la mesure aboutit.
 function Lieux.Calibrer(source, x, y)
     if not (source and x and y) then return false end
 
     local carte, mx, my = Fraction()
-    if not carte then return false end
+    -- Pas de carte du tout : on se rabat sur celle du deplacement, qui peut
+    -- etre nil elle aussi — la cle le supporte.
+    if not carte then carte = Carte() end
     local cle = Cle(carte, source)
     if Boussoles()[cle] then return false end
+
+    local phi
+    if type(GetPlayerFacing) == "function" then
+        local ok, valeur = pcall(GetPlayerFacing)
+        if ok and type(valeur) == "number" then phi = valeur end
+    end
+    -- Ni carte ni cap : il n'y a rien a comparer.
+    if not mx and not phi then return false end
 
     local r = releves[cle]
     -- Changer de carte en cours de mesure jette ce qui etait commence : deux
     -- releves pris dans deux reperes ne se comparent pas.
     if r and r.carte ~= carte then r = nil end
     if not r then
-        releves[cle] = { carte = carte, base = { x, y, mx, my }, pas = {} }
+        releves[cle] = { carte = carte, base = { x = x, y = y, phi = phi, mx = mx, my = my }, pas = {} }
         return false
     end
 
-    local ds = { x - r.base[1], y - r.base[2] }
-    local dm = { mx - r.base[3], my - r.base[4] }
-    -- Trop court : le bruit de mesure pesait plus que le deplacement.
+    -- Tourner sur place rearme le trajet : ce qui a ete parcouru avant le
+    -- virage ne dit rien du nouveau cap.
+    if phi and r.base.phi and math.abs(RamenerAngle(phi - r.base.phi)) > 0.15 then
+        r.base = { x = x, y = y, phi = phi, mx = mx, my = my }
+        return false
+    end
+
+    local ds = { x - r.base.x, y - r.base.y }
     if math.sqrt(ds[1] * ds[1] + ds[2] * ds[2]) < 4 then return false end
-    if math.sqrt(dm[1] * dm[1] + dm[2] * dm[2]) < 1e-5 then return false end
+    local dm
+    if mx and r.base.mx then
+        dm = { mx - r.base.mx, my - r.base.my }
+        if math.sqrt(dm[1] * dm[1] + dm[2] * dm[2]) < 1e-5 then dm = nil end
+    end
 
+    local trajet = { s = ds, m = dm, phi = r.base.phi }
     local garde = r.pas[1]
+    local function Repartir()
+        r.base = { x = x, y = y, phi = phi, mx = mx, my = my }
+    end
+
     if not garde then
-        r.pas[1] = { s = ds, m = dm }
-        -- On repart d'ici pour le second deplacement : deux segments bout a
-        -- bout valent mieux que deux rayons depuis le meme point, ou l'on
-        -- risque de revenir sur ses pas.
-        r.base = { x, y, mx, my }
+        r.pas[1] = trajet
+        -- On repart d'ici pour le second trajet : deux segments bout a bout
+        -- valent mieux que deux rayons depuis le meme point, ou l'on risque de
+        -- revenir sur ses pas.
+        Repartir()
         return false
     end
 
-    -- Assez different du premier ? Deux deplacements alignes ne disent rien de
-    -- plus qu'un seul.
+    -- Assez different du premier ? Deux trajets alignes ne disent rien de plus
+    -- qu'un seul.
     local a, b = garde.s, ds
     local croise = math.abs(a[1] * b[2] - a[2] * b[1])
     local normes = math.sqrt(a[1] * a[1] + a[2] * a[2]) * math.sqrt(b[1] * b[1] + b[2] * b[2])
     if normes <= 0 or (croise / normes) < 0.25 then
-        -- On garde le plus long des deux comme reference et on continue.
-        if (b[1] * b[1] + b[2] * b[2]) > (a[1] * a[1] + a[2] * a[2]) then
-            r.pas[1] = { s = ds, m = dm }
-        end
-        r.base = { x, y, mx, my }
+        if (b[1] * b[1] + b[2] * b[2]) > (a[1] * a[1] + a[2] * a[2]) then r.pas[1] = trajet end
+        Repartir()
         return false
     end
 
-    local est, nord = Lieux.ResoudreBoussole(garde.s, garde.m, ds, dm)
+    local est, nord
+    if garde.m and dm then
+        est, nord = Lieux.ResoudreBoussole(garde.s, garde.m, ds, dm)
+    end
+    if not est and garde.phi and phi then
+        est, nord = Lieux.ResoudreBoussoleParMarche(
+            garde.phi, math.atan2(garde.s[2], garde.s[1]),
+            trajet.phi, math.atan2(ds[2], ds[1]))
+    end
     releves[cle] = nil
     if not est then return false end
-    Boussoles()[cle] = { droite = est, haut = nord }
+    Boussoles()[cle] = { droite = est, haut = nord, origine = "mesure" }
     if Lieux.onChange then Lieux.onChange() end
     return true
 end
@@ -893,12 +998,8 @@ end
 -- trancher le sens et l'origine.
 Lieux.CAP_CONVENTION = { signe = -1, decalage = 0 }
 
-local DEUXPI = math.pi * 2
-local function Ramener(a)
-    a = a % DEUXPI
-    if a > math.pi then a = a - DEUXPI end
-    return a
-end
+-- Definie plus haut, avec la boussole : les deux en ont besoin.
+local Ramener = RamenerAngle
 
 local function CapMemo()
     LCM.EnsureDatabase()

@@ -20,9 +20,15 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu),
         ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
+-- Le zero negatif existe en virgule flottante (sin(-pi) en rend un) et
+-- s'ecrit « -0.00 » : il vaut zero, il ne doit pas faire echouer une
+-- comparaison de texte.
+-- sin(-pi) ne rend pas zero mais -1.2e-16, qui s'ecrit « -0.00 ». On arrondit
+-- d'abord au centieme : le residu disparait, et le signe avec.
+local function sansZeroNegatif(n) return math.floor(n * 100 + 0.5) / 100 end
 local function vecteur(v)
     if not v then return "nil" end
-    return string.format("%.2f,%.2f", v[1] + 0, v[2] + 0)
+    return string.format("%.2f,%.2f", sansZeroNegatif(v[1]), sansZeroNegatif(v[2]))
 end
 
 __declencher("PLAYER_LOGIN")
@@ -264,6 +270,114 @@ attendu("demi-tour : le N passe en bas",
     string.format("%.0f", select(5, f.radar.nord:GetPoint())), "-78")
 attendu("et l'état dit d'où vient le cap",
     __sansCouleur(f.etat:GetText()):find("cap") ~= nil, true)
+f:Hide()
+
+dire("== le nord par la MARCHE, sans la carte")
+-- C'est le chemin qui manquait : sur une carte qui ne repond pas, la mesure
+-- n'aboutissait jamais et le radar restait sur « N ? » — avec une convention
+-- fausse d'un quart de tour, constatee en jeu le 10 octobre 2026.
+--
+-- Marcher droit devant, c'est avancer vers son cap : theta = A*phi + C, et C
+-- est le nord. Cas de la convention « monde » (notre x est worldY, notre y
+-- est worldX) : regarder au nord (phi = 0) fait avancer en (0,-1), regarder a
+-- l'ouest (phi = pi/2) fait avancer en (1,0). Donc A vaut +1 et C vaut -pi/2.
+local demi = math.pi / 2
+local est2, nord2 = L.ResoudreBoussoleParMarche(0, -demi, 1.0, -demi + 1.0)
+attendu("convention « monde » : l'est", vecteur(est2), "-1.00,0.00")
+attendu("  et le nord", vecteur(nord2), "0.00,-1.00")
+
+-- Et le cas ou les deux coordonnees sont dans l'AUTRE ordre : notre x est
+-- worldX. Le nord est alors en (-1,0) et l'est en (0,-1) — un quart de tour
+-- d'ecart, exactement ce qui a ete vu en jeu. Une table de conventions ne peut
+-- pas trancher entre les deux ; la marche, si.
+est2, nord2 = L.ResoudreBoussoleParMarche(0, math.pi, 1.0, math.pi - 1.0)
+attendu("axes échangés : l'est", vecteur(est2), "0.00,-1.00")
+attendu("  et le nord", vecteur(nord2), "-1.00,0.00")
+
+local rien2, raison2 = L.ResoudreBoussoleParMarche(0.4, -demi, 0.45, -demi)
+attendu("deux trajets au même cap", rien2, nil)
+attendu("et il dit pourquoi", tostring(raison2):find("même cap") ~= nil, true)
+rien2, raison2 = L.ResoudreBoussoleParMarche(0, 0.9, 1.0, -1.0)
+attendu("un trajet de travers", rien2, nil)
+attendu("et il dit pourquoi", tostring(raison2):find("incohérents") ~= nil, true)
+
+dire("== et on la mesure en marchant, carte muette")
+LCM.db.boussoles = {}
+__carte(nil)
+-- Un client qui suit la convention « monde » : regarder en phi, c'est avancer
+-- dans la direction phi - pi/2.
+local mx, my = 0, 0
+local function marcherDroit(phi, distance)
+    __cap(phi)
+    local theta = phi - demi
+    mx = mx + math.cos(theta) * distance
+    my = my + math.sin(theta) * distance
+    __position(mx, my, 0)
+    return L.Calibrer("monde", mx, my)
+end
+local function seTourner(phi)
+    __cap(phi)
+    __position(mx, my, 0)
+    return L.Calibrer("monde", mx, my)
+end
+
+attendu("on se place", seTourner(0), false)
+attendu("premier trajet, plein nord", marcherDroit(0, 30), false)
+attendu("on se tourne", seTourner(1.0), false)
+attendu("second trajet, autre cap", marcherDroit(1.0, 30), true)
+
+local d2, h2, connue2, origine2 = L.Boussole(nil, "monde")
+attendu("c'est connu", connue2, true)
+attendu("  et mesuré", origine2, "mesure")
+attendu("l'est", vecteur(d2), "-1.00,0.00")
+attendu("le nord", vecteur(h2), "0.00,-1.00")
+
+dire("== on peut la redresser à la main")
+LCM.db.boussoles = {}
+local avantD, avantH, _, origine3 = L.Boussole(42, "monde")
+attendu("au départ, la convention", origine3, "convention")
+attendu("  son est", vecteur(avantD), "-1.00,0.00")
+attendu("un quart de tour", L.TournerBoussole(42, "monde"), true)
+local d3, h3, connue3, origine4 = L.Boussole(42, "monde")
+attendu("  c'est connu", connue3, true)
+-- Et surtout : pose a la main, pas mesure. Dire « mesure » ici serait un
+-- mensonge, et c'est le genre de mensonge qui fait qu'on ne cherche plus.
+attendu("  mais réglé à la main, pas mesuré", origine4, "main")
+attendu("  le nord a pris la place de l'est", vecteur(h3), vecteur(avantD))
+attendu("  et l'est a tourné", vecteur(d3), "0.00,1.00")
+
+-- Quatre quarts de tour ramènent au point de départ.
+L.TournerBoussole(42, "monde")
+L.TournerBoussole(42, "monde")
+L.TournerBoussole(42, "monde")
+local d4, h4 = L.Boussole(42, "monde")
+attendu("quatre quarts : on est revenu", vecteur(d4) .. " / " .. vecteur(h4),
+    vecteur(avantD) .. " / " .. vecteur(avantH))
+
+attendu("le miroir", L.MiroirBoussole(42, "monde"), true)
+local d5, h5 = L.Boussole(42, "monde")
+attendu("  le nord ne bouge pas", vecteur(h5), vecteur(avantH))
+attendu("  mais l'est se retourne", vecteur(d5), "1.00,0.00")
+
+dire("== l'atelier propose ces deux commandes")
+LCM.db.boussoles = {}
+LCM.db.lieux = {}
+__carte(1, 1000, 1000)
+__carteAxes(-1, 0, 0, 1)
+__position(0, 0, 0)
+local lieu2 = L.Creer("Les Marches Grises")
+local seuil2 = L.CreerSeuil(lieu2.id, "Porte du Nord", "porte")
+__position(0, 10, 0)
+L.PoserBorne(seuil2.id)
+A.lieu, A.seuil = lieu2.id, seuil2.id
+f:Montrer()
+attendu("le quart de tour est là", f.tourner:IsShown(), true)
+attendu("le miroir aussi", f.miroir:IsShown(), true)
+attendu("le N est signalé comme supposé", f.radar.nord:GetText(), "N ?")
+f.tourner:Click()
+attendu("après un quart de tour, le N est su", f.radar.nord:GetText(), "N")
+attendu("et l'état dit qu'il est réglé à la main",
+    __sansCouleur(f.etat:GetText()):find("à la main") ~= nil, true)
 f:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

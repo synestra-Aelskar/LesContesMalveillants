@@ -405,6 +405,35 @@ local function Construire()
     f.distance:SetJustifyH("CENTER")
     f.distance:SetWordWrap(true)
 
+    -- Redresser le nord a la main, quand la mesure tarde ou tombe a cote. Un
+    -- quart de tour et un miroir atteignent les huit orientations possibles.
+    local function CarteCourante()
+        local D = LCM.DeplacementForce
+        return D and D.Carte and D.Carte()
+    end
+    f.tourner = UI.Bouton(f.contenu, "¼ de tour", 84, 18, function()
+        local seuil = L().Seuil(Ecran.seuil)
+        if not seuil then return end
+        L().TournerBoussole(CarteCourante(), seuil.source)
+        f:Afficher()
+    end)
+    Poser(f.tourner, 124 + RADAR + 24)
+    UI.Bulle(f.tourner, "Redresser le nord",
+        "Fait pivoter le nord d'un quart de tour. À utiliser si le « N » du radar "
+        .. "ne pointe pas là où le pointe la minicarte.\n\n"
+        .. "Marcher en ligne droite dans deux directions différentes le mesure tout "
+        .. "seul, et c'est plus sûr.")
+    f.miroir = UI.Bouton(f.contenu, "Miroir", 84, 18, function()
+        local seuil = L().Seuil(Ecran.seuil)
+        if not seuil then return end
+        L().MiroirBoussole(CarteCourante(), seuil.source)
+        f:Afficher()
+    end)
+    f.miroir:SetPoint("LEFT", f.tourner, "RIGHT", 6, 0)
+    UI.Bulle(f.miroir, "Miroir",
+        "Échange la gauche et la droite du radar, sans toucher au nord. "
+        .. "À utiliser si tout tourne dans le mauvais sens.")
+
     -- La porte.
     f.borneA = UI.Bouton(f.contenu, "1re borne ici", 136, 22, function()
         if Dire(L().Recapturer(Ecran.seuil)) then LCM.Ok("première borne posée ici.") end
@@ -565,7 +594,8 @@ local function Construire()
         lieu = { f.couleurLabel, f.couleur, f.couleurOk, f.couleurAide, f.decouverte,
                  f.themeLabel, f.theme, f.atelierTheme,
                  f.reveler, f.ajouterSeuil, f.retirerLieu },
-        seuil = { f.formeLabel, f.radar, f.distance, f.actif, f.entree, f.retour,
+        seuil = { f.formeLabel, f.radar, f.distance, f.tourner, f.miroir,
+                  f.actif, f.entree, f.retour,
                   f.themeSeuilLabel, f.themeSeuil, f.atelierSeuil,
                   f.messageLabel, f.message, f.messageOk, f.messageAide, f.retirerSeuil },
         porte = { f.borneA, f.borneB, f.inverser, f.debordLabel, f.debord, f.debordOk,
@@ -616,10 +646,10 @@ local function Construire()
             return
         end
 
-        local dr, dh, mesuree = L().Boussole(carte, seuil.source)
-        -- Le nord mesure se porte en clair ; le nord suppose se signale.
-        r.nord:SetText(mesuree and "N" or "N ?")
-        local teinte = mesuree and UI.C.accent or UI.C.discret
+        local dr, dh, connue = L().Boussole(carte, seuil.source)
+        -- Le nord su se porte en clair ; le nord suppose se signale.
+        r.nord:SetText(connue and "N" or "N ?")
+        local teinte = connue and UI.C.accent or UI.C.discret
         r.nord:SetTextColor(teinte[1], teinte[2], teinte[3])
 
         -- Vue egocentrique : ce que regarde le personnage est en haut. Sans
@@ -749,9 +779,11 @@ local function Construire()
         bouts[#bouts + 1] = source and ("position : " .. source)
             or "position indisponible ici"
         if source then
-            local _, _, mesuree = L().Boussole(carte, source)
-            bouts[#bouts + 1] = mesuree and "nord mesuré"
-                or "nord par convention — marche un peu pour le mesurer"
+            local _, _, _, origine = L().Boussole(carte, source)
+            bouts[#bouts + 1] =
+                (origine == "mesure" and "nord mesuré")
+                or (origine == "main" and "nord réglé à la main")
+                or "nord par convention — marche droit dans deux directions pour le mesurer"
             local _, capMesure = L().Cap()
             if capMesure == false then
                 bouts[#bouts + 1] = "cap par convention"

@@ -357,6 +357,19 @@ directions, jamais de l'échelle : la mesure marche donc aussi sur une carte qui
 ne déclare pas sa taille — c'est-à-dire sur les cartes de campagne. Le résultat
 est gardé par carte et par source, en sauvegarde.
 
+**La carte n'est pas toujours là**, et c'est ce qui a mordu : sur une carte qui
+ne répond pas, la mesure n'aboutissait jamais, le radar restait sur « N ? » et
+la convention gardait les commandes — fausse d'un quart de tour, constaté en
+jeu. Il y a donc un **second chemin, sans la carte** : marcher droit devant,
+c'est avancer vers son cap. Deux trajets droits de caps différents donnent
+`theta = A·phi + C`, et C **est** le nord (`ResoudreBoussoleParMarche`). La
+carte reste préférée quand elle répond — elle tranche le sens sans rien
+supposer — et la marche prend le relais sinon.
+
+Et le MJ peut **redresser à la main** : « ¼ de tour » et « Miroir » dans
+l'atelier atteignent les huit orientations possibles. Une boussole posée ainsi
+se sait telle : l'écran dit « nord réglé à la main », jamais « mesuré ».
+
 Deux garde-fous : des déplacements trop parallèles sont refusés, et un est et
 un nord qui ne sortent pas perpendiculaires le sont aussi — c'est le signe que
 les deux relevés ne viennent pas du même repère. Mieux vaut jeter la mesure que
