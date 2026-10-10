@@ -29,7 +29,7 @@ LCM.Brouillons = Brouillons
 -- d'equilibrage, et les resolutions de categorie « mj ».
 Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
-    "jeux", "points" }
+    "jeux", "points", "tentes", "accessoires_camping" }
 
 local function Store(famille)
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}

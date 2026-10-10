@@ -74,10 +74,31 @@ end
 -- Le nombre de cases d'un sac : ses places, puis ses places de devise. Un sac
 -- disparu du compendium n'a plus de cases connues : celles qui sont pleines
 -- restent visibles.
+-- Ce que tient un emplacement de sac : un SAC, ou une TENTE (10 octobre 2026).
+-- La tente a son registre (Core/Campement.lua) mais se porte comme un sac : sur
+-- un emplacement de sacoche, avec des cases ou l'on range ses accessoires.
+-- Rend { element, ref, places, placesDevise, tente } ou nil.
+function Inventaire.Contenant(emplacement)
+    if type(emplacement) ~= "table" then return nil end
+    if emplacement.sac then
+        local sac = LCM.Sacs.Get(emplacement.sac)
+        return { element = sac, ref = "sacs/" .. emplacement.sac, id = emplacement.sac,
+                 places = sac and sac.places or 0, placesDevise = sac and sac.placesDevise or 0 }
+    end
+    if emplacement.tente then
+        local tente = LCM.Tentes and LCM.Tentes.Get(emplacement.tente)
+        -- Ses accessoires inclus prennent deja leurs places.
+        local places = tente and math.max(0, (tente.accessoiresMax or 0) - #(tente.accessoires or VIDE)) or 0
+        return { element = tente, ref = "tentes/" .. emplacement.tente, id = emplacement.tente,
+                 places = places, placesDevise = 0, tente = true }
+    end
+    return nil
+end
+
 function Inventaire.Cases(emplacement)
-    local sac = emplacement and LCM.Sacs.Get(emplacement.sac)
-    local places = sac and sac.places or 0
-    local devise = sac and sac.placesDevise or 0
+    local contenant = Inventaire.Contenant(emplacement)
+    local places = contenant and contenant.places or 0
+    local devise = contenant and contenant.placesDevise or 0
     local plusHaute = 0
     for index in pairs(emplacement and emplacement.cases or VIDE) do
         plusHaute = math.max(plusHaute, tonumber(index) or 0)
@@ -133,7 +154,15 @@ function Inventaire.Poser(entity, categorieId, index, id, forcer)
     if Inventaire.Emplacement(entity, categorieId, i) then
         return false, "cet emplacement est déjà occupé."
     end
-    if categorie.contient == "sac" then
+    -- Une TENTE (« tentes/<id> ») ne se porte que sur un emplacement de sacoche
+    -- (le MJ, 10 octobre 2026).
+    local tenteId = categorie.contient == "sac" and tostring(id or ""):match("^tentes/(.+)$")
+    if tenteId then
+        local tente = LCM.Tentes and LCM.Tentes.Get(tenteId)
+        if not tente then return false, "tente inconnue." end
+        if categorieId ~= "saccoches" then return false, "une tente se porte dans un emplacement de sacoche." end
+        RangeePourEcrire(entity, categorieId)[i] = { tente = tente.id }
+    elseif categorie.contient == "sac" then
         local sac = LCM.Sacs.Get(id)
         if not sac then return false, "cet emplacement n'accepte qu'un sac." end
         -- Un SAC se porte dans un emplacement de sac ; une SACOCHE va dans les
@@ -182,6 +211,9 @@ function Inventaire.Deplacer(entity, categorieId, index, versCategorieId, versIn
     if arrivee.contient ~= depart.contient then
         return false, string.format("l'onglet %s n'accepte pas ça.", arrivee.label)
     end
+    if e.tente and arrivee.id ~= "saccoches" then
+        return false, "une tente se porte dans un emplacement de sacoche."
+    end
     RangeePourEcrire(entity, arrivee.id)[j] = e
     entity.inventaire[depart.id][i] = nil
     Nettoyer(entity, depart.id)
@@ -203,15 +235,24 @@ end
 -- Ce qu'une case accepte : une entree du compendium. Une case de devise
 -- n'accepte qu'une devise, une case ordinaire tout le reste qui se range
 -- (objets, ressources, sacs).
-local RANGEABLES = { objets = true, ressources = true, sacs = true }
+-- Une tente se porte comme un sac (10 octobre 2026), mais elle ne recoit QUE
+-- des accessoires de camping. Un accessoire, lui, se transporte aussi dans un
+-- sac ordinaire. La tente, elle, ne se range pas dans un sac : elle s'equipe.
+local RANGEABLES = { objets = true, ressources = true, sacs = true, accessoires_camping = true }
 
 function Inventaire.Accepte(emplacement, index, ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
     if not LCM.Compendium.Resoudre(ref) then return false, "entrée inconnue du compendium." end
+    if emplacement and emplacement.tente then
+        if famille ~= "accessoires_camping" then
+            return false, "une tente n'accueille que des accessoires de camping."
+        end
+        return true
+    end
     if Inventaire.EstCaseDevise(emplacement, index) then
         if famille ~= "devises" then return false, "une case de devise n'accepte qu'une devise." end
     elseif not RANGEABLES[famille] then
-        return false, "un sac accepte des objets, des ressources ou des sacs."
+        return false, "un sac accepte des objets, des ressources, des accessoires de camping ou des sacs."
     end
     -- Un contenant dans un contenant : seul un SAC en accepte, et il faut que
     -- le nouveau venu tienne — il occupe sa case plus toutes les siennes.
@@ -254,7 +295,7 @@ end
 -- Range une entree dans une case libre d'un sac.
 function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite)
     local e = Inventaire.Emplacement(entity, categorieId, index)
-    if not e or not e.sac then return false, "aucun sac dans cet emplacement." end
+    if not e or not (e.sac or e.tente) then return false, "aucun sac dans cet emplacement." end
     local total = Inventaire.Cases(e)
     case = tonumber(case)
     if not case or case < 1 or case > total then return false, "ce sac n'a pas de case " .. tostring(case) .. "." end
@@ -359,13 +400,26 @@ end
 -- et une herbe n'a rien a faire dans un porte-monnaie.
 function Inventaire.Deposer(entity, ref, quantite)
     if type(entity) ~= "table" then return false, "aucun personnage." end
+    -- Une tente ne se range pas dans un sac : elle s'equipe, sur le premier
+    -- emplacement de sacoche libre. Sans quoi on ne pourrait ni l'acheter ni
+    -- la recevoir.
+    if tostring(ref or ""):match("^tentes/") then
+        for index = 1, Inventaire.Capacite("saccoches") do
+            if not Inventaire.Emplacement(entity, "saccoches", index) then
+                return Inventaire.Poser(entity, "saccoches", index, ref)
+            end
+        end
+        return false, "aucun emplacement de sacoche libre pour la tente."
+    end
     for _, categorie in ipairs(Inventaire.categories) do
         for index = 1, Inventaire.Capacite(categorie.id) do
             local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
             if emplacement then
                 local total, places = Inventaire.Cases(emplacement)
+                -- Une case qui n'accepte pas l'entree (une dague dans une tente)
+                -- n'est pas une place libre pour elle : on passe au sac suivant.
                 for case = 1, math.min(total, places) do
-                    if not Inventaire.Case(emplacement, case) then
+                    if not Inventaire.Case(emplacement, case) and Inventaire.Accepte(emplacement, case, ref) then
                         return Inventaire.Ranger(entity, categorie.id, index, case, ref, quantite)
                     end
                 end

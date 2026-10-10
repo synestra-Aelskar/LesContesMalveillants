@@ -153,7 +153,10 @@ function Compendium.Champs(categorie)
     local tous = {}
     for _, champ in ipairs(categorie.champs) do tous[#tous + 1] = champ end
     if categorie.statistiques == "bonus" then
-        for _, champ in ipairs(Bloc()) do tous[#tous + 1] = champ end
+        -- Une categorie peut porter son propre bloc (les tentes : securite,
+        -- recuperations) quand celui de la fiche n'aurait personne a qui
+        -- s'appliquer. La forge dose alors ces champs-la.
+        for _, champ in ipairs(categorie.bloc or Bloc()) do tous[#tous + 1] = champ end
     end
     local dossiers = categorie.dossiers or { "Général" }
     local parDossier, connus, ordre = {}, {}, {}
@@ -247,6 +250,8 @@ function Compendium.Options(champ)
         Ajouter(LCM.Races.list)
     elseif source == "traits" then
         Ajouter(LCM.Traits.list)
+    elseif source == "accessoires_camping" then
+        Ajouter(LCM.AccessoiresCamping.list)
     elseif source == "etats" then
         for _, c in ipairs(LCM.Etats.CATEGORIES) do
             if c.id ~= "maladie" then out[#out + 1] = { id = c.id, label = c.label } end
@@ -270,6 +275,7 @@ local FAMILLES = {
     devises = "Devises", informations = "Informations", listes = "Listes",
     connaissances = "Connaissances", resolutions = "Resolutions",
     calculateurs = "Calculateurs", pnj = "PNJ",
+    tentes = "Tentes", accessoires_camping = "AccessoiresCamping",
     -- Les jeux d'equilibrage de la forge : du contenu, sans categorie a eux.
     jeux = "Forge",
 }

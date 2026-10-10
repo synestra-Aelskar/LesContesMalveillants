@@ -77,6 +77,10 @@ Menu.STRUCTURE = {
           { id = "vendeur",    label = "Vendeur",    icone = RADIAL .. "fenetres-vendeur.tga", mjSeulement = true },
           { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga", mjSeulement = true },
           { id = "incarner",   label = "Incarner",   icone = RADIAL .. "fenetres-incarner.tga", mjSeulement = true },
+          -- Ajout de l'addon (10 octobre 2026), absent du template : rangee ici
+          -- en attendant de lui trouver sa place. Pas encore d'icone noire et
+          -- doree : celle du jeu en attendant.
+          { id = "campement",  label = "Campement",  icone = ICONE .. "spell_fire_fire" },
       } },
     -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,
     -- les resolutions et les actions MJ, et un joueur n'a rien a y lire. Sa

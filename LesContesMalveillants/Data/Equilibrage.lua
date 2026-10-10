@@ -640,6 +640,124 @@ E.apportsExpertises = {
     sabotage      = { adresse = 0.35, perception = 0.35, esprit = 0.35 },
 }
 
+-- ===== Campement ============================================================
+-- Absent du template : releve de la feuille de calcul du MJ (onglet
+-- « CAMPEMENT », blocs « NERF ET UP GLOBAL », « VARIABLE STATS D'UN
+-- CAMPEMENT » et « BASE ACTIONS »), le 10 octobre 2026. Les cases laissees
+-- vides dans la feuille sont `nil` ici, pas inventees.
+--
+-- Les `*_EPS` (0,000001) de la feuille ne sont pas repris : ils ne servaient
+-- qu'a ne pas afficher un zero sous forme d'epsilon dans le tableur.
+
+E.campement = {
+    -- « NERF ET UP GLOBAL » : la base de chaque regain, et le nombre de
+    -- decimales gardees avant l'arrondi final (ROUNDDC).
+    securite = { base = 0.05, decimales = nil },
+    fatigue  = { base = 0.05, decimales = 6 },
+    -- Les PS : base x (heures de soin x parSoin + heures de sommeil x
+    -- parSommeil), dans la feuille VITA_BASE, VITA_BASE_HEAL, VITA_BASE_SLEEP.
+    -- `psParPoint` : retirer un etat ou une maladie coute ce nombre de PS par
+    -- point de sa rarete (« un etat rose a 6 points, il faut 12 PS », le MJ,
+    -- 10 octobre 2026).
+    vitalite = { base = 2, decimales = 2, parSoin = 15, parSommeil = 1, psParPoint = 2 },
+    -- `metiers` : ceux qui savent remettre une armure en etat au camp (le MJ,
+    -- 10 octobre 2026). La formule de l'armure restauree reste a donner.
+    armure   = { base = 0.6, decimales = nil,
+                 metiers = { "forgeron", "tanneur", "tailleur", "artisan", "joaillier" } },
+    niveau   = { base = nil, decimales = nil },
+
+    -- Le risque d'embuscade, calcule chez le MJ seul (formule de la colonne de
+    -- risque de « FEUILLE DE CAMPING ») :
+    --   - danger
+    --   + parHeureRepos x min(heuresMax, heures de repos)
+    --   - parCampeur x campeurs  - parSecurite x securite du camp
+    --   - parHeureGarde x heures de garde de tout le camp
+    -- borne a [0 ; 1], arrondi a l'inferieur a `decimales`. La feuille ajoutait
+    -- la zone, son niveau face a celui du groupe et une colonne BA : retires a
+    -- la demande du MJ (10 octobre 2026), le danger qu'il choisit suffit.
+    embuscade = {
+        dangers = {   -- « Niveau de danger »
+            -- « Aucun » (le MJ, 10 octobre 2026) : pas une valeur de plus dans la
+            -- formule, mais un risque FORCE, quoi qu'en disent les heures et
+            -- la garde. Le camp ne peut pas etre attaque.
+            { id = "aucun",                 label = "Aucun",                 force = 0 },
+            { id = "tres_calme",            label = "Très calme",            valeur = 0.5 },
+            { id = "calme",                 label = "Calme",                 valeur = 0.3 },
+            { id = "normal",                label = "Normal",                valeur = 0 },
+            { id = "dangereux",             label = "Dangereux",             valeur = -0.3 },
+            { id = "tres_dangereux",        label = "Très Dangereux",        valeur = -0.5 },
+            { id = "extremement_dangereux", label = "Extrêmement Dangereux", valeur = -0.7 },
+        },
+        parHeureRepos = 0.05, heuresMax = 24,
+        parCampeur = 0.1, parSecurite = 0.1, parHeureGarde = 0.1,
+        decimales = 2,
+        -- Le jet, a la fin de la nuit : un de a `de` faces. Un resultat
+        -- inferieur OU EGAL au risque (en pourcentage) declenche l'embuscade —
+        -- 72 % : 71 et 72 la declenchent, 73 et plus sauvent le camp (le MJ,
+        -- 10 octobre 2026).
+        de = 100,
+    },
+
+    -- « VARIABLE STATS D'UN CAMPEMENT », en pourcentage.
+    variables = {
+        securite = { populationSup = 20, populationInf = -20, taille = 5 },
+        fatigue  = { populationSup = 20, populationInf = -20, taille = 5 },
+        vitalite = { populationSup = 0,  populationInf = 0,   taille = 0 },
+    },
+
+    -- Deux nombres ecrits EN DUR dans la formule de fatigue de la feuille, et
+    -- pas dans ses tableaux : la tente perd 10 % de ce qu'elle rend par
+    -- personne au-dela de ses lits, et une tente qui ne dit pas ses lits en
+    -- compte 4. Peut-etre remplaces par « Population sup / inf » ci-dessus,
+    -- a confirmer.
+    surpopulation = 10,
+    litsParDefaut = 4,
+    -- Le plafond de fatigue rendue (« FEUILLE DE CAMPING », colonne 15) :
+    -- inconnu, donc aucun.
+    plafondFatigue = nil,
+
+    -- Les actions de camp : la liste du MJ du 10 octobre 2026, qui remplace
+    -- celle de la feuille (Prier gardee « au cas ou », Detente retiree).
+    -- `categorie` : son facteur dans `coefActions`. `fatigue` : l'« Impacte »
+    -- de la feuille, ce qu'une HEURE rend de fatigue (negatif : elle en
+    -- coute), repris de l'action de la feuille qui lui correspond (Dormir,
+    -- Fabrication, Chirurgie, Reparation, Garde). Apprendre est nouvelle : sans
+    -- categorie ni coefficient, elle ne rend rien, et le recapitulatif le dit. Les identifiants ne vivent que le temps d'une
+    -- seance (ils voyagent avec le « pret ») : ils peuvent changer.
+    actions = {
+        { id = "reposer",   label = "Se reposer",      categorie = "sommeil",     fatigue = 1 },
+        { id = "craft",     label = "Craft / métier",  categorie = "fabrication", fatigue = -0.5 },
+        { id = "apprendre", label = "Apprendre",       categorie = nil,           fatigue = nil },
+        { id = "soigner",   label = "Soigner",         categorie = "soin",        fatigue = -0.5 },
+        { id = "reparer",   label = "Réparer",         categorie = "reparation",  fatigue = -0.5 },
+        -- Backstage : le temps passe sur une histoire. Il coute toujours un
+        -- peu de fatigue (le MJ, 10 octobre 2026).
+        { id = "backstage", label = "Backstage (histoires)", categorie = "histoire", fatigue = -0.1 },
+        { id = "garde",     label = "Monter la garde", categorie = "garde",       fatigue = -0.2 },
+        { id = "prier",     label = "Prier",           categorie = "priere",      fatigue = 0.3 },
+    },
+
+    -- « BASE ACTIONS » : le facteur de chaque categorie d'action.
+    coefActions = {
+        sommeil = 1,     -- SleepCoef
+        garde = 1,       -- GuardCoef
+        priere = 1,      -- PrayCoef
+        fabrication = 1, -- CraftCoef
+        reparation = 1,  -- RepairCoef
+        soin = 1,        -- HealCoef
+        -- Pas de facteur dans la feuille pour les histoires : sa formule
+        -- retombe sur 1 quand le facteur manque (SIERREUR(... ; 1)).
+        histoire = 1,
+    },
+
+    -- Les unites de temps sont des MINUTES (le MJ, 10 octobre 2026) : 22, ce
+    -- sont 22 minutes. Toutes les formules de la feuille comptent en heures,
+    -- on convertit donc avant de calculer. `pasRapide` : ce que font les
+    -- boutons d'aide de la repartition (« +1h » / « -1h »), en minutes.
+    minutesParHeure = 60,
+    pasRapide = 60,
+}
+
 -- ===== Lecture d'un bareme =================================================
 -- `{ base = 1, parNiveau = 2 }` lu au niveau 5 vaut 11, arrondi a l'inferieur.
 

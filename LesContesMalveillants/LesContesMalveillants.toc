@@ -56,6 +56,7 @@ Core\Forge.lua
 Core\ActionsBoutons.lua
 Core\Direct.lua
 Core\Echange.lua
+Core\Campement.lua
 Data\Equilibrage.lua
 Data\Icones.lua
 Data\Morphologies.lua
@@ -101,6 +102,7 @@ UI\GrimoireEditeur.lua
 UI\Parametres.lua
 UI\Bourse.lua
 UI\Echange.lua
+UI\Campement.lua
 UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua

@@ -52,6 +52,7 @@ local function OptionsEntrees()
         informations = "Informations", listes = "Listes", calculateurs = "Calculateurs",
         traits = "Traits", races = "Races", etats = "États",
         apprentissages = "Apprentissages", resolutions = "Résolutions", pnj = "PNJ",
+        tentes = "Tentes", accessoires_camping = "Accessoires de camping",
     }
     for famille, registreNom in pairs((LCM.Compendium and LCM.Compendium.FAMILLES) or {}) do
         local registre = LCM[registreNom]

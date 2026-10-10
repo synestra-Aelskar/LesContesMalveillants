@@ -7,6 +7,17 @@
 
 local _, LCM = ...
 
+-- ----- accessoires_camping (1) -------------------------------------
+LCM.Publier(LCM.AccessoiresCamping, {
+    bonus = {
+        recup_armure = 40,
+    },
+    description = "Les petits outils de Kaléa pour qu'elle répare ses équipements.",
+    id = "accessoire_reparation_kalea",
+    label = "Accessoire de réparation de Kaléa",
+    origine = "Kaléa",
+})
+
 -- ----- listes (7) --------------------------------------------------
 LCM.Publier(LCM.Listes, {
     icone = "Interface\\ICONS\\inv_jewelry_ring_03",
@@ -128,12 +139,10 @@ LCM.Publier(LCM.Objets, {
 })
 
 LCM.Publier(LCM.Objets, {
-    bonus = {
-        depl_nage = -1,
-        resi_contondant = 1,
-        resi_perforant = 1,
-        resi_tranchant = 2,
-    },
+    ["bonus.depl_nage"] = "-1",
+    ["bonus.resi_contondant"] = "1",
+    ["bonus.resi_perforant"] = "1",
+    ["bonus.resi_tranchant"] = "2",
     categorie = "equipement",
     couleurTitre = "FF8CB8",
     description = "Armure du pauvre.",
@@ -587,26 +596,17 @@ LCM.Publier(LCM.Objets, {
 })
 
 LCM.Publier(LCM.Objets, {
-    armure = 2,
-    avantage = {  },
-    bonus = {
-        depl_terrestre = -1,
-        resi_contondant = 4,
-        resi_perforant = 4,
-        resi_tranchant = 4,
-    },
+    ["bonus.depl_terrestre"] = "-1",
+    ["bonus.resi_contondant"] = "4",
+    ["bonus.resi_perforant"] = "4",
+    ["bonus.resi_tranchant"] = "4",
     categorie = "equipement",
     couleurTitre = "4DE04D",
     description = "Un rempart qui protège bien.",
-    etat = {
-        courant = 12,
-        max = 12,
-    },
     forge = "equilibrage_arme_copie/inhabituel",
     icone = "Interface\\ICONS\\inv_chest_chain_17",
     id = "rempart_de_guerre",
     label = "Rempart de guerre",
-    remplacePublie = true,
     tags = "Inhabituel",
 })
 
@@ -777,42 +777,42 @@ LCM.Publier(LCM.Races, {
 
 LCM.Publier(LCM.Races, {
     bonus = {
-        adresse = "3",
-        constitution = "3",
-        esprit = "3",
-        force = "3",
-        mystique = "3",
-        pen_contondant = "3",
-        pen_desordre = "3",
-        pen_eau = "3",
-        pen_esprit = "3",
-        pen_feu = "3",
-        pen_lumiere = "3",
-        pen_mort = "3",
-        pen_ombre = "3",
-        pen_ordre = "3",
-        pen_perforant = "3",
-        pen_pourriture = "3",
-        pen_terre = "3",
-        pen_tranchant = "3",
-        pen_vent = "3",
-        pen_vie = "3",
-        perception = "3",
-        resi_contondant = "3",
-        resi_desordre = "3",
-        resi_eau = "3",
-        resi_esprit = "3",
-        resi_feu = "3",
-        resi_lumiere = "3",
-        resi_mort = "3",
-        resi_ombre = "3",
-        resi_ordre = "3",
-        resi_perforant = "3",
-        resi_pourriture = "3",
-        resi_terre = "3",
-        resi_tranchant = "3",
-        resi_vent = "3",
-        resi_vie = "3",
+        adresse = 3,
+        constitution = 3,
+        esprit = 3,
+        force = 3,
+        mystique = 3,
+        pen_contondant = 3,
+        pen_desordre = 3,
+        pen_eau = 3,
+        pen_esprit = 3,
+        pen_feu = 3,
+        pen_lumiere = 3,
+        pen_mort = 3,
+        pen_ombre = 3,
+        pen_ordre = 3,
+        pen_perforant = 3,
+        pen_pourriture = 3,
+        pen_terre = 3,
+        pen_tranchant = 3,
+        pen_vent = 3,
+        pen_vie = 3,
+        perception = 3,
+        resi_contondant = 3,
+        resi_desordre = 3,
+        resi_eau = 3,
+        resi_esprit = 3,
+        resi_feu = 3,
+        resi_lumiere = 3,
+        resi_mort = 3,
+        resi_ombre = 3,
+        resi_ordre = 3,
+        resi_perforant = 3,
+        resi_pourriture = 3,
+        resi_terre = 3,
+        resi_tranchant = 3,
+        resi_vent = 3,
+        resi_vie = 3,
     },
     couleurTitre = "FF8CB8",
     description = "Un humain. tout ce qu'il y a de plus humain.",
@@ -976,6 +976,20 @@ LCM.Publier(LCM.Races, {
     tags = "Commun",
 })
 
+-- ----- tentes (1) --------------------------------------------------
+LCM.Publier(LCM.Tentes, {
+    accessoiresMax = 20,
+    bonus = {
+        recup_fatigue = 100,
+        recup_pv = 100,
+        securite = 100,
+    },
+    id = "auberge_de_tephris",
+    label = "Auberge de Tephris",
+    lits = 1,
+    origine = "Aelskar",
+})
+
 -- ----- traits (30) --------------------------------------------------
 LCM.Publier(LCM.Traits, {
     bonus = {
@@ -996,9 +1010,9 @@ LCM.Publier(LCM.Traits, {
 
 LCM.Publier(LCM.Traits, {
     bonus = {
-        acrobaties = 1,
-        escalade = 1,
-        resistance = 1,
+        acrobaties = "1",
+        escalade = "1",
+        resistance = "1",
     },
     couleurTitre = "FF8CB8",
     description = "Au quotidien, Reika se meut avec la grâce d'un automate d'apparat. Ses gestes sont doux, lents et harmonieux, chaque mouvement soigneusement mesuré, comme il sied à une jeune dame de bonne famille.\n\nMais lorsque les circonstances l'exigent, cette délicatesse cède la place à une mécanique autrement plus troublante. Son corps s'articule avec une précision presque inhumaine, enchaînant les mouvements avec la célérité et l'exactitude d'une horloge parfaitement réglée.\n\nAprès tout, sous les apparence",
@@ -1086,9 +1100,9 @@ LCM.Publier(LCM.Traits, {
 
 LCM.Publier(LCM.Traits, {
     bonus = {
-        pa = 1,
-        resi_desordre = -2,
-        resi_ordre = -2,
+        pa = "1",
+        resi_desordre = "-2",
+        resi_ordre = "-2",
     },
     couleurTitre = "FF8CB8",
     description = "En quête de perfection, il ne suffisait guère à sa créatrice de produire une âme artificielle indiscernable d'une âme naturelle. Dans sa poursuite du progrès, elle dota sa création de la faculté de se façonner elle-même, lui offrant ainsi la plus grande des aventures : celle de passer une vie à expérimenter toutes les vies.\n\nAinsi, Reika, fruit de recherches que nul ne saurait pleinement comprendre, dispose de ce que sa créatrice a sobrement nommé « l'âme mouvante ».\n\nContrepied peu dissimulé à",
@@ -1407,14 +1421,13 @@ LCM.Publier(LCM.Traits, {
 })
 
 LCM.Publier(LCM.Traits, {
-    avantage = {  },
     bonus = {
-        acrobaties = 1,
-        meca_buff = 3,
-        meca_soin = -2,
+        acrobaties = "1",
+        meca_buff = "3",
+        meca_soin = "-2",
     },
     couleurTitre = "FF8CB8",
-    cout = 1,
+    cout = "1",
     description = "Il ne suffit guère de savoir se façonner soi-même lorsque le monde qui nous entoure persiste à suivre sa propre mélodie. Reika dispose d'une attention particulière; qui, a l'image d'un instrument que l'on accorde, lui offre la mesure des subtilités qui composent l'équilibre d'un individu et d'y apporter quelques ajustements.\n\nUn mouvement, une respiration, une circulation magique ou le moindre déséquilibre deviennent autant d'occasions d'intervenir pour elle. Tantôt pour accompagner ses alliés,",
     forge = "traits/commun",
     icone = "Interface\\ICONS\\eps_lol_item_puppeteer",

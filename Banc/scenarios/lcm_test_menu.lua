@@ -113,7 +113,9 @@ dire("   " .. table.concat(noms, " | "))
 attendu("six entrees de premier niveau (Compendium retire le 3 octobre)", #M.STRUCTURE, 6)
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
-attendu("Outils : sept fenetres (les Regles s'y sont ajoutees)", #M.Trouver("outils").enfants, 7)
+-- Huit depuis le 10 octobre 2026 : le Campement y est range en attendant sa
+-- place (demande du MJ). C'est le plafond d'un eventail.
+attendu("Outils : huit fenetres (Regles, puis Campement)", #M.Trouver("outils").enfants, 8)
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
 
@@ -209,7 +211,8 @@ local ids = {}
 for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
 -- Vendeur et Ressources sont passes au MJ le 3 octobre 2026 : ils s'ouvrent
 -- quand le MJ met un point en jeu, pas quand un joueur veut faire ses courses.
-attendu("outils du joueur", table.concat(ids, ","), "regles,parametres")
+-- Le Campement (10 octobre 2026) est aux joueurs : ce sont eux qui le lancent.
+attendu("outils du joueur", table.concat(ids, ","), "regles,parametres,campement")
 attendu("Systeme d'Aelskar reserve au MJ", M.Trouver("systeme_aelskar").mjSeulement, true)
 f.sceau:Click("LeftButton")
 __avancer(1)

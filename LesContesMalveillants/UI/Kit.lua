@@ -700,21 +700,38 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
     l.label:SetWordWrap(false)
     if l.label.SetMaxLines then l.label:SetMaxLines(1) end
 
+    -- `rappels.pas` : un grand pas en plus du pas de 1, de part et d'autre :
+    -- « [R][-1h][-] valeur [+][+1h][M] » (le campement, 10 octobre 2026).
+    --   { valeur = 60, libelle = "1h", ajouter = function(delta) end }
+    -- `ajouter` recoit l'ecart (+60 / -60) ; sans lui, le pas passe par
+    -- `change` comme les autres boutons.
+    local pas = rappels.pas
+    local largeurPas = pas and 32 or 0
+
     -- Ce que la ligne occupe apres le libelle : R, -, le chiffre, +, M.
     -- Utile pour decider ce qui tient encore a droite dans une colonne etroite.
-    l.largeurBoutons = 84 + largeurChiffre
+    l.largeurBoutons = 84 + largeurChiffre + (pas and 2 * (largeurPas + 2) or 0)
 
     local function Poser(valeur)
         if valeur < 0 then return end
         if rappels.change and rappels.change(valeur) == false then return end
+    end
+    local function Pas(sens)
+        if pas.ajouter then pas.ajouter(sens * pas.valeur) else Poser(l.valeur + sens * pas.valeur) end
     end
 
     -- L'ordre suit celui de la feuille : remise a zero et retrait a gauche du
     -- chiffre, ajout et maximum a droite.
     l.remise = UI.Bouton(l, "R", 16, 16, function() Poser(0) end)
     l.remise:SetPoint("LEFT", l, "LEFT", (largeurLibelle or 120) + 2, 0)
+    local avantMoins = l.remise
+    if pas then
+        l.moinsPas = UI.Bouton(l, "-" .. tostring(pas.libelle or pas.valeur), largeurPas, 16, function() Pas(-1) end)
+        l.moinsPas:SetPoint("LEFT", l.remise, "RIGHT", 2, 0)
+        avantMoins = l.moinsPas
+    end
     l.moins = UI.Bouton(l, "-", 16, 16, function() Poser(l.valeur - 1) end)
-    l.moins:SetPoint("LEFT", l.remise, "RIGHT", 2, 0)
+    l.moins:SetPoint("LEFT", avantMoins, "RIGHT", 2, 0)
 
     l.chiffre = UI.Texte(l, "0", UI.C.titre, "GameFontNormalSmall")
     l.chiffre:SetPoint("LEFT", l.moins, "RIGHT", 4, 0)
@@ -753,10 +770,16 @@ function UI.Compteur(parent, libelle, largeurLibelle, rappels)
 
     l.plus = UI.Bouton(l, "+", 16, 16, function() Poser(l.valeur + 1) end)
     l.plus:SetPoint("LEFT", l.chiffre, "RIGHT", 4, 0)
+    local avantMax = l.plus
+    if pas then
+        l.plusPas = UI.Bouton(l, "+" .. tostring(pas.libelle or pas.valeur), largeurPas, 16, function() Pas(1) end)
+        l.plusPas:SetPoint("LEFT", l.plus, "RIGHT", 2, 0)
+        avantMax = l.plusPas
+    end
     l.maximum = UI.Bouton(l, "M", 16, 16, function()
         if rappels.max then Poser(rappels.max()) end
     end)
-    l.maximum:SetPoint("LEFT", l.plus, "RIGHT", 2, 0)
+    l.maximum:SetPoint("LEFT", avantMax, "RIGHT", 2, 0)
     l.maximum:SetShown(rappels.max ~= nil)
 
     -- Coloration : gris tant que rien n'est investi, dore des le premier point,

@@ -329,6 +329,48 @@ Objet("armures", "Armures", "equipement", "type_armures", {
 })
 Objet("accessoires", "Accessoires", "accessoire", "type_accessoires")
 
+-- Ajout de l'addon (10 octobre 2026) : le campement (Core/Campement.lua).
+-- Absent du template ; les colonnes viennent de la feuille de calcul du MJ.
+-- Le bloc de statistiques est celui du campement, en pourcentage entier, et
+-- c'est lui que dose le jeu d'equilibrage — qui donne aussi la couleur et le
+-- niveau de l'entree, d'ou l'absence de champs « Couleur » et « ILevel ».
+local BLOC_CAMPEMENT = {}
+for _, b in ipairs(LCM.CAMPEMENT_BONUS) do
+    BLOC_CAMPEMENT[#BLOC_CAMPEMENT + 1] = { cle = b.cle, label = b.label .. " (%)", type = "statistique",
+                                            emplacement = "statistiques", dossier = "Campement" }
+end
+
+local function Campement(def)
+    def.type = "generic"
+    def.statistiques = "bonus"
+    def.bloc = BLOC_CAMPEMENT
+    def.dossiers = { "Général", "Campement" }
+    table.insert(def.champs, 1, Icone())
+    def.champs[#def.champs + 1] = { cle = "origine", label = "Origine", type = "texte", emplacement = "meta" }
+    def.champs[#def.champs + 1] = { cle = "forge", label = "Forge", type = "liste", source = "forge:" .. def.id,
+                                    emplacement = "meta" }
+    return C.Categorie(def)
+end
+
+Campement({
+    id = "tentes", label = "Tentes",
+    icone = "Interface\\ICONS\\spell_fire_fire",
+    registre = "Tentes", famille = "tentes",
+    champs = {
+        { cle = "lits", label = "Lit max", type = "nombre", emplacement = "meta", min = 1 },
+        { cle = "accessoiresMax", label = "Accessoires max", type = "nombre", emplacement = "meta", min = 0 },
+        { cle = "accessoires", label = "Accessoires inclus", type = "liste", source = "accessoires_camping",
+          multiple = true, emplacement = "body" },
+    },
+})
+
+Campement({
+    id = "accessoires_camping", label = "Accessoires de camping",
+    icone = "Interface\\ICONS\\inv_misc_wrench_01",
+    registre = "AccessoiresCamping", famille = "accessoires_camping",
+    champs = { Description(true) },
+})
+
 -- Races, traits, etats, maladies, apprentissages : le template leur donne la
 -- « Liste Armes » pour Type, sans doute par copie ; garde tel quel, a trancher.
 Generique({ id = "races", label = "Races", liste = "armes",

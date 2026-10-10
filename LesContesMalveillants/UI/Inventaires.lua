@@ -97,14 +97,17 @@ local function Carte(f)
         if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
         local categorie = Inv.Get(c.onglet or Inv.categories[1].id)
         local voulu = categorie.contient == "sac" and "sacs" or "devises"
-        if not tostring(objet.ref or ""):match("^" .. voulu .. "/") then
+        -- Une tente s'equipe comme un sac, mais seulement sur une sacoche.
+        local tente = c.onglet == "saccoches" and tostring(objet.ref or ""):match("^tentes/")
+        if not tente and not tostring(objet.ref or ""):match("^" .. voulu .. "/") then
             return false, categorie.contient == "sac" and "cet emplacement n'accepte qu'un sac."
                 or "cet emplacement n'accepte qu'une devise."
         end
         if Inv.Emplacement(Entite(), c.onglet, c.index) then return false, "cet emplacement est déjà occupé." end
         return true
     end, function(objet)
-        local ok, raison = Inv.Poser(Entite(), c.onglet, c.index, objet.element.id)
+        local tente = tostring(objet.ref or ""):match("^tentes/")
+        local ok, raison = Inv.Poser(Entite(), c.onglet, c.index, tente and objet.ref or objet.element.id)
         if not ok then Refuser(raison) end
         f:Rafraichir()
     end)
@@ -191,7 +194,8 @@ local function Construire()
     function f:Contenu(place)
         local entity = Entite()
         local e = place and Inv.Emplacement(entity, place.onglet, place.index)
-        local sac = e and e.sac and LCM.Sacs.Get(e.sac)
+        local contenant = Inv.Contenant(e)
+        local sac = contenant and contenant.element
         self.titreContenu:SetText(sac and sac.label or (e and e.devise and "Devise") or "")
         local total = e and Inv.Cases(e) or 0
         self.occupation:SetText(total > 0 and string.format("%d / %d",
@@ -234,7 +238,7 @@ local function Construire()
                 UI.Glisser.Cible(l, function(objet)
                     if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
                     local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
-                    if not (ici and ici.sac) then return false, "aucun sac ici." end
+                    if not Inv.Contenant(ici) then return false, "aucun sac ici." end
                     if MemeCase(objet) then return true end
                     if Inv.Case(ici, l.case) then return false, "cette case est déjà occupée." end
                     return Inv.Accepte(ici, l.case, objet.ref)
@@ -376,14 +380,15 @@ local function Construire()
             return
         end
         Peindre(c.nom, UI.C.titre)
-        if e.sac then
-            local sac = LCM.Sacs.Get(e.sac)
+        local contenant = Inv.Contenant(e)
+        if contenant then
+            local sac = contenant.element
             local total = Inv.Cases(e)
             local pleines = 0
             for _ in pairs(e.cases or {}) do pleines = pleines + 1 end
             c.icone:SetTexture(sac and sac.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
             -- Le nom et le remplissage, comme le template : « Gros sac (2/12) ».
-            c.nom:SetText(string.format("%s (%d/%d)", sac and sac.label or ("? " .. e.sac), pleines, total))
+            c.nom:SetText(string.format("%s (%d/%d)", sac and sac.label or ("? " .. contenant.id), pleines, total))
             if not sac then Peindre(c.nom, UI.C.plein) end
             c.description:SetText(sac and sac.description or "N'existe pas dans cette version de l'addon.")
             c.aide = "Clic : ouvrir. Clic droit : options."
@@ -403,7 +408,8 @@ local function Construire()
         local entity, onglet, index = Entite(), c.onglet, c.index
         local e = c.emplacement
         -- Clic gauche : on regarde ce qu'il y a dedans, a droite.
-        if bouton ~= "RightButton" and e and e.sac then
+        local contenant = Inv.Contenant(e)
+        if bouton ~= "RightButton" and contenant then
             self.choisi = c.rang
             self.zone:Aller(0)
             self:Rafraichir()
@@ -411,12 +417,12 @@ local function Construire()
         end
         if bouton == "RightButton" then
             -- Clic droit sur un sac : il s'ouvre dans sa fenetre, comme avant.
-            if e and e.sac then Ecran.OuvrirSac(onglet, index) return end
+            if contenant then Ecran.OuvrirSac(onglet, index) return end
             if not e then return end
             local options = {}
-            if e.sac then
+            if contenant then
                 options[#options + 1] = { label = "Ouvrir", action = function() Ecran.OuvrirSac(onglet, index) end }
-                options[#options + 1] = { label = "Voir", action = function() Voir("sacs/" .. e.sac, self) end }
+                options[#options + 1] = { label = "Voir", action = function() Voir(contenant.ref, self) end }
             else
                 options[#options + 1] = { label = "Voir", action = function() Voir("devises/" .. e.devise, self) end }
             end
@@ -430,7 +436,7 @@ local function Construire()
                         end)
                     end }
                 end
-                if e.sac then
+                if contenant then
                     -- Deplacer > : vers un emplacement de sac libre (Sacs ou Saccoches).
                     local cibles = {}
                     for _, autre in ipairs(Inv.categories) do
@@ -460,7 +466,7 @@ local function Construire()
             UI.MenuContexte():Ouvrir(c, options)
             return
         end
-        if e and e.sac then
+        if contenant then
             Ecran.OuvrirSac(onglet, index)
         elseif e then
             Voir("devises/" .. e.devise, self)
@@ -605,9 +611,10 @@ local function ConstruireSac(onglet, index)
     function s:Rafraichir()
         if not self:IsShown() then return end
         local e = self:Emplacement()
-        if not (e and e.sac) then self:Hide() return end
-        local sac = LCM.Sacs.Get(e.sac)
-        self:Titre(sac and sac.label or ("? " .. e.sac))
+        local contenant = Inv.Contenant(e)
+        if not contenant then self:Hide() return end
+        local sac = contenant.element
+        self:Titre(sac and sac.label or ("? " .. contenant.id))
         local vue = Vue(cle, "grille")
         self.vue.label:SetText(vue == "grille" and "Liste" or "Grille")
         local total = Inv.Cases(e)
@@ -722,15 +729,15 @@ local function ConstruireSac(onglet, index)
                 for _, categorie in ipairs(Inv.categories) do
                     for i = 1, Inv.Capacite(categorie.id) do
                         local autre = Inv.Emplacement(entity, categorie.id, i)
-                        if autre and autre.sac and autre ~= e then
+                        if Inv.Contenant(autre) and autre ~= e then
                             local libre
                             for n = 1, Inv.Cases(autre) do
                                 if not libre and not Inv.Case(autre, n) and Inv.Accepte(autre, n, c.ref) then libre = n end
                             end
                             if libre then
-                                local sac = LCM.Sacs.Get(autre.sac)
+                                local sac = Inv.Contenant(autre).element
                                 local cibleOnglet, cibleIndex, cibleCase = categorie.id, i, libre
-                                cibles[#cibles + 1] = { label = sac and sac.label or autre.sac, action = function()
+                                cibles[#cibles + 1] = { label = sac and sac.label or Inv.Contenant(autre).id, action = function()
                                     local ref, quantite = c.ref, c.quantite
                                     Inv.Vider(entity, self.onglet, self.index, b.index)
                                     Inv.Ranger(entity, cibleOnglet, cibleIndex, cibleCase, ref, quantite)
