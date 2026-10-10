@@ -143,9 +143,18 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- bordure doree et le noir : on voyait le jeu au travers.
     function f:AjusterFond()
         local haut = UI.AelDebordHaut and UI.AelDebordHaut(self) or 0
+        -- Et les trois autres cotes. Le fond s'arretait au rectangle de la
+        -- fenetre alors que les bandes du cadre debordent au-dehors : entre le
+        -- noir et l'or, on voyait le jeu. Invisible sur un fond sombre, criant
+        -- sur un ciel clair (11 octobre 2026).
+        local d = self.decor
+        local gauche = (d and d.debordGauche) or 0
+        local droite = (d and d.debordDroite) or 0
+        local bas = (d and d.debordBas) or 0
         self.fond:ClearAllPoints()
-        self.fond:SetPoint("TOPLEFT", self, "TOPLEFT", 0, math.max(0, haut))
-        self.fond:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", 0, 0)
+        self.fond:SetPoint("TOPLEFT", self, "TOPLEFT", -math.max(0, gauche), math.max(0, haut))
+        self.fond:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT",
+            math.max(0, droite), -math.max(0, bas))
     end
 
     -- En-tete du modele Necronicon (AelWidgets, LayoutFiche) : titre en

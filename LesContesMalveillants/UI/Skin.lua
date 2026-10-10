@@ -59,6 +59,11 @@ local VARIANTES = {
         -- au-dessus, c'est du vide. Le fond de la fenetre doit s'arreter la, pas
         -- au sommet de la tranche (alpha, 4 octobre 2026).
         railOpaque = 34 / 110,
+        -- A quelle part de sa tranche, comptee DEPUIS LE DEHORS, une bande
+        -- devient franchement opaque. Mesure sur l'alpha de l'atlas le
+        -- 11 octobre 2026. Sert au fond, qui doit s'arreter la : plus loin, il
+        -- deborderait par-dessus la bordure.
+        bandeOpaque = { bas = 47 / 110, cote = 24 / 70 },
         -- Les encoches des coins hauts, ou se posent la pastille (a gauche) et
         -- la croix (a droite) : le centre de chaque petit cadre a boussole, en
         -- unites source, et le cote du bouton qui s'y pose. Mesurees au pixel
@@ -92,6 +97,9 @@ local VARIANTES = {
         largeur = 1121,
         facteur = 0.7, min = 0.22, max = 0.40,
         coupeHaut = 158,
+        -- Voir « leger » : mesure sur l'alpha de frame-light.tga. Ce cadre-ci
+        -- devient opaque presque tout de suite, ses bandes sont pleines.
+        bandeOpaque = { bas = 7 / 65, cote = 7 / 62 },
         -- Meme mesure que pour « leger » : equerre des coins du bas (30), bande
         -- de cote (5).
         -- Pas de tour ici, mais l'equerre du coin haut entre quand meme de 68
@@ -272,6 +280,7 @@ function UI.Cadre(cadre)
             -- Plus d'ornement : la croix et la pastille reviennent au bord, au
             -- lieu de garder le retrait de l'habillage qu'on vient de quitter.
             self.debordHaut = 0
+            self.debordGauche, self.debordDroite, self.debordBas = 0, 0, 0
             if cadre.AjusterFond then cadre:AjusterFond() end
             if cadre.PlacerCoinsHaut then cadre:PlacerCoinsHaut() end
             return
@@ -293,6 +302,11 @@ function UI.Cadre(cadre)
         -- 14,3 sur le theme leger), et remonter le fond jusqu'a eux faisait
         -- depasser un bandeau noir au-dessus de la bordure (4 octobre 2026).
         local debordHaut = 0
+        -- Ce que les bandes descendent SOUS le bord, et ce qu'elles depassent
+        -- a GAUCHE et a DROITE. Meme idee que debordHaut : le fond doit aller
+        -- jusque sous leur part opaque, pas jusqu'au bout de leur tranche.
+        local debordGauche, debordDroite, debordBas = 0, 0, 0
+        local opaque = V.bandeOpaque or { bas = 0, cote = 0 }
 
         for index, r in ipairs(V.fixes) do
             local t = jeu.fixes[index]
@@ -314,15 +328,41 @@ function UI.Cadre(cadre)
             -- part OPAQUE, pas jusqu'au sommet de leur tranche : au-dessus du
             -- liseré l'image est vide, et y pousser du noir faisait depasser un
             -- bandeau par-dessus la bordure.
-            if r[6]:find("TOP") then
+            if r[6] == "TOPLEFT" and r[9] == "TOP"
+                or r[6] == "TOP" and r[9] == "TOPRIGHT" then
                 local haut = (V.T - r[8]) * k
                 local bas = (V.T - r[11]) * k
                 local creux = (haut - bas) * (V.railOpaque or 0)
                 debordHaut = math.max(debordHaut, haut - creux)
+            elseif r[6] == "TOPLEFT" and r[9] == "BOTTOMLEFT" then
+                -- Bande du cote gauche : ses deux ancrages sont a GAUCHE, donc
+                -- ses abscisses se comptent depuis le bord gauche. Negatives
+                -- au-dehors.
+                local a, b = (r[7] - V.L) * k, (r[10] - V.L) * k
+                local dedans, dehors = math.max(a, b), math.min(a, b)
+                debordGauche = math.max(debordGauche,
+                    -dehors - (dedans - dehors) * opaque.cote)
+            elseif r[6] == "TOPRIGHT" and r[9] == "BOTTOMRIGHT" then
+                -- Bande du cote droit : ancrages a DROITE, abscisses comptees
+                -- depuis le bord droit. Positives au-dehors.
+                local a, b = (r[7] - V.R) * k, (r[10] - V.R) * k
+                local dedans, dehors = math.min(a, b), math.max(a, b)
+                debordDroite = math.max(debordDroite,
+                    dehors - (dehors - dedans) * opaque.cote)
+            elseif r[6]:find("BOTTOM") or r[9]:find("BOTTOM") then
+                -- Bande du bas : ordonnees comptees depuis le bord bas,
+                -- negatives au-dessous.
+                local a, b = -(r[8] - V.B) * k, -(r[11] - V.B) * k
+                local dedans, dehors = math.max(a, b), math.min(a, b)
+                debordBas = math.max(debordBas,
+                    -dehors - (dedans - dehors) * opaque.bas)
             end
             t:Show()
         end
         self.debordHaut = math.max(0, debordHaut)
+        self.debordGauche = math.max(0, debordGauche)
+        self.debordDroite = math.max(0, debordDroite)
+        self.debordBas = math.max(0, debordBas)
         -- Le fond de la fenetre doit monter jusque sous la bordure.
         if cadre.AjusterFond then cadre:AjusterFond() end
         -- L'echelle vient de changer : ce qui doit eviter les coins se replace.

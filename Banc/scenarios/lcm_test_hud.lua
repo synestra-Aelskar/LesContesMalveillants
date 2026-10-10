@@ -65,4 +65,34 @@ point, _, relPoint = ordinaire:GetPoint()
 attendu("ancrée au centre", point, "CENTER")
 attendu("  sur le centre de l'écran", relPoint, "CENTER")
 
+dire("== le fond d'une fenêtre passe SOUS ses bordures")
+-- Il s'arrêtait au rectangle de la fenêtre alors que les bandes du cadre
+-- débordent au-dehors : entre le noir et l'or, on voyait le jeu. Invisible sur
+-- un fond sombre, criant sur un ciel clair (11 octobre 2026).
+local cadre = LCM.UI.Fenetre("essai_bordures", "Essai", 600, 400, { x = 0, y = 0 })
+local decor = cadre.decor
+attendu("la fenêtre est habillée", decor ~= nil, true)
+if decor then
+    attendu("le débord du haut est connu", type(decor.debordHaut), "number")
+    attendu("celui de gauche aussi", type(decor.debordGauche), "number")
+    attendu("celui de droite aussi", type(decor.debordDroite), "number")
+    attendu("celui du bas aussi", type(decor.debordBas), "number")
+    -- Les trois nouveaux ne sont pas nuls : les bandes débordent vraiment.
+    attendu("la bordure déborde à gauche", decor.debordGauche > 0, true)
+    attendu("  et à droite", decor.debordDroite > 0, true)
+    attendu("  et en bas", decor.debordBas > 0, true)
+    -- Et le fond va les chercher : ses ancrages sortent du rectangle.
+    local _, _, _, dx, dy = cadre.fond:GetPoint(1)
+    attendu("le fond déborde à gauche", dx < 0, true)
+    attendu("  et remonte sous le rail du haut", dy >= 0, true)
+    local _, _, _, dx2, dy2 = cadre.fond:GetPoint(2)
+    attendu("le fond déborde à droite", dx2 > 0, true)
+    attendu("  et descend sous le bas", dy2 < 0, true)
+    -- Il ne doit pas aller plus loin que la bande : sinon c'est un bandeau
+    -- noir qui dépasse par-dessus la bordure, le piège déjà payé en haut.
+    attendu("mais pas au-delà de la bande de gauche",
+        -dx <= decor.debordGauche + 0.01, true)
+    attendu("  ni de celle du bas", -dy2 <= decor.debordBas + 0.01, true)
+end
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

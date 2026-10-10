@@ -224,6 +224,26 @@ pour cela qu'il l'a vu. Les deux plafonds lisent maintenant
 `Radial.MAX_ENTREES`, y compris la vérification au chargement de
 `UI/Menu.lua`.
 
+### Le fond d'une fenêtre passe SOUS ses bordures
+
+L'habillage A'hell'Raz'kah est ancré sur l'**intérieur** du cadre : toute la
+bordure dorée est dessinée **en dehors** du rectangle de la fenêtre — 34 unités
+à gauche et à droite, 29 en bas pour le thème léger. Le fond, lui, couvrait le
+rectangle et pas un pixel de plus. Entre le noir et l'or : rien. Sur un fond
+sombre ça ne se voit pas ; sur un ciel clair, la bordure a l'air faite de
+lumière (constaté le 11 octobre 2026).
+
+Le bord du **haut** avait déjà été rattrapé, avec un commentaire qui décrit
+exactement ce symptôme — mais les trois autres n'avaient jamais eu le même
+traitement.
+
+La limite à ne pas franchir : pousser le noir jusqu'au bout de la tranche
+ferait **dépasser un bandeau par-dessus la bordure**, le piège déjà payé en
+haut. Le fond s'arrête donc là où la bande devient franchement opaque, et
+cette fraction est **mesurée sur l'alpha de l'atlas**, pas devinée :
+ la relève pour les deux thèmes, et elle vit dans
+ à côté de . Si l'atlas change, on remesure.
+
 ## Le ton du code
 
 Regarde n'importe quel fichier existant : tu verras des commentaires qui
