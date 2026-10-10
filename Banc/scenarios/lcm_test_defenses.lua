@@ -117,4 +117,63 @@ for _, id in ipairs({ "soin", "bouclier", "creation", "buff" }) do
     attendu("  " .. id, #D.Contre(id), 0)
 end
 
+dire("== dans une réception, le bonus entre dans le jet")
+-- C'est le seul test qui compte vraiment : les nombres precedents sont justes,
+-- mais tant que la resolution ne va pas les chercher, ils ne servent a rien.
+local A = LCM.Actions
+
+-- Le contexte d'une reception, c'est `ctx.paquet` : il n'existe QUE la, et
+-- c'est lui qui dit quelle mecanique on encaisse.
+local function reception(nature)
+    return { entity = moi, paquet = { n = nature }, vars = {}, journal = {}, effets = {} }
+end
+
+moi.def_courage = 4
+local m = A.MecaniqueRecue(reception("Peur"))
+attendu("la nature se ramène à sa mécanique", m and m.id, "peur")
+attendu("  par son libellé aussi", (A.MecaniqueRecue(reception("peur")) or {}).id, "peur")
+attendu("  et une nature inconnue ne donne rien", A.MecaniqueRecue(reception("Chant")), nil)
+attendu("hors réception, rien non plus",
+    A.MecaniqueRecue({ entity = moi, vars = {} }), nil)
+
+local bonus, resume = A.BonusDefense(reception("Peur"))
+attendu("le bonus est celui du Courage", bonus, 2)
+attendu("  et il se nomme", resume, "Courage 4 (+2)")
+attendu("contre autre chose, rien", (A.BonusDefense(reception("Soin"))), 0)
+-- Un jet d'ATTAQUE ne profite jamais d'une défense : pas de paquet, pas de
+-- bonus.
+attendu("et un jet d'attaque n'en profite pas",
+    (A.BonusDefense({ entity = moi, vars = {} })), 0)
+
+dire("== et le jet d'une résolution le reçoit")
+-- `JetFormule` est le passage obligé de tous les jets d'une résolution.
+local ctx = reception("Peur")
+local brut = A.JetFormuleBrut("12", ctx)
+local total, texte = A.JetFormule("12", ctx)
+attendu("le jet nu vaut 12", brut, 12)
+attendu("avec le Courage, 14", total, 14)
+local ctxSoin = reception("Soin")
+attendu("contre un soin, il ne bouge pas", (A.JetFormule("12", ctxSoin)), 12)
+
+dire("== la Défense retire sa part des dégâts, avant répartition")
+moi.def_courage = 0
+moi.def_defense = 5
+local degats = reception("Attaque simple")
+A.Pas.apply({ amount = "100", sign = "-", tags = "" }, degats, function() end)
+attendu("un effet est déclaré", #degats.effets, 1)
+attendu("  et il ne porte plus que 85", degats.effets[1] and degats.effets[1].montant, 85)
+local dit = table.concat(degats.journal, " | ")
+attendu("  le journal dit pourquoi", dit:find("15 %%") ~= nil, true)
+
+-- Un soin ne se réduit pas.
+local soin = reception("Soin")
+A.Pas.apply({ amount = "100", sign = "+", tags = "" }, soin, function() end)
+attendu("un soin passe entier", soin.effets[1] and soin.effets[1].montant, 100)
+
+-- Et une mécanique que la Défense ne couvre pas non plus.
+local peur = reception("Peur")
+A.Pas.apply({ amount = "100", sign = "-", tags = "" }, peur, function() end)
+attendu("la peur n'est pas réduite", peur.effets[1] and peur.effets[1].montant, 100)
+moi.def_defense = 0
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

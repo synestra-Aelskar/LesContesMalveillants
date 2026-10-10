@@ -1105,9 +1105,53 @@ local function JetInadapte(entity, champ)
                  tostring(Eq().malusInadapte), part) }
 end
 
+-- ===== Les mecaniques de defense ===========================================
+
+-- Un nombre lisible : « 2 » et non « 2.0 », « 1,5 » et non « 1.5 ».
+local function Nombre(n)
+    n = tonumber(n) or 0
+    if n == math.floor(n) then return tostring(math.floor(n)) end
+    return (string.format("%.1f", n):gsub("%.", ","))
+end
+
+-- La mecanique de l'action qu'on est en train d'encaisser, s'il y en a une.
+-- `ctx.paquet` n'existe que dans une RECEPTION (voir Actions.Resoudre) : un
+-- jet d'attaque ne passe donc jamais par ici.
+function Actions.MecaniqueRecue(ctx)
+    local paquet = ctx and (ctx.paquet or (ctx.recu and ctx.recu.paquet))
+    if not paquet then return nil end
+    return Mecanique(paquet.n)
+end
+
+-- Le bonus que les mecaniques de defense ajoutent a ce jet, et le resume qui
+-- l'explique. Zero quand rien ne s'applique — la plupart des actions n'ont
+-- pas de defense dediee, et c'est voulu.
+function Actions.BonusDefense(ctx)
+    local m = Actions.MecaniqueRecue(ctx)
+    if not (m and LCM.Defenses) then return 0, nil end
+    local bonus = LCM.Defenses.BonusRand(ctx.entity, m.id)
+    if bonus == 0 then return 0, nil end
+    return bonus, (LCM.Defenses.Resume(ctx.entity, m.id))
+end
+
 -- Le jet d'une formule de candidat : « jet:Nom », un jet complet de fiche, ou
 -- une formule. Retourne le total et la ligne a annoncer (ou nil).
+--
+-- C'est le passage oblige de tous les jets d'une resolution : c'est donc ici,
+-- et nulle part ailleurs, que les mecaniques de defense s'ajoutent.
 function Actions.JetFormule(formule, ctx)
+    local total, texte = Actions.JetFormuleBrut(formule, ctx)
+    local bonus, resume = Actions.BonusDefense(ctx)
+    if bonus ~= 0 and total then
+        total = total + bonus
+        if texte then
+            texte = string.format("%s  +%s (%s)", texte, Nombre(bonus), resume or "défense")
+        end
+    end
+    return total, texte
+end
+
+function Actions.JetFormuleBrut(formule, ctx)
     formule = Trim(formule)
     local nom = formule:match("^{?%s*[jJ][eE][tT]:%s*(.-)%s*}?$")
     if nom and nom ~= "" then
@@ -1203,6 +1247,9 @@ local function Regler(ctx)
 end
 
 local Pas = {}
+-- Rendue publique pour le banc : jouer UN pas d'une resolution sans monter
+-- toute la machinerie de reception. Rien d'autre ne s'en sert.
+Actions.Pas = Pas
 
 function Pas.message(etape, ctx, suite)
     local texte = Trim(Actions.Substituer(etape.message, ctx))
@@ -1385,6 +1432,24 @@ end
 function Pas.apply(etape, ctx, suite)
     local montant = tonumber(Montant(etape.amount, ctx))
     local signe = etape.sign == "+" and "+" or "-"
+
+    -- La mecanique de defense « Defense » retire sa part AVANT la repartition :
+    -- c'est le montant a encaisser qui diminue, pas les zones qui encaissent
+    -- mieux. Un soin (signe +) n'est pas concerne, et une action qu'on porte
+    -- soi-meme non plus — il faut etre dans une reception.
+    if signe == "-" and montant and montant > 0 and LCM.Defenses then
+        local m = Actions.MecaniqueRecue(ctx)
+        if m then
+            local restant, evite = LCM.Defenses.Encaisses(ctx.entity, m.id, montant)
+            if evite > 0 then
+                local part = LCM.Defenses.Reduction(ctx.entity, m.id)
+                Journal(ctx, string.format("Défense : %d %% retirés, %d dégât(s) évité(s) sur %d.",
+                    math.floor(part * 100 + 0.5), evite, montant))
+                montant = restant
+            end
+        end
+    end
+
     if signe == "-" and montant and montant <= 0 then
         Journal(ctx, string.format("Dégât absorbé : %s, rien à répartir.", tostring(montant)))
         return suite()
