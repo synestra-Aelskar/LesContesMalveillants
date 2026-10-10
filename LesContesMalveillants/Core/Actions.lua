@@ -1134,29 +1134,61 @@ function Actions.BonusDefense(ctx)
     return bonus, (LCM.Defenses.Resume(ctx.entity, m.id))
 end
 
+-- Le supplement que les expertises de parade apportent a ce jet. Comme les
+-- defenses, il ne vaut que dans une RECEPTION : parer, c'est subir. Et il
+-- depend de la statistique opposee, d'ou le champ.
+function Actions.BonusParade(ctx, champ)
+    if not (champ and LCM.Expertises) then return 0, nil end
+    if not (ctx and (ctx.paquet or (ctx.recu and ctx.recu.paquet))) then return 0, nil end
+    local bonus, detail = LCM.Expertises.BonusParade(ctx.entity, champ)
+    if bonus == 0 then return 0, nil end
+    local bouts = {}
+    for _, d in ipairs(detail) do
+        bouts[#bouts + 1] = string.format("%s %d", d.label, d.points)
+    end
+    return bonus, table.concat(bouts, ", ")
+end
+
 -- Le jet d'une formule de candidat : « jet:Nom », un jet complet de fiche, ou
 -- une formule. Retourne le total et la ligne a annoncer (ou nil).
 --
 -- C'est le passage oblige de tous les jets d'une resolution : c'est donc ici,
--- et nulle part ailleurs, que les mecaniques de defense s'ajoutent.
+-- et nulle part ailleurs, que s'ajoutent les mecaniques de defense et les
+-- expertises de parade.
 function Actions.JetFormule(formule, ctx)
-    local total, texte = Actions.JetFormuleBrut(formule, ctx)
+    local total, texte, champ = Actions.JetFormuleBrut(formule, ctx)
+    if not total then return total, texte end
+
     local bonus, resume = Actions.BonusDefense(ctx)
-    if bonus ~= 0 and total then
+    if bonus ~= 0 then
         total = total + bonus
         if texte then
             texte = string.format("%s  +%s (%s)", texte, Nombre(bonus), resume or "défense")
         end
     end
+
+    local parade, quoi = Actions.BonusParade(ctx, champ)
+    if parade ~= 0 then
+        total = total + parade
+        if texte then
+            texte = string.format("%s  +%s (%s)", texte, Nombre(parade), quoi or "parade")
+        end
+    end
     return total, texte
 end
 
+-- Rend aussi, en troisieme valeur, le CHAMP sur lequel le jet a porte : les
+-- parades en dependent (l'Equilibre porte l'Adresse, le Cosmique l'Esprit).
+-- L'information etait la, elle se perdait.
 function Actions.JetFormuleBrut(formule, ctx)
     formule = Trim(formule)
     local nom = formule:match("^{?%s*[jJ][eE][tT]:%s*(.-)%s*}?$")
     if nom and nom ~= "" then
         local r = Actions.Jet(nom, ctx.entity)
-        if r then return r.total, LCM.Roll.Describe(r) end
+        if r then
+            local field = ChampParLibelle(nom, "roll")
+            return r.total, LCM.Roll.Describe(r), field and field.id
+        end
         Noter(ctx, "jet:" .. nom)
         return 0
     end
@@ -1165,10 +1197,10 @@ function Actions.JetFormuleBrut(formule, ctx)
     if jet then
         if jet.inadapte then
             local r = JetInadapte(ctx.entity, jet.champ)
-            return r.total, r.texte
+            return r.total, r.texte, jet.champ
         end
         local r = LCM.Roll.Field(ctx.entity, jet.champ)
-        return r.total, LCM.Roll.Describe(r)
+        return r.total, LCM.Roll.Describe(r), jet.champ
     end
     if id then Noter(ctx, "jet de fiche : " .. id) return 0 end
     return tonumber(Actions.Evaluer(formule, ctx)) or 0
@@ -3104,11 +3136,20 @@ end
 
 -- Le perce-armure : la part du degat qui DOIT aller en sante (arrondie au
 -- superieur), quoi que le joueur repartisse.
+--
+-- Les Resistances l'ALLEGENT (2 % par point) : elles ne retirent pas de
+-- degats, elles rendent leur placement plus libre. Un personnage resistant
+-- n'encaisse pas moins, il choisit mieux ou il encaisse (11 octobre 2026).
 function Actions.PerceMinimum(ctx, montant)
     local pct = Actions.PercePourcentage(ctx)
     montant = math.max(0, tonumber(montant) or 0)
     if pct <= 0 or montant <= 0 then return 0 end
-    return math.min(math.ceil(montant - 1e-9), math.ceil(montant * pct / 100 - 1e-9))
+    local minimum = math.min(math.ceil(montant - 1e-9), math.ceil(montant * pct / 100 - 1e-9))
+    if LCM.Expertises then
+        local reste = LCM.Expertises.PartObligatoire(ctx and ctx.entity, minimum)
+        return reste
+    end
+    return minimum
 end
 
 -- Applique une repartition : { [index de case] = points }. Les degats d'une

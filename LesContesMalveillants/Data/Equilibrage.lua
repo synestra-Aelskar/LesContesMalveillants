@@ -689,6 +689,39 @@ E.apportsExpertises = {
     sabotage      = { adresse = 0.35, perception = 0.35, esprit = 0.35 },
 }
 
+-- ===== Ce que les expertises APPORTENT ======================================
+-- A ne pas confondre avec `apportsExpertises` juste au-dessus, qui dit ce qui
+-- NOURRIT une expertise. Ici, c'est l'inverse : ce qu'une expertise, une fois
+-- acquise, change ailleurs dans le jeu.
+--
+-- Le template ne les portait pas et elles etaient passees a la trappe lors de
+-- la reprise ; remises le 11 octobre 2026. On compte sur la valeur TOTALE de
+-- l'expertise (investi + apports + bonus portes), comme la fatigue le fait
+-- deja pour l'Endurance.
+--
+-- Les clefs, et ce qu'elles veulent dire :
+--   partObligatoire  allege la part des degats qui DOIT aller en sante
+--   degats           supplement de degats, en fraction, sur `mecaniques`
+--   rand             supplement au jet qui PRODUIT `mecaniques`
+--   portee           metres gagnes sur la portee de `mecaniques`
+--   parade / jets    supplement au jet qui SUBIT, selon la stat opposee
+E.effetsExpertises = {
+    -- Resister, ce n'est pas encaisser moins : c'est choisir ou l'on encaisse.
+    -- Chaque point retire 2 % de la part que le perce-armure force en sante.
+    resistance  = { partObligatoire = 0.02 },
+
+    puissance   = { degats = 0.005, mecaniques = { "attaque_simple", "brise_armure" } },
+    projection  = { portee = 0.5, rand = 0.25, mecaniques = { "repulsion" } },
+
+    -- Parades. L'Equilibre et les Acrobaties portent l'Adresse, l'Elementaire
+    -- et le Cosmique portent l'Esprit ; l'Evasion porte les deux, et plus fort.
+    equilibre   = { parade = 0.1, jets = { "adresse" } },
+    acrobaties  = { parade = 0.1, jets = { "adresse" } },
+    elementaire = { parade = 0.1, jets = { "esprit" } },
+    cosmique    = { parade = 0.1, jets = { "esprit" } },
+    evasion     = { parade = 0.2, jets = { "adresse", "esprit" } },
+}
+
 -- ===== Campement ============================================================
 -- Absent du template : releve de la feuille de calcul du MJ (onglet
 -- « CAMPEMENT », blocs « NERF ET UP GLOBAL », « VARIABLE STATS D'UN

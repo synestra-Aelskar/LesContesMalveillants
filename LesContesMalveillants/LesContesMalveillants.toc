@@ -60,6 +60,7 @@ Core\Campement.lua
 Core\Lieux.lua
 Core\Bannieres.lua
 Core\Defenses.lua
+Core\Expertises.lua
 Data\Equilibrage.lua
 Data\Icones.lua
 Data\Morphologies.lua
