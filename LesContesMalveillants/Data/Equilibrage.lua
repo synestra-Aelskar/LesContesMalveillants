@@ -304,6 +304,16 @@ E.armure = {
 
 E.forge = {
     coutParDefaut = 1,
+    -- Ce qu'une statistique passee SOUS sa base rend au pool, en part de son
+    -- cout. La moitie : descendre une stat ne doit pas financer entierement la
+    -- montee d'une autre, sinon le pool ne borne plus rien.
+    --
+    -- Les RACES font exception, et elles seules (decision du 11 octobre 2026) :
+    -- une race se definit autant par ses faiblesses que par ses forces, et
+    -- faire payer la moitie d'une faiblesse revient a decourager d'en donner.
+    -- Baisser une stat de 1 dont le point coute 1 rend donc 1.
+    remboursement = 0.5,
+    remboursementParCategorie = { races = 1 },
     -- Etat des armes, armures et accessoires. Les cinq points ajoutes au
     -- pool compensent l'arrivee de cette caracteristique obligatoire.
     etatObjet = {

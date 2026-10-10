@@ -373,8 +373,11 @@ local function Construire()
     f.description:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -118)
     f.description:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -118)
 
-    -- Le type, a cote du nom : c'est lui qui dira combien on peut en porter.
-    f.typeLibelle = Libelle("Type", 2, -148)
+    -- Le type : c'est lui qui dira combien on peut en porter. Il ne vaut que
+    -- pour les categories qui declarent une liste de types (armes, armures,
+    -- accessoires) ; ailleurs il ne se montre pas. Pose a -148, il recouvrait
+    -- la description, qui va de -118 a -174 (11 octobre 2026).
+    f.typeLibelle = Libelle("Type", 2, -184)
     f.type = UI.Bouton(c, "— type —", 170, 22, function(bouton)
         local jeu = JeuCourant()
         local categorie = jeu and C.Get(jeu.categorie) or nil
@@ -395,14 +398,15 @@ local function Construire()
             f:Rafraichir()
         end)
     end)
-    f.type:SetPoint("TOPLEFT", c, "TOPLEFT", 46, -148)
+    f.type:SetPoint("TOPLEFT", c, "TOPLEFT", 46, -180)
 
     f.mjSeulement = UI.Case(c, "Réservée au MJ — les joueurs ne la voient pas", function(cochee)
         courant.mjSeulement = cochee and true or nil
     end)
     f.mjSeulement:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -180)
 
-    f.emplacementsLibelle = Libelle("Emplacements occupés", 2, -184)
+    -- A droite : sur une arme, le type occupe la gauche de cette rangee.
+    f.emplacementsLibelle = Libelle("Emplacements occupés", 290, -184)
     f.emplacements = UI.Bouton(c, "", 156, 22, function(b)
         f.choix.titre:SetText("Emplacements occupés")
         f.choix:Proposer(b, {
@@ -413,7 +417,7 @@ local function Construire()
             f:Rafraichir()
         end)
     end)
-    f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 132, -180)
+    f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 412, -180)
     UI.Bulle(f.emplacements, "Occupation de l'arme",
         "Une arme à deux emplacements dispose de deux fois le pool de points de sa rareté.")
 
@@ -645,6 +649,16 @@ local function Construire()
         local estArme = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "armes"
         self.emplacementsLibelle:SetShown(estArme)
         self.emplacements:SetShown(estArme)
+        -- Le type n'existe que pour les categories qui en declarent une liste.
+        local aType = ForgeUI.rendre == nil and categorie ~= nil
+            and ForgeUI.ListeDuType(categorie) ~= nil
+        self.typeLibelle:SetShown(aType)
+        self.type:SetShown(aType)
+        if aType then
+            local choisi = Texte(courant.type)
+            local entree = choisi ~= "" and LCM.Listes.Get(choisi) or nil
+            self.type.label:SetText(entree and tostring(entree.label) or "— type —")
+        end
         self.emplacements.label:SetText(MultiplicateurPool() == 2 and "2 emplacements" or "1 emplacement")
         -- La zone suit la largeur de la fenetre (le tableau l'elargit) ; sa
         -- saisie multiligne, elle, a une largeur fixe a recaler.

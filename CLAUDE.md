@@ -110,7 +110,7 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
 code de retour — ce serait le vrai correctif.
 
-### L'état au 10 octobre 2026 : 46 verts, 23 rouges
+### L'état au 11 octobre 2026 : 47 verts, 23 rouges
 
 Le banc **n'est pas au vert**, et ce n'est pas une négligence : la plupart des
 rouges sont des attentes devenues fausses après des changements voulus. Avant
@@ -223,6 +223,22 @@ dur (`if #out >= 8`). Le test comparait au constant et non à huit, et c'est
 pour cela qu'il l'a vu. Les deux plafonds lisent maintenant
 `Radial.MAX_ENTREES`, y compris la vérification au chargement de
 `UI/Menu.lua`.
+
+### Les races remboursent en entier
+
+Règle générale de la forge : une statistique passée **sous sa base** ne rend
+que la **moitié** de son coût au pool. Sinon descendre une stat financerait
+entièrement la montée d'une autre, et le pool ne bornerait plus rien.
+
+**Les races font exception, et elles seules** (11 octobre 2026) : une race se
+définit autant par ses faiblesses que par ses forces, et ne rembourser que la
+moitié d'une faiblesse revient à décourager d'en donner. Baisser une stat de 1
+dont le point coûte 1 rend donc 1.
+
+Le taux n'est pas écrit en dur : `forge.remboursement` (0,5) et
+`forge.remboursementParCategorie` (`races = 1`) sont des vecteurs
+d'équilibrage, réglables en séance comme le reste. Le plafond du pool, lui, ne
+bouge pas : rembourser en entier ne permet pas de le dépasser.
 
 ### Le fond d'une fenêtre passe SOUS ses bordures
 

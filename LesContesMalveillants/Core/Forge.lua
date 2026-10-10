@@ -237,11 +237,26 @@ function Forge.Pool(rarete, multiplicateur, categorie)
     return (rarete and rarete.points or 0) * m + bonus
 end
 
+-- Ce qu'une statistique passee sous sa base rend au pool, en part de son cout.
+-- La moitie partout, sauf la ou l'equilibrage en decide autrement — les races
+-- remboursent en entier.
+local function Remboursement(categorie)
+    -- Eq() rend DEJA Equilibrage.forge : y rechercher un champ `forge` donnait
+    -- nil, et le taux retombait silencieusement sur sa valeur de repli.
+    local regle = Eq() or {}
+    local id = type(categorie) == "table" and categorie.id or tostring(categorie or "")
+    local parCategorie = regle.remboursementParCategorie
+    local exception = parCategorie and tonumber(parCategorie[id])
+    if exception then return exception end
+    return tonumber(regle.remboursement) or 0.5
+end
+
 function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
     valeurs = type(valeurs) == "table" and valeurs or {}
     local categorie = LCM.Compendium.Get(jeu.categorie)
     local rarete = rareteId and Forge.Rarete(jeu, rareteId) or nil
     local lignes, depenses, credit = {}, 0, 0
+    local remboursement = Remboursement(categorie)
     -- Premiere caracteristique des objets : leur maximum d'etat. Elle est
     -- commune a tous les jeux d'armes, d'armures et d'accessoires, et n'a
     -- donc pas a etre redefinie dans chaque jeu d'equilibrage.
@@ -263,7 +278,7 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
         local ecart = v - base
         local depense = ecart * coutPoint
         if ecart < 0 then
-            depense = depense / 2
+            depense = depense * remboursement
             credit = credit - depense
         else
             depenses = depenses + depense
@@ -292,8 +307,8 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
         local ecart = v - l.base
         local depense
         if ecart < 0 then
-            -- La moitie, et comptee a part : c'est elle que le pool plafonne.
-            depense = ecart * l.cout / 2
+            -- Ce qui revient, compte a part : c'est lui que le pool plafonne.
+            depense = ecart * l.cout * remboursement
             credit = credit - depense
         else
             depense = ecart * l.cout
