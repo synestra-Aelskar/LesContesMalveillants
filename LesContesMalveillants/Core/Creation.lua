@@ -115,7 +115,15 @@ function Creation.Mecaniques()
     if not cacheMecaniques then
         cacheMecaniques = {}
         for _, mecanique in ipairs(Eq().mecaniques) do
-            cacheMecaniques[#cacheMecaniques + 1] = { id = "meca_" .. mecanique.id, label = mecanique.label }
+            cacheMecaniques[#cacheMecaniques + 1] = { id = "meca_" .. mecanique.id, label = mecanique.label,
+                groupe = "Compétence" }
+        end
+        -- Les defenses prennent sur le MEME budget, et se plafonnent pareil
+        -- (11 octobre 2026) : se blinder contre la peur, c'est du temps qu'on
+        -- ne passe pas a apprendre a frapper.
+        for _, defense in ipairs(Eq().defenses or {}) do
+            cacheMecaniques[#cacheMecaniques + 1] = { id = LCM.Defenses.Field(defense.id),
+                label = defense.label, groupe = "Défense", note = defense.note }
         end
     end
     return cacheMecaniques

@@ -579,6 +579,45 @@ E.mecaniques = {
     { id = "peur",             label = "Peur" },
 }
 
+-- ===== Mecaniques de DEFENSE ===============================================
+-- On n'y investit pas pour agir, mais pour encaisser. Elles se prennent sur le
+-- meme budget que les mecaniques de competence et se plafonnent pareil
+-- (11 octobre 2026).
+--
+-- Deux sortes, et elles ne se melangent pas :
+--
+--   « reduction » : retire un pourcentage des DEGATS recus. Une seule la
+--     porte, la Defense, et elle ne vaut que contre ce qui frappe.
+--   « rand » : ajoute au JET de defense. C'est la reponse aux actions qu'on
+--     ne peut pas encaisser — on y resiste ou on y cede.
+--
+-- `contre` nomme les mecaniques d'attaque visees. Une mecanique qui n'y figure
+-- nulle part n'a pas de defense dediee, et c'est voulu : le Soin, le Bouclier
+-- ou la Creation ne se defendent pas.
+E.defenses = {
+    { id = "defense", label = "Défense", sorte = "reduction", parPoint = 0.03,
+      contre = { "attaque_simple", "perce_armure", "brise_armure" },
+      note = "Retire 3 % des dégâts par point, contre les attaques, les perce-armure et les brise-armure." },
+    { id = "resilience_mentale", label = "Résilience mentale", sorte = "rand", parPoint = 0.5,
+      contre = { "confusion", "controle_mental", "illusion" },
+      note = "+0,5 au jet de défense par point, contre la confusion, le contrôle mental et l'illusion." },
+    { id = "esprit_libre", label = "Esprit libre", sorte = "rand", parPoint = 0.5,
+      contre = { "provocation" },
+      note = "+0,5 au jet de défense par point, contre la provocation." },
+    { id = "courage", label = "Courage", sorte = "rand", parPoint = 0.5,
+      contre = { "peur", "intimidation" },
+      note = "+0,5 au jet de défense par point, contre la peur et l'intimidation." },
+    { id = "insensible", label = "Insensible", sorte = "rand", parPoint = 0.5,
+      contre = { "debuff", "dot" },
+      note = "+0,5 au jet de défense par point, contre les debuffs et les dots." },
+    { id = "stable", label = "Stable", sorte = "rand", parPoint = 0.5,
+      contre = { "attraction", "repulsion" },
+      note = "+0,5 au jet de défense par point, contre l'attraction et la répulsion." },
+    { id = "agilite", label = "Agilité", sorte = "rand", parPoint = 0.5,
+      contre = { "immobilisation", "entrave" },
+      note = "+0,5 au jet de défense par point, contre l'immobilisation et l'entrave." },
+}
+
 -- Les six statistiques primaires, dans l'ordre de la feuille.
 E.primaires = {
     { id = "force",        label = "Force" },

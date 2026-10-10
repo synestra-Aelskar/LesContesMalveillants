@@ -59,6 +59,7 @@ Core\Echange.lua
 Core\Campement.lua
 Core\Lieux.lua
 Core\Bannieres.lua
+Core\Defenses.lua
 Data\Equilibrage.lua
 Data\Icones.lua
 Data\Morphologies.lua
@@ -66,6 +67,7 @@ Data\Fiche.lua
 Data\Expertises.lua
 Data\Types.lua
 Data\Mecaniques.lua
+Data\Defenses.lua
 Data\Combat.lua
 Data\Metiers.lua
 Data\Documents.lua

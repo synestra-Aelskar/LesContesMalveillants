@@ -990,7 +990,7 @@ LCM.Publier(LCM.Tentes, {
     origine = "Aelskar",
 })
 
--- ----- traits (30) --------------------------------------------------
+-- ----- traits (32) --------------------------------------------------
 LCM.Publier(LCM.Traits, {
     bonus = {
         pen_perforant = 1,
@@ -1239,6 +1239,35 @@ LCM.Publier(LCM.Traits, {
     icone = "Interface\\ICONS\\d3_shadowpower",
     id = "lcm_64a651_6ac77195_35a4bae4_0005_9cc402",
     label = "Résilience nocturne",
+    tags = "Commun",
+})
+
+LCM.Publier(LCM.Traits, {
+    bonus = {
+        investigation = 1,
+        resi_feu = 4,
+    },
+    couleurTitre = "FF8CB8",
+    description = "Son séjour dans les mondes démoniaques l’ont rendu très résiliente face aux flammes et lui confère un savoir important sur les engeances démoniaques.",
+    forge = "traits/commun",
+    icone = "Interface\\ICONS\\sha_spell_warlock_demonsoul_nightmare",
+    id = "lcm_64a651_6acab9e6_04f1ed9d_0001_b03c06",
+    label = "Chevalier Infernal",
+    tags = "Commun",
+})
+
+LCM.Publier(LCM.Traits, {
+    bonus = {
+        endurance = 1,
+        fatigue = 2,
+        puissance = 1,
+    },
+    couleurTitre = "FF8CB8",
+    description = "Les chairs tordus de l’elfe lui confère une force démentielle bien plus que l’on pourrait en attendre d’une elfe de sa carrure, sans compter une résilience particulièrement notable.",
+    forge = "traits/commun",
+    icone = "Interface\\ICONS\\ability_demonhunter_consumemagic",
+    id = "lcm_64a651_6acabb9f_04f8b719_0002_c63df8",
+    label = "Force Xorothienne",
     tags = "Commun",
 })
 

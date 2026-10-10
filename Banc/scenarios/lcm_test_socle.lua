@@ -16,8 +16,10 @@ dire("== schema")
 -- 158 : la jauge d'armure, puis les mécaniques Provocation et Intimidation.
 -- Le compte monte avec chaque mecanique ou statistique ajoutee : il dit
 -- seulement que les deux addons voient LA MEME feuille.
-attendu("champs declares", LCM.Schema.Count(), 160)
-attendu("onglets", #LCM.Schema.Tabs(), 8)
+-- 167 depuis le 11 octobre 2026 : les sept mecaniques de defense
+-- (Equilibrage.defenses) ont chacune leur champ, dans leur propre onglet.
+attendu("champs declares", LCM.Schema.Count(), 160 + #LCM.Equilibrage.defenses)
+attendu("onglets", #LCM.Schema.Tabs(), 9)
 attendu("le champ armure existe", LCM.Schema.Field("armure") ~= nil, true)
 attendu("son type", LCM.Schema.Field("armure").kind, "gauge")
 attendu("un champ inconnu", LCM.Schema.Field("nexistepas"), "nil")
@@ -28,7 +30,7 @@ attendu("mon identite", moi.id, "Reika-Apertus")
 attendu("mon type", moi.kind, "player")
 local golem = LCM.Entities.Create("pnj_golem", "Golem de glace", "npc")
 attendu("pnj cree", golem.name, "Golem de glace")
-attendu("meme feuille pour les deux", LCM.Schema.Count(), 160)
+attendu("meme feuille pour les deux", LCM.Schema.Count(), 160 + #LCM.Equilibrage.defenses)
 
 dire("== valeurs")
 attendu("force par defaut", LCM.Entities.Get_Value(moi, "force"), 0)

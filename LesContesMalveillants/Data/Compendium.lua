@@ -61,12 +61,24 @@ C.BLOC = {
         "mystique_empoisonnement", "perception_empoisonnement", "constitution_empoisonnement" } },
     { dossier = "Debuff", champs = {
         "force_debuff", "mystique_debuff", "perception_debuff", "constitution_debuff", "duree_debuff", "puissance_debuff" } },
-    { dossier = "Mécanique de compétence", champs = {
-        "meca_attaque_simple", "meca_perce_armure", "meca_brise_armure", "meca_provocation", "meca_intimidation",
-        "meca_bouclier", "meca_soin", "meca_buff",
-        "meca_debuff", "meca_attraction", "meca_repulsion", "meca_immobilisation",
-        "meca_entrave", "meca_deviation", "meca_levitation", "meca_intervention", "meca_permutation",
-        "meca_dissipation", "meca_creation", "meca_confusion", "meca_controle_mental", "meca_illusion" } },
+    -- Engendre aussi, et pour la meme raison.
+    { dossier = "Mécanique de défense", champs = (function()
+        local out = {}
+        for _, defense in ipairs(LCM.Equilibrage.defenses) do
+            out[#out + 1] = LCM.Defenses.Field(defense.id)
+        end
+        return out
+    end)() },
+    -- Les mecaniques sont ENGENDREES depuis l'equilibrage, pas recopiees : la
+    -- liste a la main avait derive, et « Peur » comme « Dot » tombaient dans
+    -- le fourre-tout « Autres » faute d'etre ici (11 octobre 2026).
+    { dossier = "Mécanique de compétence", champs = (function()
+        local out = {}
+        for _, mecanique in ipairs(LCM.Equilibrage.mecaniques) do
+            out[#out + 1] = "meca_" .. mecanique.id
+        end
+        return out
+    end)() },
 }
 
 -- Ordre des dossiers d'une categorie generique : celui du template, ou le
