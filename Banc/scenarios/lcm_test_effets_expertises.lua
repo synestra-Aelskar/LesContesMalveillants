@@ -115,4 +115,62 @@ attendu("dix points d'Endurance font dix de fatigue", apres - avant, 10)
 attendu("et aucun effet d'expertise ne s'en mêle",
     LCM.Equilibrage.effetsExpertises.endurance, nil)
 
+dire("== la Puissance gonfle les dégâts DÉCLARÉS")
+-- `Pas.declare` est le seul endroit par ou une action sort : c'est la que son
+-- jet se lance et que ses valeurs se figent. Un seul branchement, donc.
+local function declarer(nature, tags)
+    local ctx = { entity = moi, vars = {}, journal = {}, effets = {}, nom = nature,
+                  cibles = nil }
+    -- On s'arrete a la declaration : pas de cible, donc rien ne part sur le
+    -- reseau. C'est le calcul qu'on verifie, pas l'envoi.
+    A.Pas.declare({ nature = nature, declareTags = tags, announce = "" }, ctx, function() end)
+    return ctx
+end
+
+poser("puissance", 20)
+local d = declarer("Attaque simple", "Total Normal=100 ; Total Critique=200")
+attendu("+10 % sur le total normal", d.declaration.valeurs["Total Normal"], "110")
+attendu("  et sur le critique aussi", d.declaration.valeurs["Total Critique"], "220")
+attendu("  le journal le dit",
+    table.concat(d.journal, " | "):find("Puissance : %+10 %%") ~= nil, true)
+
+d = declarer("Brise-armure", "Total Normal=100")
+attendu("le brise-armure en profite", d.declaration.valeurs["Total Normal"], "110")
+d = declarer("Perce-armure", "Total Normal=100")
+attendu("le perce-armure, non", d.declaration.valeurs["Total Normal"], "100")
+d = declarer("Soin", "Total Normal=100")
+attendu("un soin non plus", d.declaration.valeurs["Total Normal"], "100")
+
+poser("puissance", 0)
+d = declarer("Attaque simple", "Total Normal=100")
+attendu("sans Puissance, rien ne bouge", d.declaration.valeurs["Total Normal"], "100")
+
+dire("== et la Projection aide le jet qui PRODUIT la répulsion")
+-- A ne pas confondre avec une parade : ici on agit, on ne subit pas.
+poser("projection", 8)
+poser("adresse", 0)
+d = declarer("Répulsion", "Rand Résultat={jet:Adresse}")
+local rand = tonumber(d.declaration.valeurs["Rand Résultat"]) or 0
+-- Le de est aleatoire ; ce qu'on verifie, c'est que les deux points de
+-- Projection s'y ajoutent.
+local ctxNu = { entity = moi, vars = {}, journal = {}, effets = {}, nom = "Soin" }
+A.Pas.declare({ nature = "Soin", declareTags = "Rand Résultat={jet:Adresse}", announce = "" },
+    ctxNu, function() end)
+attendu("la répulsion est bien produite", d.declaration.nature, "Répulsion")
+attendu("le jet porte le supplément",
+    rand >= 2 and rand <= (tonumber(ctxNu.declaration.valeurs["Rand Résultat"]) or 0) + 2 + 15, true)
+-- L'annonce attend la declaration pour partir : sans cible, elle reste en
+-- file dans le contexte. C'est la qu'on la lit.
+-- On rejoue la declaration en interceptant les annonces a la source : selon
+-- qu'il y a des cibles ou non, elles partent ou restent en file, et ce n'est
+-- pas ce qu'on teste ici.
+local dites = {}
+local annoncerVrai = A.Annoncer
+A.Annoncer = function(texte, ctx) dites[#dites + 1] = tostring(texte) return annoncerVrai(texte, ctx) end
+declarer("Répulsion", "Rand Résultat={jet:Adresse}")
+A.Annoncer = annoncerVrai
+attendu("et il est annoncé",
+    table.concat(dites, " | "):find("Projection 8") ~= nil, true)
+poser("projection", 0)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

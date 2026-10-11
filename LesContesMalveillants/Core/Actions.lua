@@ -2797,6 +2797,15 @@ function Pas.declare(etape, ctx, suite)
     if nature == "" then nature = ctx.nom end
     ctx.annonces = {}
 
+    -- La mecanique qu'on PRODUIT : c'est elle qui dit quelles expertises
+    -- aident. La Projection porte la Repulsion, la Puissance porte l'attaque
+    -- simple et le brise-armure (11 octobre 2026).
+    local produite = Mecanique(nature)
+    local supJet, supDetail = 0, nil
+    if produite and LCM.Expertises then
+        supJet, supDetail = LCM.Expertises.BonusAction(ctx.entity, produite.id)
+    end
+
     -- {jet:Nom} : un vrai jet de la fiche, lance une fois par nom, annonce comme
     -- un jet ordinaire, puis remplace par son total.
     local jets = {}
@@ -2807,8 +2816,17 @@ function Pas.declare(etape, ctx, suite)
         if not jets[nom] then
             local resultat = Actions.Jet(nom, ctx.entity)
             if resultat then
-                jets[nom] = resultat.total
-                Actions.Annoncer(LCM.Roll.Describe(resultat), ctx)
+                jets[nom] = resultat.total + supJet
+                local ligne = LCM.Roll.Describe(resultat)
+                if supJet ~= 0 then
+                    local bouts = {}
+                    for _, d in ipairs(supDetail or {}) do
+                        bouts[#bouts + 1] = string.format("%s %d", d.label, d.points)
+                    end
+                    ligne = string.format("%s  +%s (%s)", ligne, Nombre(supJet),
+                        #bouts > 0 and table.concat(bouts, ", ") or "expertise")
+                end
+                Actions.Annoncer(ligne, ctx)
             else
                 jets[nom] = 0
                 Noter(ctx, "jet:" .. nom)
@@ -2828,6 +2846,30 @@ function Pas.declare(etape, ctx, suite)
         valeurs[p.k] = v
         ordre[#ordre + 1] = p.k
     end
+    -- La Puissance ajoute sa part aux DEGATS declares — pas au jet : elle dit
+    -- la force du coup, pas la justesse. Les deux totaux sont touches, sinon
+    -- un critique rendrait la Puissance inutile.
+    if produite and LCM.Expertises then
+        local part = LCM.Expertises.BonusDegats(ctx.entity, produite.id)
+        if part > 0 then
+            local touches = {}
+            for _, cle in ipairs({ "Total Normal", "Total Critique" }) do
+                local v = tonumber(valeurs[cle])
+                if v and v > 0 then
+                    local augmente = math.floor(v * (1 + part) + 0.5)
+                    if augmente ~= v then
+                        valeurs[cle] = tostring(augmente)
+                        touches[#touches + 1] = string.format("%s %d → %d", cle, v, augmente)
+                    end
+                end
+            end
+            if #touches > 0 then
+                Journal(ctx, string.format("Puissance : +%d %% — %s",
+                    math.floor(part * 100 + 0.5), table.concat(touches, ", ")))
+            end
+        end
+    end
+
     ctx.declaration = { nature = nature, valeurs = valeurs, ordre = ordre }
     local annonce = tostring(etape.announce or ""):lower():match("^[o1ty]") ~= nil
     local mode = Cle(ctx.vars.cibleMode)

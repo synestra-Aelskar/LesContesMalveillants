@@ -110,7 +110,7 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
 code de retour — ce serait le vrai correctif.
 
-### L'état au 11 octobre 2026 : 47 verts, 23 rouges
+### L'état au 11 octobre 2026 : 49 verts, 23 rouges
 
 Le banc **n'est pas au vert**, et ce n'est pas une négligence : la plupart des
 rouges sont des attentes devenues fausses après des changements voulus. Avant
@@ -223,6 +223,61 @@ dur (`if #out >= 8`). Le test comparait au constant et non à huit, et c'est
 pour cela qu'il l'a vu. Les deux plafonds lisent maintenant
 `Radial.MAX_ENTREES`, y compris la vérification au chargement de
 `UI/Menu.lua`.
+
+### Les mécaniques de défense
+
+Sept, dans `Equilibrage.defenses` (`Core/Defenses.lua`). On n'y investit pas
+pour agir mais pour **encaisser**, sur le même budget que les mécaniques de
+compétence et avec le même plafond.
+
+Deux sortes, et il ne faut pas les confondre. **Réduction** : un pourcentage
+retiré aux dégâts. Une seule la porte, la Défense (3 %/point contre attaque
+simple, perce-armure, brise-armure). **Rand** : un bonus au jet de défense
+(+0,5/point) — Résilience mentale, Esprit libre, Courage, Insensible, Stable,
+Agilité, chacune contre les mécaniques que `contre` nomme.
+
+Une mécanique d'attaque sans défense dédiée n'en a pas, et c'est voulu : on ne
+se défend pas contre un soin.
+
+**Deux garde-fous ajoutés** : la réduction plafonne à 90 %, et ce qui reste est
+arrondi au supérieur avec un minimum de 1 — une réduction ne doit pas effacer
+une attaque qui a touché.
+
+### Un seul point de branchement, de chaque côté
+
+C'est ce qui fait tenir l'ensemble, et c'est à respecter si on ajoute une
+règle du même genre.
+
+**En réception**, tout passe par `Actions.JetFormule` : les défenses et les
+expertises de parade s'y ajoutent, et nulle part ailleurs. Le bonus ne vaut
+que dans une réception — `ctx.paquet` le dit, et il n'est posé que par
+`Actions.Resoudre`. Un jet d'attaque ne profite donc jamais d'une défense.
+Pour les parades, `JetFormuleBrut` rend en plus **le champ sur lequel le jet a
+porté** : l'information était là, elle se perdait.
+
+Les **dégâts** reçus, eux, se réduisent dans `Pas.apply`, seul endroit où un
+dégât entre avant d'être réparti. Et la **part obligatoire** du perce-armure
+s'allège dans `Actions.PerceMinimum`.
+
+**En émission**, tout passe par `Pas.declare` : la Puissance y gonfle `Total
+Normal` et `Total Critique`, le supplément de Projection s'ajoute au jet.
+
+### Ce que les expertises apportent
+
+`Equilibrage.effetsExpertises` (`Core/Expertises.lua`) — à ne pas confondre
+avec `apportsExpertises`, qui dit ce qui **nourrit** une expertise. Ici c'est
+l'inverse : ce qu'elle change ailleurs. On compte sur la valeur **totale**
+(investi + apports + bonus portés).
+
+Les Résistances **allègent la part obligatoire** de 2 %/point : elles ne
+retirent aucun dégât, elles rendent leur placement plus libre. C'est le sens
+de la règle, et le piège serait de les transformer en réduction.
+
+**Deux demandes étaient déjà satisfaites** et n'ont rien coûté : l'Endurance
+alimente la fatigue depuis le départ (+1/point total, dans la formule de la
+jauge), et Course/Nage apportent déjà leur distance — mais **+1 yard par point
+investi**, pas +0,5 sur le total. À trancher avant d'y toucher : changer le
+taux diviserait le déplacement de tous les personnages existants.
 
 ### Les races remboursent en entier
 
