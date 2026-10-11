@@ -7,10 +7,17 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 
+-- Une race TEMOIN, sans aucun bonus : ces scenarios verifient des FORMULES.
+-- Ils se posaient sur « humain », dont l'equilibrage a ensuite donne +3 a
+-- toutes les statistiques — et les PV, le poids et les sauts ont bouge sans
+-- qu'une ligne de formule ait change (constate le 11 octobre 2026). Une race
+-- neutre les rend insensibles au reglage du jeu, qui a le droit de bouger.
+LCM.Brouillons.Set("races", { id = "temoin", label = "Témoin", morphology = "humanoide" })
+
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
 local moi = LCM.Entities.Self()
-LCM.Entities.Set_Value(moi, "race", "humain")
+LCM.Entities.Set_Value(moi, "race", "temoin")
 
 dire("== formule : base 2 + 1.5/niveau + 0.25/constitution + 3/vitalite")
 LCM.Entities.Set_Value(moi, "niveau", 1)

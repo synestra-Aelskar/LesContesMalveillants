@@ -8,11 +8,18 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 
+-- Une race TEMOIN, sans aucun bonus : ces scenarios verifient des FORMULES.
+-- Ils se posaient sur « humain », dont l'equilibrage a ensuite donne +3 a
+-- toutes les statistiques — et les PV, le poids et les sauts ont bouge sans
+-- qu'une ligne de formule ait change (constate le 11 octobre 2026). Une race
+-- neutre les rend insensibles au reglage du jeu, qui a le droit de bouger.
+LCM.Brouillons.Set("races", { id = "temoin", label = "Témoin", morphology = "humanoide" })
+
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
 
 local moi = LCM.Entities.Self()
-LCM.Entities.Set_Value(moi, "race", "humain")
+LCM.Entities.Set_Value(moi, "race", "temoin")
 LCM.Entities.Set_Value(moi, "niveau", 5)
 LCM.Entities.Set_Value(moi, "constitution", 6)
 LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
@@ -247,5 +254,37 @@ attendu("le bonus vient apres la valeur",
 attendu("et le bouton ferme la marche",
     x(jet.lancer) >= x(jet.bonus) + jet.bonus:GetWidth(), true)
 vue:Hide()
+
+dire("== les jauges de ressource : les boutons sont au MJ")
+-- PA, fatigue et boucliers etaient verrouilles pour TOUT LE MONDE. Le joueur
+-- ne doit pas les fabriquer a la main ; le MJ, lui, en a besoin pour poser une
+-- situation ou essayer une regle sans jouer une action entiere, comme il le
+-- fait deja sur les zones du corps (11 octobre 2026).
+f.barre.boutons[1]:Click()
+local generale = f.pages.statistiques.blocs[1]
+local function ligne(id)
+    for _, l in ipairs(generale.lignes) do if l.field and l.field.id == id then return l end end
+end
+for _, id in ipairs({ "pa", "fatigue", "armure" }) do
+    local l = ligne(id)
+    attendu("la jauge " .. id .. " existe", l ~= nil, true)
+    attendu("  elle a ses trois boutons", l and #(l.boutons or {}), 3)
+    attendu("  et le MJ les voit", l and l.boutons[1]:IsShown(), true)
+end
+
+-- Vu du joueur. On passe par le mode joueur, le vrai levier : la presence du
+-- compagnon ne suffit pas a le simuler, `LCM._masterCompanion` court-circuite.
+LCM.BasculerModeJoueur(true)
+local pa = ligne("pa")
+local avantPA = LCM.Entities.Gauge(moi, "pa").current
+pa:Actualiser(moi)
+attendu("en mode joueur, plus un bouton", pa.boutons[1]:IsShown(), false)
+pa.boutons[2]:Click()
+attendu("  et le clic ne donne rien", LCM.Entities.Gauge(moi, "pa").current, avantPA)
+attendu("  on lui dit pourquoi",
+    __sansCouleur(__sorties[#__sorties]):find("maître du jeu") ~= nil, true)
+LCM.BasculerModeJoueur(false)
+pa:Actualiser(moi)
+attendu("le MJ les retrouve", pa.boutons[1]:IsShown(), true)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

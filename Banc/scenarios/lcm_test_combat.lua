@@ -79,15 +79,36 @@ attendu("le premier est actif", f.cartes[1].actif:IsShown() and not f.cartes[2].
 attendu("pas de pages a seize ou moins", f.suivant:IsShown(), false)
 attendu("a 70 %", f:GetScale(), 0.7)
 attendu("decor en cinq morceaux", #f.decor, 5)
-attendu("cinq pastilles de PA", #f.ressourcesPA.pastilles, 5)
+-- Les ressources sous le bandeau sont celles de CE QU'ON JOUE. Le garde a
+-- l'initiative, le MJ l'incarne donc deja : ce sont les siennes qu'on lit.
+-- Le bandeau demandait `Personnages.Actif()` avant `Self()` ; l'incarnation
+-- ne passait jamais et le MJ voyait ses propres PA et PF (regression trouvee
+-- et corrigee le 11 octobre 2026).
+attendu("c'est le garde qui joue", I.ActuelleId(), garde.id)
+LCM.Entities.SetGauge(garde, "pa", 3, 5)
+LCM.Entities.SetGauge(garde, "fatigue", 47, 60)
+-- Les pastilles se gardent d'une fois sur l'autre : on compte celles qui sont
+-- MONTREES, pas celles qui existent.
+local function pastillesVues()
+    local n = 0
+    for _, p in ipairs(f.ressourcesPA.pastilles) do if p:IsShown() then n = n + 1 end end
+    return n
+end
+attendu("cinq pastilles de PA", pastillesVues(), 5)
 attendu("trois PA rouges restants", f.ressourcesPA.pastilles[1].remplie
     and f.ressourcesPA.pastilles[3].remplie and not f.ressourcesPA.pastilles[4].remplie, true)
 attendu("PF restant / maximum", f.ressourcesPF.barre.label:GetText(), "47 / 60")
-LCM.Entities.SetGauge(maFiche, "pa", 1)
-LCM.Entities.SetGauge(maFiche, "fatigue", 28)
+LCM.Entities.SetGauge(garde, "pa", 1)
+LCM.Entities.SetGauge(garde, "fatigue", 28)
 attendu("les PA suivent une depense", f.ressourcesPA.pastilles[1].remplie
     and not f.ressourcesPA.pastilles[2].remplie, true)
 attendu("les PF suivent une depense", f.ressourcesPF.barre.label:GetText(), "28 / 60")
+-- Et surtout : ce ne sont PAS les miennes. C'est tout l'objet de la
+-- correction, et une valeur distincte suffit a le prouver.
+LCM.Entities.SetGauge(maFiche, "pa", 5, 5)
+LCM.Entities.SetGauge(maFiche, "fatigue", 60, 60)
+attendu("ma fiche ne deteint pas sur le bandeau",
+    f.ressourcesPF.barre.label:GetText(), "28 / 60")
 
 dire("== le MJ suit l'initiative : il incarne le PNJ a son tour")
 local function allerA(id)
@@ -100,11 +121,15 @@ end
 allerA(garde.id)
 attendu("le garde joue", C.Courant().id, garde.id)
 attendu("le MJ l'incarne", I.ActuelleId(), garde.id)
+
 attendu("le MJ peut passer le tour d'un PNJ", C.PeutPasser(), true)
 attendu("le bouton est actif", f.passer:IsEnabled(), true)
 attendu("ce n'est pas MON tour", f.avis:IsShown(), false)
 allerA(moi)
 attendu("a mon tour, je reprends ma place", I.ActuelleId(), "")
+-- Relacher est un changement de peau, et rien d'autre n'a bouge : le bandeau
+-- doit suivre tout seul (il n'ecoutait pas `EcouterSoi`).
+attendu("et le bandeau me rend mes PF", f.ressourcesPF.barre.label:GetText(), "60 / 60")
 attendu("c'est mon tour", C.EstMonTour(), true)
 attendu("« C'est votre tour »", f.avis:IsShown(), true)
 

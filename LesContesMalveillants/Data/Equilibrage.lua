@@ -595,9 +595,12 @@ E.mecaniques = {
 -- nulle part n'a pas de defense dediee, et c'est voulu : le Soin, le Bouclier
 -- ou la Creation ne se defendent pas.
 E.defenses = {
-    { id = "defense", label = "Défense", sorte = "reduction", parPoint = 0.03,
+    -- 1 % par point, et non 3 : a 3 %, trente points effacaient la quasi-
+    -- totalite d'un coup et le plafond de 90 % faisait tout le travail
+    -- (decision de l'utilisateur, 11 octobre 2026).
+    { id = "defense", label = "Défense", sorte = "reduction", parPoint = 0.01,
       contre = { "attaque_simple", "perce_armure", "brise_armure" },
-      note = "Retire 3 % des dégâts par point, contre les attaques, les perce-armure et les brise-armure." },
+      note = "Retire 1 % des dégâts par point, contre les attaques, les perce-armure et les brise-armure." },
     { id = "mental", label = "Mental", sorte = "rand", parPoint = 0.5,
       contre = { "confusion", "controle_mental", "illusion" },
       note = "+0,5 au jet de défense par point, contre la confusion, le contrôle mental et l'illusion." },

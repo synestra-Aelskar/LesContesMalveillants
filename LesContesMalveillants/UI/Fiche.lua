@@ -300,21 +300,28 @@ function Lignes.gauge(parent, field, c)
         LCM.Entities.SetGauge(e, field.id, cible)
         l:Actualiser(e)
     end
-    -- PA, fatigue et bouclier sont des ressources de jeu : le joueur ne peut
-    -- plus les fabriquer ou les effacer depuis sa fiche. Leur modification
-    -- passe par les actions et par l'outil Regain du MJ.
-    local verrouillee = field.id == "pa" or field.id == "fatigue" or field.id == "armure"
-    local rappels
-    if not verrouillee then
-        rappels = {
-            moins = function() Poser(-1) end,
-            plus = function() Poser(1) end,
-            remise = function()
-                local jauge = l.entity and LCM.Entities.Gauge(l.entity, field.id)
-                if jauge then Poser(0, field.default ~= nil and field.default or jauge.max) end
-            end,
-        }
+    -- PA, fatigue et boucliers sont des ressources de jeu : le joueur ne les
+    -- fabrique ni ne les efface depuis sa fiche, leur chemin normal reste
+    -- l'action. Le MJ, lui, a les boutons — comme sur les zones du corps —
+    -- pour poser une situation ou essayer une regle sans jouer un tour entier
+    -- (11 octobre 2026). Elles etaient verrouillees pour TOUT LE MONDE.
+    local reserveeAuMJ = field.id == "pa" or field.id == "fatigue" or field.id == "armure"
+    -- Le bouton se cache, et le geste se refuse quand meme : une fenetre
+    -- construite avant que l'on sache qui joue ne doit pas ouvrir une porte.
+    local function Permis()
+        if not reserveeAuMJ or LCM.IsMaster() then return true end
+        LCM.Erreur("Seul le maître du jeu peut modifier cette jauge.")
+        return false
     end
+    local rappels = {
+        moins = function() if Permis() then Poser(-1) end end,
+        plus = function() if Permis() then Poser(1) end end,
+        remise = function()
+            if not Permis() then return end
+            local jauge = l.entity and LCM.Entities.Gauge(l.entity, field.id)
+            if jauge then Poser(0, field.default ~= nil and field.default or jauge.max) end
+        end,
+    }
     Jauge(l, c, COULEURS_JAUGE[field.id] or UI.C.vie, rappels)
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
@@ -323,7 +330,7 @@ function Lignes.gauge(parent, field, c)
         if jauge then self.barre:Regler(jauge.current, jauge.max) end
         self:CaleBarre()
         for _, bouton in ipairs(self.boutons or {}) do
-            bouton:SetShown(not e.distante)
+            bouton:SetShown((not reserveeAuMJ or LCM.IsMaster()) and not e.distante)
         end
     end
     return l

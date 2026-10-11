@@ -56,9 +56,13 @@ local function CadreActif(parent, l, h)
     return cadre
 end
 
+-- CE QU'ON JOUE, pas qui l'on est : le MJ qui incarne un PNJ doit voir les
+-- ressources du PNJ sous le bandeau. `Self()` sait deja tout cela — il demande
+-- l'incarnation, puis le personnage actif. Demander `Personnages.Actif()`
+-- d'abord, comme ici, court-circuitait l'incarnation : elle ne passait jamais
+-- (11 octobre 2026).
 local function MaFiche()
-    local actif = LCM.Personnages and LCM.Personnages.Actif and LCM.Personnages.Actif()
-    return actif or (LCM.Entities and LCM.Entities.Self and LCM.Entities.Self())
+    return LCM.Entities and LCM.Entities.Self and LCM.Entities.Self() or nil
 end
 
 -- Une pastille de PA : disque rouge plein tant que le point est disponible,
@@ -410,3 +414,13 @@ LCM.Entities.Ecouter(function(entity)
     local f = Ecran.frame
     if f and f:IsShown() and entity == MaFiche() then Ecran.RafraichirRessources() end
 end)
+
+-- Et quand on change de peau — incarnation prise ou relachee, autre
+-- personnage choisi — le bandeau suit. Sans cela il gardait les ressources de
+-- l'entite precedente jusqu'a ce qu'une valeur bouge d'elle-meme.
+if LCM.Entities.EcouterSoi then
+    LCM.Entities.EcouterSoi(function()
+        local f = Ecran.frame
+        if f and f:IsShown() then Ecran.RafraichirRessources() end
+    end)
+end

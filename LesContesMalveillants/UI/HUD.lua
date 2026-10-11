@@ -259,7 +259,12 @@ local function Construire()
     -- La composition source est tres detaillee : on la dessine a sa taille
     -- logique puis on la ramene a 72 % pour qu'elle remplace le portrait sans
     -- occuper tout le quart superieur de l'ecran.
-    f:SetScale(0.72)
+    --
+    -- `echellePropre` : « Taille de l'interface » ne me touche pas, j'ai mon
+    -- curseur (UI.EchelleHUD). Sans ce marqueur, agrandir les fenetres pour
+    -- les lire faisait mordre le bandeau sur les cadres de raid.
+    f.echellePropre = true
+    f:SetScale(UI.EchelleHUD and select(2, UI.EchelleHUD()) or 0.72)
     -- Au ras de l'angle : a dix-huit unites, son bas mordait sur les cadres de
     -- groupe, qui commencent juste en dessous.
     f.cle = "hud"

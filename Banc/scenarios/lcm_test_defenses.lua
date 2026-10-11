@@ -85,8 +85,10 @@ attendu("  avec ses points", detail[1] and detail[1].points, 4)
 attendu("le résumé se lit", (D.Resume(moi, "peur")), "Courage 4 (+2)")
 
 dire("== la Défense, elle, retire des dégâts")
-moi.def_defense = 5
-attendu("5 points font 15 %", string.format("%.2f", (D.Reduction(moi, "attaque_simple"))), "0.15")
+-- 1 % par point depuis le 11 octobre 2026, et non 3 : a 3 %, trente points
+-- effacaient presque tout et le plafond de 90 % faisait seul le travail.
+moi.def_defense = 15
+attendu("15 points font 15 %", string.format("%.2f", (D.Reduction(moi, "attaque_simple"))), "0.15")
 attendu("  contre le perce-armure aussi",
     string.format("%.2f", (D.Reduction(moi, "perce_armure"))), "0.15")
 attendu("  et le brise-armure", string.format("%.2f", (D.Reduction(moi, "brise_armure"))), "0.15")
@@ -104,8 +106,8 @@ attendu("1 dégât en laisse 1", (D.Encaisses(moi, "attaque_simple", 1)), 1)
 attendu("sans défense, rien ne change", (D.Encaisses(moi, "peur", 40)), 40)
 
 dire("== et elle ne rend jamais invulnérable")
-moi.def_defense = 100
-attendu("cent points plafonnent",
+moi.def_defense = 200
+attendu("deux cents points plafonnent",
     string.format("%.2f", (D.Reduction(moi, "attaque_simple"))), "0.90")
 attendu("il passe toujours quelque chose", (D.Encaisses(moi, "attaque_simple", 100)), 10)
 attendu("et au moins un point", (D.Encaisses(moi, "attaque_simple", 2)), 1)
@@ -157,7 +159,7 @@ attendu("contre un soin, il ne bouge pas", (A.JetFormule("12", ctxSoin)), 12)
 
 dire("== la Défense retire sa part des dégâts, avant répartition")
 moi.def_courage = 0
-moi.def_defense = 5
+moi.def_defense = 15
 local degats = reception("Attaque simple")
 A.Pas.apply({ amount = "100", sign = "-", tags = "" }, degats, function() end)
 attendu("un effet est déclaré", #degats.effets, 1)

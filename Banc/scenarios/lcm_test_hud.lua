@@ -95,4 +95,45 @@ if decor then
     attendu("  ni de celle du bas", -dy2 <= decor.debordBas + 0.01, true)
 end
 
+dire("== sa taille est la sienne, pas celle des fenêtres")
+-- Il suivait « Taille de l'interface ». Or il n'est pas une fenetre qu'on
+-- ouvre : il reste a l'ecran contre les cadres de groupe du jeu, et agrandir
+-- l'interface pour la lire le faisait mordre sur le raid (11 octobre 2026).
+local UI = LCM.UI
+attendu("il porte le marqueur", f.echellePropre, true)
+attendu("il est dans la liste des fenêtres", (function()
+    for _, w in ipairs(UI.fenetres) do if w == f then return true end end
+    return false
+end)(), true)
+
+UI.EchelleHUD(50)
+local reference = f:GetScale()
+attendu("à 50, sa taille de référence", string.format("%.2f", reference), "0.72")
+
+-- L'échelle générale ne le touche plus...
+-- Une VRAIE fenetre temoin : celle qui n'a pas d'echelle propre.
+local autre
+for _, w in ipairs(UI.fenetres) do if not w.echellePropre then autre = autre or w end end
+attendu("une fenêtre témoin existe", autre ~= nil, true)
+UI.Echelle(100)
+attendu("l'échelle générale agrandit les fenêtres",
+    autre == nil or autre:GetScale() > 1, true)
+attendu("  et laisse le bandeau tranquille", string.format("%.2f", f:GetScale()), "0.72")
+UI.Echelle(0)
+attendu("  dans les deux sens", string.format("%.2f", f:GetScale()), "0.72")
+UI.Echelle(50)
+
+-- ... et la sienne ne touche que lui.
+local avantAutre = autre and autre:GetScale()
+UI.EchelleHUD(100)
+attendu("son curseur l'agrandit", f:GetScale() > reference, true)
+attendu("  sans toucher aux fenêtres", autre and autre:GetScale(), avantAutre)
+attendu("  et c'est retenu", LCM.db.settings.echelleHud, 100)
+UI.EchelleHUD(0)
+attendu("il rapetisse aussi", f:GetScale() < reference, true)
+-- 50 est la valeur neutre : on ne garde rien en sauvegarde pour elle.
+UI.EchelleHUD(50)
+attendu("et 50 ne laisse rien en sauvegarde", LCM.db.settings.echelleHud, nil)
+attendu("  en revenant à la référence", string.format("%.2f", f:GetScale()), "0.72")
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

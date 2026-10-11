@@ -156,6 +156,14 @@ local function Construire()
         "50 : taille normale. En dessous ça rétrécit, au-dessus ça grandit.", 64, UI.Echelle(),
         function(v) return string.format("%d %%", math.floor((0.5 + v / 100) * 100)) end,
         function(v) UI.Echelle(v) f:Actualiser() end, true)
+    -- Le bandeau de personnage n'est pas une fenetre qu'on ouvre : il reste a
+    -- l'ecran, contre les cadres de groupe du jeu. Sa taille se regle a part
+    -- (11 octobre 2026) — il grandit sans que tout grandisse.
+    app.echelleHud, app.echelleHudValeur = Barre(app.general, "Taille du bandeau de personnage",
+        "Les points de vie, la fatigue et les zones, en haut à gauche. Indépendant de la taille de l'interface.",
+        128, UI.EchelleHUD(),
+        function(v) return string.format("%d %%", math.floor((0.5 + v / 100) * 100)) end,
+        function(v) UI.EchelleHUD(v) end, true)
 
     app.theme = CreateFrame("Frame", nil, app)
     app.theme:SetPoint("TOPLEFT", app, "TOPLEFT", 0, -32)
@@ -216,6 +224,9 @@ local function Construire()
         -- `Poser` et pas `Aller` : on remet la poignee en face de la valeur
         -- retenue, sans rejouer le reglage qu'on vient d'appliquer.
         local opacite = UI.Opacite()
+        local echelleHud = UI.EchelleHUD()
+        app.echelleHud:Poser(echelleHud)
+        app.echelleHudValeur:SetText(app.echelleHud.lire(echelleHud))
         local echelle = UI.Echelle()
         app.opacite:Poser(opacite)
         app.echelle:Poser(echelle)

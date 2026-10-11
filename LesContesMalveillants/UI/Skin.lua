@@ -413,7 +413,29 @@ function UI.Echelle(pourcent)
     if pourcent then LCM.db.settings.echelle = (pourcent ~= 50) and pourcent or nil end
     local v = tonumber(LCM.db.settings.echelle) or 50
     local facteur = 0.5 + math.max(0, math.min(v, 100)) / 100
-    for _, f in ipairs(UI.fenetres) do f:SetScale(facteur) end
+    for _, f in ipairs(UI.fenetres) do
+        -- Une fenetre qui porte sa propre echelle garde la sienne : le bandeau
+        -- de personnage ne s'ouvre pas, il vit a cote des cadres de groupe du
+        -- jeu, et sa taille n'a pas les memes contraintes que celle des
+        -- fenetres (11 octobre 2026).
+        if not f.echellePropre then f:SetScale(facteur) end
+    end
+    return v, facteur
+end
+
+-- La taille du bandeau de personnage, independante de celle des fenetres.
+-- 50 vaut sa taille de reference : la composition est dessinee en grand puis
+-- ramenee a 72 %, et c'est ce 72 % qui est le « normal ».
+UI.ECHELLE_HUD_BASE = 0.72
+
+function UI.EchelleHUD(pourcent)
+    LCM.EnsureDatabase()
+    if pourcent then LCM.db.settings.echelleHud = (pourcent ~= 50) and pourcent or nil end
+    local v = tonumber(LCM.db.settings.echelleHud) or 50
+    local facteur = UI.ECHELLE_HUD_BASE * (0.5 + math.max(0, math.min(v, 100)) / 100)
+    for _, f in ipairs(UI.fenetres) do
+        if f.echellePropre then f:SetScale(facteur) end
+    end
     return v, facteur
 end
 
@@ -421,6 +443,7 @@ LCM.WhenReady(function()
     UI.AppliquerTheme()
     UI.Opacite()
     UI.Echelle()
+    UI.EchelleHUD()
 end)
 
 -- ===== Atlas des widgets ===================================================
