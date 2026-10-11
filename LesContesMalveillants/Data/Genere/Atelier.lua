@@ -73,7 +73,7 @@ LCM.Publier(LCM.Listes, {
     liste = "type_accessoires",
 })
 
--- ----- objets (27) --------------------------------------------------
+-- ----- objets (28) --------------------------------------------------
 LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
@@ -212,8 +212,8 @@ LCM.Publier(LCM.Objets, {
     couleurTitre = "4D8CFF",
     description = "Une armure composée d'un, alliage léger sans doute fait de mithril permet à son porteur de rester mobile. Néanmoins l'armure  porte des enchantements qui décuple la force du porteur, lui permettant de supporter un tel fardeau.\n\nArmure Lourde mais considérée comme une armure de catégorie plus légère au niveau du poids.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 30,
+        max = 30,
     },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_chest_leather_11",
@@ -226,17 +226,20 @@ LCM.Publier(LCM.Objets, {
 LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
+        force_brise_armure = 2,
         meca_brise_armure = 1,
-        pen_contondant = 4,
+        mystique_brise_armure = 2,
+        pen_contondant = 2,
         pen_perforant = 2,
-        pen_tranchant = 6,
+        pen_tranchant = 4,
+        perception_brise_armure = 2,
     },
     categorie = "arme",
     couleurTitre = "4DE04D",
     description = "Une hallebarde forgée en thorium et pourvue de nombreux enchantement, l'arme est particulièrement lourde du fait de l'alliage qui la compose. Un utilisateur habile peut ouvrir des armures et tenir tête à une foule d'ennemis. On raconte même qu'elle permet à son utilisateur de briser le sol.\n\nEn puissant dans la magie de l'arme, l'utilisateur peut fracasser le sol sous les pieds de ses adversaires pour les faire tomber à la renverse.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 10,
+        max = 10,
     },
     forge = "equilibrage_arme/inhabituel",
     icone = "Interface\\ICONS\\inv_polearm_2h_maw_c_01",
@@ -355,24 +358,23 @@ LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
         discretion = 1,
-        resi_contondant = 4,
-        resi_feu = 3,
+        resi_contondant = 6,
+        resi_feu = 7,
         resi_lumiere = -2,
-        resi_perforant = 4,
-        resi_tranchant = 4,
+        resi_perforant = 6,
+        resi_tranchant = 6,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Une tenue sombre et délicate, qui semble clairement imbibée d'un manteau d'ombre.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 18,
+        max = 18,
     },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_leather_raidrogue_p_01chest",
     id = "lcm_64a651_6ac7be10_36cf7992_0004_fb40af",
     label = "Tenue d'assassin du culte.",
-    remplacePublie = true,
     tags = "Rare",
 })
 
@@ -381,18 +383,18 @@ LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
         discretion = 2,
-        resi_contondant = 3,
-        resi_feu = 2,
+        resi_contondant = 4,
+        resi_feu = 5,
         resi_lumiere = -2,
-        resi_perforant = 3,
-        resi_tranchant = 3,
+        resi_perforant = 4,
+        resi_tranchant = 4,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "..Nimbée d'ombre.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 18,
+        max = 18,
     },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_leather_warfrontshorde_d_01_pants",
@@ -406,12 +408,13 @@ LCM.Publier(LCM.Objets, {
     armure = 2,
     avantage = {  },
     bonus = {
+        course = 1,
         discretion = 2,
-        resi_contondant = 3,
+        resi_contondant = 4,
         resi_feu = 2,
         resi_lumiere = -2,
         resi_perforant = 3,
-        resi_tranchant = 3,
+        resi_tranchant = 4,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",
@@ -433,11 +436,12 @@ LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
         discretion = 2,
-        resi_contondant = 3,
-        resi_feu = 2,
+        pen_ombre = 3,
+        resi_contondant = 4,
+        resi_feu = 3,
         resi_lumiere = -2,
-        resi_perforant = 3,
-        resi_tranchant = 3,
+        resi_perforant = 4,
+        resi_tranchant = 4,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",
@@ -459,10 +463,11 @@ LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
         discretion = 2,
-        resi_contondant = 3,
+        resi_contondant = 4,
         resi_feu = 2,
-        resi_perforant = 2,
+        resi_perforant = 3,
         resi_tranchant = 3,
+        vue = 1,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",
@@ -480,9 +485,10 @@ LCM.Publier(LCM.Objets, {
 })
 
 LCM.Publier(LCM.Objets, {
+    avantage = {  },
     bonus = {
         crochetage = 2,
-        discretion = 2,
+        discretion = 3,
         evasion = 2,
         sabotage = 2,
         vol_a_la_tire = 1,
@@ -490,26 +496,37 @@ LCM.Publier(LCM.Objets, {
     categorie = "accessoire",
     couleurTitre = "4D8CFF",
     description = "Parfait pour stocker des lames.",
+    etat = {
+        courant = 10,
+        max = 10,
+    },
     forge = "equilibrage_armure_copie/rare",
     icone = "Interface\\ICONS\\inv_cloth_mawraid_d_01_belt",
     id = "lcm_64a651_6ac7bf81_36d51ea2_0010_f1c74a",
     label = "Baudrier de l'assassin.",
+    remplacePublie = true,
     tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
+    avantage = {  },
     bonus = {
         discretion = 2,
         meca_perce_armure = 2,
-        pen_ombre = 5,
+        pen_ombre = 6,
     },
     categorie = "accessoire",
     couleurTitre = "4D8CFF",
     description = "Une paire de bracelet qui semble augmenter la puissance des ombres ainsi que les facultés d'assassins de son porteur.",
+    etat = {
+        courant = 10,
+        max = 10,
+    },
     forge = "equilibrage_armure_copie/rare",
     icone = "Interface\\ICONS\\dos2_shadow12",
     id = "lcm_64a651_6ac7bfb7_36d5f1de_0011_981ba7",
     label = "Bracelets du cisaire de Nocturna",
+    remplacePublie = true,
     tags = "Rare",
 })
 
@@ -573,6 +590,26 @@ LCM.Publier(LCM.Objets, {
     remplacePublie = true,
     tags = "Inhabituel",
     taille = 2,
+})
+
+LCM.Publier(LCM.Objets, {
+    bonus = {
+        pen_ombre = 3,
+        resi_lumiere = 4,
+        resi_ombre = 4,
+    },
+    categorie = "accessoire",
+    couleurTitre = "4D8CFF",
+    description = "Une marque gravée par les ombres, prouvant dans la chair et l'âme, que le cultiste est dévoué à nocturna. Lorsqu'il meurt, Nocturna emporte son corps dans un brasier de flamme noire.",
+    etat = {
+        courant = 2,
+        max = 2,
+    },
+    forge = "equilibrage_armure_copie/rare",
+    icone = "Interface\\ICONS\\d3_markedfordeath",
+    id = "lcm_64a651_6acb7e3f_07f0f686_000e_eee119",
+    label = "Marque du culte de rang 8",
+    tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
@@ -1040,7 +1077,7 @@ LCM.Publier(LCM.Tentes, {
     origine = "Aelskar",
 })
 
--- ----- traits (32) --------------------------------------------------
+-- ----- traits (33) --------------------------------------------------
 LCM.Publier(LCM.Traits, {
     bonus = {
         pen_perforant = 1,
@@ -1318,6 +1355,20 @@ LCM.Publier(LCM.Traits, {
     icone = "Interface\\ICONS\\ability_demonhunter_consumemagic",
     id = "lcm_64a651_6acabb9f_04f8b719_0002_c63df8",
     label = "Force Xorothienne",
+    tags = "Commun",
+})
+
+LCM.Publier(LCM.Traits, {
+    bonus = {
+        pistage = 1,
+        vue = 2,
+    },
+    couleurTitre = "FF8CB8",
+    description = "Monstre de la nuit, les voyageurs nocturnes disposent d'une faculté innée à percevoir dans la pénombre, et se frayer un chemin là où leur cible attend leur mort.",
+    forge = "traits/commun",
+    icone = "Interface\\ICONS\\ability_rogue_nightblade",
+    id = "lcm_64a651_6acb7c33_07e8ea2e_0001_290bb6",
+    label = "Voyageur nocturne.",
     tags = "Commun",
 })
 

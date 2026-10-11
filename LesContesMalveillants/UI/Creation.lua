@@ -67,8 +67,10 @@ local TEXTES = {
     expertises = "Les expertises représentent les compétences diverses et variées qu'un personnage sait faire "
         .. "ou non.\n\nIl est possible que certaines expertises ne soient pas présentées dans cette liste ; le "
         .. "cas échéant, celles-ci sont traitées soit au feeling, soit par aval d'un maître du jeu.",
-    metiers = "Un personnage joueur dispose de 4 points de métier, quel que soit son niveau d'aventure. "
-        .. "Un PNJ dispose de 4 points par niveau et peut en laisser une partie inutilisée.\n\n"
+    metiers = "Un personnage joueur dispose de 4 points de métier, quel que soit son niveau d'aventure, "
+        .. "et aucun de ses métiers ne dépasse le niveau 4.\n\n"
+        .. "Un PNJ dispose de 4 points par niveau, peut en laisser une partie inutilisée, et n'a pas cette "
+        .. "limite de 4 : un seul de ses métiers peut monter jusqu'au bout du barème.\n\n"
         .. "Chaque point augmente directement le niveau du métier choisi de 1.",
     penetrations = "Les pénétrations représentent les compétences du personnage dans un domaine lorsqu'il "
         .. "s'agit de manipuler ce dernier à des fins actives.\n\n"
@@ -1593,14 +1595,19 @@ local function Construire()
         self.brouillon = brouillon or self.brouillon or C.Nouveau()
         local montee = self.brouillon.mode == "niveau"
         local pnj = self.brouillon.mode == "pnj"
+        -- Un PNJ REPRIS n'est pas un PNJ cree : on le dit, pour qu'on ne
+        -- croie pas en fabriquer un second.
+        local repris = pnj and self.brouillon.pnj ~= nil
         local reequilibrage = self.brouillon.mode == "reequilibrage"
         local edition = self.brouillon.entite ~= nil
         self:Titre(reequilibrage and "Rééquilibrage requis"
             or (montee and string.format("Niveau %d → %d", self.brouillon.niveauAvant, self.brouillon.niveau)
-            or (pnj and "Création d'un PNJ" or (edition and "Réédition" or "Création"))))
+            or (pnj and (repris and "Réédition d'un PNJ" or "Création d'un PNJ")
+            or (edition and "Réédition" or "Création"))))
         self.valider.label:SetText(montee and ("Valider le niveau " .. tostring(self.brouillon.niveau))
             or (reequilibrage and "Valider le rééquilibrage"
-            or (pnj and "Créer le PNJ" or (edition and "Valider la fiche" or "Créer le personnage"))))
+            or (pnj and (repris and "Enregistrer le PNJ" or "Créer le PNJ")
+            or (edition and "Valider la fiche" or "Créer le personnage"))))
         self.recap.titre:SetText(montee and "Gains de ce niveau"
             or (reequilibrage and "Nouvel équilibrage" or "Récapitulatif"))
         self.remiseTotale.label:SetText(montee and "Réinitialiser ce niveau" or "Tout remettre à zéro")
@@ -1636,14 +1643,20 @@ end
 
 -- Point d'entree du compagnon MJ : meme createur, mais la validation lui rend
 -- une definition a enregistrer dans le compendium au lieu de creer un joueur.
-function Ecran.OuvrirPNJ(sauver)
+--
+-- `brouillon` sert a REPRENDRE un PNJ existant (Creation.DepuisPNJ) : meme
+-- parcours, mais rempli de ce qu'il est deja.
+function Ecran.OuvrirPNJ(sauver, brouillon)
     local impose = ProfilActifAReequilibrer()
     if impose then return Ecran.Reequilibrer(impose) end
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     if type(sauver) ~= "function" then return nil, "enregistrement du PNJ indisponible." end
+    if brouillon ~= nil and (type(brouillon) ~= "table" or brouillon.mode ~= "pnj") then
+        return nil, "reprise de PNJ invalide."
+    end
     local f = Ecran.Fenetre()
     f.sauverPNJ = sauver
-    f:Montrer(C.NouveauPNJ())
+    f:Montrer(brouillon or C.NouveauPNJ())
     return f
 end
 

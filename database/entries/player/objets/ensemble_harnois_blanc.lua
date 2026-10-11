@@ -14,8 +14,8 @@ return {
     couleurTitre = "4D8CFF",
     description = "Une armure composée d'un, alliage léger sans doute fait de mithril permet à son porteur de rester mobile. Néanmoins l'armure  porte des enchantements qui décuple la force du porteur, lui permettant de supporter un tel fardeau.\n\nArmure Lourde mais considérée comme une armure de catégorie plus légère au niveau du poids.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 30,
+        max = 30,
     },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_chest_leather_11",

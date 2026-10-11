@@ -403,6 +403,13 @@ function Creation.Plafond(brouillon, categorie, champ)
         local p = Eq().resistance.plafond
         return math.floor(Creation.Valeur(brouillon, "constitution") * p.parConstitution) + p.base
     elseif categorie == "metiers" then
+        -- Quatre, c'est la limite d'un JOUEUR : il n'a que quatre points en
+        -- tout, un par niveau de metier. Un PNJ en recoit quatre par niveau,
+        -- et le brider a quatre interdisait le forgeron legendaire du village
+        -- (11 octobre 2026). Reste le bareme, qui s'arrete pour de bon.
+        if brouillon.mode == "pnj" then
+            return (LCM.Metiers and LCM.Metiers.RangMax and LCM.Metiers.RangMax()) or 4
+        end
         return 4
     end
     return 0
@@ -774,6 +781,17 @@ function Creation.PeutEditer(entity)
     return false, "il faut un jeton de réédition : demande-le au maître du jeu."
 end
 
+-- « Autre » se precise librement, et c'est CE TEXTE qui est enregistre (« Non
+-- binaire », par exemple). Relu tel quel, il n'allumait aucun des trois
+-- boutons et la precision disparaissait : on le reconnait comme un « Autre ».
+local SEXES = { ["Féminin"] = true, ["Masculin"] = true, ["Autre"] = true }
+local function RelireSexe(brouillon)
+    local sexe = brouillon.valeurs.sexe
+    if sexe ~= nil and sexe ~= "" and not SEXES[tostring(sexe)] then
+        brouillon.valeurs.sexe, brouillon.sexeAutre = "Autre", tostring(sexe)
+    end
+end
+
 -- Un brouillon fait d'une fiche existante : on repart de ce qu'elle est, et
 -- `entite` dit que la validation modifiera CELLE-LA au lieu d'en creer une.
 function Creation.Depuis(entity)
@@ -799,9 +817,57 @@ function Creation.Depuis(entity)
         local valeur = LCM.Entities.Get_Value(entity, champ)
         if valeur ~= nil and valeur ~= "" then brouillon.valeurs[champ] = valeur end
     end
+    RelireSexe(brouillon)
     brouillon.traits = {}
     for _, id in ipairs(LCM.Traits.Ids and LCM.Traits.Ids(entity) or {}) do
         brouillon.traits[#brouillon.traits + 1] = id
+    end
+    return brouillon
+end
+
+-- Rouvrir la CREATION d'un PNJ du compendium (clic droit sur son engrenage,
+-- 11 octobre 2026). Le clic gauche ouvre sa fiche : ce qu'il EST. Mais la
+-- fiche ne montre plus ce qui a ete CHOISI — la race, le niveau, la
+-- repartition des points — et un PNJ mal dose se refaisait de zero.
+--
+-- On part du MODELE du compendium, pas d'une entite : c'est lui que la ligne
+-- du tableau tient, et il vaut aussi pour un PNJ publie. Ses metiers y sont
+-- ranges en XP (Core/Contenus.lua les convertit a la construction) ; on les
+-- relit en rangs, puisque c'est en rangs que la creation les depense.
+function Creation.DepuisPNJ(modele)
+    if type(modele) ~= "table" then return nil, "aucun PNJ." end
+    local valeurs = modele.valeurs or {}
+    local brouillon = Creation.NouveauPNJ(valeurs.niveau)
+    -- Ce marqueur dit a l'ecran qu'il REPREND un PNJ : le titre, le bouton de
+    -- validation et l'identifiant enregistre en dependent.
+    brouillon.pnj = tostring(modele.id or "")
+    brouillon.nom = tostring(modele.label or "")
+    brouillon.race = tostring(valeurs.race or "")
+
+    -- Seulement ce que la creation sait depenser. Le reste du modele
+    -- (equipement, etats, apprentissages) ne la regarde pas et doit survivre
+    -- a la reprise : c'est l'appelant qui le reporte.
+    for _, categorie in ipairs(Creation.CATEGORIES or {}) do
+        if categorie ~= "metiers" and categorie ~= "traits" then
+            for _, ligne in ipairs(Creation.Lignes(categorie) or {}) do
+                local id = ligne.id or ligne
+                local valeur = tonumber(valeurs[id])
+                if valeur and valeur ~= 0 then brouillon.valeurs[id] = valeur end
+            end
+        end
+    end
+    for _, champ in ipairs({ "sexe", "age", "poids", "taille", "portrait" }) do
+        if valeurs[champ] ~= nil and valeurs[champ] ~= "" then
+            brouillon.valeurs[champ] = valeurs[champ]
+        end
+    end
+    RelireSexe(brouillon)
+    for _, id in ipairs(modele.traits or {}) do
+        brouillon.traits[#brouillon.traits + 1] = id
+    end
+    for _, metier in ipairs(LCM.Metiers and LCM.Metiers.list or {}) do
+        local rang = LCM.Metiers.Palier(modele, metier.id).rang
+        if rang > 0 then brouillon.metiers[metier.id] = rang end
     end
     return brouillon
 end

@@ -620,7 +620,10 @@ local function MinimumSantePossible(f, possible)
     return math.min(f.minimum or 0, capacite, possible or f.montant)
 end
 
-local function Rafraichir(f)
+-- `saisieEnCours` : la ligne ou l'on tape. On ne lui reecrit pas son texte
+-- sous les doigts ; sa valeur bornee lui est rendue par l'appelant, et
+-- seulement si elle differe de ce qui est tape.
+local function Rafraichir(f, saisieEnCours)
     local place, sante, possible = Etat(f)
     local requis = MinimumSantePossible(f, possible)
     local perceOk = sante >= requis
@@ -633,7 +636,7 @@ local function Rafraichir(f)
     for i, case in ipairs(f.cases) do
         local l = f.lignes[i]
         local n = f.valeurs[i] or 0
-        l.valeur:SetText(tostring(n))
+        if i ~= saisieEnCours then l.valeur:SetText(tostring(n)) end
         l.etat:SetText(string.format("%d / %d  ->  %d", case.courant, case.max, case.courant + (f.signe == "+" and n or -n)))
     end
     -- On a tout place (ou tout ce qui pouvait l'etre), et la sante a recu au
@@ -703,9 +706,22 @@ function Ecran.Repartir(ctx, fin)
             Placer(l.etat, "LEFT", l, "LEFT", 150, 0)
             l.plus = UI.Bouton(l, "+", 22, 20, function() Ecran.Ajuster(i, 1) end)
             Placer(l.plus, "RIGHT", l, "RIGHT", -4, 0)
-            l.valeur = UI.Texte(l, "0", UI.C.titre, "GameFontNormal")
-            l.valeur:SetWidth(34)
+            -- Le chiffre se SAISIT : quarante-six points a coups de « + »,
+            -- c'est quarante-six clics. Le garde-fou reste celui des boutons
+            -- (Borner) ; une saisie trop grande est ramenee a ce qui tient, et
+            -- la case le montre aussitot.
+            l.valeur = UI.Champ(l, 40, 20, function(texte)
+                local pose = Ecran.Poser(i, tonumber(texte) or 0)
+                if texte ~= "" and tostring(pose) ~= texte then
+                    l.valeur:SetText(tostring(pose))
+                end
+            end)
+            l.valeur:SetNumeric(true)
+            l.valeur:SetMaxLetters(6)
             l.valeur:SetJustifyH("CENTER")
+            -- Cliquer dans la case selectionne ce qu'elle contient : on tape
+            -- son nombre, on ne le colle pas derriere l'ancien.
+            l.valeur:SetScript("OnEditFocusGained", function(soi) soi:HighlightText() end)
             Placer(l.valeur, "RIGHT", l.plus, "LEFT", -2, 0)
             l.moins = UI.Bouton(l, "-", 22, 20, function() Ecran.Ajuster(i, -1) end)
             Placer(l.moins, "RIGHT", l.valeur, "LEFT", -2, 0)
@@ -723,6 +739,11 @@ function Ecran.Repartir(ctx, fin)
         y = y + 28
     end
     for i = #cases + 1, #f.lignes do f.lignes[i]:Hide() end
+    -- La tabulation descend d'une zone a l'autre, dans l'ordre affiche.
+    for i = 1, #cases do
+        f.lignes[i].valeur.precedent = f.lignes[i - 1] and f.lignes[i - 1].valeur or nil
+        f.lignes[i].valeur.suivant = f.lignes[i + 1] and f.lignes[i + 1].valeur or nil
+    end
     f.zone:Regler(y)
     Rafraichir(f)
     f:Show()
@@ -730,24 +751,41 @@ function Ecran.Repartir(ctx, fin)
     return f
 end
 
-function Ecran.Ajuster(i, pas)
-    local f = Ecran.repartition
+-- Le garde-fou, ecrit une seule fois : un clic et une saisie ne peuvent pas
+-- autoriser deux choses differentes. On ne depasse ni le plafond de la zone,
+-- ni ce qui reste a repartir, et on reserve des maintenant la part obligatoire
+-- aux PV — ainsi « Tout » sur un bouclier ne remplit plus une repartition
+-- qu'il faut ensuite defaire a la main pour respecter le perce-armure.
+local function Borner(f, i, voulu)
     local case = f.cases[i]
+    if not case then return 0 end
     local place, sante, possible = Etat(f)
     local n = f.valeurs[i] or 0
-    local voulu = n + pas
-    if pas == math.huge then voulu = n + (f.montant - place) end
     voulu = math.max(0, math.min(voulu, case.plafond, n + (f.montant - place)))
-    -- Reserve des le clic la part obligatoire aux PV. Ainsi « Tout » sur un
-    -- bouclier ou une piece d'armure ne remplit plus une repartition qu'il faut
-    -- ensuite defaire a la main pour respecter le perce-armure.
     if not case.sante and f.minimum > 0 then
         local requis = MinimumSantePossible(f, possible)
         local horsSanteSansCetteCase = (place - sante) - n
         voulu = math.min(voulu, math.max(0, possible - requis - horsSanteSansCetteCase))
     end
-    f.valeurs[i] = voulu
+    return voulu
+end
+
+function Ecran.Ajuster(i, pas)
+    local f = Ecran.repartition
+    local n = f.valeurs[i] or 0
+    local place = Etat(f)
+    local voulu = (pas == math.huge) and (n + (f.montant - place)) or (n + pas)
+    f.valeurs[i] = Borner(f, i, voulu)
     Rafraichir(f)
+end
+
+-- Saisie directe. Rend la valeur retenue : l'appelant corrige la case quand
+-- elle a ete bornee, et la laisse telle quelle sinon.
+function Ecran.Poser(i, valeur)
+    local f = Ecran.repartition
+    f.valeurs[i] = Borner(f, i, math.floor(tonumber(valeur) or 0))
+    Rafraichir(f, i)
+    return f.valeurs[i]
 end
 
 function Ecran.Appliquer(oui)

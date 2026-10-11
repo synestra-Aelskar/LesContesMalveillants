@@ -9,6 +9,9 @@ return {
         adresse = {
             verrou = true,
         },
+        age = {
+            verrou = true,
+        },
         communication = {
             cout = 2,
             min = -2,
@@ -17,31 +20,31 @@ return {
             verrou = true,
         },
         constitution_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         cosmique = {
@@ -56,8 +59,29 @@ return {
             cout = 2,
             min = -2,
         },
+        def_agilite = {
+            cout = "2",
+        },
+        def_courage = {
+            cout = "2",
+        },
+        def_defense = {
+            cout = "2",
+        },
+        def_esprit_libre = {
+            cout = "2",
+        },
+        def_insensible = {
+            cout = "2",
+        },
+        def_mental = {
+            cout = "2",
+        },
+        def_stable = {
+            cout = "2",
+        },
         defense_constitution = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         deguisement = {
@@ -72,16 +96,19 @@ return {
             cout = 1,
             min = -1,
         },
+        depl_vol = {
+            verrou = true,
+        },
         discretion = {
             cout = 2,
             min = -2,
         },
         duree_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         duree_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         elementaire = {
@@ -108,16 +135,22 @@ return {
             verrou = true,
         },
         esprit_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         esprit_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         evasion = {
             cout = 2,
             min = -2,
+        },
+        existence_ame = {
+            verrou = true,
+        },
+        existence_esprit = {
+            verrou = true,
         },
         fatigue = {
             cout = 2,
@@ -127,39 +160,39 @@ return {
             verrou = true,
         },
         force_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         initiative = {
@@ -171,135 +204,150 @@ return {
             min = -2,
         },
         meca_attaque_simple = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_attraction = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_confusion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_controle_mental = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_creation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_deviation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_dissipation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_dot = {
+            cout = "2",
+        },
         meca_entrave = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_illusion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_immobilisation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_intervention = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_intimidation = {
+            cout = "2",
+        },
         meca_levitation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_permutation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_peur = {
+            cout = "2",
+        },
+        meca_provocation = {
+            cout = "2",
+        },
         meca_repulsion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique = {
             verrou = true,
         },
         mystique_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         nage = {
             cout = 2,
             min = -2,
+        },
+        niveau = {
+            verrou = true,
         },
         odorat_gout = {
             cout = 2,
@@ -315,84 +363,102 @@ return {
             min = -1,
         },
         pen_contondant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_desordre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_eau = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_esprit = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_feu = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_lumiere = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_mort = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_ombre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_ordre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_perforant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_pourriture = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_terre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_tranchant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_vent = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_vie = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         perception = {
             verrou = true,
         },
         perception_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         pistage = {
             cout = 2,
             min = -2,
+        },
+        poids = {
+            verrou = true,
         },
         prise = {
             cout = 2,
@@ -407,72 +473,72 @@ return {
             min = -2,
         },
         puissance_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         puissance_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         resi_contondant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_desordre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_eau = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_esprit = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_feu = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_lumiere = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_mort = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_ombre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_ordre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_perforant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_pourriture = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_terre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_tranchant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_vent = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_vie = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resistance = {
             cout = 2,
@@ -481,6 +547,33 @@ return {
         sabotage = {
             cout = 2,
             min = -2,
+        },
+        sec_deplacement = {
+            verrou = true,
+        },
+        sec_expertises = {
+            verrou = true,
+        },
+        sec_fatigue = {
+            verrou = true,
+        },
+        sec_initiative = {
+            verrou = true,
+        },
+        sec_mecanique = {
+            verrou = true,
+        },
+        sec_pa = {
+            verrou = true,
+        },
+        sec_penetration = {
+            verrou = true,
+        },
+        sec_resistance = {
+            verrou = true,
+        },
+        sec_vitalite = {
+            verrou = true,
         },
         toucher = {
             cout = 2,
@@ -543,4 +636,5 @@ return {
             points = 50,
         },
     },
+    remplacePublie = true,
 }

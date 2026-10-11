@@ -856,7 +856,21 @@ function Fenetre.NouvelleLigne(f, index)
     r.reglages.icone = r.reglages:CreateTexture(nil, "ARTWORK")
     r.reglages.icone:SetAllPoints(r.reglages)
     r.reglages.icone:SetTexture("Interface\\Buttons\\UI-OptionsButton")
-    r.reglages:SetScript("OnClick", function() f:Editer(r.element) end)
+    r.reglages:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    r.reglages:SetScript("OnClick", function(_, bouton)
+        f:Editer(r.element, bouton == "RightButton" and "creation" or nil)
+    end)
+    -- Le clic droit n'a de sens que la ou il mene ailleurs : la bulle ne
+    -- l'annonce donc que pour les PNJ, et elle se relit a chaque survol
+    -- (la categorie affichee change, la ligne est reutilisee).
+    UI.Bulle(r.reglages, "Modifier", function()
+        local categorie = f:Categorie()
+        if categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
+            return "Clic gauche : sa fiche.\n"
+                .. "Clic droit : rouvrir sa création — race, niveau, répartition des points."
+        end
+        return "Ouvre cette entrée dans l'éditeur."
+    end)
     r.supprimer = Action(r, "X")
     r.supprimer:SetScript("OnClick", function() f:Supprimer({ r.element }) end)
     r.dupliquer = Action(r, "Dup")
@@ -1049,9 +1063,9 @@ function Fenetre.Comportement(f)
         if ed then ed.Ouvrir(self:Categorie(), nil) end
     end
 
-    function f:Editer(element)
+    function f:Editer(element, mode)
         local ed = Editeur()
-        if ed and element then ed.Ouvrir(self:Categorie(), element) end
+        if ed and element then ed.Ouvrir(self:Categorie(), element, mode) end
     end
 
     function f:Dupliquer(element)

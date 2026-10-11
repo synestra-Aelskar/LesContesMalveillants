@@ -13,32 +13,56 @@ LCM.Publier(LCM.Forge, {
     categorie = "armes",
     champs = {
         acrobaties = {
+            base = 0,
             cout = 2,
             min = -2,
+        },
+        adresse = {
+            verrou = true,
+        },
+        age = {
+            verrou = true,
         },
         communication = {
             cout = 2,
             min = -2,
         },
+        constitution = {
+            verrou = true,
+        },
         constitution_bouclier = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         constitution_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         constitution_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         constitution_empoisonnement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         constitution_intimidation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         constitution_provocation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         constitution_soin = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         cosmique = {
@@ -46,52 +70,57 @@ LCM.Publier(LCM.Forge, {
             min = -2,
         },
         course = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         crochetage = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         def_agilite = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_courage = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_defense = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_esprit_libre = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_insensible = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_mental = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         def_stable = {
-            cout = "4",
-            max = "4",
-            min = "-2",
+            cout = "2",
+            max = 4,
+            min = -2,
         },
         defense_constitution = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         deguisement = {
+            base = 0,
             cout = 2,
             min = -2,
         },
@@ -101,14 +130,22 @@ LCM.Publier(LCM.Forge, {
         depl_terrestre = {
             cout = 1,
         },
+        depl_vol = {
+            verrou = true,
+        },
         discretion = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         duree_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         duree_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         elementaire = {
@@ -116,59 +153,98 @@ LCM.Publier(LCM.Forge, {
             min = -2,
         },
         endurance = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         equilibre = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         escalade = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         escamotage = {
+            base = 0,
             cout = 2,
             min = -2,
         },
+        esprit = {
+            verrou = true,
+        },
         esprit_intimidation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         esprit_provocation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         evasion = {
+            base = 0,
             cout = 2,
             min = -2,
+        },
+        existence_ame = {
+            verrou = true,
+        },
+        existence_esprit = {
+            verrou = true,
         },
         fatigue = {
             cout = 2,
         },
+        force = {
+            verrou = true,
+        },
         force_attaque = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_bouclier = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_brise_armure = {
+            base = 2,
+            cout = 2,
             min = -2,
         },
         force_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         force_intimidation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_perce_armure = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_provocation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         force_saignement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         initiative = {
@@ -179,161 +255,190 @@ LCM.Publier(LCM.Forge, {
             min = -2,
         },
         meca_attaque_simple = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_attraction = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_bouclier = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_brise_armure = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_buff = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_confusion = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_controle_mental = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_creation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_debuff = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_deviation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_dissipation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_dot = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_entrave = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_illusion = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_immobilisation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_intervention = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_intimidation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_levitation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_perce_armure = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_permutation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_peur = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_provocation = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_repulsion = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
         meca_soin = {
-            cout = 4,
+            cout = "2",
             max = 4,
             min = -2,
         },
+        mystique = {
+            verrou = true,
+        },
         mystique_attaque = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_bouclier = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_brise_armure = {
+            base = 2,
+            cout = 2,
             min = -2,
         },
         mystique_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         mystique_empoisonnement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_intimidation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_perce_armure = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_provocation = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_saignement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         mystique_soin = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         nage = {
+            base = 0,
             cout = 2,
             min = -2,
+        },
+        niveau = {
+            verrou = true,
         },
         odorat_gout = {
             cout = 2,
@@ -407,47 +512,74 @@ LCM.Publier(LCM.Forge, {
             cout = 0.25,
             min = -6,
         },
+        perception = {
+            verrou = true,
+        },
         perception_attaque = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         perception_brise_armure = {
+            base = 2,
+            cout = 2,
             min = -2,
         },
         perception_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         perception_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         perception_empoisonnement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         perception_perce_armure = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         perception_saignement = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         pistage = {
             cout = 2,
             min = -2,
         },
+        poids = {
+            verrou = true,
+        },
         prise = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         projection = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         puissance = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         puissance_buff = {
+            base = 0,
+            cout = 2,
             min = -2,
         },
         puissance_debuff = {
+            cout = 2,
+            max = 2,
             min = -2,
         },
         resi_contondant = {
@@ -511,18 +643,48 @@ LCM.Publier(LCM.Forge, {
             min = -6,
         },
         resistance = {
+            base = 0,
             cout = 2,
             min = -2,
         },
         sabotage = {
+            base = 0,
             cout = 2,
             min = -2,
+        },
+        sec_deplacement = {
+            verrou = true,
+        },
+        sec_expertises = {
+            verrou = true,
+        },
+        sec_fatigue = {
+            verrou = true,
+        },
+        sec_initiative = {
+            verrou = true,
+        },
+        sec_mecanique = {
+            verrou = true,
+        },
+        sec_pa = {
+            verrou = true,
+        },
+        sec_penetration = {
+            verrou = true,
+        },
+        sec_resistance = {
+            verrou = true,
+        },
+        sec_vitalite = {
+            verrou = true,
         },
         toucher = {
             cout = 2,
             min = -2,
         },
         vol_a_la_tire = {
+            base = 0,
             cout = 2,
             min = -2,
         },
@@ -591,6 +753,9 @@ LCM.Publier(LCM.Forge, {
         adresse = {
             verrou = true,
         },
+        age = {
+            verrou = true,
+        },
         communication = {
             cout = 2,
             min = -2,
@@ -599,31 +764,31 @@ LCM.Publier(LCM.Forge, {
             verrou = true,
         },
         constitution_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         constitution_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         cosmique = {
@@ -638,8 +803,29 @@ LCM.Publier(LCM.Forge, {
             cout = 2,
             min = -2,
         },
+        def_agilite = {
+            cout = "2",
+        },
+        def_courage = {
+            cout = "2",
+        },
+        def_defense = {
+            cout = "2",
+        },
+        def_esprit_libre = {
+            cout = "2",
+        },
+        def_insensible = {
+            cout = "2",
+        },
+        def_mental = {
+            cout = "2",
+        },
+        def_stable = {
+            cout = "2",
+        },
         defense_constitution = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         deguisement = {
@@ -654,16 +840,19 @@ LCM.Publier(LCM.Forge, {
             cout = 1,
             min = -1,
         },
+        depl_vol = {
+            verrou = true,
+        },
         discretion = {
             cout = 2,
             min = -2,
         },
         duree_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         duree_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         elementaire = {
@@ -690,16 +879,22 @@ LCM.Publier(LCM.Forge, {
             verrou = true,
         },
         esprit_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         esprit_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         evasion = {
             cout = 2,
             min = -2,
+        },
+        existence_ame = {
+            verrou = true,
+        },
+        existence_esprit = {
+            verrou = true,
         },
         fatigue = {
             cout = 2,
@@ -709,39 +904,39 @@ LCM.Publier(LCM.Forge, {
             verrou = true,
         },
         force_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         force_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         initiative = {
@@ -753,135 +948,150 @@ LCM.Publier(LCM.Forge, {
             min = -2,
         },
         meca_attaque_simple = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_attraction = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_confusion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_controle_mental = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_creation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_deviation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_dissipation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_dot = {
+            cout = "2",
+        },
         meca_entrave = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_illusion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_immobilisation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_intervention = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_intimidation = {
+            cout = "2",
+        },
         meca_levitation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_permutation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
+        meca_peur = {
+            cout = "2",
+        },
+        meca_provocation = {
+            cout = "2",
+        },
         meca_repulsion = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         meca_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique = {
             verrou = true,
         },
         mystique_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_bouclier = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_intimidation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_provocation = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         mystique_soin = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         nage = {
             cout = 2,
             min = -2,
+        },
+        niveau = {
+            verrou = true,
         },
         odorat_gout = {
             cout = 2,
@@ -897,84 +1107,102 @@ LCM.Publier(LCM.Forge, {
             min = -1,
         },
         pen_contondant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_desordre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_eau = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_esprit = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_feu = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_lumiere = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_mort = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_ombre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_ordre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_perforant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_pourriture = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_terre = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_tranchant = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_vent = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         pen_vie = {
-            verrou = true,
+            cout = "0.5",
+            min = "-2",
         },
         perception = {
             verrou = true,
         },
         perception_attaque = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_brise_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_empoisonnement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_perce_armure = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         perception_saignement = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         pistage = {
             cout = 2,
             min = -2,
+        },
+        poids = {
+            verrou = true,
         },
         prise = {
             cout = 2,
@@ -989,72 +1217,72 @@ LCM.Publier(LCM.Forge, {
             min = -2,
         },
         puissance_buff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         puissance_debuff = {
-            cout = 3,
+            cout = "2",
             min = -2,
         },
         resi_contondant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_desordre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_eau = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_esprit = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_feu = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_lumiere = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_mort = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_ombre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_ordre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_perforant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_pourriture = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_terre = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_tranchant = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_vent = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resi_vie = {
-            cout = 0.5,
-            min = -2,
+            cout = "0.25",
+            min = "-4",
         },
         resistance = {
             cout = 2,
@@ -1063,6 +1291,33 @@ LCM.Publier(LCM.Forge, {
         sabotage = {
             cout = 2,
             min = -2,
+        },
+        sec_deplacement = {
+            verrou = true,
+        },
+        sec_expertises = {
+            verrou = true,
+        },
+        sec_fatigue = {
+            verrou = true,
+        },
+        sec_initiative = {
+            verrou = true,
+        },
+        sec_mecanique = {
+            verrou = true,
+        },
+        sec_pa = {
+            verrou = true,
+        },
+        sec_penetration = {
+            verrou = true,
+        },
+        sec_resistance = {
+            verrou = true,
+        },
+        sec_vitalite = {
+            verrou = true,
         },
         toucher = {
             cout = 2,
@@ -1125,6 +1380,7 @@ LCM.Publier(LCM.Forge, {
             points = 50,
         },
     },
+    remplacePublie = true,
 })
 
 LCM.Publier(LCM.Forge, {
@@ -2356,58 +2612,71 @@ LCM.Publier(LCM.Forge, {
 
 -- ----- pnj (1) -----------------------------------------------------
 LCM.Publier(LCM.PNJ, {
+    apprentissages = {  },
+    equipement = {
+        accessoire = { "lcm_64a651_6ac7bf81_36d51ea2_0010_f1c74a", "lcm_64a651_6ac7bfb7_36d5f1de_0011_981ba7", "lcm_64a651_6acb7e3f_07f0f686_000e_eee119" },
+        arme = { "lcm_64a651_6ac7bbe9_36c708be_0001_efdd32", "lcm_64a651_6ac7bbe9_36c708be_0001_efdd32" },
+        equipement = { "lcm_64a651_6ac7bf11_36d36743_0008_d09027", "lcm_64a651_6ac7be10_36cf7992_0004_fb40af", "lcm_64a651_6ac7be6a_36d0dc15_0005_7dbd88", "lcm_64a651_6ac7beb5_36d1fee9_0006_6b2588", "lcm_64a651_6ac7beea_36d2cf27_0007_8cf26e" },
+    },
+    etats = {  },
     icone = "Interface\\ICONS\\ability_mage_frostjaw",
     id = "lcm_64a651_6ac7bd59_36ccb275_0002_1e1934",
     label = "Asssassin du culte",
     metiersNiveaux = {
-        eclaireur = "4",
+        eclaireur = 4,
     },
-    traits = { "lcm_64a651_6ac7710f_35a2aedc_0003_6b06bc", "lcm_64a651_6ac76e82_3598aaf8_0001_f2b89d", "lcm_64a651_6ac7715c_35a3dd0b_0004_ba2485", "lcm_64a651_6ac77195_35a4bae4_0005_9cc402" },
+    traits = { "lcm_64a651_6ac7710f_35a2aedc_0003_6b06bc", "lcm_64a651_6ac76e82_3598aaf8_0001_f2b89d", "lcm_64a651_6ac7715c_35a3dd0b_0004_ba2485", "lcm_64a651_6ac77195_35a4bae4_0005_9cc402", "lcm_64a651_6acb7c33_07e8ea2e_0001_290bb6" },
     valeurs = {
-        acrobaties = "4",
-        adresse = "7",
+        acrobaties = 4,
+        adresse = 8,
         age = "30",
-        constitution = "5",
-        crochetage = "3",
-        deguisement = "4",
-        discretion = "6",
-        equilibre = "4",
-        escalade = "4",
-        esprit = "7",
-        evasion = "4",
-        force = "4",
-        meca_brise_armure = "6",
-        meca_buff = "7",
-        meca_debuff = "7",
-        meca_entrave = "6",
-        meca_immobilisation = "6",
-        meca_perce_armure = "16",
-        mystique = "7",
-        niveau = "12",
-        pen_contondant = "11",
-        pen_ombre = "14",
-        pen_perforant = "14",
-        pen_tranchant = "14",
-        perception = "9",
-        pistage = "6",
+        constitution = 6,
+        crochetage = 3,
+        def_agilite = 2,
+        def_courage = 2,
+        def_defense = 2,
+        def_esprit_libre = 2,
+        def_mental = 2,
+        def_stable = 2,
+        deguisement = 4,
+        discretion = 8,
+        equilibre = 4,
+        escalade = 4,
+        esprit = 7,
+        evasion = 6,
+        force = 5,
+        meca_brise_armure = 2,
+        meca_buff = 4,
+        meca_debuff = 4,
+        meca_entrave = 2,
+        meca_immobilisation = 2,
+        meca_perce_armure = 6,
+        mystique = 7,
+        niveau = 14,
+        pen_contondant = 11,
+        pen_ombre = 16,
+        pen_perforant = 14,
+        pen_tranchant = 14,
+        perception = 11,
+        pistage = 6,
         poids = "70",
-        prise = "2",
+        prise = 2,
         race = "aelskardien",
-        resi_contondant = "13",
-        resi_ombre = "13",
-        resi_perforant = "13",
-        resi_tranchant = "13",
-        sabotage = "2",
-        sec_deplacement = "4",
-        sec_expertises = "5",
-        sec_fatigue = "5",
-        sec_initiative = "3",
-        sec_mecanique = "10",
-        sec_pa = "1",
-        sec_penetration = "8",
-        sec_vitalite = "8",
+        resi_contondant = 14,
+        resi_ombre = 16,
+        resi_perforant = 14,
+        resi_tranchant = 14,
+        sabotage = 2,
+        sec_deplacement = 5,
+        sec_expertises = 5,
+        sec_fatigue = 3,
+        sec_initiative = 3,
+        sec_mecanique = 10,
+        sec_pa = 1,
+        sec_penetration = 8,
+        sec_vitalite = 6,
         sexe = "Autre",
-        vol_a_la_tire = "3",
+        vol_a_la_tire = 3,
     },
 })
 

@@ -82,6 +82,26 @@ local boucliers
 for i, c in ipairs(R.cases) do if c.id == "armure" then boucliers = i end end
 R.lignes[boucliers].tout:Click()
 attendu("des boucliers vides n'absorbent rien", R.valeurs[boucliers], 0)
+
+-- Le chiffre se SAISIT : quarante-six points a coups de « + », c'est
+-- quarante-six clics. Le garde-fou est celui des boutons, pas un second.
+R.lignes[1].valeur:Saisir("99")
+attendu("une saisie enorme ne depasse pas le montant", R.valeurs[1] <= R.montant, true)
+attendu("  ni le plafond de la zone", R.valeurs[1] <= R.cases[1].plafond, true)
+attendu("  et la case montre ce qui a ete retenu", R.lignes[1].valeur:GetText(), tostring(R.valeurs[1]))
+attendu("  le reste ne passe jamais sous zero", tonumber(R.reste.valeur:GetText()) >= 0, true)
+R.lignes[1].valeur:Saisir("2")
+attendu("une saisie tenable est prise telle quelle", R.valeurs[1], 2)
+attendu("  et la case n'est pas reecrite sous les doigts", R.lignes[1].valeur:GetText(), "2")
+attendu("  le reste suit", R.reste.valeur:GetText(), tostring(R.montant - 2))
+R.lignes[1].valeur:Saisir("-3")
+attendu("un nombre negatif retombe a zero", R.valeurs[1], 0)
+R.lignes[boucliers].valeur:Saisir("99")
+attendu("un bouclier vide n'absorbe rien, meme tape a la main", R.valeurs[boucliers], 0)
+attendu("  et la case le dit", R.lignes[boucliers].valeur:GetText(), "0")
+R.lignes[1].valeur:Saisir("0")
+attendu("on repart de zero", R.reste.valeur:GetText(), tostring(R.montant))
+
 R.lignes[1].plus:Click() R.lignes[1].plus:Click()
 attendu("perce-armure pas encore atteint", R.appliquer:IsEnabled(), false)
 R.lignes[2].tout:Click()

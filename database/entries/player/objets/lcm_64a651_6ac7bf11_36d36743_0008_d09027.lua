@@ -4,10 +4,11 @@ return {
     avantage = {  },
     bonus = {
         discretion = 2,
-        resi_contondant = 3,
+        resi_contondant = 4,
         resi_feu = 2,
-        resi_perforant = 2,
+        resi_perforant = 3,
         resi_tranchant = 3,
+        vue = 1,
     },
     categorie = "equipement",
     couleurTitre = "4D8CFF",

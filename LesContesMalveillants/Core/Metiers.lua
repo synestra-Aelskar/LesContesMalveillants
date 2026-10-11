@@ -51,6 +51,13 @@ function Metiers.XPPourNiveau(niveau)
     return palier and math.max(0, math.floor(tonumber(palier.cumul) or 0)) or 0
 end
 
+-- Le dernier rang du bareme (Violet 5, le trentieme). C'est la seule borne
+-- des metiers d'un PNJ : au-dela, le rang n'existe pas et XPPourNiveau le
+-- rendrait a zero — le niveau serait perdu sans un mot.
+function Metiers.RangMax()
+    return #Paliers()
+end
+
 -- Le niveau acquis : { rang, nom, niveau, libelle, rangCouleur,
 -- xpDansPalier, xpPalier, xpRestante, max }.
 function Metiers.Palier(entity, id)

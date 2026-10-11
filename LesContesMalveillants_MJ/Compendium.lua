@@ -1408,7 +1408,42 @@ local function OuvrirFichePNJ(element)
     return true
 end
 
-function Editeur.Ouvrir(categorie, element)
+-- Clic droit sur l'engrenage : on refait le PARCOURS de creation, pas la
+-- fiche. La creation ne connait ni equipement, ni etats, ni apprentissages :
+-- ils sont reportes tels quels, sinon rouvrir la creation d'un PNJ deja
+-- equipe le deshabillerait.
+local function RouvrirCreationPNJ(element)
+    if not (UI.Creation and UI.Creation.OuvrirPNJ
+        and LCM.Creation and LCM.Creation.DepuisPNJ and LCM.Creation.DefinitionPNJ) then
+        return false, "créateur de PNJ indisponible."
+    end
+    local brouillon, erreur = LCM.Creation.DepuisPNJ(element)
+    if not brouillon then return false, erreur end
+    local original = LCM.Copie(element)
+    local remplacePublie = Brouillons.EstPublie("pnj", element.id)
+    if Editeur.frame then Editeur.frame:Hide() end
+    local fenetre, raison = UI.Creation.OuvrirPNJ(function(courant)
+        -- Le MEME identifiant : on reprend ce PNJ, on n'en ajoute pas un autre.
+        local definition, souci = LCM.Creation.DefinitionPNJ(courant, original.id)
+        if not definition then return false, souci end
+        -- L'icone suit la race ; tant que la race ne change pas, on garde
+        -- celle du PNJ, qui a pu etre choisie a la main.
+        if tostring(courant.race or "") == tostring((original.valeurs or {}).race or "") then
+            definition.icone = original.icone or definition.icone
+        end
+        definition.equipement = LCM.Copie(original.equipement or {})
+        definition.etats = LCM.Copie(original.etats or {})
+        definition.apprentissages = LCM.Copie(original.apprentissages or {})
+        local ok, refus = Brouillons.Enregistrer("pnj", definition, false, remplacePublie)
+        if not ok then return false, refus end
+        if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
+        return true, definition.label
+    end, brouillon)
+    if not fenetre then return false, raison end
+    return true
+end
+
+function Editeur.Ouvrir(categorie, element, mode)
     -- Un nouveau PNJ est une fiche, pas une collection de champs bruts. Le
     -- compagnon confie donc sa creation au parcours complet de personnage puis
     -- enregistre le resultat dans les brouillons du compendium MJ.
@@ -1430,7 +1465,9 @@ function Editeur.Ouvrir(categorie, element)
         return true
     end
     if element and categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
-        local ok, raison = OuvrirFichePNJ(element)
+        local ok, raison
+        if mode == "creation" then ok, raison = RouvrirCreationPNJ(element)
+        else ok, raison = OuvrirFichePNJ(element) end
         if not ok then LCM.Alerte("PNJ : " .. tostring(raison)) end
         return ok
     end
