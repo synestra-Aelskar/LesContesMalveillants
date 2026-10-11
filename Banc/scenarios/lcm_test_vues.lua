@@ -9,6 +9,11 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 
+-- Une race TEMOIN, sans bonus : ce scenario verifie des VUES et des formules,
+-- pas l'equilibrage des races. « humain » donne desormais +3 a toutes les
+-- statistiques, et les PV, la Force et les totaux bougeaient avec lui.
+LCM.Brouillons.Set("races", { id = "temoin", label = "Témoin", morphology = "humanoide" })
+
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
 local V = LCM.Vues
@@ -52,7 +57,7 @@ for _, id in ipairs(ids) do attendu("  " .. id .. " : entree du menu allumee", M
 
 dire("== Sante")
 local moi = LCM.Entities.Self()
-LCM.Entities.Set_Value(moi, "race", "humain")
+LCM.Entities.Set_Value(moi, "race", "temoin")
 LCM.Entities.Set_Value(moi, "niveau", 5)
 LCM.Entities.Set_Value(moi, "constitution", 6)
 LCM.Entities.Set_Value(moi, "sec_vitalite", 4)
@@ -101,7 +106,11 @@ local choix = LCM.UI.Fiche.choixConteneur
 for _, b in ipairs(choix.lignes) do if b:IsShown() and b.choix == "peste_d_essai" then b:Click() end end
 attendu("etat pose", LCM.Etats.Porte(moi, "peste_d_essai"), true)
 attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Peste d'essai")
-attendu("ses effets", conteneur.emplacements[1].effets:GetText(), "Force -10")
+-- L'emplacement annonce d'abord l'ETAT de ce qu'il porte (sa durabilite),
+-- puis ses effets. La colonne ne disait que les effets avant que les objets
+-- aient une usure.
+attendu("ses effets", conteneur.emplacements[1].effets:GetText(),
+    "État 10 / 10  ·  Force -10")
 attendu("une nouvelle case libre apparait", conteneur.emplacements[2]:IsShown(), true)
 attendu("vide", conteneur.emplacements[2].nom:GetText(), "Emplacement")
 attendu("pas plus", conteneur.emplacements[3], nil)
@@ -148,7 +157,7 @@ attendu("pas a la meme place que Sante", select(4, fe:GetPoint(1)) ~= select(4, 
 dire("== reclic : se referme ; rouvrir relit le personnage joue")
 M.Trouver("expertise").onClick()
 attendu("refermee", fe:IsShown(), false)
-local autre = LCM.Personnages.Creer("Ysolde", { race = "humain", niveau = 3 })
+local autre = LCM.Personnages.Creer("Ysolde", { race = "temoin", niveau = 3 })
 LCM.Personnages.Choisir(autre.id)
 M.Trouver("expertise").onClick()
 attendu("montre le nouveau personnage", fe.nom:GetText(), "Ysolde")
@@ -164,8 +173,21 @@ attendu("quinze types", #fr.pages.resistances.lignes, 15)
 dire("== Statistiques : le recapitulatif du template")
 LCM.Personnages.Choisir(moi.id)
 LCM.Entities.Set_Value(moi, "force", 3)
-LCM.Brouillons.Enregistrer("objets", { id = "gantelets", label = "Gantelets", categorie = "equipement",
-    bonus = { force = 2, force_attaque = 3, pa = 1 } }, true)
+-- Un jeu d'equilibrage TEMOIN, large. Depuis que le bareme BLOQUE (3 octobre
+-- 2026), un objet d'essai sans `forge` est refuse — et son refus passait
+-- inapercu ici : l'objet n'existait pas, donc aucun bonus. On ne desserre pas
+-- le garde-fou, on donne au materiel d'essai son propre jeu plutot que de
+-- l'accrocher a ceux de la campagne, qui ont le droit de bouger.
+LCM.Brouillons.Enregistrer("jeux", {
+    id = "essai_vues", label = "Essai (vues)", categorie = "armures",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
+local poseObjet, pourquoiObjet = LCM.Brouillons.Enregistrer("objets",
+    { id = "gantelets", label = "Gantelets", categorie = "equipement",
+      forge = "essai_vues/libre",
+      bonus = { force = 2, force_attaque = 3, pa = 1 } }, true)
+attendu("les gantelets d'essai sont acceptes", poseObjet, true)
+if not poseObjet then dire("     raison : " .. tostring(pourquoiObjet)) end
 LCM.Objets.Placer(moi, "gantelets")   -- geste brut : on teste le recapitulatif, pas les sacs
 M.Trouver("statistiques").onClick()
 local fst = LCM.UI.Vues.frames.statistiques
@@ -181,7 +203,9 @@ local function entreesStats()
     end
     return out
 end
-attendu("dix-huit familles, pas un sous-chapitre de plus", #entreesStats(), 18)
+-- Dix-neuf depuis le chapitre « Mécanique de défense » (11 octobre 2026) :
+-- on y investit, on doit pouvoir l'y relire.
+attendu("dix-neuf familles, pas un sous-chapitre de plus", #entreesStats(), 19)
 attendu("ouverte sur la premiere", fst.onglet, "statistiques")
 attendu("et le sommaire le dit", entreesStats()[1].marque, "ici")
 -- Le libelle d'une famille de combat vient de sa section, pas d'une copie.

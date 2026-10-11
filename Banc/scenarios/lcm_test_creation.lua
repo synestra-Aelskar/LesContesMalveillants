@@ -20,7 +20,10 @@ dire("== les budgets au niveau 5")
 attendu("primaires  17 + 3x5", C.Total(b, "primaires"), 32)
 attendu("secondaires 12 + 4x5", C.Total(b, "secondaires"), 32)
 attendu("expertises  8 + 2x5", C.Total(b, "expertises"), 18)
-attendu("mecaniques  2 + 3x5", C.Total(b, "mecaniques"), 17)
+-- Les mecaniques ne suivent plus la regle lineaire des autres pools : dix au
+-- niveau de depart, puis un point par niveau et quatre aux multiples de cinq
+-- (Equilibrage.creation.mecaniques, qui porte la regle et son commentaire).
+attendu("mecaniques : dix au niveau de depart", C.Total(b, "mecaniques"), 10)
 attendu("traits      2 + 5/5", C.Total(b, "traits"), 3)
 
 dire("== plafond d'une statistique primaire : 4 + niveau")
@@ -130,11 +133,18 @@ attendu("un trait a 5 points est refuse au chargement", ok2, false)
 
 dire("== mecaniques de competence")
 local m = C.Nouveau()
--- Vingt-trois depuis le « Dot » (9 octobre 2026).
-attendu("les mecaniques de competence", #C.Lignes("mecaniques"), 24)
-attendu("budget 2 + 3x5", C.Budget(m, "mecaniques").total, 17)
+-- Vingt-quatre de COMPETENCE, plus les sept de DEFENSE ajoutees le
+-- 11 octobre 2026 : elles se repartissent sur le meme budget, et c'est une
+-- decision de jeu — se blinder coute ce qu'on n'apprend pas a faire.
+attendu("compétence et défense sur le même budget", #C.Lignes("mecaniques"), 31)
+local competences = 0
+for _, l in ipairs(C.Lignes("mecaniques")) do
+    if tostring(l.id):find("^meca_") then competences = competences + 1 end
+end
+attendu("  dont vingt-quatre de compétence", competences, 24)
+attendu("budget : dix au niveau de depart", C.Budget(m, "mecaniques").total, 10)
 C.Definir(m, "secondaires", "sec_mecanique", 4)
-attendu("quatre points secondaires = quatre de plus", C.Total(m, "mecaniques"), 21)
+attendu("quatre points secondaires = quatre de plus", C.Total(m, "mecaniques"), 14)
 attendu("plafond, comme une expertise", C.Plafond(m, "mecaniques", "meca_soin"), 10)
 attendu("11 refuse", (C.Definir(m, "mecaniques", "meca_soin", 11)), false)
 attendu("10 passe", (C.Definir(m, "mecaniques", "meca_soin", 10)), true)
@@ -148,9 +158,10 @@ attendu("leurs points sont comptes", C.Budget(m, "mecaniques").depense, 12)
 
 dire("== un brouillon incomplet ne cree rien")
 local n = C.Nouveau()
--- Nom, race, et les sept budgets encore entiers : neuf raisons de refuser.
+-- Nom, race, et les HUIT budgets encore entiers : dix raisons de refuser.
+-- Huit depuis que les metiers comptent comme une categorie a part entiere.
 local raisons = C.Problemes(n)
-attendu("sans nom ni race", #raisons, 9)
+attendu("sans nom ni race", #raisons, 10)
 attendu("la premiere est le nom", raisons[1], "il faut un nom.")
 attendu("et on dit combien de points trainent",
     table.concat(raisons, " "):find("il reste %d+ points? de statistiques a placer") ~= nil, true)

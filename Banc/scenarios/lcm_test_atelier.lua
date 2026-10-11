@@ -17,10 +17,26 @@ LCM.Brouillons.Set("traits", { id = "escalade_jungle", label = "Correction", cou
 __declencher("PLAYER_LOGIN")
 local B = LCM.Brouillons
 
+-- Un jeu d'equilibrage TEMOIN. Le bareme BLOQUE depuis le 3 octobre 2026 : un
+-- trait sans `forge` est refuse, et c'est voulu. Les traits de ce scenario
+-- servent a tester l'ATELIER, pas l'equilibrage — ils ont donc leur propre
+-- jeu, large, plutot que celui de la campagne qui a le droit de se resserrer.
+for _, essai in ipairs({ { "essai_atelier", "traits" }, { "essai_armes", "armes" },
+                         { "essai_armures", "armures" }, { "essai_races", "races" } }) do
+    B.Enregistrer("jeux", {
+        id = essai[1], label = "Essai (" .. essai[2] .. ")", categorie = essai[2],
+        raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+    }, true)
+end
+
 dire("== A la connexion")
 attendu("brouillon valide jouable", LCM.Traits.Get("agile") and LCM.Traits.Get("agile").brouillon, true)
 attendu("brouillon fautif ecarte", LCM.Traits.Get("triche"), nil)
-attendu("le fichier fait foi", LCM.Traits.Get("escalade_jungle").label, "Escalade de la jungle")
+-- Depuis le 9 octobre 2026, un brouillon qui RECOUVRE une entree publiee et
+-- qui en differe est applique au chargement. Avant, la correction tenait le
+-- temps de la seance puis disparaissait au rechargement, sans un mot, alors
+-- qu'elle etait toujours en sauvegarde.
+attendu("le brouillon recouvre le fichier", LCM.Traits.Get("escalade_jungle").label, "Correction")
 local annonce = false
 for _, l in ipairs(__sorties) do
     if l:lower():find("brouillon refuse %(traits%)") and l:find("primaire") then annonce = true end
@@ -41,41 +57,42 @@ attendu("le fichier genere charge toujours", LCM.Traits.Get("escalade_jungle") ~
 
 dire("== Enregistrer un brouillon")
 local ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Pied sûr", cout = 1,
+    forge = "essai_atelier/libre",
     bonus = { equilibre = 2 }, avantage = { "equilibre" } }, true)
 attendu("accepte", ok, true)
 attendu("jouable aussitot", LCM.Traits.Get("pied_sur") ~= nil, true)
 attendu("marque brouillon", LCM.Traits.Get("pied_sur").brouillon, true)
 attendu("sauvegarde", LCM_MJ_DB.brouillons.traits.pied_sur.label, "Pied sûr")
 
-ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Autre", cout = 1 }, true)
+ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Autre", cout = 1, forge = "essai_atelier/libre" }, true)
 attendu("collision en creation refusee", ok, false)
 dire("     raison : " .. tostring(raison))
 
-ok, raison = B.Enregistrer("traits", { id = "brute", label = "Brute", cout = 1, bonus = { force = 2 } }, true)
+ok, raison = B.Enregistrer("traits", { id = "brute", label = "Brute", cout = 1, forge = "essai_atelier/libre", bonus = { force = 2 } }, true)
 attendu("primaire refusee", ok, false)
 attendu("raison sans prefixe", tostring(raison):find("^LCM/") == nil, true)
 attendu("rien sauvegarde", LCM_MJ_DB.brouillons.traits.brute, nil)
 dire("     raison : " .. tostring(raison))
 
-ok, raison = B.Enregistrer("traits", { id = "cher", label = "Cher", cout = 9 }, true)
+ok, raison = B.Enregistrer("traits", { id = "cher", label = "Cher", cout = 9, forge = "essai_atelier/libre" }, true)
 attendu("cout hors bornes refuse", ok, false)
 
-ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", cout = 1 }, true)
+ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", cout = 1, forge = "essai_atelier/libre" }, true)
 attendu("contenu publie protege", ok, false)
 dire("     raison : " .. tostring(raison))
 
 ok, raison = B.Enregistrer("objets", { id = "epee", label = "Epee" }, true)
 attendu("objet sans categorie refuse", ok, false)
 dire("     raison : " .. tostring(raison))
-ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", bonus = { pen_tranchant = 2 } }, true)
+ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", forge = "essai_armes/libre", bonus = { pen_tranchant = 2 } }, true)
 attendu("objet accepte", ok, true)
 attendu("objet jouable", LCM.Objets.Get("epee") and LCM.Objets.Get("epee").brouillon, true)
-ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", bonus = { force = 1 } }, true)
+ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", forge = "essai_armures/libre", bonus = { force = 1 } }, true)
 attendu("objet : une primaire est permise (template)", ok, true)
 
 dire("== Modifier sur place")
 local tenu = LCM.Traits.Get("pied_sur")
-ok = B.Enregistrer("traits", { id = "pied_sur", label = "Pied très sûr", cout = 3, bonus = { equilibre = 4 } }, false)
+ok = B.Enregistrer("traits", { id = "pied_sur", label = "Pied très sûr", cout = 3, forge = "essai_atelier/libre", bonus = { equilibre = 4 } }, false)
 attendu("modification acceptee", ok, true)
 attendu("meme table", LCM.Traits.Get("pied_sur"), tenu)
 attendu("cout change", tenu.cout, 3)
@@ -96,10 +113,10 @@ attendu("mais plus de bonus", LCM.Traits.Bonus(perso, "equilibre"), 0)
 attendu("rien a supprimer", B.Supprimer("traits", "inexistant"), false)
 
 dire("== Races")
-ok = B.Enregistrer("races", { id = "centaure", label = "Centaure", morphology = "quadrupede" }, true)
+ok = B.Enregistrer("races", { id = "centaure", label = "Centaure", morphology = "quadrupede", forge = "essai_races/libre" }, true)
 attendu("race acceptee", ok, true)
 attendu("race jouable", LCM.Races.Get("centaure").morphology, "quadrupede")
-ok, raison = B.Enregistrer("races", { id = "blob", label = "Blob", morphology = "gelee" }, true)
+ok, raison = B.Enregistrer("races", { id = "blob", label = "Blob", morphology = "gelee", forge = "essai_races/libre" }, true)
 attendu("morphologie inconnue refusee", ok, false)
 dire("     raison : " .. tostring(raison))
 

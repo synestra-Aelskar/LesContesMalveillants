@@ -8,7 +8,7 @@
 local LCM = _G.LCM
 if not LCM then return end
 
--- ----- jeux (5) ----------------------------------------------------
+-- ----- jeux (6) ----------------------------------------------------
 LCM.Publier(LCM.Forge, {
     categorie = "armes",
     champs = {
@@ -1426,6 +1426,46 @@ LCM.Publier(LCM.Forge, {
             label = "Unique",
             points = 50,
         } },
+})
+
+LCM.Publier(LCM.Forge, {
+    categorie = "tentes",
+    champs = {
+        recup_armure = {
+            base = "0",
+            cout = "1",
+            max = "100",
+            min = "-20",
+        },
+        recup_fatigue = {
+            base = "0",
+            cout = "1",
+            max = "100",
+            min = "-20",
+        },
+        recup_pv = {
+            base = "0",
+            cout = "1",
+            max = "100",
+            min = "-20",
+        },
+        securite = {
+            base = "0",
+            cout = "1",
+            max = "100",
+            min = "-20",
+        },
+    },
+    id = "lcm_64a651_6acbc610_09097aca_0002_99aa48",
+    label = "Jeu 6",
+    raretes = {
+        {
+            couleur = "FF8CB8",
+            id = "commun",
+            label = "Commun",
+            points = "10",
+        },
+    },
 })
 
 LCM.Publier(LCM.Forge, {

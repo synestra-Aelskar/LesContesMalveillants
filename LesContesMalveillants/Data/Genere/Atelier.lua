@@ -1063,7 +1063,7 @@ LCM.Publier(LCM.Races, {
     tags = "Commun",
 })
 
--- ----- tentes (1) --------------------------------------------------
+-- ----- tentes (2) --------------------------------------------------
 LCM.Publier(LCM.Tentes, {
     accessoiresMax = 20,
     bonus = {
@@ -1075,6 +1075,25 @@ LCM.Publier(LCM.Tentes, {
     label = "Auberge de Tephris",
     lits = 1,
     origine = "Aelskar",
+})
+
+LCM.Publier(LCM.Tentes, {
+    accessoiresMax = 5,
+    bonus = {
+        recup_armure = 2,
+        recup_fatigue = 3,
+        recup_pv = 3,
+        securite = 2,
+    },
+    couleurTitre = "FF8CB8",
+    description = "Une petite tente pour survivre face aux tempêtes blanches.",
+    forge = "lcm_64a651_6acbc610_09097aca_0002_99aa48/commun",
+    icone = "Interface\\ICONS\\hots_deckard_horadriccube",
+    id = "lcm_64a651_6acbc523_0905cf56_0001_23671e",
+    label = "Toundralite de petite taille",
+    lits = 1,
+    origine = "Aelskar",
+    tags = "Commun",
 })
 
 -- ----- traits (33) --------------------------------------------------

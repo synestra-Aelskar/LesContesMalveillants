@@ -60,7 +60,11 @@ __addonsCharges["LesContesMalveillants_MJ"] = true
 dire("== la fenetre")
 local f = LCM.UI.Incarner.Basculer()
 attendu("ouverte", f:IsShown(), true)
-attendu("le catalogue", #LCM.PNJ.list, 2)
+-- Le catalogue de la fenetre EST celui du compendium : on compare les deux
+-- plutot qu'un nombre en dur, qui change des que le MJ ecrit un PNJ.
+attendu("le catalogue est celui du compendium", #LCM.PNJ.list,
+    #LCM.Compendium.Entrees(LCM.Compendium.Get("pnj")))
+attendu("  et il n'est pas vide", #LCM.PNJ.list > 0, true)
 attendu("deux en jeu", f.nombreEnJeu, 2)
 attendu("le bandeau dit qu'on est soi", f.bandeau:GetText(), "Tu es toi-même.")
 attendu("pas de bouton relacher", f.relacher:IsShown(), false)

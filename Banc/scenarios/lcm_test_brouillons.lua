@@ -19,12 +19,25 @@ LCM.Brouillons.Set("traits", {
 LCM.Brouillons.Set("races", { id = "gobelin", label = "Gobelin", morphology = "humanoide" })
 
 __declencher("PLAYER_LOGIN")
+
+-- Un jeu d'equilibrage TEMOIN pour les traits d'essai. Le bareme BLOQUE depuis
+-- le 3 octobre 2026 : un trait sans `forge` est refuse, et c'est voulu. Les
+-- traits de ce scenario servent a tester la SYNCHRO, pas l'equilibrage — on
+-- leur donne leur propre jeu plutot que de les accrocher a celui de la
+-- campagne, qui a le droit de changer de bornes.
+LCM.Brouillons.Enregistrer("jeux", {
+    id = "essai_traits", label = "Essai (traits)", categorie = "traits",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
+
 __personnage()   -- ce scenario joue un personnage : il le dit
 
 dire("== les brouillons sont jouables tout de suite")
 attendu("le trait existe", LCM.Traits.Get("oeil_du_faucon") ~= nil, true)
 attendu("la race aussi", LCM.Races.Get("gobelin") ~= nil, true)
-attendu("comptage", LCM.Brouillons.Count(), 2)
+-- Trois : les deux d'avant la connexion, plus le jeu temoin pose juste au
+-- dessus. On compte ce que CE scenario a cree, pas un nombre en dur.
+attendu("comptage", LCM.Brouillons.Count(), 3)
 
 local moi = LCM.Entities.Self()
 LCM.Traits.Grant(moi, "oeil_du_faucon")
@@ -65,7 +78,7 @@ local B2 = LCM.Brouillons
 local avant = #__envois
 
 -- Emission : ecrire un brouillon met un message sur le reseau.
-B2.Enregistrer("traits", { id = "souffle_sync", label = "Souffle partagé", cout = 1 }, true)
+B2.Enregistrer("traits", { id = "souffle_sync", label = "Souffle partagé", cout = 1, forge = "essai_traits/libre" }, true)
 local partis = 0
 for i = avant + 1, #__envois do
     if tostring(__envois[i].message or ""):find("brouillon") then partis = partis + 1 end
@@ -78,7 +91,7 @@ local rejoindre = LCM.Presence.Rejoindre
 LCM.Presence.Rejoindre = function() return nil end
 local avantAttente = B2.SynchronisationsEnAttente()
 local avantCanal = #__envois
-B2.Enregistrer("traits", { id = "canal_retarde", label = "Canal retardé", cout = 1 }, true)
+B2.Enregistrer("traits", { id = "canal_retarde", label = "Canal retardé", cout = 1, forge = "essai_traits/libre" }, true)
 attendu("canal absent : le brouillon reste en attente",
     B2.SynchronisationsEnAttente() > avantAttente, true)
 local partiSansCanal = false
@@ -98,7 +111,7 @@ attendu("le brouillon part quand le canal revient", partiApresCanal, true)
 B2.Supprimer("traits", "souffle_sync")
 attendu("retire chez nous", B2.Get("traits", "souffle_sync"), nil)
 local paquet = LCM.Reseau.Encoder({ f = "traits",
-    e = { id = "souffle_sync", label = "Souffle partagé", cout = 1 } })
+    e = { id = "souffle_sync", label = "Souffle partagé", cout = 1, forge = "essai_traits/libre" } })
 LCM.Reseau.Recevoir("Akriaxx", "7:1:1:brouillon|" .. paquet)
 attendu("arrive chez nous tout seul", B2.Get("traits", "souffle_sync") ~= nil, true)
 attendu("et devient jouable", LCM.Traits.Get("souffle_sync") ~= nil, true)
@@ -106,11 +119,11 @@ attendu("et devient jouable", LCM.Traits.Get("souffle_sync") ~= nil, true)
 -- Une synchro fiable est acquittee et une relance n'est pas appliquee deux
 -- fois. On change volontairement le libelle dans le doublon pour le prouver.
 local paquetFiable = LCM.Reseau.Encoder({ s = "essai-dedoublonnage", f = "traits",
-    e = { id = "dedouble", label = "Première version", cout = 1 } })
+    e = { id = "dedouble", label = "Première version", cout = 1, forge = "essai_traits/libre" } })
 local avantAccuse = #__envois
 LCM.Reseau.Recevoir("Akriaxx", "71:1:1:brouillon|" .. paquetFiable)
 local paquetDoublon = LCM.Reseau.Encoder({ s = "essai-dedoublonnage", f = "traits",
-    e = { id = "dedouble", label = "Version qui ne doit pas passer", cout = 1 } })
+    e = { id = "dedouble", label = "Version qui ne doit pas passer", cout = 1, forge = "essai_traits/libre" } })
 LCM.Reseau.Recevoir("Akriaxx", "72:1:1:brouillon|" .. paquetDoublon)
 attendu("une relance n'est appliquee qu'une fois", B2.Get("traits", "dedouble").label,
     "Première version")
@@ -162,6 +175,7 @@ B2.Supprimer("jeux", "jeu_reseau")
 
 -- Un trait garde ses bonus et son avantage en route.
 local trait = { id = "t_reseau", label = "T réseau", cout = 1,
+    forge = "essai_traits/libre",
     bonus = { escalade = 1 }, avantage = { "escalade" } }
 LCM.Reseau.Recevoir("Akriaxx", "12:1:1:brouillon|"
     .. LCM.Reseau.Encoder({ f = "traits", e = trait }))
