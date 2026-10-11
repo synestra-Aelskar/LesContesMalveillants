@@ -704,6 +704,7 @@ E.apportsExpertises = {
 --   degats           supplement de degats, en fraction, sur `mecaniques`
 --   rand             supplement au jet qui PRODUIT `mecaniques`
 --   portee           metres gagnes sur la portee de `mecaniques`
+--   deplacement      yards gagnes sur les `modes` de deplacement
 --   parade / jets    supplement au jet qui SUBIT, selon la stat opposee
 E.effetsExpertises = {
     -- Resister, ce n'est pas encaisser moins : c'est choisir ou l'on encaisse.
@@ -720,6 +721,12 @@ E.effetsExpertises = {
     elementaire = { parade = 0.1, jets = { "esprit" } },
     cosmique    = { parade = 0.1, jets = { "esprit" } },
     evasion     = { parade = 0.2, jets = { "adresse", "esprit" } },
+
+    -- Courir et nager : un demi-yard par point, sur la valeur TOTALE de
+    -- l'expertise. Elles donnaient 1 yard par point INVESTI, ce qui ignorait
+    -- ce qu'une race ou un trait apporte a la Course (11 octobre 2026).
+    course      = { deplacement = 0.5, modes = { "terrestre" } },
+    nage        = { deplacement = 0.5, modes = { "nage" } },
 }
 
 -- ===== Campement ============================================================

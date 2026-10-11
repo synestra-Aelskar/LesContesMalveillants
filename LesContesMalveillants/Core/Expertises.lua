@@ -141,6 +141,21 @@ function Expertises.BonusPortee(entity, mecaniqueId)
     return total
 end
 
+-- Les yards gagnes sur un mode de deplacement (la Course sur le terrestre,
+-- la Nage sur la nage). Sur la valeur TOTALE de l'expertise, comme tout le
+-- reste de ce fichier : une race qui court vite doit se voir sur la fiche.
+function Expertises.BonusDeplacement(entity, mode)
+    mode = tostring(mode or "")
+    local total = 0
+    for id, regle in pairs(Effets()) do
+        local parPoint = tonumber(regle.deplacement)
+        if parPoint and Contient(regle.modes, mode) then
+            total = total + Expertises.Valeur(entity, id) * parPoint
+        end
+    end
+    return total
+end
+
 -- Le libelle d'une expertise, tel que la fiche le porte.
 function Expertises.Label(id)
     local field = LCM.Schema and LCM.Schema.Field and LCM.Schema.Field(tostring(id or ""))

@@ -200,6 +200,12 @@ local function NoteExpertise(id)
         if effet.portee then
             dits[#dits + 1] = string.format("+%s yard par point", Nombre(effet.portee))
         end
+        if effet.deplacement then
+            local modes = {}
+            for _, m in ipairs(effet.modes or {}) do modes[#modes + 1] = m end
+            dits[#dits + 1] = string.format("+%s yard de déplacement par point (%s)",
+                Nombre(effet.deplacement), table.concat(modes, ", "))
+        end
         if effet.parade then
             local jets = {}
             for _, j in ipairs(effet.jets or {}) do jets[#jets + 1] = Libelle(j) end

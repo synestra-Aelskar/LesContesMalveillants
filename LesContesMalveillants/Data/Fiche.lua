@@ -107,14 +107,23 @@ function LCM.Saut(entity, sens)
         + LCM.Formules.Primaire(entity, "adresse") / e.diviseurAdresse)
 end
 
--- Un mode de deplacement : base + points investis dans son expertise (et non
--- sa valeur totale : le template lit la repartition) + points secondaires.
-function LCM.Deplacement(entity, mode, expertise)
+-- Un mode de deplacement : base + ce que son expertise apporte + points
+-- secondaires + bonus portes.
+--
+-- L'expertise comptait pour ses points INVESTIS, un yard chacun, comme le
+-- template. Elle compte desormais pour sa valeur TOTALE, un demi-yard par
+-- point (decision du 11 octobre 2026) : une race qui court vite doit se voir
+-- ici. Quelle expertise porte quel mode est dit dans
+-- `Equilibrage.effetsExpertises`, pas ici — le vol n'en a aucune, et il n'y a
+-- rien a passer pour le dire.
+--
+-- Le tout est arrondi A L'INFERIEUR : un demi-yard ne s'annonce pas a une
+-- table, comme pour les sauts juste au-dessus.
+function LCM.Deplacement(entity, mode)
     local e = LCM.Equilibrage.deplacement
     local v = function(id) return (id and tonumber(LCM.Entities.Get_Value(entity, id))) or 0 end
-    -- Le vol n'a pas d'expertise : il ne depend que de sa base et des points
-    -- secondaires. `expertise` peut donc etre nil.
-    return math.floor((e[mode] or 0) + v(expertise) + e.parSecondaire * v("sec_deplacement")
+    local expertise = (LCM.Expertises and LCM.Expertises.BonusDeplacement(entity, mode)) or 0
+    return math.floor((e[mode] or 0) + expertise + e.parSecondaire * v("sec_deplacement")
         + LCM.Effets.Bonus(entity, "depl_" .. mode))
 end
 
@@ -183,13 +192,13 @@ Schema.AddTab({
                       local v = tonumber(LCM.Entities.Get_Value(entity, "sec_pa")) or 0
                       return math.floor(LCM.Equilibrage.pa.base + v + LCM.Effets.Bonus(entity, "pa"))
                   end },
-                -- Deplacement (template) : base + points investis dans l'expertise
+                -- Deplacement : base + ce que la Course ou la Nage apporte
                 --   + pts secondaires x 1 + bonus portes (compris dans la formule :
                 --   un objet peut viser ces champs, d'ou `recoitBonus`).
                 { id = "depl_terrestre", kind = "calc", label = "Terrestre", recoitBonus = true,
-                  formula = function(entity) return LCM.Deplacement(entity, "terrestre", "course") end },
+                  formula = function(entity) return LCM.Deplacement(entity, "terrestre") end },
                 { id = "depl_nage",      kind = "calc", label = "Nage",      recoitBonus = true,
-                  formula = function(entity) return LCM.Deplacement(entity, "nage", "nage") end },
+                  formula = function(entity) return LCM.Deplacement(entity, "nage") end },
                 -- Le vol : base zero dans le template, il ne vient donc que des
                 -- points secondaires et de ce qu'on porte.
                 { id = "depl_vol",       kind = "calc", label = "Vol",       recoitBonus = true,

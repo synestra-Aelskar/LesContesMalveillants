@@ -60,13 +60,20 @@ attendu("Course : le total", course.valeur:GetText(), "6")
 attendu("Course : bonus +2", course.bonus:GetText(), "+2")
 fe:Hide()
 
-dire("== deplacement (template : base + investi + secondaires)")
--- Terrestre : 8 + 3 (Course investie, pas sa valeur totale) + 0 = 11
+dire("== deplacement (base + expertise x 0,5 + secondaires)")
+-- Le 11 octobre 2026, l'expertise compte pour sa valeur TOTALE a raison d'un
+-- DEMI-yard par point, au lieu de ses seuls points investis a un yard chacun
+-- (decision de l'utilisateur) : une race ou un trait qui fait courir vite doit
+-- se voir sur la fiche.
+-- Terrestre : 8 + (Course 6 : 3 investis + 1 d'apport + 2 du trait) x 0,5 = 11.
+-- Le nombre ne bouge pas, mais il ne vient plus du meme endroit.
 attendu("terrestre", E.Get_Value(moi, "depl_terrestre"), 11)
 E.Set_Value(moi, "sec_deplacement", 2)
 attendu("+ 2 points secondaires", E.Get_Value(moi, "depl_terrestre"), 13)
--- Nage : 5 + 0 + 2 = 7
-attendu("nage", E.Get_Value(moi, "depl_nage"), 7)
+-- Nage : 5 + (Nage 2 : 0,5 x Force 4 + 0,25 x Adresse 3 = 2,75 -> 2) x 0,5 + 2
+-- = 8. Elle valait 7 : rien n'etait investi en Nage, et l'ancien calcul
+-- ignorait donc ce que la Force y apporte.
+attendu("nage", E.Get_Value(moi, "depl_nage"), 8)
 
 dire("== points d'action (4 + secondaires)")
 attendu("PA max", E.Gauge(moi, "pa").max, 4)

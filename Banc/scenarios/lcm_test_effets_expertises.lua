@@ -212,4 +212,82 @@ attendu("un jet d'attaque ne porte rien",
     texteAttaque and texteAttaque:find("Expertises") == nil, true)
 poser("equilibre", 0) poser("acrobaties", 0) poser("evasion", 0)
 
+dire("== Course et Nage : un demi-yard par point, sur le TOTAL")
+-- Elles comptaient les points INVESTIS, un yard chacun. Ce qu'une race, un
+-- trait ou une primaire apporte a la Course ne se voyait donc pas sur la
+-- fiche (decision de l'utilisateur, 11 octobre 2026).
+local D = LCM.Equilibrage.deplacement
+poser("force", 4) poser("adresse", 4) poser("course", 0) poser("nage", 0)
+poser("sec_deplacement", 0)
+-- Course = 0,25 x Force + 0,25 x Adresse = 2, sans avoir rien investi.
+attendu("la Course vaut 2 sans rien investir", X.Valeur(moi, "course"), 2)
+attendu("elle donne un yard", X.BonusDeplacement(moi, "terrestre"), 1)
+attendu("et la fiche le compte", LCM.Entities.Get_Value(moi, "depl_terrestre"), D.terrestre + 1)
+poser("course", 6)
+attendu("six points investis : la Course vaut 8", X.Valeur(moi, "course"), 8)
+attendu("  soit quatre yards", X.BonusDeplacement(moi, "terrestre"), 4)
+attendu("  sur la fiche", LCM.Entities.Get_Value(moi, "depl_terrestre"), D.terrestre + 4)
+-- Chacune son mode : courir ne fait pas nager.
+attendu("la Course ne porte pas la nage",
+    X.BonusDeplacement(moi, "nage"), X.Valeur(moi, "nage") * 0.5)
+attendu("et le vol n'a aucune expertise", X.BonusDeplacement(moi, "vol"), 0)
+-- Un demi-yard ne s'annonce pas : le total se lit arrondi a l'inferieur.
+poser("course", 7)
+attendu("la Course vaut 9", X.Valeur(moi, "course"), 9)
+attendu("  soit 4,5 yards", X.BonusDeplacement(moi, "terrestre"), 4.5)
+attendu("  mais la fiche en annonce 4", LCM.Entities.Get_Value(moi, "depl_terrestre"), D.terrestre + 4)
+poser("course", 0) poser("nage", 0)
+
+dire("== La Projection allonge ce qu'on projette")
+poser("projection", 10)
+local projection = X.Valeur(moi, "projection")
+attendu("la Projection a une valeur", projection > 0, true)
+attendu("elle allonge la repulsion d'un demi-yard par point",
+    X.BonusPortee(moi, "repulsion"), projection * 0.5)
+-- Et elle ne touche pas ce qu'elle ne sert pas.
+attendu("mais pas l'attaque simple", X.BonusPortee(moi, "attaque_simple"), 0)
+
+-- De bout en bout : une vraie repulsion, lancee par son bouton. La distance
+-- d'une poussee n'est declaree qu'a un seul endroit (l'effet lui-meme, qui dit
+-- `fm` et porte `mt`) ; c'est la que le gain se pose, sans rien demander au
+-- contenu de l'action.
+poser("meca_repulsion", 6) poser("pen_contondant", 6) poser("mystique", 6)
+LCM.Entities.SetGauge(moi, "pa", 20)
+LCM.Entities.SetGauge(moi, "fatigue", 30)
+local R = LCM.UI.Radial
+R.Trouver("repulsion").onClick()
+local C = LCM.UI.Composeur.frame
+local function choisir(libelle)
+    for _, b in ipairs(C.boutons) do
+        if b:IsShown() and b.o and b.o.label == libelle then b:Click() return true end
+    end
+    for _, c in ipairs(C.cases) do
+        if c:IsShown() and c.o and c.o.label == libelle then c:Click() return true end
+    end
+    return false
+end
+choisir("Esprit")      C.suivant:Click()
+choisir("Force")       C.suivant:Click()
+choisir("Contondant")  C.suivant:Click()
+choisir("Niveau 3 (6 m)") C.suivant:Click()
+attendu("la repulsion est prete a partir", C.declarer:IsShown(), true)
+__groupe({ "Reika-Apertus", "Nytherah-Apertus" })
+C.declarer:Click()
+local cibles = LCM.UI.Resolution.cibles
+cibles.joueurs.lignes[2]:Click()
+cibles.declarer:Click()
+
+local dit
+for i = #__chats, 1, -1 do
+    if __chats[i].texte:find("Projection", 1, true) then dit = __chats[i].texte break end
+end
+attendu("la poussee annonce son allongement", dit ~= nil, true)
+local avant, apres = tostring(dit):match("(%d+)%s*→%s*(%d+)")
+attendu("  elle dit d'ou elle part et ou elle arrive", avant ~= nil, true)
+-- Arrondi a l'inferieur : un demi-yard ne s'annonce pas a une table.
+attendu("  et le gain est celui de la Projection",
+    tonumber(apres), math.floor(tonumber(avant or 0) + X.BonusPortee(moi, "repulsion")))
+attendu("  qui est bien un gain", tonumber(apres) > tonumber(avant or 0), true)
+poser("projection", 0)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

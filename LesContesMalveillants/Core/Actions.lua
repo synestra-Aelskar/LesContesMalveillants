@@ -2515,6 +2515,28 @@ local function DeclarerEffet(etape, ctx, suite)
         gu = e.guerison and { m = e.guerison.mode, c = e.guerison.competence, d = e.guerison.dc } or nil,
     }
     ctx.annonces = {}
+
+    -- La Projection allonge ce qu'on PROJETTE. Une poussee declare sa distance
+    -- ici et nulle part ailleurs (`fm` dit qu'elle pousse, `mt` dit de combien)
+    -- : c'est donc le seul endroit ou le gain se pose, sans rien demander au
+    -- contenu. L'effet nomme sa mecanique, la mecanique dit quelle expertise
+    -- l'allonge (11 octobre 2026).
+    if e.deplacementForce and LCM.Expertises then
+        local poussee = Mecanique(e.nom)
+        local gain = poussee and LCM.Expertises.BonusPortee(ctx.entity, poussee.id) or 0
+        local base = tonumber(paquet.mt)
+        if gain > 0 and base then
+            -- Arrondi a l'inferieur : un demi-yard ne s'annonce pas.
+            local allonge = math.floor(base + gain)
+            if allonge ~= base then
+                paquet.mt = allonge
+                Actions.Annoncer(string.format("%s : %s → %s %s (Projection)",
+                    tostring(e.nom), Nombre(base), Nombre(allonge),
+                    Trim(e.unite) ~= "" and e.unite or "m"), ctx)
+            end
+        end
+    end
+
     local nomJet = Trim(V.randSkill)
     if nomJet ~= "" then
         local total, ligne = JetEffet(ctx, nomJet)
