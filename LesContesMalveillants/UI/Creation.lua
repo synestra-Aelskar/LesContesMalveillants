@@ -255,6 +255,11 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
             max = function() return C.Maximum(f.brouillon, categorie, ligne.id) end,
         })
         compteur:SetHeight(LIGNE - 2)
+        -- Dire ce que c'est. Un joueur qui repartit trente lignes ne sait pas
+        -- de tete ce que « Insensible » ou « Projection » lui donnent, et il
+        -- n'a aucune raison de le savoir : la ligne le lui dit.
+        local note = ligne.note or C.Note(categorie, ligne.id)
+        if note and note ~= "" then UI.Bulle(compteur, ligne.label, note) end
         compteur:SetPoint("TOPLEFT", bloc, "TOPLEFT", x, -y)
         compteur:SetWidth(largeur - 12)
         compteur.champ, compteur.categorie = ligne.id, categorie
@@ -330,22 +335,27 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
         end
         hauteurMax = y
 
-        -- Les suivants : un groupe par colonne, a tour de role, et jamais
-        -- coupe. Chaque colonne garde son propre fil vertical.
+        -- Les suivants : a tour de role dans la colonne la moins remplie.
+        --
+        -- Un groupe trop grand pour une colonne s'y DEVERSE par tranches, et
+        -- chaque tranche reprend son titre suivi de « (suite) ». On refusait
+        -- de couper un groupe, pour qu'on sache toujours ou il commence ; a
+        -- vingt-quatre mecaniques de competence, ce refus coutait un
+        -- defilement et une colonne vide a cote (11 octobre 2026). Le titre
+        -- repete repond au meme souci, sans le defilement.
         local largeurColonne = largeurUtile / colonnes
         -- A trois colonnes, un compteur entier ne tient plus : on le serre.
         local serreColonne = colonnes >= 3
         local yColonne = {}
         for c = 1, colonnes do yColonne[c] = y end
+        -- Combien de lignes par colonne si l'on repartit au mieux : c'est la
+        -- taille d'une tranche. On compte les titres, qui prennent leur place.
+        local aPlacer = 0
+        for rang = debut, #groupes do aPlacer = aPlacer + #groupes[rang].lignes + 1 end
+        local parColonne = math.max(1, math.ceil(aPlacer / colonnes))
+
         for rang = debut, #groupes do
             local g = groupes[rang]
-            -- La colonne la moins remplie : deux groupes inegaux ne laissent
-            -- pas un trou d'un cote.
-            local choisie = 1
-            for c = 2, colonnes do
-                if yColonne[c] < yColonne[choisie] then choisie = c end
-            end
-            local x = marge + (choisie - 1) * largeurColonne
             -- Le plus long libelle du groupe commande la largeur de la colonne
             -- de libelles. Sans ca, chacun retombait sur la part calculee
             -- (« dispo - 8 - 96 ») qui reserve d'abord la place du total : on
@@ -357,13 +367,28 @@ local function Grille(page, f, titre, texte, categorie, colonnes)
                 -- +4 : l'arrondi d'une police qu'on mesure au banc, pas en jeu.
                 vouluGroupe = math.max(vouluGroupe, LargeurTexte(ligne.label) + 4)
             end
-            yColonne[choisie] = yColonne[choisie] + Titre(g.nom, x, yColonne[choisie], largeurColonne)
-            for _, ligne in ipairs(g.lignes) do
-                Poser(ligne, x, yColonne[choisie], largeurColonne, serreColonne, vouluGroupe)
-                yColonne[choisie] = yColonne[choisie] + LIGNE
+
+            local index, suite = 1, false
+            while index <= #g.lignes do
+                -- La colonne la moins remplie : deux groupes inegaux ne
+                -- laissent pas un trou d'un cote.
+                local choisie = 1
+                for c = 2, colonnes do
+                    if yColonne[c] < yColonne[choisie] then choisie = c end
+                end
+                local x = marge + (choisie - 1) * largeurColonne
+                yColonne[choisie] = yColonne[choisie]
+                    + Titre(suite and (g.nom .. " (suite)") or g.nom, x, yColonne[choisie], largeurColonne)
+                local combien = math.min(#g.lignes - index + 1, parColonne)
+                for k = 0, combien - 1 do
+                    Poser(g.lignes[index + k], x, yColonne[choisie], largeurColonne, serreColonne, vouluGroupe)
+                    yColonne[choisie] = yColonne[choisie] + LIGNE
+                end
+                index = index + combien
+                yColonne[choisie] = yColonne[choisie] + 6
+                hauteurMax = math.max(hauteurMax, yColonne[choisie])
+                suite = true
             end
-            yColonne[choisie] = yColonne[choisie] + 6
-            hauteurMax = math.max(hauteurMax, yColonne[choisie])
         end
     end
 
@@ -1077,8 +1102,31 @@ local function Construire()
     UI.Police(f.recap.titre, 13)
     f.recap.titre:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -10)
 
+    -- Les trois chiffres qu'on regarde en repartissant. Hors de la liste
+    -- repliable, et sans en-tete a plier : on ne cache pas ce qu'on consulte
+    -- en permanence (11 octobre 2026).
+    f.recap.vitaux = {}
+    for index, vital in ipairs({ { "pv", "Points de vie" }, { "pf", "Fatigue" },
+                                 { "pa", "Points d'action" } }) do
+        local l = CreateFrame("Frame", nil, f.recap)
+        l:SetHeight(16)
+        l:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -30 - (index - 1) * 16)
+        l:SetPoint("RIGHT", f.recap, "RIGHT", -10, 0)
+        l.nom = UI.Texte(l, vital[2] .. " :", UI.C.libelle)
+        UI.Police(l.nom, 11)
+        l.nom:SetPoint("LEFT", l, "LEFT", 0, 0)
+        l.valeur = UI.Texte(l, "—", UI.C.accent)
+        UI.Police(l.valeur, 12)
+        l.valeur:SetPoint("RIGHT", l, "RIGHT", 0, 0)
+        l.cle = vital[1]
+        f.recap.vitaux[index] = l
+    end
+    f.recap.filet = UI.Filet(f.recap, true)
+    f.recap.filet:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 10, -82)
+    f.recap.filet:SetPoint("TOPRIGHT", f.recap, "TOPRIGHT", -10, -82)
+
     f.recapZone = UI.Defilement(f.recap)
-    f.recapZone:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 8, -32)
+    f.recapZone:SetPoint("TOPLEFT", f.recap, "TOPLEFT", 8, -90)
     f.recapZone:SetPoint("BOTTOMRIGHT", f.recap, "BOTTOMRIGHT", -8, 10)
     f.recap.entetes, f.recap.lignes = {}, {}
     f.deplie = { identite = true, primaires = true }
@@ -1274,7 +1322,25 @@ local function Construire()
         return out
     end
 
+    -- Les trois chiffres vitaux, lus sur l'apercu : la fiche telle qu'elle
+    -- sera, race, traits et points secondaires compris.
+    function f:ActualiserVitaux()
+        local apercu = Apercu(self.brouillon)
+        local valeurs = {}
+        local okPV, pv = pcall(function() return LCM.Body.MaxTotal(apercu) end)
+        valeurs.pv = okPV and pv or nil
+        for cle, jauge in pairs({ pf = "fatigue", pa = "pa" }) do
+            local ok, j = pcall(function() return LCM.Entities.Gauge(apercu, jauge) end)
+            valeurs[cle] = (ok and j and j.max) or nil
+        end
+        for _, l in ipairs(self.recap.vitaux) do
+            local v = valeurs[l.cle]
+            l.valeur:SetText(v and tostring(math.floor(v)) or "—")
+        end
+    end
+
     function f:ActualiserRecap()
+        self:ActualiserVitaux()
         local y, index, indexLigne = 0, 0, 0
         for _, categorie in ipairs(RECAP) do
             index = index + 1

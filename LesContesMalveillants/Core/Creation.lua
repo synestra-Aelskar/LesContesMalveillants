@@ -129,6 +129,120 @@ function Creation.Mecaniques()
     return cacheMecaniques
 end
 
+-- ===== Ce que chaque ligne raconte =========================================
+-- Lu dans les donnees, jamais invente : une regle qu'on ecrirait ici a la main
+-- finirait par contredire celle que le jeu applique.
+
+local function Nombre(n)
+    n = tonumber(n) or 0
+    if n == math.floor(n) then return tostring(math.floor(n)) end
+    return (string.format("%.2f", n):gsub("0+$", ""):gsub("%.$", ""):gsub("%.", ","))
+end
+
+local function Libelle(id)
+    local champ = LCM.Schema and LCM.Schema.Field and LCM.Schema.Field(tostring(id or ""))
+    return (champ and champ.label) or tostring(id or "")
+end
+
+-- Une mecanique de competence : ce qu'un point y ajoute, d'apres la grille de
+-- puissance.
+local function NoteMecanique(id)
+    local R = LCM.Reglages
+    if not (R and R.PuissanceMecanique) then return nil end
+    local p = R.PuissanceMecanique(id)
+    local bouts = {}
+    if (tonumber(p.base) or 0) ~= 0 then
+        bouts[#bouts + 1] = string.format("%s %% de base", Nombre(p.base))
+    end
+    if (tonumber(p.parPoint) or 0) ~= 0 then
+        bouts[#bouts + 1] = string.format("+%s %% par point investi", Nombre(p.parPoint))
+    end
+    if (tonumber(p.equipParPoint) or 0) ~= 0 then
+        bouts[#bouts + 1] = string.format("+%s %% par point d'équipement", Nombre(p.equipParPoint))
+    end
+    if #bouts == 0 then return nil end
+    return "Puissance de la mécanique : " .. table.concat(bouts, ", ") .. "."
+end
+
+-- Une expertise : ce qui la nourrit, et ce qu'elle apporte.
+local function NoteExpertise(id)
+    local bouts = {}
+    local apports = Eq().apportsExpertises and Eq().apportsExpertises[id]
+    if apports then
+        local sources = {}
+        for source, coefficient in pairs(apports) do
+            sources[#sources + 1] = { label = Libelle(source), c = coefficient }
+        end
+        table.sort(sources, function(a, b)
+            if a.c ~= b.c then return a.c > b.c end
+            return a.label < b.label
+        end)
+        local liste = {}
+        for _, s in ipairs(sources) do
+            liste[#liste + 1] = string.format("%s × %s", s.label, Nombre(s.c))
+        end
+        bouts[#bouts + 1] = "Nourrie par : " .. table.concat(liste, ", ") .. "."
+    end
+    local effet = Eq().effetsExpertises and Eq().effetsExpertises[id]
+    if effet then
+        local dits = {}
+        if effet.partObligatoire then
+            dits[#dits + 1] = string.format(
+                "allège de %s %% par point la part des dégâts qui doit aller en santé",
+                Nombre(effet.partObligatoire * 100))
+        end
+        if effet.degats then
+            dits[#dits + 1] = string.format("+%s %% de dégâts par point", Nombre(effet.degats * 100))
+        end
+        if effet.rand then
+            dits[#dits + 1] = string.format("+%s au jet par point", Nombre(effet.rand))
+        end
+        if effet.portee then
+            dits[#dits + 1] = string.format("+%s yard par point", Nombre(effet.portee))
+        end
+        if effet.parade then
+            local jets = {}
+            for _, j in ipairs(effet.jets or {}) do jets[#jets + 1] = Libelle(j) end
+            dits[#dits + 1] = string.format("+%s par point aux jets de %s quand on pare",
+                Nombre(effet.parade), table.concat(jets, " et "))
+        end
+        if effet.mecaniques then
+            dits[#dits + 1] = "sur : " .. table.concat(effet.mecaniques, ", ")
+        end
+        if #dits > 0 then
+            bouts[#bouts + 1] = "Apporte : " .. table.concat(dits, " ; ") .. "."
+        end
+    end
+    if #bouts == 0 then return nil end
+    return table.concat(bouts, "\n\n")
+end
+
+-- La note d'une ligne de repartition. `nil` quand on n'a rien d'honnete a
+-- dire : une infobulle vide vaut mieux qu'une phrase inventee.
+function Creation.Note(categorie, champ)
+    champ = tostring(champ or "")
+    if categorie == "mecaniques" then
+        local defense = champ:match("^def_(.+)$")
+        if defense then
+            local d = LCM.Defenses and LCM.Defenses.Get(defense)
+            return d and d.note or nil
+        end
+        local mecanique = champ:match("^meca_(.+)$")
+        if mecanique then return NoteMecanique(mecanique) end
+        return nil
+    end
+    if categorie == "expertises" then return NoteExpertise(champ) end
+    -- Les autres categories portent deja leur note dans le schema, quand elles
+    -- en ont une.
+    local field = LCM.Schema and LCM.Schema.Field and LCM.Schema.Field(champ)
+    local note = field and field.note
+    if note == nil or note == "" then return nil end
+    -- « Points investis dans... » ne dit rien de plus que le libelle de la
+    -- ligne : une infobulle qui repete la ligne vaut mieux absente.
+    if tostring(note):find("^Points investis") then return nil end
+    return note
+end
+
 function Creation.Types(cote)
     local prefixe = (cote == "resistance") and "resi_" or "pen_"
     local out = {}

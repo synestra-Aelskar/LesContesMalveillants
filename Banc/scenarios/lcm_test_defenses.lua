@@ -22,7 +22,7 @@ local moi = LCM.Entities.Self()
 dire("== la liste existe, et chaque défense dit contre quoi elle vaut")
 attendu("sept défenses", #E.defenses, 7)
 local attendues = {
-    defense = "attaque_simple", resilience_mentale = "confusion", esprit_libre = "provocation",
+    defense = "attaque_simple", mental = "confusion", esprit_libre = "provocation",
     courage = "peur", insensible = "dot", stable = "attraction", agilite = "immobilisation",
 }
 for id, contre in pairs(attendues) do
@@ -62,8 +62,8 @@ moi.def_courage = 4
 attendu("Courage 4 contre la peur", (D.BonusRand(moi, "peur")), 2)
 attendu("  et contre l'intimidation aussi", (D.BonusRand(moi, "intimidation")), 2)
 attendu("  mais pas contre la confusion", (D.BonusRand(moi, "confusion")), 0)
-moi.def_resilience_mentale = 3
-attendu("Résilience 3 contre la confusion", (D.BonusRand(moi, "confusion")), 1.5)
+moi.def_mental = 3
+attendu("Mental 3 contre la confusion", (D.BonusRand(moi, "confusion")), 1.5)
 attendu("  contre le contrôle mental", (D.BonusRand(moi, "controle_mental")), 1.5)
 attendu("  contre l'illusion", (D.BonusRand(moi, "illusion")), 1.5)
 moi.def_insensible = 2
@@ -175,5 +175,55 @@ local peur = reception("Peur")
 A.Pas.apply({ amount = "100", sign = "-", tags = "" }, peur, function() end)
 attendu("la peur n'est pas réduite", peur.effets[1] and peur.effets[1].montant, 100)
 moi.def_defense = 0
+
+dire("== la feuille Statistiques a son chapitre")
+-- Elles avaient leur champ, leur dossier et leur place a la creation, mais pas
+-- de chapitre : on y investissait sans pouvoir les relire.
+-- Une vue porte des ONGLETS : chaque famille du sommaire en devient un.
+local vue = LCM.Vues.Get("statistiques")
+attendu("la vue des statistiques existe", vue ~= nil, true)
+local chapitre
+for _, onglet in ipairs((vue and vue.onglets) or {}) do
+    if onglet.id == "defenses" then chapitre = onglet end
+end
+attendu("le chapitre des défenses y est", chapitre ~= nil, true)
+attendu("  et il se nomme", chapitre and chapitre.label, "Mécanique de défense")
+local champs = chapitre and chapitre.sections[1] and chapitre.sections[1].champs
+    or (chapitre and chapitre.sections[1] and chapitre.sections[1].fields)
+attendu("  avec les sept", champs and #champs, 7)
+
+dire("== la création explique chaque ligne")
+-- Le texte est LU dans les donnees, jamais invente : une regle ecrite a la
+-- main finirait par contredire celle que le jeu applique.
+local note = LCM.Creation.Note("mecaniques", "def_courage")
+attendu("une défense dit sa règle", note and note:find("peur") ~= nil, true)
+local notemeca = LCM.Creation.Note("mecaniques", "meca_attaque_simple")
+attendu("une mécanique dit sa puissance",
+    notemeca and notemeca:find("Puissance de la mécanique") ~= nil, true)
+local noteexp = LCM.Creation.Note("expertises", "puissance")
+attendu("une expertise dit ce qui la nourrit",
+    noteexp and noteexp:find("Nourrie par") ~= nil, true)
+attendu("  et ce qu'elle apporte", noteexp and noteexp:find("Apporte") ~= nil, true)
+local noteresi = LCM.Creation.Note("expertises", "resistance")
+attendu("les Résistances disent ce qu'elles allègent",
+    noteresi and noteresi:find("part des dégâts") ~= nil, true)
+-- La note generique des mecaniques ne disait rien : on ne la montre pas.
+attendu("et on ne montre pas une note vide de sens",
+    LCM.Creation.Note("penetration", "pen_feu"), nil)
+
+dire("== le récapitulatif de la création porte les trois chiffres vitaux")
+local ecran = LCM.UI.Creation
+local f = ecran.Fenetre and ecran.Fenetre() or ecran.frame
+attendu("l'écran existe", f ~= nil, true)
+if f and f.recap then
+    attendu("trois lignes vitales", #f.recap.vitaux, 3)
+    local noms = {}
+    for _, l in ipairs(f.recap.vitaux) do noms[#noms + 1] = l.nom:GetText() end
+    attendu("  et elles se nomment", table.concat(noms, " "),
+        "Points de vie : Fatigue : Points d'action :")
+    -- Elles ne se replient pas : elles ne font pas partie de la liste.
+    attendu("elles vivent hors de la zone qui défile",
+        f.recap.vitaux[1]:GetParent() == f.recap, true)
+end
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

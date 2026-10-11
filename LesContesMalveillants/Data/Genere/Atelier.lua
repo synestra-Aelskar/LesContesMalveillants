@@ -118,9 +118,11 @@ LCM.Publier(LCM.Objets, {
 LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
+        acrobaties = -1,
+        equilibre = -1,
+        escalade = -1,
         meca_buff = 1,
         meca_soin = 1,
-        pen_contondant = 4,
     },
     categorie = "arme",
     couleurTitre = "4DE04D",
@@ -139,17 +141,21 @@ LCM.Publier(LCM.Objets, {
 })
 
 LCM.Publier(LCM.Objets, {
-    ["bonus.depl_nage"] = "-1",
-    ["bonus.resi_contondant"] = "1",
-    ["bonus.resi_perforant"] = "1",
-    ["bonus.resi_tranchant"] = "2",
+    armure = 2,
+    avantage = {  },
+    bonus = {  },
     categorie = "equipement",
     couleurTitre = "FF8CB8",
     description = "Armure du pauvre.",
+    etat = {
+        courant = 18,
+        max = 18,
+    },
     forge = "equilibrage_arme_copie/commun",
     icone = "Interface\\ICONS\\inv_chest_chain_12",
     id = "bridandine_de_pauvre",
     label = "Bridandine de pauvre",
+    remplacePublie = true,
     tags = "Commun",
 })
 
@@ -193,7 +199,7 @@ LCM.Publier(LCM.Objets, {
 
 LCM.Publier(LCM.Objets, {
     armure = 2,
-    avantage = {},
+    avantage = {  },
     bonus = {
         depl_nage = -1,
         depl_terrestre = -1,
@@ -205,10 +211,15 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Une armure composée d'un, alliage léger sans doute fait de mithril permet à son porteur de rester mobile. Néanmoins l'armure  porte des enchantements qui décuple la force du porteur, lui permettant de supporter un tel fardeau.\n\nArmure Lourde mais considérée comme une armure de catégorie plus légère au niveau du poids.",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_chest_leather_11",
     id = "ensemble_harnois_blanc",
     label = "Harnois blanc",
+    remplacePublie = true,
     tags = "Rare",
 })
 
@@ -341,7 +352,7 @@ LCM.Publier(LCM.Objets, {
 
 LCM.Publier(LCM.Objets, {
     armure = 2,
-    avantage = {},
+    avantage = {  },
     bonus = {
         discretion = 1,
         resi_contondant = 4,
@@ -353,16 +364,21 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Une tenue sombre et délicate, qui semble clairement imbibée d'un manteau d'ombre.",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_leather_raidrogue_p_01chest",
     id = "lcm_64a651_6ac7be10_36cf7992_0004_fb40af",
     label = "Tenue d'assassin du culte.",
+    remplacePublie = true,
     tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
     armure = 2,
-    avantage = {},
+    avantage = {  },
     bonus = {
         discretion = 2,
         resi_contondant = 3,
@@ -374,16 +390,21 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "..Nimbée d'ombre.",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_leather_warfrontshorde_d_01_pants",
     id = "lcm_64a651_6ac7be6a_36d0dc15_0005_7dbd88",
     label = "Soutane des ombres",
+    remplacePublie = true,
     tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
     armure = 2,
-    avantage = {},
+    avantage = {  },
     bonus = {
         discretion = 2,
         resi_contondant = 3,
@@ -395,16 +416,21 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Nimbée d'ombre..",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_boots_leather_cataclysm_b_02",
     id = "lcm_64a651_6ac7beb5_36d1fee9_0006_6b2588",
     label = "Bottes des ombres",
+    remplacePublie = true,
     tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
     armure = 2,
-    avantage = {},
+    avantage = {  },
     bonus = {
         discretion = 2,
         resi_contondant = 3,
@@ -416,14 +442,21 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Nimbée d'ombre.",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_glove_leather_zuldazarraid_d_01",
     id = "lcm_64a651_6ac7beea_36d2cf27_0007_8cf26e",
     label = "Gants du cultiste des ombres",
+    remplacePublie = true,
     tags = "Rare",
 })
 
 LCM.Publier(LCM.Objets, {
+    armure = 2,
+    avantage = {  },
     bonus = {
         discretion = 2,
         resi_contondant = 3,
@@ -434,10 +467,15 @@ LCM.Publier(LCM.Objets, {
     categorie = "equipement",
     couleurTitre = "4D8CFF",
     description = "Nimbée d'ombre.",
+    etat = {
+        courant = 14,
+        max = 14,
+    },
     forge = "equilibrage_arme_copie/rare",
     icone = "Interface\\ICONS\\inv_bracer_leather_zuldazarraid_d_01",
     id = "lcm_64a651_6ac7bf11_36d36743_0008_d09027",
     label = "Voile du corbeau",
+    remplacePublie = true,
     tags = "Rare",
 })
 
@@ -517,21 +555,22 @@ LCM.Publier(LCM.Objets, {
     avantage = {  },
     bonus = {
         meca_brise_armure = 1,
-        pen_contondant = 10,
+        pen_contondant = 8,
         pen_perforant = 6,
-        pen_tranchant = 16,
+        pen_tranchant = 14,
     },
     categorie = "arme",
     couleurTitre = "4DE04D",
     description = "Une lame inabituellement grande, qui semble capable de vendre un cheval en deux.",
     etat = {
-        courant = 14,
-        max = 14,
+        courant = 10,
+        max = 10,
     },
     forge = "equilibrage_arme/inhabituel",
     icone = "Interface\\ICONS\\inv_sword_1h_draenorraid_d_03blue",
     id = "lcm_64a651_6ac8a2eb_3a4d5de1_0001_5e0efb",
     label = "Déchireuse de l'automate.",
+    remplacePublie = true,
     tags = "Inhabituel",
     taille = 2,
 })
@@ -596,17 +635,28 @@ LCM.Publier(LCM.Objets, {
 })
 
 LCM.Publier(LCM.Objets, {
-    ["bonus.depl_terrestre"] = "-1",
-    ["bonus.resi_contondant"] = "4",
-    ["bonus.resi_perforant"] = "4",
-    ["bonus.resi_tranchant"] = "4",
+    armure = 2,
+    avantage = {  },
+    bonus = {
+        acrobaties = -1,
+        equilibre = -1,
+        escalade = -1,
+        resi_contondant = 2,
+        resi_perforant = 2,
+        resi_tranchant = 2,
+    },
     categorie = "equipement",
     couleurTitre = "4DE04D",
     description = "Un rempart qui protège bien.",
+    etat = {
+        courant = 34,
+        max = 34,
+    },
     forge = "equilibrage_arme_copie/inhabituel",
     icone = "Interface\\ICONS\\inv_chest_chain_17",
     id = "rempart_de_guerre",
     label = "Rempart de guerre",
+    remplacePublie = true,
     tags = "Inhabituel",
 })
 

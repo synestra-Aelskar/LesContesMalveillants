@@ -2,9 +2,11 @@
 return {
     avantage = {  },
     bonus = {
+        acrobaties = -1,
+        equilibre = -1,
+        escalade = -1,
         meca_buff = 1,
         meca_soin = 1,
-        pen_contondant = 4,
     },
     categorie = "arme",
     couleurTitre = "4DE04D",

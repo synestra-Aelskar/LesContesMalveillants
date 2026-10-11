@@ -109,6 +109,12 @@ function Roll.Describe(resultat)
     if (resultat.apport or 0) ~= 0 then morceaux[#morceaux + 1] = string.format("Stat : %+d", resultat.apport) end
     if resultat.bonus ~= 0 then morceaux[#morceaux + 1] = string.format("Bonus : %+d", resultat.bonus) end
     if resultat.modificateur ~= 0 then morceaux[#morceaux + 1] = string.format("Modificateur : %+d", resultat.modificateur) end
+    -- Ce que les expertises de parade ajoutent (Core/Expertises.lua). Une part
+    -- nommee du jet, comme les autres : accolee apres coup, elle laissait un
+    -- total qui ne la comptait pas.
+    if (resultat.expertises or 0) ~= 0 then
+        morceaux[#morceaux + 1] = string.format("Expertises : %+d", resultat.expertises)
+    end
     local ligne = string.format("%s : %d  (%s)", resultat.label, resultat.total, table.concat(morceaux, ", "))
     if resultat.desavantage and resultat.genant then
         ligne = ligne .. "  — désavantage : " .. resultat.genant.label

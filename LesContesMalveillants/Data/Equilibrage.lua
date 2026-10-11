@@ -598,7 +598,7 @@ E.defenses = {
     { id = "defense", label = "Défense", sorte = "reduction", parPoint = 0.03,
       contre = { "attaque_simple", "perce_armure", "brise_armure" },
       note = "Retire 3 % des dégâts par point, contre les attaques, les perce-armure et les brise-armure." },
-    { id = "resilience_mentale", label = "Résilience mentale", sorte = "rand", parPoint = 0.5,
+    { id = "mental", label = "Mental", sorte = "rand", parPoint = 0.5,
       contre = { "confusion", "controle_mental", "illusion" },
       note = "+0,5 au jet de défense par point, contre la confusion, le contrôle mental et l'illusion." },
     { id = "esprit_libre", label = "Esprit libre", sorte = "rand", parPoint = 0.5,

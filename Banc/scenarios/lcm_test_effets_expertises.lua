@@ -173,4 +173,43 @@ attendu("et il est annoncé",
     table.concat(dites, " | "):find("Projection 8") ~= nil, true)
 poser("projection", 0)
 
+dire("== le bonus de parade se lit dans le décompte du jet")
+-- Il etait accole apres coup, a cote d'un total qui ne le comptait pas : on
+-- lisait « Adresse : 7 » pour un jet qui en valait dix.
+poser("equilibre", 4) poser("acrobaties", 9) poser("evasion", 12)
+local attendu37 = X.BonusParade(moi, "adresse")
+attendu("le bonus brut vaut 3,7", string.format("%.1f", attendu37), "3.7")
+
+local recu = { entity = moi, vars = {}, journal = {}, effets = {},
+               paquet = { n = "Attaque simple" } }
+local total, texte = A.JetFormule("{jet:Adresse}", recu)
+
+-- Arrondi VERS LE BAS : 3,7 donne 3.
+attendu("le décompte nomme les expertises",
+    texte and texte:find("Expertises : %+3") ~= nil, true)
+attendu("  et il n'y a plus de bloc accolé",
+    texte and texte:find("Acrobaties 9") == nil, true)
+
+-- Le total ECRIT est la somme des parts ECRITES. Deux appels lanceraient deux
+-- dés différents : c'est la cohérence d'UNE ligne qu'on vérifie, et c'est
+-- précisément ce qui manquait — un total qui ne comptait pas ce qu'il annonce.
+local ecrit = tonumber(texte and texte:match("Adresse : (-?%d+)"))
+attendu("le total écrit est celui qu'on rend", ecrit, total)
+-- Seulement ce qui est DANS la parenthese : « Adresse : 12 » au-dehors, c'est
+-- le total lui-meme, il ne s'additionne pas a ses propres parts.
+local dedans = tostring(texte):match("%((.-)%)") or ""
+local somme = 0
+for part in dedans:gmatch("([%+%-]?%d+)") do
+    somme = somme + (tonumber(part) or 0)
+end
+attendu("et il est la somme de ses parts", somme, ecrit)
+
+-- Hors réception, rien ne change : parer, c'est subir.
+local enAttaque = { entity = moi, vars = {} }
+local a1 = A.JetFormuleBrut("{jet:Adresse}", enAttaque)
+local a2, texteAttaque = A.JetFormule("{jet:Adresse}", enAttaque)
+attendu("un jet d'attaque ne porte rien",
+    texteAttaque and texteAttaque:find("Expertises") == nil, true)
+poser("equilibre", 0) poser("acrobaties", 0) poser("evasion", 0)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

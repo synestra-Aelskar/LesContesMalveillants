@@ -1156,22 +1156,30 @@ end
 -- et nulle part ailleurs, que s'ajoutent les mecaniques de defense et les
 -- expertises de parade.
 function Actions.JetFormule(formule, ctx)
-    local total, texte, champ = Actions.JetFormuleBrut(formule, ctx)
+    local total, texte, champ, resultat = Actions.JetFormuleBrut(formule, ctx)
     if not total then return total, texte end
 
+    -- Les expertises de parade entrent DANS le decompte du jet, arrondies vers
+    -- le bas : un demi-point qu'on ne peut pas lire sur un de n'a pas a
+    -- gonfler un total. Accolees apres coup, elles laissaient un total qui ne
+    -- les comptait pas (11 octobre 2026).
+    local parade = math.floor(Actions.BonusParade(ctx, champ))
+    if parade ~= 0 then
+        total = total + parade
+        if resultat then
+            resultat.expertises = (resultat.expertises or 0) + parade
+            resultat.total = resultat.total + parade
+            texte = LCM.Roll.Describe(resultat)
+        end
+    end
+
+    -- La defense, elle, garde sa mention a part : elle dit CONTRE QUOI elle
+    -- vaut, et ce detail n'entre pas dans un decompte en colonnes.
     local bonus, resume = Actions.BonusDefense(ctx)
     if bonus ~= 0 then
         total = total + bonus
         if texte then
             texte = string.format("%s  +%s (%s)", texte, Nombre(bonus), resume or "défense")
-        end
-    end
-
-    local parade, quoi = Actions.BonusParade(ctx, champ)
-    if parade ~= 0 then
-        total = total + parade
-        if texte then
-            texte = string.format("%s  +%s (%s)", texte, Nombre(parade), quoi or "parade")
         end
     end
     return total, texte
@@ -1187,7 +1195,7 @@ function Actions.JetFormuleBrut(formule, ctx)
         local r = Actions.Jet(nom, ctx.entity)
         if r then
             local field = ChampParLibelle(nom, "roll")
-            return r.total, LCM.Roll.Describe(r), field and field.id
+            return r.total, LCM.Roll.Describe(r), field and field.id, r
         end
         Noter(ctx, "jet:" .. nom)
         return 0
@@ -1200,7 +1208,7 @@ function Actions.JetFormuleBrut(formule, ctx)
             return r.total, r.texte, jet.champ
         end
         local r = LCM.Roll.Field(ctx.entity, jet.champ)
-        return r.total, LCM.Roll.Describe(r), jet.champ
+        return r.total, LCM.Roll.Describe(r), jet.champ, r
     end
     if id then Noter(ctx, "jet de fiche : " .. id) return 0 end
     return tonumber(Actions.Evaluer(formule, ctx)) or 0

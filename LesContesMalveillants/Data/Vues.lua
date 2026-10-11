@@ -183,6 +183,10 @@ do
     end
     local mecaniques = {}
     for _, m in ipairs(E.mecaniques) do mecaniques[#mecaniques + 1] = "meca_" .. m.id end
+    local defenses = {}
+    for _, d in ipairs(E.defenses or {}) do
+        defenses[#defenses + 1] = LCM.Defenses.Field(d.id)
+    end
 
     -- Une famille du recapitulatif = un chapitre du sommaire. Son libelle est
     -- celui de son bloc (Core/Vues.lua le reprend quand l'onglet n'en donne pas).
@@ -219,6 +223,7 @@ do
             Combat("empoisonnement"),
             Combat("debuff"),
             Famille("mecaniques", { label = "Mécanique de compétence", champs = mecaniques }),
+            Famille("defenses", { label = "Mécanique de défense", champs = defenses }),
         },
     })
 end

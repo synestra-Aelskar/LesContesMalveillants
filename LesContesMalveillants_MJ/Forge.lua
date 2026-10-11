@@ -675,10 +675,16 @@ local function Construire()
 
         -- Les statistiques ouvertes a l'investissement, par dossier. Les
         -- verrouillees n'apparaissent pas (Necronicon) : elles valent leur base.
-        local dossiers, parDossier = {}, {}
+        local dossiers, parDossier, verrouilles = {}, {}, {}
         for _, ligne in ipairs(bilan and bilan.lignes or {}) do
-            if not ligne.limites.verrou then
-                local nom = ligne.champ.dossier or "Général"
+            local nom = ligne.champ.dossier or "Général"
+            if ligne.limites.verrou then
+                -- Comptees sans etre montrees : un dossier qui annonce « 4 »
+                -- alors que la fiche en porte vingt-quatre ressemble a une
+                -- perte. Dire combien sont fermees, c'est dire que ce n'en
+                -- est pas une.
+                verrouilles[nom] = (verrouilles[nom] or 0) + 1
+            else
                 if not parDossier[nom] then
                     parDossier[nom] = {}
                     dossiers[#dossiers + 1] = nom
@@ -715,8 +721,19 @@ local function Construire()
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", x + 4, -y)
             b:SetWidth(largeur - 4)
-            b.label:SetText(string.format("%s %s  |cff888888(%d)|r%s", tableau and "" or (ouvert and "v" or ">"), nom, #liste,
+            local fermees = verrouilles[nom] or 0
+            b.label:SetText(string.format("%s %s  |cff888888(%d%s)|r%s",
+                tableau and "" or (ouvert and "v" or ">"), nom, #liste,
+                fermees > 0 and string.format(", %d verrouillée%s", fermees, fermees > 1 and "s" or "") or "",
                 depense ~= 0 and string.format("   |cffffd200%s pts|r", C.Nombre(depense)) or ""))
+            UI.Bulle(b, nom, fermees > 0
+                and string.format("%d statistique%s ouverte%s à l'investissement, %d verrouillée%s.\n\n"
+                    .. "Une statistique verrouillée vaut sa base et ne s'affiche pas : "
+                    .. "ouvre-la dans « Équilibrage » si tu veux pouvoir y investir.",
+                    #liste, #liste > 1 and "s" or "", #liste > 1 and "s" or "",
+                    fermees, fermees > 1 and "s" or "")
+                or string.format("%d statistique%s ouverte%s à l'investissement.",
+                    #liste, #liste > 1 and "s" or "", #liste > 1 and "s" or ""))
             TeinterDossier(b, nom)
             b:Show()
             y = y + 26
