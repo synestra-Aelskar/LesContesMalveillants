@@ -460,4 +460,27 @@ I.Vider(moi, "sacs", 1, 1)
 f:Rafraichir()
 fe:Hide()
 
+dire("== un joueur range ses propres affaires")
+-- « Ranger est un geste du maitre du jeu » barrait TOUT depot : on ne pouvait
+-- meme pas deplacer d'une case a l'autre un objet recu en echange. Ce que la
+-- regle voulait dire, c'est qu'on ne FABRIQUE pas un objet depuis le
+-- compendium. Les deux gestes se distinguent a la source : un glissement parti
+-- d'un sac porte son `origine`, celui du compendium n'en a pas
+-- (12 octobre 2026).
+LCM.BasculerModeJoueur(true)
+attendu("on joue en joueur", LCM.IsMaster(), false)
+
+-- Ce qui vient du compendium reste refuse, et on dit pourquoi.
+local case = s.cases[2]
+local okCompendium, raisonCompendium = case.glisserAccepte({ ref = "ressources/eau" })
+attendu("sortir du compendium : refusé", okCompendium, false)
+attendu("  et on dit pourquoi",
+    tostring(raisonCompendium):find("compendium", 1, true) ~= nil, true)
+
+-- Ce qu'on possede deja se deplace : il porte sa place d'origine.
+local depuisSac = { ref = "ressources/eau", quantite = 1,
+    origine = { onglet = "sacs", index = 1, case = 1 } }
+attendu("déplacer ce qu'on a : permis", (case.glisserAccepte(depuisSac)), true)
+LCM.BasculerModeJoueur(false)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

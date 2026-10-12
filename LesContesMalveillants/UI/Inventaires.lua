@@ -25,6 +25,13 @@ local _, LCM = ...
 local UI = LCM.UI
 local Inv = LCM.Inventaire
 
+-- Un glissement qui vient du COMPENDIUM fabrique un objet : c'est au MJ. Un
+-- glissement qui vient d'un sac ou d'un emplacement le DEPLACE : il porte son
+-- `origine`, et c'est un geste de joueur ordinaire (12 octobre 2026).
+local function Creation(objet)
+    return type(objet) ~= "table" or objet.origine == nil
+end
+
 local Ecran = {}
 UI.Inventaires = Ecran
 
@@ -94,7 +101,9 @@ local function Carte(f)
     c.survol:SetAllPoints(c)
     -- On y depose un sac (ou une devise) glisse depuis le compendium.
     UI.Glisser.Cible(c, function(objet)
-        if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
+        if Creation(objet) and not LCM.IsMaster() then
+            return false, "sortir un objet du compendium est un geste du maître du jeu."
+        end
         local categorie = Inv.Get(c.onglet or Inv.categories[1].id)
         local voulu = categorie.contient == "sac" and "sacs" or "devises"
         -- Une tente s'equipe comme un sac, mais seulement sur une sacoche.
@@ -236,7 +245,9 @@ local function Construire()
                         and o.index == l.place.index and o.case == l.case
                 end
                 UI.Glisser.Cible(l, function(objet)
-                    if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
+                    if Creation(objet) and not LCM.IsMaster() then
+                        return false, "sortir un objet du compendium est un geste du maître du jeu."
+                    end
                     local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
                     if not Inv.Contenant(ici) then return false, "aucun sac ici." end
                     if MemeCase(objet) then return true end
@@ -505,7 +516,9 @@ local function NouvelleCase(s, n)
     b.survol = UI.Aplat(b, { 0.80, 0.70, 0.40, 0.12 }, "HIGHLIGHT")
     b.survol:SetAllPoints(b)
     UI.Glisser.Cible(b, function(objet)
-        if not LCM.IsMaster() then return false, "ranger est un geste du maître du jeu." end
+        if Creation(objet) and not LCM.IsMaster() then
+            return false, "sortir un objet du compendium est un geste du maître du jeu."
+        end
         local e = s:Emplacement()
         -- Reposer un objet sur sa propre case n'est pas une erreur : c'est un
         -- glissement qu'on annule. On accepte, et le depot ne fera rien.

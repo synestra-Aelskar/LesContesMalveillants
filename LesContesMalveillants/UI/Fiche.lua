@@ -1061,7 +1061,12 @@ local function Emplacement(conteneur, c)
             if conteneur.entity and conteneur.entity.distante then
                 return false, "fiche distante en lecture seule."
             end
-            if not LCM.IsMaster() then return false, "équiper est un geste du maître du jeu." end
+            -- Equiper ce qu'on possede est un geste de joueur ; seul un objet
+            -- tire du COMPENDIUM (sans origine) est une fabrication, donc
+            -- reserve au MJ (12 octobre 2026).
+            if objet.origine == nil and not LCM.IsMaster() then
+                return false, "sortir un objet du compendium est un geste du maître du jeu."
+            end
             if l.elementId then return false, "cet emplacement est déjà pris." end
             local ref = tostring(objet.ref or "")
             local famille, id = ref:match("^([%w_]+)/(.+)$")
