@@ -15,6 +15,11 @@ local function budget(page, categorie)
     for _, b in ipairs(page.budgets) do if b.categorie == categorie then return b end end
 end
 
+-- Une race TEMOIN, sans aucun bonus : les blocs qui verifient une FORMULE
+-- (PV, fatigue, deplacement) ne doivent pas dependre de l'equilibrage des
+-- races, qui donne desormais +3 a toutes les statistiques.
+LCM.Brouillons.Set("races", { id = "temoin", label = "Témoin", morphology = "humanoide" })
+
 __declencher("PLAYER_LOGIN")
 
 dire("== le bouton + du carrousel ouvre la creation")
@@ -24,8 +29,10 @@ local f = LCM.UI.Creation.frame
 attendu("fenetre ouverte", f:IsShown(), true)
 local noms = {}
 for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
+-- « Métiers » est une etape a part entiere depuis que les PNJ en depensent
+-- (ils en recoivent quatre par niveau) : elle n'etait pas dans le template.
 attendu("les onglets du template", table.concat(noms, ", "),
-    "Bienvenue, Générale, Statistiques, Expertises, Mécaniques, Pénétrations, Résistances, Traits")
+    "Bienvenue, Générale, Statistiques, Expertises, Mécaniques, Pénétrations, Résistances, Traits, Métiers")
 attendu("on demarre sur Bienvenue", f.etape, "bienvenue")
 attendu("brouillon neuf", f.brouillon.nom, "")
 attendu("les textes du template", f.pages.bienvenue.blocs[1].paragraphe:GetText():find("Syn ou Talyah") ~= nil, true)
@@ -168,8 +175,16 @@ local function proposees()
     end
     return out
 end
+-- Un jeu d'equilibrage TEMOIN : le bareme BLOQUE, et une race d'essai sans
+-- `forge` est refusee. Ce qu'on teste ici, c'est qu'une race reservee au MJ
+-- ne se propose pas au joueur — pas son cout.
+LCM.Brouillons.Enregistrer("jeux", {
+    id = "essai_races_creation", label = "Essai (races)", categorie = "races",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
 local ok, raison = LCM.Brouillons.Enregistrer("races",
-    { id = "ombre_banc", label = "Ombre", morphology = "humanoide", mjSeulement = true }, true)
+    { id = "ombre_banc", label = "Ombre", morphology = "humanoide", mjSeulement = true,
+      forge = "essai_races_creation/libre" }, true)
 attendu("le MJ la cree", ok, true)
 attendu("elle porte l'option", LCM.Races.Get("ombre_banc").mjSeulement, true)
 slot:Click("LeftButton")
@@ -276,6 +291,9 @@ attendu("le R du bloc vide la categorie", LCM.Creation.Depense(f.brouillon, "pri
 for _ = 1, 8 do force.plus:Click() end
 
 dire("== Statistiques : l'apercu suit la repartition")
+-- Sur la race temoin : on verifie la formule, pas le bonus d'une race.
+f.brouillon.race = "temoin"
+f:Actualiser()
 local constitution = compteur(st, "constitution")
 for _ = 1, 4 do constitution.plus:Click() end
 -- PV : 2 + 7,5 + 0 + 4 x (2 + 4 x 0,25) = 21,5 -> 21 ; Fatigue : 15 + 10 + 0 + 8 + 1 = 34
@@ -380,8 +398,25 @@ attendu("initiative", lire("sec_initiative"):find("init%.") ~= nil, true)
 -- Quatre de base, plus ce qui a ete investi.
 attendu("points d'action : quatre de base plus l'investi", lire("sec_pa"),
     string.format("%d PA", LCM.Equilibrage.pa.base + LCM.Creation.Valeur(f.brouillon, "sec_pa")))
--- Terrestre 8 + 2, Nage 5 + 2, Vol 0 + 2.
-attendu("deplacement : les trois modes", lire("sec_deplacement"), "10 / 7 / 2")
+-- Terrestre 8 + 2 secondaires + la Course, Nage 5 + 2 + la Nage, Vol 0 + 2.
+-- Depuis le 11 octobre 2026 une expertise donne un DEMI-yard par point sur sa
+-- valeur TOTALE : la Course et la Nage sont nourries par la Force et
+-- l'Adresse, donc elles comptent meme sans qu'on ait rien investi dedans. On
+-- lit ce qu'elles valent plutot que d'ecrire un nombre en dur.
+-- On refait l'apercu comme l'ecran le fait : une entite de passage batie sur
+-- le brouillon, pour lire ce que la Course et la Nage y valent.
+local apercu = { id = "__temoin", name = "", kind = "player",
+    values = (function()
+        local v = {}
+        for cle, valeur in pairs(f.brouillon.valeurs) do v[cle] = valeur end
+        v.race, v.niveau = f.brouillon.race, f.brouillon.niveau
+        return v
+    end)(), traits = f.brouillon.traits }
+local X = LCM.Expertises
+attendu("deplacement : les trois modes", lire("sec_deplacement"), string.format("%d / %d / %d",
+    math.floor(8 + 2 + X.BonusDeplacement(apercu, "terrestre")),
+    math.floor(5 + 2 + X.BonusDeplacement(apercu, "nage")),
+    2))
 attendu("et chacun dans sa couleur", secDe("sec_deplacement").total:GetText():find("|c") ~= nil, true)
 attendu("expertises : des points a repartir",
     lire("sec_expertises"), string.format("%d pts", LCM.Creation.Total(f.brouillon, "expertises")))
@@ -408,7 +443,9 @@ attendu("elles ne sont plus avec les expertises", compteur(ex, "meca_soin"), nil
 f.barre.boutons[5]:Click()
 local meca = f.pages.mecaniques
 attendu("l'etape Mecaniques", f.etape, "mecaniques")
-attendu("vingt-deux choix", #meca.compteurs, 22)
+-- Trente et un : vingt-quatre de competence et les sept de defense, ajoutees
+-- le 11 octobre 2026 et qui partagent le meme budget.
+attendu("trente et un choix", #meca.compteurs, 31)
 local soin = compteur(meca, "meca_soin")
 attendu("avec ses lignes", soin ~= nil, true)
 attendu("avec Provocation", compteur(meca, "meca_provocation") ~= nil, true)

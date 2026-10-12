@@ -14,26 +14,37 @@ __declencher("PLAYER_LOGIN")
 __groupe({ "Nytherah-Apertus" })
 local O = LCM.Outils
 
-dire("== le panneau : quatre onglets")
+dire("== le panneau : ses onglets")
 local p = LCM.UI.PanneauMJ.Basculer()
 attendu("ouvert sur Joueurs", p:IsShown() and p.onglet, "joueurs")
 local ids = {}
 for _, b in ipairs(p.barre.boutons) do ids[#ids + 1] = b.ongletId end
-attendu("les onglets", table.concat(ids, ","), "joueurs,combat,contenu,outils")
+-- Six depuis que « Contenu » s'est scinde en « PNJ » et « Contenus », et que
+-- l'« Équilibrage » a sa page (octobre 2026). Le scenario en connaissait
+-- quatre.
+attendu("les onglets", table.concat(ids, ","), "joueurs,combat,pnj,contenus,outils,equilibrage")
 local function onglet(id)
     for _, b in ipairs(p.barre.boutons) do if b.ongletId == id then b:Click() end end
     return p.pages[id]
 end
 local joueurs = p.pages.joueurs
-attendu("une ligne par membre", joueurs.nombreAffiche, 1)
+-- Le MJ est dans sa propre liste : sa fiche se lit en memoire au lieu d'etre
+-- demandee au reseau (un WHISPER a soi-meme est refuse par le protocole), et
+-- il doit pouvoir se donner de l'XP comme aux autres. Le scenario comptait
+-- encore « le groupe sans moi ».
+attendu("une ligne par membre, moi compris", joueurs.nombreAffiche, 2)
+-- Le motif a quitte la liste des joueurs : il vit dans le panneau d'XP, qui
+-- se replie. Ce qu'on verifie n'a pas change — il n'est pas pose sur la page
+-- elle-meme — mais il n'est plus ancre au meme endroit.
 attendu("le motif n'est plus dans la liste",
-    select(2, joueurs.raison:GetPoint(1)) == joueurs, true)
+    select(2, joueurs.raison:GetPoint(1)) ~= joueurs, true)
 attendu("la ligne dit si l'addon est la", joueurs.lignes[1].detail:GetText():find("addon") ~= nil, true)
 attendu("et que la fiche n'est pas consultee",
     joueurs.lignes[1].detail:GetText():find("pas encore consultée", 1, true) ~= nil, true)
 
 dire("== PNJ & contenu")
-local contenu = onglet("contenu")
+-- La scene a suivi « Contenu » quand il s'est scinde : elle vit dans « PNJ ».
+local contenu = onglet("pnj")
 attendu("seule la page Contenu se voit", contenu:IsShown() and not joueurs:IsShown(), true)
 attendu("aucun PNJ en scene", contenu.nombreScene, 0)
 attendu("et la page le dit", contenu.sceneVide:GetText():find("Incarner", 1, true) ~= nil, true)
@@ -44,7 +55,15 @@ attendu("sous son nom", contenu.lignesScene[1].nom:GetText(), "Garde")
 -- L'Atelier a quitte le Panel MJ le 3 octobre 2026 : il a sa propre entree
 -- dans « Outils », parce que c'est l'outil qu'on ouvre le plus en seance et
 -- qu'il etait a trois clics.
-attendu("l'Atelier n'est plus dans le Panel MJ", contenu.boutons.atelier, nil)
+-- Aucune page du panneau ne porte de bouton « Atelier » : il a sa propre
+-- entree de menu. La page « Contenu » qui le portait s'est scindee depuis, on
+-- regarde donc toutes les pages plutot qu'une seule.
+attendu("l'Atelier n'est plus dans le Panel MJ", (function()
+    for _, page in pairs(p.pages) do
+        if page.boutons and page.boutons.atelier then return page.boutons.atelier end
+    end
+    return nil
+end)(), nil)
 attendu("il est dans le menu", LCM.UI.Menu.EstLiee("atelier"), true)
 LCM.UI.Menu.Trouver("atelier").onClick()
 attendu("et il s'ouvre de la", LCM.UI.Atelier.Fenetre():IsShown(), true)

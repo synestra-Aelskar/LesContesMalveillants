@@ -119,6 +119,12 @@ attendu("la fiche passe devant", fiche.rangDevant > rangDoc, true)
 fiche:Hide()
 doc:Hide()
 
+-- Le personnage de ce scenario joue avec l'equilibrage COURANT. Sans cela, la
+-- creation lui impose un reequilibrage des qu'on l'ouvre — a juste titre : sa
+-- fiche date d'une version anterieure — et le scenario ne teste plus ce qu'il
+-- croit tester (constate le 11 octobre 2026, quand VERSION_CREATION a bouge).
+LCM.Creation.MarquerAJour(LCM.Entities.Self())
+
 dire("== creation et selection ne se recouvrent pas")
 local selection = LCM.UI.Personnages.Ouvrir()
 attendu("selection ouverte", selection:IsShown(), true)

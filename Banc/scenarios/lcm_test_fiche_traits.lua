@@ -173,8 +173,19 @@ dire("== avantage et desavantage (regles du 5 octobre 2026)")
 -- Attendu : desavantage DE FACTO sur vol a la tire, et un avantage a choisir
 -- parmi escalade / acrobaties seulement.
 local B3 = LCM.Brouillons
+-- Un jeu d'equilibrage TEMOIN. Le bareme BLOQUE depuis le 3 octobre 2026 : un
+-- trait sans `forge` est refuse. Ces traits-la servent a tester l'AVANTAGE et
+-- le DESAVANTAGE, pas l'equilibrage — ils ont donc leur jeu a eux, large,
+-- plutot que celui de la campagne qui a le droit de se resserrer. Sans lui,
+-- les trois refus plus bas etaient d'ailleurs obtenus pour la mauvaise
+-- raison : le bareme, et non la regle d'avantage qu'on voulait verifier.
+B3.Enregistrer("jeux", {
+    id = "essai_traits_fiche", label = "Essai (traits de fiche)", categorie = "traits",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
 B3.Enregistrer("traits", {
     id = "grimpeur_malhabile", label = "Grimpeur malhabile", cout = 1,
+    forge = "essai_traits_fiche/libre",
     bonus = { escalade = 1, acrobaties = 2, vol_a_la_tire = -1 },
     avantage = { "escalade" },
 }, true)
@@ -201,16 +212,16 @@ attendu("on garde le MEILLEUR", ra.garde, math.max(ra.jets[1], ra.jets[2]))
 
 -- Les refus.
 attendu("avantage sur un jet penalise : refuse",
-    select(1, B3.Enregistrer("traits", { id = "faux_a", label = "Faux", cout = 2,
+    select(1, B3.Enregistrer("traits", { id = "faux_a", label = "Faux", cout = 2, forge = "essai_traits_fiche/libre",
         bonus = { escalade = 1, vol_a_la_tire = -1 }, avantage = { "vol_a_la_tire" } }, true)), false)
 attendu("avantage sur un jet qu'on ne touche pas : refuse",
-    select(1, B3.Enregistrer("traits", { id = "faux_b", label = "Faux", cout = 2,
+    select(1, B3.Enregistrer("traits", { id = "faux_b", label = "Faux", cout = 2, forge = "essai_traits_fiche/libre",
         bonus = { escalade = 1 }, avantage = { "nage" } }, true)), false)
 attendu("deux avantages pour un trait de niveau 1 : refuse",
-    select(1, B3.Enregistrer("traits", { id = "faux_c", label = "Faux", cout = 1,
+    select(1, B3.Enregistrer("traits", { id = "faux_c", label = "Faux", cout = 1, forge = "essai_traits_fiche/libre",
         bonus = { escalade = 1, acrobaties = 1 }, avantage = { "escalade", "acrobaties" } }, true)), false)
 attendu("deux avantages pour un niveau 2 : accepte",
-    select(1, B3.Enregistrer("traits", { id = "vrai_c", label = "Vrai", cout = 2,
+    select(1, B3.Enregistrer("traits", { id = "vrai_c", label = "Vrai", cout = 2, forge = "essai_traits_fiche/libre",
         bonus = { escalade = 1, acrobaties = 1 }, avantage = { "escalade", "acrobaties" } }, true)), true)
 
 LCM.Traits.Revoke(moi, "grimpeur_malhabile")

@@ -50,7 +50,12 @@ local moi = LCM.Entities.Self()
 __temps(50000)
 
 dire("== aucun point livre pour l'instant")
-attendu("le registre est vide", #P.list, 0)
+-- Le MJ en a publie depuis (octobre 2026) : on verifie que CEUX DE CE
+-- SCENARIO n'existent pas encore, pas que le registre du jeu est vide.
+attendu("le filon n'existe pas encore", P.Get("filon_cuivre"), nil)
+attendu("l'herboriste non plus", P.Get("herboriste"), nil)
+local pointsAvant = #P.list
+local vendeursAvant, ressourcesAvant = #P.Nature("vendeur"), #P.Nature("ressource")
 
 dire("== declarer un point de recolte")
 local filon = P.Add({
@@ -80,8 +85,9 @@ local marchand = P.Add({
                  stock = { limite = 2, unites = 0, minutes = 0 } } },
 })
 attendu("le vendeur passe", marchand.offres[1].prix, 5)
-attendu("par nature", #P.Nature("vendeur"), 1)
-attendu("et l'autre aussi", #P.Nature("ressource"), 1)
+attendu("deux points de plus qu'au depart", #P.list, pointsAvant + 2)
+attendu("par nature", #P.Nature("vendeur"), vendeursAvant + 1)
+attendu("et l'autre aussi", #P.Nature("ressource"), ressourcesAvant + 1)
 
 -- Les regles de stock sont posees a la connexion ; ici on les pose a la main.
 LCM.Stock.Declarer("filon_cuivre/minerai", filon.offres[1].stock)
@@ -166,14 +172,25 @@ attendu("et le bouton s'eteint", f.offres[1].prendre:IsEnabled(), false)
 dire("== la fenetre du vendeur")
 local v = LCM.UI.Points.Basculer("vendeur")
 attendu("ouverte", v:IsShown(), true)
-attendu("le bouton dit Acheter", v.offres[1].prendre.label:GetText(), "Acheter")
+-- La fenetre montre UN point a la fois, et le premier de la nature quand on
+-- ne dit rien. Le MJ a publie des vendeurs depuis : on choisit l'herboriste
+-- au lieu de compter sur l'ordre de la liste.
+v:Choisir("herboriste")
+local function offreHerbe()
+    for _, o in ipairs(v.offres) do
+        if o:IsShown() and o.offreId == "herbe" then return o end
+    end
+end
+local herbe = offreHerbe()
+attendu("l'offre de l'herboriste est a l'ecran", herbe ~= nil, true)
+attendu("le bouton dit Acheter", herbe and herbe.prendre.label:GetText(), "Acheter")
 attendu("le prix est affiche avec le nom de la devise",
-    __sansCouleur(v.offres[1].nom:GetText()):find("5 Écus") ~= nil, true)
+    __sansCouleur(herbe and herbe.nom:GetText() or ""):find("5 Écus") ~= nil, true)
 
 dire("== un stock qui bouge ailleurs se voit ici")
 LCM.Reseau.Recevoir("Autre-Royaume", "88:1:1:stock|cle=herboriste/herbe;r=0;t=50000;u=99999")
 attendu("le stock recu", LCM.Stock.Restant("herboriste/herbe"), 0)
-attendu("la fenetre a suivi", v.offres[1].stock:GetText(), "0 / 2")
+attendu("la fenetre a suivi", offreHerbe() and offreHerbe().stock:GetText(), "0 / 2")
 
 dire("== les entrees du menu")
 attendu("vendeur", LCM.UI.Menu.EstLiee("vendeur"), true)

@@ -67,7 +67,10 @@ attendu("dans le groupe", F.DansLeGroupe("Nytherah-Apertus"), true)
 dire("== le panneau MJ")
 local p = LCM.UI.PanneauMJ.Basculer()
 attendu("ouvert", p:IsShown(), true)
-attendu("le groupe sans moi", p.nombreAffiche, 1)
+-- Le MJ est dans sa propre liste depuis qu'il peut se donner de l'XP : sa
+-- fiche se lit en memoire plutot que demandee au reseau (un WHISPER a
+-- soi-meme est refuse par le protocole).
+attendu("le groupe, moi compris", p.nombreAffiche, 2)
 attendu("le membre", p.lignes[1].nom:GetText(), "Nytherah-Apertus")
 attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("panneau_mj"), true)
 local envoisAvant = #__envois
@@ -121,17 +124,23 @@ attendu("le survol nomme l'onglet", GameTooltip.__text, "Santé")
 consultation.barre.boutons[2]:GetScript("OnLeave")(consultation.barre.boutons[2])
 attendu("Fiche est l'onglet actif", consultation.barre.boutons[1].__selectionne, true)
 attendu("les autres onglets sont grisés", consultation.barre.boutons[2].__selectionne, false)
+-- L'ancrage a ete INVERSE : c'est la feuille qui se pose a l'ecran, et la
+-- barre d'onglets qui se raccroche a son bord droit. Avant, la barre tenait
+-- l'ecran et la feuille pendait a sa gauche — une feuille redimensionnee
+-- poussait alors la barre hors de vue.
 local pointBarre, relatifBarre, pointRelatifBarre, xBarre, yBarre = consultation.barre:GetPoint(1)
-attendu("la barre est ancree a l'ecran", relatifBarre, UIParent)
+attendu("la barre se raccroche a la feuille", relatifBarre, LCM.UI.Fiche.frame)
+attendu("  par sa gauche, contre le bord droit", pointBarre .. "/" .. pointRelatifBarre, "LEFT/RIGHT")
+attendu("  avec l'espacement voulu", xBarre, consultation.ESPACEMENT_FEUILLE)
 consultation.barre.boutons[2]:Click()
 attendu("Santé remplace la fiche", consultation.onglet, "sante")
 attendu("la Santé lit le personnage consulté", LCM.UI.Vues.Fenetre("sante").entity, recue)
 attendu("la fiche précédente est cachée", LCM.UI.Fiche.frame:IsShown(), false)
-local _, relatifSante, pointRelatifSante, xSante = LCM.UI.Vues.Fenetre("sante"):GetPoint(1)
-attendu("la nouvelle feuille vient contre la barre", relatifSante, consultation.barre)
-attendu("elle garde un espace avec le menu", xSante, -consultation.ESPACEMENT_FEUILLE)
+local _, relatifSante = LCM.UI.Vues.Fenetre("sante"):GetPoint(1)
+attendu("la nouvelle feuille se pose a l'ecran", relatifSante, UIParent)
 local _, relatifApres, _, xApres, yApres = consultation.barre:GetPoint(1)
-attendu("le menu ne change pas d'ancrage", relatifApres, relatifBarre)
+attendu("et la barre la suit", relatifApres, LCM.UI.Vues.Fenetre("sante"))
+attendu("  en gardant le meme espacement", xApres, consultation.ESPACEMENT_FEUILLE)
 attendu("le menu ne bouge pas horizontalement", xApres, xBarre)
 attendu("le menu ne bouge pas verticalement", yApres, yBarre)
 consultation.barre.boutons[6]:Click()

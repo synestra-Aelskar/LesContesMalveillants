@@ -53,8 +53,13 @@ ok, refus = O.Placer(moi, "dague_simple")
 attendu("mais pas une troisieme", ok, false)
 dire("     " .. tostring(refus))
 O.Enlever(moi, "hache")
+-- Deux fois le MEME objet est permis depuis le 10 octobre 2026 : porter deux
+-- dagues identiques est normal, et ce sont les TYPES qui bornent (« une seule
+-- cape », `maxEquipe`), plus l'identifiant. Le scenario attendait un refus.
 ok, refus = O.Placer(moi, "lame_de_givre")
-attendu("pas deux fois le meme", ok, false)
+attendu("deux fois la meme arme : permis", ok, true)
+attendu("  et les deux mains sont prises", O.Occupation(moi, "arme"), 2)
+O.Enlever(moi, "lame_de_givre")
 ok, refus = O.Placer(moi, "inexistant")
 attendu("objet inconnu", ok, false)
 for i = 1, 5 do O.Placer(moi, "anneau_" .. i) end
@@ -137,7 +142,9 @@ local nomPorte = __sansCouleur(ligne.nom:GetText())
 attendu("l'arme portee", nomPorte:find("Lame de givre") ~= nil, true)
 attendu("et son etat devant", nomPorte:find("^%(%d+/%d+%) Lame de givre") ~= nil, true)
 attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_QuestionMark")
-attendu("ses effets", ligne.effets:GetText(), "Eau +2")
+-- La ligne annonce d'abord l'ETAT de l'objet (sa durabilite), puis ses
+-- effets. Elle ne disait que les effets avant que les objets aient une usure.
+attendu("ses effets", ligne.effets:GetText(), "État 10 / 10  ·  Eau +2")
 attendu("bouton retirer (MJ)", ligne.action.label:GetText(), "Retirer")
 
 -- 3 octobre 2026 : la ligne d'un objet porte se lit sans la souris.
@@ -214,8 +221,15 @@ attendu("affichage suit", armes.occupation:GetText(), "1 / 2")
 dire("== une arme a deux mains prend les deux emplacements")
 -- Le champ « emplacements » d'une arme (5 octobre 2026). Une epee en demande
 -- un et laisse la place d'un bouclier ; une arme a deux mains prend tout.
+-- Un jeu d'equilibrage TEMOIN : le bareme BLOQUE depuis le 3 octobre 2026, et
+-- une arme d'essai sans `forge` est refusee. Ce qu'on teste ici, c'est la
+-- TAILLE d'une arme, pas son cout — elle a donc son jeu a elle, large.
+B.Enregistrer("jeux", {
+    id = "essai_objets", label = "Essai (objets)", categorie = "armes",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
 local okDeux = B.Enregistrer("objets", { id = "espadon", label = "Espadon",
-    categorie = "arme", taille = 2 }, true)
+    categorie = "arme", taille = 2, forge = "essai_objets/libre" }, true)
 attendu("une arme a deux mains s'enregistre", okDeux, true)
 attendu("sa taille est lue", O.Taille("espadon"), 2)
 attendu("une arme ordinaire en vaut un", O.Taille("lame_de_givre"), 1)

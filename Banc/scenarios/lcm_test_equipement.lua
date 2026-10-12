@@ -45,18 +45,10 @@ ok, raison = O.Equiper(moi, "dague_d_essai")
 attendu("dague equipee", ok, true)
 attendu("portee", O.Porte(moi, "dague_d_essai"), true)
 attendu("sa case liberee", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
--- Un seul emplacement d'arme : l'epee est refusee et reste dans le sac.
-ok, raison = O.Equiper(moi, "epee_d_essai")
-attendu("pas de place pour l'epee", ok, false)
-contient("dit pourquoi", raison, "plus d'emplacement libre")
-attendu("les deux epees restent au sac", I.Case(I.Emplacement(moi, "sacs", 1), 2).quantite, 2)
 -- Une pile : un exemplaire en sort, le reste demeure.
 ok = O.Equiper(moi, "bague_d_essai")
 attendu("une bague de la pile", ok, true)
 attendu("la pile baisse d'un", I.Case(I.Emplacement(moi, "sacs", 1), 3).quantite, 1)
-ok, raison = O.Equiper(moi, "bague_d_essai")
-attendu("la seconde : deja portee", ok, false)
-attendu("et elle reste au sac", I.Case(I.Emplacement(moi, "sacs", 1), 3).quantite, 1)
 
 dire("== Retirer : l'objet retourne dans un sac")
 ok = O.Desequiper(moi, "dague_d_essai")
@@ -146,5 +138,19 @@ porteeLigne.action:Click()
 attendu("le joueur la retire", O.Porte(moi, "dague_d_essai"), false)
 attendu("elle est au sac", O.Possede(moi, "dague_d_essai"), true)
 LCM.db.settings.modeJoueur = nil
+
+dire("== deux mains : ce qui tient, et ce qui est refuse")
+-- DEUX emplacements d'arme depuis le 5 octobre 2026 : une arme et un
+-- bouclier, ou une arme a deux mains qui prend les deux. Le scenario n'en
+-- connaissait qu'un et attendait un refus des la deuxieme.
+attendu("deux emplacements d'arme", LCM.Equilibrage.conteneurs.arme, 2)
+for _, id in ipairs({ "dague_d_essai", "epee_d_essai" }) do
+    if not O.Porte(moi, id) then O.Equiper(moi, id) end
+end
+attendu("la dague et l'epee tiennent ensemble",
+    O.Porte(moi, "dague_d_essai") and O.Porte(moi, "epee_d_essai"), true)
+local troisieme, pourquoiTroisieme = O.Equiper(moi, "epee_d_essai")
+attendu("la troisieme est refusee", troisieme, false)
+contient("  et on dit pourquoi", pourquoiTroisieme, "plus d'emplacement libre")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

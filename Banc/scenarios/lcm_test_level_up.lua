@@ -14,6 +14,11 @@ local X, C = LCM.Experience, LCM.Creation
 local moi = LCM.Entities.Self()
 LCM.Entities.Set_Value(moi, "niveau", 5)
 moi.xp = 0
+-- Le personnage de ce scenario joue avec l'equilibrage COURANT. Sans cela, la
+-- creation lui impose un reequilibrage des qu'on l'ouvre — a juste titre : sa
+-- fiche date d'une version anterieure — et le scenario ne teste plus ce qu'il
+-- croit tester (constate le 11 octobre 2026, quand VERSION_CREATION a bouge).
+LCM.Creation.MarquerAJour(moi)
 
 local function visible(noeuds, id)
     for _, n in ipairs(LCM.UI.Menu.Visibles(noeuds)) do if n.id == id then return n end end
@@ -68,7 +73,10 @@ end
 attendu("trois statistiques gagnees", gains.primaires, 3)
 attendu("quatre secondaires gagnees", gains.secondaires, 4)
 attendu("deux expertises gagnees", gains.expertises, 2)
-attendu("trois mecaniques gagnees", gains.mecaniques, 3)
+-- Les mecaniques ne gagnent plus trois points par niveau : un seul, sauf aux
+-- multiples de cinq qui en donnent quatre (Equilibrage.creation.mecaniques).
+-- Le passage teste ici est 5 vers 6 : un point.
+attendu("un point de mecanique gagne (6 n'est pas un palier)", gains.mecaniques, 1)
 attendu("aucun ancien point dans le budget", C.Budget(f.brouillon, "primaires").depense, 0)
 
 local function depenser(brouillon, categorie)

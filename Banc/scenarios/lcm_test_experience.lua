@@ -80,18 +80,28 @@ dire("== le Panel MJ donne l'experience")
 __groupe({ "Nytherah-Apertus" })
 local panneau = LCM.UI.PanneauMJ.Basculer()
 panneau:Afficher()
-local ligne = panneau.lignes[1]
-attendu("une ligne par joueur", ligne ~= nil, true)
-attendu("avec sa case d'XP", ligne.xp ~= nil, true)
+-- L'attribution d'XP a quitte la ligne du joueur pour une fenetre a part : un
+-- montant, un motif, et les joueurs qu'on coche. Elle se donne donc a
+-- plusieurs d'un coup, ce que la ligne-par-ligne ne permettait pas.
+local xp = panneau.pages.joueurs.xpPanneau
+attendu("la fenetre d'XP existe", xp ~= nil, true)
+xp:Ouvrir()
+attendu("elle liste le groupe, moi compris", xp.nombre, 2)
 -- Sans montant, on ne devine pas : on le dit.
-ligne.donner:Click()
-attendu("case vide : on reclame le montant",
+xp.envoyer:Click()
+attendu("montant vide : on reclame le montant",
     __sansCouleur(__sorties[#__sorties]):find("combien") ~= nil, true)
-ligne.xp:Saisir("75")
-panneau.raison:Saisir("fin de scene")
-ligne.donner:Click()
+xp.montant:Saisir("75")
+xp.raison:Saisir("fin de scene")
+local cible
+for rang = 1, xp.nombre do
+    if tostring(xp.lignes[rang].joueur):find("Nytherah", 1, true) then cible = xp.lignes[rang] end
+end
+attendu("la ligne du joueur distant est la", cible ~= nil, true)
+cible.case:Click()
+xp.envoyer:Click()
 attendu("l'envoi est annonce", __sansCouleur(__sorties[#__sorties]):find("75 XP") ~= nil, true)
-attendu("et la case se vide pour le suivant", ligne.xp:GetText(), "")
+attendu("et le montant se vide pour le suivant", xp.montant:GetText(), "")
 
 dire("== ce qui arrive chez le joueur")
 -- Le message parti du MJ, rejoue tel quel a l'arrivee.
