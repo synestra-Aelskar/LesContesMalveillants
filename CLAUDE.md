@@ -110,33 +110,56 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
 code de retour — ce serait le vrai correctif.
 
-### L'état au 11 octobre 2026 : 49 verts, 23 rouges
+### L'état au 12 octobre 2026 : 73 verts, 0 rouge
 
-Le banc **n'est pas au vert**, et ce n'est pas une négligence : la plupart des
-rouges sont des attentes devenues fausses après des changements voulus. Avant
-de « réparer » quoi que ce soit, situe l'échec dans l'une de ces familles.
+Le banc est **entièrement vert**, et c'est un état qu'on tient. Un rouge est
+désormais un signal, pas du bruit de fond : si tu en vois un, c'est que
+quelque chose vient de changer.
 
-**1. Le barème de la forge bloque les fixtures.** De vrais jeux d'équilibrage
-sont publiés depuis le 6 octobre. Or le barème **bloque** l'enregistrement
-(décision du 3 octobre), et les fixtures créent des traits et des objets sans
-déclarer de `forge`. D'où « accepte = false » un peu partout : `atelier`,
-`brouillons`, `compendium`, `forge`, `objets`, `fiche_traits`. Le correctif est
-de donner une `forge` aux fixtures, avec des bonus qui tiennent dans le pool —
-pas de desserrer le garde-fou.
+Il a fallu une passe entière pour y arriver (11–12 octobre 2026), et elle a
+appris une chose qu'il faut garder :
 
-**2. Des nombres d'équilibrage ont changé.** PV 42 → 53, armure 2/12 → 10/20,
-sauts, poids, métiers. Les tests encodent les anciens. **Ne les rebase pas à
-l'aveugle** : demande lequel fait foi. Un test qu'on aligne sur le code ne
-teste plus rien.
+> **Un test ne se pose jamais sur du contenu qui vit.**
 
-**3. On a ajouté des choses.** Onglets, catégories du radial, champs de fiche,
-mécaniques. Ceux-là se rebasent sans risque — c'est déjà fait pour les comptes
-connus.
+Les vingt-trois rouges ne venaient presque jamais d'un bug. Ils venaient de
+scénarios appuyés sur le contenu de la campagne, qui bouge à chaque séance :
 
-**4. De vraies régressions.** Il y en a eu, et elles se cachaient dans le lot :
-une insertion tombée dans le mauvais `Habiller` faisait planter la fiche, une
-pièce d'armure brisée protégeait encore. Les deux sont corrigées. C'est
-précisément pour ça qu'on ne rebase pas en masse.
+* **Une race réelle.** Les tests de formules choisissaient « humain ». Son
+  équilibrage lui a donné +3 à toutes les statistiques, et les PV, le poids,
+  les sauts et le déplacement ont bougé sans qu'une ligne de formule change.
+  → Ils déclarent maintenant une race **témoin**, sans aucun bonus
+  (`LCM.Brouillons.Set("races", { id = "temoin", … })`).
+* **Un barème de forge réel.** Depuis que le barème **bloque** (3 octobre), un
+  trait ou un objet d'essai sans `forge` est refusé — et le refus passait
+  inaperçu : l'entrée n'existait pas, donc aucun bonus, donc une cascade
+  d'échecs sans rapport. → Chaque scénario déclare son **jeu d'équilibrage
+  témoin**, large, au lieu de s'accrocher à ceux de la campagne. Et quand il
+  raconte une catégorie qui part *sans* jeu, il écarte ceux de la campagne de
+  sa propre mémoire (`LCM.Forge.Retirer`).
+* **Des comptes de catalogue.** « 24 catégories », « 9 traits », « 2 PNJ ».
+  → On vérifie que l'entrée connue est là, ou on compare à ce que le
+  compendium déclare, plutôt que d'écrire un nombre qui se périme.
+* **Un personnage à l'équilibrage périmé.** `VERSION_CREATION` a bougé, et la
+  création imposait un rééquilibrage dès qu'on l'ouvrait.
+  → `LCM.Creation.MarquerAJour(moi)` en tête de scénario.
+
+Le reste était de vraies évolutions voulues, rebasées **avec leur raison
+écrite dans le test** : barème des métiers (7 rangs → 30), valeurs d'armure,
+budget de mécaniques, jauge d'armure qui compte désormais la durabilité, deux
+emplacements d'arme, doublons d'objets autorisés, volet d'artwork qui ne se
+referme plus en changeant d'onglet.
+
+Et **trois vrais bugs** s'y cachaient, tous découverts en réparant :
+
+1. Le bandeau de combat montrait les PA et PF du joueur, pas du PNJ incarné.
+2. « Nouvelle entrée » sur une famille dosée par la Forge ouvrait l'ancien
+   panneau à champs, qui n'a pas de champ « Forge » : on remplissait une
+   entrée que l'enregistrement refusait ensuite, sans issue.
+3. Un contenu publié recouvert par un brouillon avait disparu de l'atelier, et
+   le brouillon ne disait plus qu'il « remplace le publié » — on perdait le
+   rappel de reporter la correction dans le fichier.
+
+C'est la raison d'être du banc : ces trois-là ne se voyaient pas en jeu.
 
 **Quand tu casses un scénario** : dis si c'est un vrai bug ou une attente
 devenue fausse, et dans le second cas **écris pourquoi le nombre a bougé** dans

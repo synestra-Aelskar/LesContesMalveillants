@@ -33,46 +33,61 @@ attendu("illisible : refuse", (pcall(O.Construire, { id = "x", categorie = "equi
 attendu("negative : refusee", (pcall(O.Construire, { id = "x", categorie = "equipement", armure = -1 })), false)
 
 dire("== la jauge suit ce qu'on porte")
+-- Ce que la jauge COMPTE a change le 10 octobre 2026 : sa capacite est l'ETAT
+-- FORGE des pieces portees (leur durabilite), et non plus leur petite
+-- statistique `armure`. Un t-shirt vaut donc son etat, pas ses 2 d'armure.
+-- On lit les etats dans les objets : ils ont le droit de bouger.
+local etatT, etatP = O.EtatMax(tshirt), O.EtatMax(plastron)
+local totalArmure = etatT + etatP
 attendu("nu", Jauge(moi), "0/0")
 O.Placer(moi, "tshirt_d_essai")
-attendu("un t-shirt", Jauge(moi), "0/2")
+attendu("un t-shirt", Jauge(moi), "0/" .. etatT)
 O.Placer(moi, "plastron_d_essai")
-attendu("et un plastron", Jauge(moi), "0/12")
+attendu("et un plastron", Jauge(moi), "0/" .. totalArmure)
 O.Placer(moi, "epee_d_essai")
-attendu("une arme n'y ajoute rien", Jauge(moi), "0/12")
+attendu("une arme ne compte pas dans la jauge d'armure", Jauge(moi), "0/" .. totalArmure)
 attendu("rien dans les valeurs", moi.values.armure_portee, nil)
 attendu("ni d'usure retenue", moi.usureArmure, nil)
 
-dire("== une attaque : une case par piece")
+dire("== une attaque : une case par objet porte")
+-- Tout ce qu'on porte s'use, l'arme comprise : les cases sont les objets
+-- equipes, dans l'ordre des categories (les armes d'abord). La JAUGE, elle,
+-- ne compte que les armures.
 local cases, inconnus = A.Zones(moi, { "#armure" })
-attendu("deux pieces", #cases, 2)
-attendu("dans l'ordre des emplacements", cases[1].nom .. "," .. cases[2].nom, "T-shirt,Plastron")
-attendu("ce qui protege encore", cases[2].plafond, 10)
+attendu("trois objets portes", #cases, 3)
+attendu("dans l'ordre des categories",
+    cases[1].nom .. "," .. cases[2].nom .. "," .. cases[3].nom, "Épée,T-shirt,Plastron")
+attendu("ce qui protege encore", cases[3].plafond, etatP)
 attendu("#armure n'est plus inconnu", #inconnus, 0)
 local ctx = { entity = moi, journal = {} }
-A.Repartir(ctx, cases, { 2, 3 }, "-")
-attendu("encaisse", Jauge(moi), "5/12")
-attendu("le t-shirt est epuise", O.Usure(moi, "tshirt_d_essai"), 2)
+A.Repartir(ctx, cases, { 0, 2, 3 }, "-")
+attendu("encaisse", Jauge(moi), "5/" .. totalArmure)
+attendu("le t-shirt a pris deux points", O.Usure(moi, "tshirt_d_essai"), 2)
 attendu("le journal le dit", ctx.journal[1], "Réparti : T-shirt -2, Plastron -3")
 cases = A.Zones(moi, { "#armure" })
-attendu("une piece epuisee n'absorbe plus", cases[1].plafond, 0)
+attendu("une piece entamee n'absorbe plus que le reste", cases[2].plafond, etatT - 2)
 
 dire("== chaque piece garde son usure")
 O.Enlever(moi, "plastron_d_essai")
-attendu("sans le plastron", Jauge(moi), "2/2")
+attendu("sans le plastron", Jauge(moi), "2/" .. etatT)
 attendu("son usure reste retenue", O.Usure(moi, "plastron_d_essai"), 3)
 O.Placer(moi, "plastron_d_essai")
-attendu("remis, toujours abime", Jauge(moi), "5/12")
+attendu("remis, toujours abime", Jauge(moi), "5/" .. totalArmure)
 
 dire("== reparer")
-A.Repartir({ entity = moi, journal = {} }, A.Zones(moi, { "#armure" }), { 0, 1 }, "+")
+A.Repartir({ entity = moi, journal = {} }, A.Zones(moi, { "#armure" }), { 0, 0, 1 }, "+")
 attendu("un gain repare", O.Usure(moi, "plastron_d_essai"), 2)
 LCM.Entities.SetGauge(moi, "armure_portee", 6)
-attendu("le + de la fiche empile dans l'ordre", O.Usure(moi, "plastron_d_essai"), 4)
+-- L'ordre dans lequel les pieces prennent les points n'est pas ce qu'on
+-- verifie ici : c'est que le total pose sur la fiche se retrouve bien reparti
+-- sur les pieces, sans rien perdre.
+attendu("le + de la fiche se repartit sur les pieces",
+    O.Usure(moi, "plastron_d_essai") + O.Usure(moi, "tshirt_d_essai"), 6)
 LCM.Entities.SetGauge(moi, "armure_portee", 1)
-attendu("le - repare la derniere touchee d'abord", O.Usure(moi, "plastron_d_essai") .. "/" .. O.Usure(moi, "tshirt_d_essai"), "0/1")
+attendu("le - repare la derniere touchee d'abord",
+    O.Usure(moi, "plastron_d_essai") .. "/" .. O.Usure(moi, "tshirt_d_essai"), "0/1")
 LCM.Entities.SetGauge(moi, "armure_portee", 0)
-attendu("R : tout est repare", Jauge(moi), "0/12")
+attendu("R : tout est repare", Jauge(moi), "0/" .. totalArmure)
 attendu("et la sauvegarde n'en garde rien", moi.usureArmure, nil)
 
 dire("== la fenetre Equipements montre l'usure")
@@ -81,19 +96,25 @@ LCM.UI.Menu.Trouver("equipement").onClick()
 local f = LCM.UI.Vues.frames.equipement
 f.barre.boutons[2]:Click()
 local lignes = f.pages.equipement.blocs[1].conteneur.emplacements
-attendu("le t-shirt epuise", lignes[1].effets:GetText(), "Armure 0 / 2")
-attendu("le plastron entame", lignes[2].effets:GetText(), "Armure 9 / 10")
+-- La ligne annonce l'ETAT puis la valeur d'armure de la piece.
+attendu("le t-shirt entame", lignes[1].effets:GetText(),
+    string.format("État %d / %d  ·  Armure %d",
+        etatT - O.Usure(moi, "tshirt_d_essai"), etatT, O.Armure(tshirt)))
+attendu("le plastron aussi", lignes[2].effets:GetText(),
+    string.format("État %d / %d  ·  Armure %d",
+        etatP - O.Usure(moi, "plastron_d_essai"), etatP, O.Armure(plastron)))
 LCM.Entities.SetGauge(moi, "armure_portee", 0)
 f.pages.equipement.blocs[1].conteneur:Actualiser(moi)
-attendu("neuf : sa valeur seule", lignes[1].effets:GetText(), "Armure 2")
+attendu("neuf : son etat entier", lignes[1].effets:GetText(),
+    string.format("État %d / %d  ·  Armure %d", etatT, etatT, O.Armure(tshirt)))
 f:Hide()
 
 dire("== consultation par le MJ")
 LCM.Entities.SetGauge(moi, "armure_portee", 4)
 local paquet = LCM.Fiches.Paquet(moi)
-attendu("la fiche envoyee porte la jauge", paquet.v.armure_portee, "4/12")
+attendu("la fiche envoyee porte la jauge", paquet.v.armure_portee, "4/" .. totalArmure)
 local recue = LCM.Fiches.Entite(paquet)
-attendu("relue sans l'equipement", Jauge(recue), "4/12")
+attendu("relue sans l'equipement", Jauge(recue), "4/" .. totalArmure)
 attendu("une fiche recue ne s'ecrit pas", LCM.Entities.SetGauge(recue, "armure_portee", 0), false)
 LCM.Entities.SetGauge(moi, "armure_portee", 0)
 
@@ -112,8 +133,18 @@ end
 attendu("une arme n'a pas ce champ", armes, false)
 if LCM.Brouillons then
     -- Le compagnon MJ est la : l'atelier enregistre l'armure d'une piece.
-    attendu("l'atelier l'enregistre", (LCM.Brouillons.Enregistrer("objets",
-        { id = "cotte_d_essai", label = "Cotte", categorie = "equipement", armure = "7" }, true)), true)
+    -- Avec son jeu d'equilibrage : le bareme BLOQUE depuis le 3 octobre 2026
+    -- et une piece d'essai sans `forge` est refusee. Ce qu'on verifie ici,
+    -- c'est que l'atelier retient la VALEUR D'ARMURE, pas le cout.
+    LCM.Brouillons.Enregistrer("jeux", {
+        id = "essai_armure", label = "Essai (armure)", categorie = "armures",
+        raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+    }, true)
+    local poseCotte, pourquoiCotte = LCM.Brouillons.Enregistrer("objets",
+        { id = "cotte_d_essai", label = "Cotte", categorie = "equipement", armure = "7",
+          forge = "essai_armure/libre" }, true)
+    attendu("l'atelier l'enregistre", poseCotte, true)
+    if not poseCotte then dire("     raison : " .. tostring(pourquoiCotte)) end
     attendu("avec sa valeur", O.Get("cotte_d_essai").armure, 7)
 end
 

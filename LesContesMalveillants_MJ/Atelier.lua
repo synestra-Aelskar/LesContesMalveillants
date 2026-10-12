@@ -911,7 +911,10 @@ local function Construire()
         for _, entree in ipairs(Brouillons.List(self.famille)) do
             local id = tostring(entree.id)
             local statut = "refuse"
-            if Brouillons.EstPublie(self.famille, id) then
+            -- `RecouvrePublie` : une fois le recouvrement fait, le registre ne
+            -- porte plus que le brouillon et `EstPublie` repond non — la
+            -- mention « remplace le publie » disparaissait (12 octobre 2026).
+            if Brouillons.RecouvrePublie(self.famille, id) then
                 statut = "doublon"
             elseif registre and registre.Get(id) then
                 statut = "brouillon"
@@ -921,6 +924,15 @@ local function Construire()
         for _, element in ipairs(registre and registre.list or {}) do
             if element.brouillon ~= true then
                 publies[#publies + 1] = { id = element.id, label = element.label, statut = "publie" }
+            end
+        end
+        -- Ce qu'un brouillon a RECOUVERT a quitte le registre : sans cette
+        -- seconde source, la ligne du fichier disparaissait de la liste et
+        -- l'on ne pouvait plus ni le relire ni le reprendre.
+        for id, original in pairs(Brouillons.Originaux(self.famille)) do
+            local present = registre and registre.Get(id)
+            if not (present and present.brouillon ~= true) then
+                publies[#publies + 1] = { id = id, label = tostring(original.label or id), statut = "publie" }
             end
         end
         local parNom = function(a, b) return a.label:lower() < b.label:lower() end
@@ -982,7 +994,10 @@ local function Construire()
         local editable = aRegistre and not e.publie
         -- Un brouillon qui double un contenu publie se garde : il le REMPLACE,
         -- c'est ce qu'on vient demander en le modifiant.
-        local remplace = editable and not e.creation and Brouillons.EstPublie(self.famille, e.id)
+        -- `RecouvrePublie` et non `EstPublie` : une fois le recouvrement fait,
+        -- le registre ne porte plus que le brouillon et l'avertissement
+        -- disparaissait (12 octobre 2026).
+        local remplace = editable and not e.creation and Brouillons.RecouvrePublie(self.famille, e.id)
         self.enregistrer:SetShown(editable)
         self.reprendre:SetShown(aRegistre and e.publie == true)
         self.supprimer:SetShown(editable and not e.creation)
@@ -1014,6 +1029,10 @@ local function Construire()
         else
             local registre = Brouillons.Registre(self.famille)
             local element = registre and registre.Get(id)
+            -- Le registre porte peut-etre le BROUILLON qui l'a recouvert :
+            -- quand on demande le publie, c'est l'original qu'on ouvre.
+            if element and element.brouillon == true then element = nil end
+            element = element or Brouillons.Original(self.famille, id)
             if not element then return end
             self.edition = Charger(self.famille, element, true)
         end

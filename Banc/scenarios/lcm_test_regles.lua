@@ -118,10 +118,25 @@ local function proposeForce(famille, bouton)
     f.choix:Hide()
     return vu, deplacement, fatigue
 end
-local vu, depl, fat = proposeForce("traits")
-attendu("trait : pas de Force", vu, false)
-attendu("trait : Deplacement propose", depl, true)
-attendu("trait : Fatigue proposee", fat, true)
+-- Depuis le 5 octobre 2026, une famille couverte par un jeu d'equilibrage
+-- ouvre LA FORGE au lieu de cette liste a plat : les statistiques y sont
+-- rangees par dossier, avec leurs bornes et le pool — cent quarante entrees
+-- a plat etaient intenables. La campagne a maintenant un jeu pour les traits,
+-- c'est donc la Forge qui s'ouvre pour eux, et la liste reste vide.
+f:ChoisirFamille("traits")
+f.panneaux.traits.ajoutBonus:Click()
+attendu("trait : la Forge s'ouvre a sa place", LCM.UI.Forge.Fenetre():IsShown(), true)
+LCM.UI.Forge.Fenetre():Hide()
+f.choix:Hide()
+
+-- La liste a plat sert encore aux familles sans jeu, et elle propose bien ce
+-- qui n'est ni une stat ni un jet : le deplacement (champ calcule qui accepte
+-- les bonus) et la fatigue (jauge).
+local vu, depl, fat = proposeForce("etats")
+attendu("etat : Deplacement propose", depl, true)
+attendu("etat : Fatigue proposee", fat, true)
+-- La regle « pas de primaire sur un trait » vit dans le registre, et elle est
+-- verifiee plus haut : un trait qui donne de la Force est refuse a l'ajout.
 vu = proposeForce("objets")
 attendu("objet : Force proposee", vu, true)
 

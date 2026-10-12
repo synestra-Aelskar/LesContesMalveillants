@@ -65,12 +65,21 @@ ok = pcall(T.Construire, { id = "t4", label = "T4", lits = 0 })
 attendu("zero lit refuse", ok, false)
 
 dire("== une tente peut n'agir que sur un seul bonus")
-ok = B.Enregistrer("tentes", { id = "abri_sommaire", label = "Abri sommaire", bonus = { securite = -20 } }, true)
+-- Un jeu d'equilibrage TEMOIN, large : le MJ en a publie un pour les tentes
+-- (octobre 2026) et le bareme BLOQUE, donc une tente d'essai sans `forge` est
+-- refusee. Ce qu'on teste ici, ce sont les BONUS d'une tente, pas leur cout.
+B.Enregistrer("jeux", {
+    id = "essai_tentes", label = "Essai (tentes)", categorie = "tentes",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
+ok = B.Enregistrer("tentes", { id = "abri_sommaire", label = "Abri sommaire",
+    forge = "essai_tentes/libre", bonus = { securite = -20 } }, true)
 attendu("enregistree", ok, true)
 attendu("elle ne porte que la securite", T.Get("abri_sommaire") and T.Get("abri_sommaire").bonus.recup_pv, nil)
 
 dire("== un accessoire inclus apparait par son nom")
 ok = B.Enregistrer("tentes", { id = "tente_l", label = "Tente de survie de Taille L", lits = 4, accessoiresMax = 6,
+    forge = "essai_tentes/libre",
     accessoires = { "accessoire_reparation_kalea" }, bonus = { securite = -20, recup_fatigue = 30, recup_pv = 30 } }, true)
 attendu("enregistree", ok, true)
 local champ

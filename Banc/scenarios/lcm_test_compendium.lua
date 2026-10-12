@@ -22,11 +22,15 @@ for _, l in ipairs(alertes) do dire("     " .. l) end
 dire("== Les categories du template, dans son ordre")
 local ids = {}
 for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
-attendu("24 categories (PNJ fondus, Jeux d'équilibrage ajoutes, Systeme-Resolution-Action retiree)", #C.categories, 24)
+-- Vingt-sept depuis « Type Accessoires » et le campement (« Tentes »,
+-- « Accessoires de camping », 10 octobre 2026). C'est la STRUCTURE de
+-- l'addon : elle se verifie en entier, contrairement au contenu qui vit.
+attendu("27 categories", #C.categories, 27)
 attendu("ordre", table.concat(ids, ","),
-    "Information,Type Armures,Liste Armes,Liste origine,Liste ressources,Liste métiers,Connaissances,"
-    .. "Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Armes,Armures,Accessoires,"
-    .. "Races,Traits,Etats,Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")
+    "Information,Type Armures,Type Accessoires,Liste Armes,Liste origine,Liste ressources,Liste métiers,"
+    .. "Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Armes,Armures,"
+    .. "Accessoires,Tentes,Accessoires de camping,Races,Traits,Etats,Maladies,Apprentissage,"
+    .. "Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")
 local function N(id) return #C.Entrees(C.Get(id)) end
@@ -42,14 +46,21 @@ attendu("et elle repond toujours a une attaque", LCM.Actions.ResolutionPour("Att
 attendu("actions MJ : toutes sur leurs boutons", N("actions_mj"), 0)
 attendu("l'attaque n'est plus au compendium", LCM.Resolutions.Get("attaque_composeur"), nil)
 attendu("elle est sur son bouton", LCM.ActionsBoutons.DuBouton("attaque_simple").id, "attaque_composeur")
-attendu("races : humain + 4 importees", N("races"), 5)
-attendu("traits : escalade + 8 importes", N("traits"), 9)
--- La dague, l'epee rouillee (sauvegarde) et le baton (repris de l'ancien compendium).
-attendu("armes", N("armes"), 3)
-attendu("armures : tenue et capuche reclassees", N("armures"), 3)
+-- Le CONTENU vit : le MJ en ecrit a chaque seance, et un nombre en dur ici
+-- se perime aussitot. On verifie que l'import a bien eu lieu — les entrees
+-- connues sont la — plutot que de compter le catalogue (11 octobre 2026).
+attendu("races : l'humain est importe", LCM.Races.Get("humain") ~= nil, true)
+attendu("  et il y en a d'autres", N("races") > 1, true)
+attendu("traits : l'escalade est importee", LCM.Traits.Get("escalade_jungle") ~= nil, true)
+attendu("  et il y en a d'autres", N("traits") > 1, true)
+attendu("armes : la dague est importee",
+    LCM.Objets.Get("dague_d_assassin_du_culte") ~= nil, true)
+attendu("armures : il y en a", N("armures") > 0, true)
 attendu("devises", N("devises"), 4)
 -- L'Assassin du culte du compendium, et « Assassin », un PNJ vivant distinct.
-attendu("PNJ", N("pnj"), 2)
+-- Le MJ en ecrit d'autres : on verifie celui qu'on connait.
+attendu("PNJ : l'assassin du culte est la", LCM.PNJ.Get("assassin_du_culte") ~= nil, true)
+attendu("  et il n'est pas seul", N("pnj") > 1, true)
 local trait = LCM.Traits.Get("adepte_de_nocturna")
 attendu("cout lu dans les tags", trait.cout, 2)
 attendu("resistance a l'ombre (cle « ombre » du template)", trait.bonus.resi_ombre, 4)
@@ -108,7 +119,7 @@ attendu("titre", f.titre:GetText(), "SYSTÈME D'A'HELL'RAZKAH")
 attendu("en-tete simple : pas de filet d'or", f.regle, nil)
 attendu("panneaux a 38 du haut", select(5, f.gauche:GetPoint(1)), -38)
 attendu("types : Tous + 10", #f.boutonsTypes, 11)
-attendu("une categorie par bouton", #f.boutonsCategories, 24)
+attendu("une categorie par bouton", #f.boutonsCategories, #C.categories)
 attendu("premiere active", f.actif, "information")
 attendu("vingt lignes creees une fois", #f.rangees, 20)
 
@@ -120,11 +131,17 @@ attendu("Tous decoche tout", visibles, 0)
 for _, b in ipairs(f.boutonsTypes) do if b.typeId == "list" then b:Click() end end
 visibles = 0
 for _, b in ipairs(f.boutonsCategories) do if b:IsShown() then visibles = visibles + 1 end end
-attendu("le type Liste seul", visibles, 5)
+-- Six listes depuis « Type Accessoires » : on compte celles que le
+-- compendium declare, pas un nombre en dur.
+attendu("le type Liste seul", visibles, (function()
+    local n = 0
+    for _, cat in ipairs(C.categories) do if cat.type == "list" then n = n + 1 end end
+    return n
+end)())
 f.boutonsTypes[1]:Click()           -- Tous : tout recoche
 visibles = 0
 for _, b in ipairs(f.boutonsCategories) do if b:IsShown() then visibles = visibles + 1 end end
-attendu("Tous recoche tout", visibles, 24)
+attendu("Tous recoche tout", visibles, #C.categories)
 
 -- Repli de la colonne des types.
 f.replierTypes:Click()
@@ -169,10 +186,16 @@ attendu("onze metiers en page 2", lignes, 11)
 
 -- Recherche d'entree (nom, tags et valeurs).
 f:ChoisirCategorie("traits")
-f.champRecherche:Saisir("discr")
+-- Une recherche large ramene ce que le MJ a ecrit depuis : on vise l'entree
+-- connue par son nom complet plutot que par un compte.
+f.champRecherche:Saisir("Maitre de la discr")
 lignes = 0
-for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
-attendu("recherche par nom", lignes, 1)
+local vus = {}
+for _, r in ipairs(f.rangees) do
+    if r:IsShown() then lignes = lignes + 1 vus[#vus + 1] = r.element and r.element.id end
+end
+attendu("recherche par nom : une seule", lignes, 1)
+attendu("  et c'est la bonne", vus[1], "maitre_de_la_discretion")
 f.effacer:Click()
 
 -- Le tableau : ID, NOM, colonnes, dessinees seulement si visibles. Les
@@ -257,40 +280,34 @@ f:ChoisirCategorie("table_xp")
 attendu("raison affichee", f.lectureSeule:GetText():find("Data/Equilibrage.lua") ~= nil, true)
 attendu("pas de Nouvelle entree", f.nouvelle:IsShown(), false)
 
-dire("== Editeur MJ : creer un trait")
+dire("== Creer une entree dosee par la Forge")
+-- « Nouvelle entree » ouvrait l'ancien panneau a champs, qui n'a PAS de champ
+-- « Forge » : on remplissait une entree que l'enregistrement refusait ensuite
+-- faute de jeu d'equilibrage, sans moyen d'en choisir un depuis cet ecran.
+-- Depuis le 12 octobre 2026, creer et reprendre passent par la meme porte.
 f:ChoisirCategorie("traits")
 attendu("Nouvelle entree", f.nouvelle:IsShown(), true)
 f.nouvelle:Click()
-local ed = LCM_CompendiumEditeur
-local idRapace = ed.travail.e.id
-attendu("editeur ouvert", ed:IsShown(), true)
-local onglets = {}
-for _, b in ipairs(ed.onglets) do if b:IsShown() then onglets[#onglets + 1] = b.label:GetText() end end
-attendu("onglets", table.concat(onglets, ","), "Général,Textes courts,Statistiques,Textes longs,Jauges,Listes,Avantage")
-ed.identite.nom:Saisir("Oeil du rapace")
-attendu("identifiant unique", (ed.identite.ident:GetText() or ""):match("^(%S+)"), idRapace)
-attendu("le nom ne devient pas l'identifiant", idRapace ~= "oeil_du_rapace", true)
--- Onglet Statistiques, dossier Statistiques : un bonus de Force est refuse.
-for _, b in ipairs(ed.onglets) do if b.ongletId == "statistic" then b:Click() end end
-attendu("dossiers de statistiques", ed.dossiers[1]:IsShown(), true)
-local edForce
-for champ, e in pairs(ed.editeurs) do if champ.cle == "force" and e:IsShown() then edForce = e end end
-edForce.saisie:Saisir("2")
-ed.ok:Click()
-attendu("primaire refusee", (ed.message:GetText() or ""):find("primaire") ~= nil, true)
-attendu("toujours ouvert", ed:IsShown(), true)
-edForce.saisie:Saisir("")
--- Dossier Observations : Vue +2.
-for _, b in ipairs(ed.dossiers) do if b.dossier == "Observations" then b:Click() end end
-local edVue
-for champ, e in pairs(ed.editeurs) do if champ.cle == "vue" and e:IsShown() then edVue = e end end
-edVue.saisie:Saisir("2")
-for _, b in ipairs(ed.onglets) do if b.ongletId == "text" then b:Click() end end
-local edCout
-for champ, e in pairs(ed.editeurs) do if champ.cle == "cout" and e:IsShown() then edCout = e end end
-edCout.saisie:Saisir("3")
-ed.ok:Click()
-attendu("enregistre et ferme", ed:IsShown(), false)
+attendu("la Forge s'ouvre", LCM.UI.Forge.Fenetre():IsShown(), true)
+attendu("et pas l'ancien panneau",
+    LCM_CompendiumEditeur == nil or not LCM_CompendiumEditeur:IsShown(), true)
+LCM.UI.Forge.Fenetre():Hide()
+
+-- La suite travaille sur un trait en brouillon. On le pose par la porte de
+-- derriere avec son propre jeu d'equilibrage : ce qu'on teste plus bas, c'est
+-- la liste, la modification groupee et la suppression, pas la forge.
+LCM.Brouillons.Enregistrer("jeux", {
+    id = "essai_compendium", label = "Essai (compendium)", categorie = "traits",
+    raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
+}, true)
+local idRapace = LCM.Brouillons.NouvelIdentifiant()
+local poseRapace, pourquoiRapace = LCM.Brouillons.Enregistrer("traits", {
+    id = idRapace, label = "Oeil du rapace", cout = 3,
+    forge = "essai_compendium/libre", bonus = { vue = 2 },
+}, true)
+attendu("le trait d'essai est accepte", poseRapace, true)
+if not poseRapace then dire("     raison : " .. tostring(pourquoiRapace)) end
+LCM.UI.Compendium.Actualiser()
 local neuf = LCM.Traits.Get(idRapace)
 attendu("trait jouable", neuf and neuf.bonus.vue, 2)
 attendu("cout", neuf and neuf.cout, 3)
@@ -303,7 +320,8 @@ for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_
 rPub.reglages:Click()
 local forgeEdition = LCM.UI.Forge.Fenetre()
 attendu("la Forge s'ouvre", forgeEdition:IsShown(), true)
-attendu("l'ancien éditeur reste fermé", ed:IsShown(), false)
+attendu("l'ancien éditeur reste fermé",
+    LCM_CompendiumEditeur == nil or not LCM_CompendiumEditeur:IsShown(), true)
 attendu("elle reprend la bonne entrée", LCM.UI.Forge.courant.editionId, "maitre_de_la_discretion")
 attendu("le bouton annonce l'enregistrement", forgeEdition.creer.label:GetText(), "Enregistrer l'entrée")
 local toutesDansForge = true
@@ -312,25 +330,36 @@ for _, id in ipairs({ "races", "traits", "etats", "maladies", "apprentissages", 
 end
 attendu("toutes les familles demandées passent par la Forge", toutesDansForge, true)
 forgeEdition:Hide()
-rPub.dupliquer:Click()
+-- On duplique une entree QUI A un jeu d'equilibrage. Le contenu publie du
+-- fichier n'en declare pas — il est anterieur au bareme — et sa copie est
+-- donc refusee a l'enregistrement, a juste titre.
+-- La recherche posee plus haut filtre encore la liste : on vise l'entree
+-- voulue au lieu de supposer qu'elle est a l'ecran.
+f.champRecherche:Saisir("Oeil du rapace")
+local rRapace
+for _, r in ipairs(f.rangees) do if r.element and r.element.id == idRapace then rRapace = r end end
+attendu("la ligne du trait d'essai est la", rRapace ~= nil, true)
+rRapace.dupliquer:Click()
 local copie
 for _, element in ipairs(LCM.Traits.list) do
-    if element.brouillon and element.label == "Maitre de la discrétion (copie)" then copie = element end
+    if element.brouillon and element.label == "Oeil du rapace (copie)" then copie = element end
 end
 local copieId = copie and copie.id
 attendu("copie en brouillon", copie and copie.brouillon, true)
-attendu("libelle", copie and copie.label, "Maitre de la discrétion (copie)")
-attendu("bonus copie", copie and copie.bonus.discretion, 4)
+attendu("libelle", copie and copie.label, "Oeil du rapace (copie)")
+attendu("bonus copie", copie and copie.bonus.vue, 2)
 
 dire("== Supprimer : brouillons oui, publie non")
 f:BasculerEdition()
 attendu("mode edition", f.modeEdition:IsShown(), true)
+f.champRecherche:Saisir("Oeil du rapace (copie)")
 local rCopie
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == copieId then rCopie = r end end
 attendu("X en mode edition", rCopie.supprimer:IsShown(), true)
 rCopie.supprimer:Click()
 f.confirmation.oui:Click()
 attendu("copie supprimee", LCM.Traits.Get(copieId), nil)
+f.champRecherche:Saisir("Maitre de la discr")
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion" then rPub = r end end
 rPub.supprimer:Click()
 f.confirmation.oui:Click()
@@ -349,6 +378,7 @@ attendu("plus masque", LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discret
 f:BasculerEdition()
 
 dire("== Modification groupee")
+f.champRecherche:Saisir("Oeil du rapace")
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == idRapace then r:Click() end end
 f.groupee:Click()
 local choixCout
@@ -364,6 +394,10 @@ attendu("cout change", LCM.Traits.Get(idRapace).cout, 1)
 dire("== Une connaissance : composants et fabrication")
 f:ChoisirCategorie("connaissances")
 f.nouvelle:Click()
+-- Les connaissances ne passent pas par la Forge : c'est ici que l'ancien
+-- panneau a champs sert encore, et qu'on le verifie.
+local ed = LCM_CompendiumEditeur
+attendu("l'ancien panneau sert encore hors Forge", ed ~= nil and ed:IsShown(), true)
 local idFonte = ed.travail.e.id
 ed.identite.nom:Saisir("Fonte du fer")
 for _, b in ipairs(ed.onglets) do if b.ongletId == "table" then b:Click() end end

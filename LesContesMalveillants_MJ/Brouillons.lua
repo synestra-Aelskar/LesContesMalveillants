@@ -234,6 +234,13 @@ function Brouillons.Original(famille, id)
     return parFamille and parFamille[tostring(id or "")] or nil
 end
 
+-- Tous les originaux d'une famille. L'atelier en a besoin pour continuer a
+-- montrer un contenu publie que son brouillon a recouvert : il a quitte le
+-- registre, mais pas la memoire.
+function Brouillons.Originaux(famille)
+    return originaux[tostring(famille or "")] or {}
+end
+
 -- Garde l'entree publiee AVANT qu'un brouillon ne l'ecrase. Sans cette copie,
 -- supprimer le brouillon ensuite emporterait le contenu publie avec lui. Deux
 -- chemins y passent — l'enregistrement en seance et l'application au
@@ -265,6 +272,19 @@ function Brouillons.EstPublie(famille, id)
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
     return existant ~= nil and existant.brouillon ~= true
+end
+
+-- Vrai si cet identifiant appartient a du contenu PUBLIE, que le brouillon
+-- l'ait deja recouvert ou non. `EstPublie` ne regarde que le registre, et
+-- depuis qu'un brouillon y prend la place du publie (9 octobre 2026) elle
+-- repond non une fois le recouvrement fait. Trois sources, dans l'ordre : le
+-- registre, l'original mis de cote au recouvrement, et le marqueur pose par
+-- l'enregistrement.
+function Brouillons.RecouvrePublie(famille, id)
+    if Brouillons.EstPublie(famille, id) then return true end
+    if Brouillons.Original(famille, id) then return true end
+    local entree = Brouillons.Get(famille, id)
+    return type(entree) == "table" and entree.remplacePublie == true
 end
 
 -- Enregistre un brouillon et le rend jouable aussitot. `creation` : le MJ

@@ -29,8 +29,18 @@ if enc then
 end
 assert(f.artwork.niveau:GetText() == "Niveau " .. LCM.Entities.Get_Value(e, "niveau"))
 f:Afficher("traits")
-assert(f:GetWidth() == 340 and not f.artwork:IsShown(), "traits : pas de volet, meme largeur")
+-- Le volet appartient a la FICHE, plus a l'onglet : changer d'onglet ne
+-- referme plus un artwork que le joueur avait choisi de garder ouvert
+-- (UI/Vues.lua, DisposerArtwork). Le scenario attendait qu'il disparaisse sur
+-- l'onglet Traits. Il se replie maintenant par son propre bouton, et ce choix
+-- est retenu.
+assert(f:GetWidth() == 340, "traits : meme largeur")
+assert(f.artwork:IsShown(), "traits : le volet reste ouvert d'un onglet a l'autre")
 assert(f.barre:GetWidth() == 268, "onglets compacts dans le cadre")
+f.replierArtwork:Click()
+assert(not f.artwork:IsShown(), "et c'est son bouton qui le replie")
+f.replierArtwork:Click()
+assert(f.artwork:IsShown(), "puis le redeplie")
 f:Afficher("statistiques")
 local palier = LCM.Equilibrage.experience.paliers[1]
 e.xp = 0
@@ -82,7 +92,11 @@ assert(not f.artwork:IsShown(), "replie au clic")
 assert(f:GetWidth() == largeOuvert, "la fenetre ne bouge pas")
 assert(LCM.db.settings.ficheArtworkReplie == true, "le choix est retenu")
 f:Afficher("traits")
-assert(not f.replierArtwork:IsShown(), "pas de poignee hors Statistiques")
+-- La poignee suit le volet : il appartient a la fiche entiere, donc elle est
+-- offerte sur tous les onglets. Elle ne l'etait que sur Statistiques avant
+-- que le volet cesse de se refermer d'un onglet a l'autre.
+assert(f.replierArtwork:IsShown(), "la poignee est offerte partout")
+assert(not f.artwork:IsShown(), "et le repli tient d'un onglet a l'autre")
 f:Afficher("statistiques")
 f.replierArtwork:Click()
 assert(f.artwork:IsShown(), "redeplie au clic")

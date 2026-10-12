@@ -1471,12 +1471,19 @@ function Editeur.Ouvrir(categorie, element, mode)
         if not ok then LCM.Alerte("PNJ : " .. tostring(raison)) end
         return ok
     end
-    -- Les entrees dosees par la Forge se reprennent dans la Forge elle-meme :
-    -- l'ancien panneau a champs du compendium faisait doublon et separait le
-    -- nom/la description des statistiques et de leur pool.
-    if element and UI.Forge and UI.Forge.EstCategorie(categorie) then
+    -- Les entrees dosees par la Forge se font ET se reprennent dans la Forge
+    -- elle-meme : l'ancien panneau a champs du compendium faisait doublon et
+    -- separait le nom/la description des statistiques et de leur pool.
+    --
+    -- La CREATION y passe aussi depuis le 12 octobre 2026. Elle ouvrait
+    -- l'ancien panneau, qui n'a pas de champ « Forge » : on remplissait une
+    -- entree que l'enregistrement refusait ensuite faute de jeu d'equilibrage,
+    -- sans aucun moyen d'en choisir un depuis cet ecran.
+    if UI.Forge and UI.Forge.EstCategorie(categorie) then
         if Editeur.frame then Editeur.frame:Hide() end
-        local ok, raison = UI.Forge.OuvrirEdition(categorie, element)
+        local ok, raison
+        if element then ok, raison = UI.Forge.OuvrirEdition(categorie, element)
+        else ok, raison = UI.Forge.Ouvrir(categorie.id) end
         if not ok then LCM.Alerte("Forge : " .. tostring(raison)) end
         return ok
     end

@@ -15,6 +15,20 @@ end
 __declencher("PLAYER_LOGIN")
 local B, F = LCM.Brouillons, LCM.Forge
 
+-- Ce scenario raconte une categorie qui part SANS jeu d'equilibrage, puis en
+-- recoit un : c'est tout son propos. La campagne en publie desormais pour les
+-- armes, les armures, les accessoires, les races et les traits — l'histoire
+-- ne pouvait plus commencer. On ecarte ceux des categories dont il parle,
+-- dans CE banc seulement : la copie en memoire, jamais le contenu.
+local function SansJeu(categorie)
+    for rang = #F.list, 1, -1 do
+        if F.list[rang].categorie == categorie then F.Retirer(F.list[rang].id) end
+    end
+end
+for _, categorie in ipairs({ "armes", "armures", "traits", "races", "accessoires" }) do
+    SansJeu(categorie)
+end
+
 -- Un jeu valide : deux raretes, la force verrouillee a 1, l'escalade bornee
 -- (plus serree en Commun), la vue a 2 pts le point, l'ouie avec une base.
 local function Jeu()
@@ -32,6 +46,14 @@ local function Jeu()
         },
     }
 end
+
+-- Le pool d'un OBJET recoit un bonus : il porte un etat forge, et
+-- `Equilibrage.forge.etatObjet.bonusPool` le paie. Les pools annonces par le
+-- jeu (4 et 10) valent donc 5 et 11 une fois sur une arme. On lit ce bonus
+-- dans les donnees plutot que de recopier des nombres.
+local bonusPool = tonumber(LCM.Equilibrage.forge.etatObjet.bonusPool) or 0
+local poolCommun = 4 + bonusPool
+local poolRare = 10 + bonusPool
 
 dire("== Registre des jeux : ce qui est refuse")
 local function refus(libelle, modif, motif)
@@ -90,7 +112,9 @@ attendu("cout par defaut", F.Limites(jeu, "pistage", "rare").cout, LCM.Equilibra
 -- le credit des negatives etant plafonne par le pool, le total depend de la
 -- rarete qu'on vise, et ne peut donc pas se calculer une fois pour toutes.
 attendu("rarete suffisante pour 3 pts", F.RareteSuffisante(jeu, { escalade = 3 }).id, "commun")
-attendu("aucune pour 12 pts", F.RareteSuffisante(jeu, { vue = 6 }), nil)
+-- Tres au-dela du plus gros pool, quel qu'il soit.
+attendu("aucune rarete ne couvre une entree hors de prix",
+    F.RareteSuffisante(jeu, { vue = 100 }), nil)
 
 dire("== Le garde-fou : le bareme bloque")
 local function arme(id, forge, bonus)
@@ -107,12 +131,17 @@ attendu("dans le pool : acceptee", ok, true)
 if not ok then dire("     raison : " .. tostring(raison)) end
 attendu("le jeu suit l'entree", LCM.Objets.Get("lame_juste").forge, "creation_arme/rare")
 
+-- Vue 2 (2 pts le point) + Escalade 2 = 6 pts, pour un pool de 5.
+ok, raison = B.Enregistrer("objets", arme("lame_chere", "creation_arme/commun",
+    { force = 1, vue = 2, escalade = 2, ouie = 2 }), true)
+attendu("hors pool : refusee", ok, false)
+contient("     dit combien", raison, "le pool Commun en permet " .. poolCommun)
+-- Pile au pool : Vue 2 (4 pts) + Escalade 1 = 5. La Force est verrouillee a 1
+-- et l'Ouie part de 2 : elles ne coutent rien.
 ok, raison = B.Enregistrer("objets", arme("lame_chere", "creation_arme/commun",
     { force = 1, vue = 2, escalade = 1, ouie = 2 }), true)
-attendu("hors pool : refusee", ok, false)
-contient("     dit combien", raison, "5 pts dépensés, le pool Commun en permet 4")
-ok = B.Enregistrer("objets", arme("lame_chere", "creation_arme/commun", { force = 1, vue = 2, ouie = 2 }), true)
 attendu("pile au pool : acceptee", ok, true)
+if not ok then dire("     raison : " .. tostring(raison)) end
 
 ok, raison = B.Enregistrer("objets", arme("lame_forte", "creation_arme/rare", { force = 3, ouie = 2 }), true)
 attendu("verrou force : refusee", ok, false)
@@ -154,7 +183,8 @@ attendu("champ Forge present", champForge ~= nil, true)
 local options = LCM.Compendium.Options(champForge)
 attendu("une option par rarete", #options, 2)
 attendu("groupee par jeu", options[1].groupe, "Création d'arme")
-attendu("texte de la carte", LCM.Compendium.Texte(armes, champForge, "creation_arme/rare", "full"), "Rare (10 pts)")
+attendu("texte de la carte", LCM.Compendium.Texte(armes, champForge, "creation_arme/rare", "full"),
+    string.format("Rare (%d pts)", poolRare))
 
 dire("== L'editeur du compendium passe par la meme porte")
 local Ed = LCM.CompendiumEditeur
@@ -185,7 +215,7 @@ attendu("ouverte", f:IsShown(), true)
 attendu("jeu choisi", f.jeu.label:GetText(), "Création d'arme")
 attendu("premiere rarete", f.rarete.label:GetText(), "Commun")
 attendu("compteur a 0", f.compteur.points:GetText(), "0 pts")
-attendu("pool affiche", f.compteur.pool:GetText(), "/ 4 pts")
+attendu("pool affiche", f.compteur.pool:GetText(), string.format("/ %d pts", poolCommun))
 attendu("largeur du selecteur de vue", f.mode:GetWidth(), 204)
 attendu("fleches des menus", f.jeu.fleche ~= nil and f.rarete.fleche ~= nil, true)
 f.icone:Click()
@@ -615,21 +645,21 @@ attendu("total", melange.total, 1)
 -- Le PLAFOND : un pool de 4 et des negatives qui rendraient bien plus.
 local beaucoup = V({ escalade = -20, vue = -20 })
 local brut = F.Bilan(jeuNeg, commun.id, beaucoup)
-attendu("elles rendraient beaucoup", brut.credit > commun.points, true)
-attendu("mais on n'en garde que le pool", brut.creditRetenu, commun.points)
-attendu("et on dit ce qui est perdu", brut.creditPerdu, brut.credit - commun.points)
-attendu("le total descend d'autant, pas plus", brut.total, -commun.points)
+attendu("elles rendraient beaucoup", brut.credit > poolCommun, true)
+attendu("mais on n'en garde que le pool", brut.creditRetenu, poolCommun)
+attendu("et on dit ce qui est perdu", brut.creditPerdu, brut.credit - poolCommun)
+attendu("le total descend d'autant, pas plus", brut.total, -poolCommun)
 
 -- Donc on peut depenser deux fois le pool, et pas un point de plus.
-local bilanFond = F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = 4 }))
-attendu("on dépense le double du pool", bilanFond.depenses, 8)
-attendu("et le total tombe pile sur le pool", bilanFond.total, commun.points)
+local bilanFond = F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = poolCommun }))
+attendu("on dépense le double du pool", bilanFond.depenses, 2 * poolCommun)
+attendu("et le total tombe pile sur le pool", bilanFond.total, poolCommun)
 attendu("un point de plus ne passerait pas",
-    F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = 5 })).total > commun.points, true)
+    F.Bilan(jeuNeg, commun.id, V({ escalade = -20, vue = poolCommun + 1 })).total > poolCommun, true)
 
 -- Le plafond depend de la rarete : les memes valeurs rendent plus en Rare.
 attendu("le pool de Rare retient davantage",
-    F.Bilan(jeuNeg, rare.id, beaucoup).creditRetenu, rare.points)
+    F.Bilan(jeuNeg, rare.id, beaucoup).creditRetenu, poolRare)
 
 -- Et donc la rarete suffisante se cherche sur les VALEURS.
 attendu("deux points tiennent dans le Commun",

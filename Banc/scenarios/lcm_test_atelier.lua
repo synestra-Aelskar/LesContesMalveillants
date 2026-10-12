@@ -12,21 +12,28 @@ end
 -- fautif, et un qui reprend l'identifiant d'un contenu publie.
 LCM.Brouillons.Set("traits", { id = "agile", label = "Agile", cout = 1, bonus = { acrobaties = 2 } })
 LCM.Brouillons.Set("traits", { id = "triche", label = "Triche", cout = 1, bonus = { force = 5 } })
-LCM.Brouillons.Set("traits", { id = "escalade_jungle", label = "Correction", cout = 1 })
+-- `remplacePublie` : c'est ce que pose l'enregistrement quand le MJ corrige
+-- sciemment du contenu publie. Un brouillon ecrit en seance l'a toujours ;
+-- sans lui, l'atelier n'a aucun moyen de savoir qu'il recouvre un fichier.
+LCM.Brouillons.Set("traits",
+    { id = "escalade_jungle", label = "Correction", cout = 1, remplacePublie = true })
 
 __declencher("PLAYER_LOGIN")
 local B = LCM.Brouillons
 
--- Un jeu d'equilibrage TEMOIN. Le bareme BLOQUE depuis le 3 octobre 2026 : un
--- trait sans `forge` est refuse, et c'est voulu. Les traits de ce scenario
--- servent a tester l'ATELIER, pas l'equilibrage — ils ont donc leur propre
--- jeu, large, plutot que celui de la campagne qui a le droit de se resserrer.
-for _, essai in ipairs({ { "essai_atelier", "traits" }, { "essai_armes", "armes" },
-                         { "essai_armures", "armures" }, { "essai_races", "races" } }) do
-    B.Enregistrer("jeux", {
-        id = essai[1], label = "Essai (" .. essai[2] .. ")", categorie = essai[2],
-        raretes = { { id = "libre", label = "Libre", points = 999, couleur = "FFFFFF" } },
-    }, true)
+-- Ce scenario teste l'ATELIER : la saisie, les refus, la liste, la fenetre.
+-- Il travaille donc sur des familles SANS jeu d'equilibrage — sinon le
+-- bareme refuse tout ce qu'il ecrit, et « + Bonus » ouvre la Forge a la place
+-- de la liste de choix. La campagne en publie maintenant pour les traits, les
+-- races, les armes et les armures : on les ecarte de CE banc, en memoire
+-- seulement, pour que le scenario puisse encore raconter son histoire.
+for rang = #LCM.Forge.list, 1, -1 do
+    local jeu = LCM.Forge.list[rang]
+    local vise = jeu.categorie
+    if vise == "traits" or vise == "races" or vise == "armes" or vise == "armures"
+        or vise == "accessoires" then
+        LCM.Forge.Retirer(jeu.id)
+    end
 end
 
 dire("== A la connexion")
@@ -57,42 +64,41 @@ attendu("le fichier genere charge toujours", LCM.Traits.Get("escalade_jungle") ~
 
 dire("== Enregistrer un brouillon")
 local ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Pied sûr", cout = 1,
-    forge = "essai_atelier/libre",
     bonus = { equilibre = 2 }, avantage = { "equilibre" } }, true)
 attendu("accepte", ok, true)
 attendu("jouable aussitot", LCM.Traits.Get("pied_sur") ~= nil, true)
 attendu("marque brouillon", LCM.Traits.Get("pied_sur").brouillon, true)
 attendu("sauvegarde", LCM_MJ_DB.brouillons.traits.pied_sur.label, "Pied sûr")
 
-ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Autre", cout = 1, forge = "essai_atelier/libre" }, true)
+ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Autre", cout = 1 }, true)
 attendu("collision en creation refusee", ok, false)
 dire("     raison : " .. tostring(raison))
 
-ok, raison = B.Enregistrer("traits", { id = "brute", label = "Brute", cout = 1, forge = "essai_atelier/libre", bonus = { force = 2 } }, true)
+ok, raison = B.Enregistrer("traits", { id = "brute", label = "Brute", cout = 1, bonus = { force = 2 } }, true)
 attendu("primaire refusee", ok, false)
 attendu("raison sans prefixe", tostring(raison):find("^LCM/") == nil, true)
 attendu("rien sauvegarde", LCM_MJ_DB.brouillons.traits.brute, nil)
 dire("     raison : " .. tostring(raison))
 
-ok, raison = B.Enregistrer("traits", { id = "cher", label = "Cher", cout = 9, forge = "essai_atelier/libre" }, true)
+ok, raison = B.Enregistrer("traits", { id = "cher", label = "Cher", cout = 9 }, true)
 attendu("cout hors bornes refuse", ok, false)
 
-ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", cout = 1, forge = "essai_atelier/libre" }, true)
+ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", cout = 1 }, true)
 attendu("contenu publie protege", ok, false)
 dire("     raison : " .. tostring(raison))
 
 ok, raison = B.Enregistrer("objets", { id = "epee", label = "Epee" }, true)
 attendu("objet sans categorie refuse", ok, false)
 dire("     raison : " .. tostring(raison))
-ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", forge = "essai_armes/libre", bonus = { pen_tranchant = 2 } }, true)
+ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", bonus = { pen_tranchant = 2 } }, true)
 attendu("objet accepte", ok, true)
 attendu("objet jouable", LCM.Objets.Get("epee") and LCM.Objets.Get("epee").brouillon, true)
-ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", forge = "essai_armures/libre", bonus = { force = 1 } }, true)
+ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", bonus = { force = 1 } }, true)
 attendu("objet : une primaire est permise (template)", ok, true)
 
 dire("== Modifier sur place")
 local tenu = LCM.Traits.Get("pied_sur")
-ok = B.Enregistrer("traits", { id = "pied_sur", label = "Pied très sûr", cout = 3, forge = "essai_atelier/libre", bonus = { equilibre = 4 } }, false)
+ok = B.Enregistrer("traits", { id = "pied_sur", label = "Pied très sûr", cout = 3, bonus = { equilibre = 4 } }, false)
 attendu("modification acceptee", ok, true)
 attendu("meme table", LCM.Traits.Get("pied_sur"), tenu)
 attendu("cout change", tenu.cout, 3)
@@ -113,10 +119,10 @@ attendu("mais plus de bonus", LCM.Traits.Bonus(perso, "equilibre"), 0)
 attendu("rien a supprimer", B.Supprimer("traits", "inexistant"), false)
 
 dire("== Races")
-ok = B.Enregistrer("races", { id = "centaure", label = "Centaure", morphology = "quadrupede", forge = "essai_races/libre" }, true)
+ok = B.Enregistrer("races", { id = "centaure", label = "Centaure", morphology = "quadrupede" }, true)
 attendu("race acceptee", ok, true)
 attendu("race jouable", LCM.Races.Get("centaure").morphology, "quadrupede")
-ok, raison = B.Enregistrer("races", { id = "blob", label = "Blob", morphology = "gelee", forge = "essai_races/libre" }, true)
+ok, raison = B.Enregistrer("races", { id = "blob", label = "Blob", morphology = "gelee" }, true)
 attendu("morphologie inconnue refusee", ok, false)
 dire("     raison : " .. tostring(raison))
 
@@ -131,7 +137,11 @@ attendu("panneau races cache", f.panneaux.races:IsShown(), false)
 attendu("enregistrer visible", f.enregistrer:IsShown(), true)
 attendu("supprimer cache en creation", f.supprimer:IsShown(), false)
 
--- la liste : le trait publie y est, en lecture seule
+-- la liste : le trait publie y est, en lecture seule, A COTE de son doublon.
+-- Depuis le 9 octobre 2026 le brouillon prend la place du publie dans le
+-- registre ; l'atelier va donc rechercher le fichier dans ce que le
+-- recouvrement a mis de cote (Brouillons.Original), sans quoi la ligne
+-- publiee disparaissait et on ne pouvait plus la relire ni la reprendre.
 local trouve
 local doublon
 for _, b in ipairs(f.liste.lignes) do
@@ -141,6 +151,8 @@ for _, b in ipairs(f.liste.lignes) do
 end
 attendu("doublon liste a part", doublon ~= nil, true)
 attendu("publie liste", trouve ~= nil, true)
+attendu("le fichier reste retenu de cote",
+    LCM.Brouillons.Original("traits", "escalade_jungle").label, "Escalade de la jungle")
 trouve:Click()
 attendu("publie : lecture seule", f.enregistrer:IsShown(), false)
 attendu("publie : bonus charges", #f.edition.bonus, 1)
@@ -178,10 +190,12 @@ if idPublie then
     local avant = LCM.Traits.Get(idPublie).label
     attendu("sans « remplacer », le fichier fait foi",
         select(1, LCM.Brouillons.Enregistrer("traits",
-            { id = idPublie, label = "Essai", cout = 1 }, false)), false)
+            { id = idPublie, label = "Essai", cout = 1 },
+            false)), false)
     attendu("avec, on peut corriger en seance",
         select(1, LCM.Brouillons.Enregistrer("traits",
-            { id = idPublie, label = "Essai", cout = 1 }, false, true)), true)
+            { id = idPublie, label = "Essai", cout = 1 },
+            false, true)), true)
     attendu("et c'est marque", LCM.Brouillons.Get("traits", idPublie).remplacePublie, true)
     -- On remet tout en place pour la suite.
     LCM.Brouillons.Supprimer("traits", idPublie)
