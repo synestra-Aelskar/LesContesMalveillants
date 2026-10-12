@@ -422,9 +422,21 @@ function Lien.BrancherChat(frame)
 end
 
 function Lien.BrancherLeChat()
-    local branchees = 0
+    local branchees, vues = 0, {}
+    local function Brancher(frame)
+        if type(frame) ~= "table" or vues[frame] then return end
+        vues[frame] = true
+        if Lien.BrancherChat(frame) then branchees = branchees + 1 end
+    end
+    -- `CHAT_FRAMES` d'abord : c'est la liste que le jeu tient a jour et que
+    -- les remplacants de chat (Prat, ElvUI) alimentent avec LEURS fenetres.
+    -- Ne chercher que « ChatFrame1..N » laissait ces fenetres-la sans ecoute,
+    -- et un lien y restait du texte mort (12 octobre 2026).
+    for _, frame in ipairs(_G.CHAT_FRAMES or {}) do
+        Brancher(type(frame) == "string" and _G[frame] or frame)
+    end
     for index = 1, (_G.NUM_CHAT_WINDOWS or 10) do
-        if Lien.BrancherChat(_G["ChatFrame" .. index]) then branchees = branchees + 1 end
+        Brancher(_G["ChatFrame" .. index])
     end
     return branchees
 end
@@ -441,6 +453,16 @@ LCM.AddCommand("lien", "vérifie que les liens de chat sont cliquables", functio
     local branchees = Lien.BrancherLeChat()
     LCM.Info(string.format("fenêtres de chat branchées : %d", branchees))
     LCM.Info(string.format("SetItemRef : %s", _G.SetItemRef and "oui" or "ABSENT"))
+    -- Une fenetre dont les liens sont coupes affiche « [Nom] » en texte mort :
+    -- rien a cliquer, et aucune erreur pour le dire. On regarde donc chacune.
+    local coupees = {}
+    for _, frame in ipairs(_G.CHAT_FRAMES or {}) do
+        local f = type(frame) == "string" and _G[frame] or frame
+        if type(f) == "table" and f.GetHyperlinksEnabled and not f:GetHyperlinksEnabled() then
+            coupees[#coupees + 1] = tostring(f:GetName() or "?")
+        end
+    end
+    LCM.Info(string.format("liens coupés : %s", #coupees > 0 and table.concat(coupees, ", ") or "aucune"))
     local moi = LCM.Entities.Self()
     local categorie = LCM.Compendium and LCM.Compendium.categories
         and LCM.Compendium.categories[1]

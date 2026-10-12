@@ -29,6 +29,21 @@ Echange.DELAI = 5
 -- saurait plus a qui l'on donne.
 Echange.courant = nil
 
+-- Le meme joueur s'ecrit « Yutosuu » quand on le cible et « Yutosuu-Apertus »
+-- quand il repond : WoW qualifie l'expediteur de son royaume. On compare donc
+-- sur le nom court, comme Core/Presence.lua et le combat le font deja.
+local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostring(nom or "") end
+local function Meme(a, b) return Court(a):lower() == Court(b):lower() end
+
+-- La seance retient l'ecriture de l'EXPEDITEUR des sa premiere reponse : les
+-- chuchotements suivants partent vers le nom que le serveur nous a donne, et
+-- non vers celui qu'on avait tape.
+local function Reconnue(seance, qui)
+    if not (seance and Meme(seance.qui, qui)) then return false end
+    if seance.qui ~= qui and tostring(qui or "") ~= "" then seance.qui = qui end
+    return true
+end
+
 local function Moi() return LCM.Entities.Self() end
 
 local function Dire(texte) if LCM.Info then LCM.Info(texte) end end
@@ -89,7 +104,7 @@ function Echange.Proposer(qui, objet)
     if C_Timer and C_Timer.After then
         C_Timer.After(Echange.DELAI, function()
             local seance = Echange.courant
-            if seance and seance.qui == qui and not seance.ouverte then
+            if seance and Meme(seance.qui, qui) and not seance.ouverte then
                 Echange.courant = nil
                 Refuser(string.format("%s n'a pas l'addon : impossible d'échanger.", qui))
                 Prevenir()
@@ -118,7 +133,7 @@ end
 
 local function SurOui(qui)
     local seance = Echange.courant
-    if not (seance and seance.qui == qui and not seance.ouverte) then return end
+    if not (Reconnue(seance, qui) and not seance.ouverte) then return end
     seance.ouverte = true
     -- Ce qu'on tenait au moment du lacher se pose tout seul : c'est ce geste-la
     -- qui a ouvert la fenetre.
@@ -217,7 +232,7 @@ end
 
 local function SurContenu(qui, donnees)
     local seance = Echange.courant
-    if not (seance and seance.qui == qui) then return end
+    if not Reconnue(seance, qui) then return end
     seance.sien.objets = (type(donnees) == "table" and donnees.objets) or {}
     seance.sien.devises = (type(donnees) == "table" and donnees.devises) or {}
     Bouge()
@@ -268,7 +283,7 @@ end
 
 local function SurAccord(qui, donnees)
     local seance = Echange.courant
-    if not (seance and seance.qui == qui) then return end
+    if not Reconnue(seance, qui) then return end
     seance.sonAccord = (type(donnees) == "table" and donnees.ok) and true or false
     Prevenir()
     if seance.monAccord and seance.sonAccord then Echange.Conclure() end
@@ -331,7 +346,7 @@ end
 
 local function SurFin(qui, donnees)
     local seance = Echange.courant
-    if not (seance and seance.qui == qui) then return end
+    if not Reconnue(seance, qui) then return end
     local raison = type(donnees) == "table" and donnees.raison or nil
     Echange.Annuler(raison or string.format("%s a fermé la fenêtre.", qui), true)
 end

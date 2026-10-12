@@ -163,4 +163,28 @@ attendu("une seconde proposition est refusee", ok, false)
 attendu("et on dit pourquoi", type(raison), "string")
 E.Annuler("fin des essais")
 
+dire("== le royaume ne casse plus la séance")
+-- On propose a « Yutosuu » (le nom qu'on cible) et la reponse revient de
+-- « Yutosuu-Apertus » : WoW qualifie l'expediteur de son royaume. Les
+-- receptions comparaient les deux chaines telles quelles — chez le demandeur
+-- le « oui » etait ignore et l'on lisait « n'a pas l'addon » apres cinq
+-- secondes ; chez l'invite la fenetre s'ouvrait et restait vide
+-- (12 octobre 2026, sur un echange entre un MJ et un joueur).
+if E.courant then E.Annuler() end
+if LCM.UI.Echange.frame then LCM.UI.Echange.frame:Hide() end
+local COURT, LONG = "Yutosuu", "Yutosuu-Apertus"
+attendu("on propose au nom court", E.Proposer(COURT), true)
+attendu("  la seance attend encore", E.courant.ouverte, false)
+-- La reponse arrive du nom QUALIFIE.
+numero = numero + 1
+LCM.Reseau.Recevoir(LONG, string.format("%d:1:1:ECH_OUI|%s", numero, LCM.Reseau.Encoder({})))
+attendu("le oui est reconnu quand meme", E.courant and E.courant.ouverte, true)
+attendu("  et la seance adopte l'ecriture de l'expediteur", E.courant.qui, LONG)
+-- Et la suite du dialogue passe : un contenu recu du nom long est pris.
+numero = numero + 1
+LCM.Reseau.Recevoir(LONG, string.format("%d:1:1:ECH_CONTENU|%s", numero,
+    LCM.Reseau.Encoder({ objets = { { ref = "ressources/eau", quantite = 1, nom = "Eau" } }, devises = {} })))
+attendu("ce qu'il pose arrive", #E.courant.sien.objets, 1)
+E.Annuler()
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
