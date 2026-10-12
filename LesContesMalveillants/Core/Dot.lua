@@ -310,6 +310,56 @@ function Dot.Resume(entity, etat)
     return table.concat(bouts, ", "), stacks, tonumber(d.rand) or 0
 end
 
+-- ===== La bibliotheque =====================================================
+-- Les compositions que le joueur garde. Meme idee que celle du constructeur
+-- d'effets (LCM.db.modelesEffets) : une brulure qu'on relance souvent ne se
+-- recompose pas point par point a chaque fois. Donnee du JOUEUR, rangee avec
+-- ses reglages.
+
+local function Bibliotheque()
+    LCM.EnsureDatabase()
+    LCM.db.modelesDots = type(LCM.db.modelesDots) == "table" and LCM.db.modelesDots or {}
+    return LCM.db.modelesDots
+end
+
+function Dot.Modeles()
+    local out = {}
+    for _, m in ipairs(Bibliotheque()) do out[#out + 1] = m end
+    table.sort(out, function(a, b) return tostring(a.nom):lower() < tostring(b.nom):lower() end)
+    return out
+end
+
+-- Enregistre, ou remplace celui du meme nom : on retouche un modele en le
+-- reenregistrant, on n'en accumule pas trois versions.
+function Dot.Enregistrer(nom, description, icone, choix, conteneur)
+    nom = tostring(nom or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if nom == "" then return false, "il faut un nom." end
+    if type(choix) ~= "table" then return false, "rien a enregistrer." end
+    local compose = Dot.Composer(choix)
+    if #compose.morsures == 0 then return false, "ce dot ne grignote rien." end
+    local copie = {}
+    for cle, valeur in pairs(choix) do copie[cle] = valeur end
+    local modele = { nom = nom, description = tostring(description or ""), icone = icone,
+                     conteneur = conteneur, choix = copie }
+    local liste = Bibliotheque()
+    for rang, m in ipairs(liste) do
+        if tostring(m.nom):lower() == nom:lower() then liste[rang] = modele return true, nom end
+    end
+    liste[#liste + 1] = modele
+    return true, nom
+end
+
+function Dot.Oublier(nom)
+    local liste = Bibliotheque()
+    for rang, m in ipairs(liste) do
+        if tostring(m.nom):lower() == tostring(nom or ""):lower() then
+            table.remove(liste, rang)
+            return true
+        end
+    end
+    return false
+end
+
 -- Les dots portes, pour les ecrans qui veulent les lister a part.
 function Dot.Liste(entity)
     local out = {}

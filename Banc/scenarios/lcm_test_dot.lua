@@ -331,31 +331,98 @@ attendu("le bouton existe", bouton ~= nil, true)
 attendu("il est dans les offensives", bouton and bouton.categorie, "offensives")
 attendu("et il est branché", R.EstLiee("dot"), true)
 
-local F = LCM.UI.DotComposeur.Ouvrir()
+local U = LCM.UI.DotComposeur
+local F = U.Ouvrir()
 attendu("la fenêtre s'ouvre", F:IsShown(), true)
 attendu("elle part d'un choix vide", (D.Cout(F.choix)), 0)
 
+-- Elle est calquee sur le constructeur de debuff (12 octobre 2026) : apercu,
+-- bibliotheque, repli, deux colonnes. On verifie la forme autant que le fond.
+dire("== la forme du constructeur")
+attendu("repliée au départ", F.replie, true)
+attendu("  la bibliothèque reste visible", F.biblio:IsShown(), true)
+attendu("  mais pas les familles", F.champs:IsShown(), false)
+F.basculer:Click()
+attendu("« Configurer » déplie", F.replie, false)
+attendu("  et montre les deux colonnes", F.champs:IsShown() and F.panneau:IsShown(), true)
+attendu("  le bouton propose alors de réduire", F.basculer.label:GetText(), "Réduire")
+
 -- Le pool se lit a l'ecran, et il vient de la source, de la penetration et du
--- niveau.
-F.choix.source = "force"
-F.pen:SetText("4")
-F.niveau:SetText("3")
-F:Rendre()
+-- niveau — choisis au bouton, comme les questions du composeur.
+dire("== ce qui fabrique le pool")
+for _, b in ipairs(F.sources) do if b.sourceId == "force" then b:Click() end end
+F.pen:Saisir("4")
+F.niveaux[3]:Click()
+attendu("la source est retenue", F.choix.source, "force")
+attendu("le niveau aussi", F.choix.niveau, 3)
 local attenduPool = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
-attendu("le pool est affiché",
-    F.pool:GetText():find("Pool : " .. attenduPool, 1, true) ~= nil, true)
+attendu("le pool est affiché", F.carrePool.valeur:GetText(), tostring(attenduPool))
+attendu("  et le reste avec", F.carreReste.valeur:GetText(), tostring(attenduPool))
+attendu("  l'en-tête le redit", F.reserve:GetText(), string.format("Pool : 0 / %d", attenduPool))
 
--- Depenser : une ligne par cible, plus les rounds et les stacks.
-attendu("une ligne par vecteur", #D.Cibles() + 2 <= #F.lignes, true)
-F.choix.pf = 1
-F:Rendre()
-attendu("le coût suit", F.pool:GetText():find("dépensé 3", 1, true) ~= nil, true)
+dire("== les familles repliables")
+attendu("deux familles", #F.entetes >= 2, true)
+attendu("  la première nomme ce qu'on grignote",
+    F.entetes[1].label:GetText():find("grignote", 1, true) ~= nil, true)
+attendu("  ouvertes au départ", F.lignes[1]:IsShown(), true)
+F.entetes[1]:Click()
+attendu("  un clic replie", F.entetes[1].label:GetText():find("^%[%+%]") ~= nil, true)
+F.entetes[1]:Click()
+attendu("  et rouvre", F.entetes[1].label:GetText():find("^%[%-%]") ~= nil, true)
 
--- Et on ne depasse pas : c'est la regle du pool.
-F.choix.pa = 99
-attendu("au-delà du pool, ça ne tient pas", F:Tient(), false)
+dire("== dépenser, et ne pas dépasser")
+local ligneDe = function(cle)
+    for _, l in ipairs(F.lignes) do if l:IsShown() and l.cle == cle then return l end end
+end
+local pf = ligneDe("pf")
+attendu("la ligne des PF est là", pf ~= nil, true)
+pf.plus:Click()
+attendu("le coût suit", F.reserve:GetText(), string.format("Pool : 3 / %d", attenduPool))
+attendu("  le reste baisse", F.carreReste.valeur:GetText(), tostring(attenduPool - 3))
+attendu("  et la ligne dit ce qu'elle fait",
+    pf.effet:GetText():find("par round", 1, true) ~= nil, true)
+-- Un pas qui ne tient pas est refuse : la valeur ne bouge pas.
+local pa = ligneDe("pa")
+local avantPA = F.choix.pa or 0
+for _ = 1, 20 do pa.plus:Click() end
+attendu("au-delà du pool, ça ne tient pas", (D.Cout(F.choix)) <= F:Pool(), true)
+attendu("  et les PA n'ont pas bougé au-delà", (F.choix.pa or 0) >= avantPA, true)
 F.choix.pa = nil
-attendu("revenu dans le pool", F:Tient(), true)
+U.Rendre()
+
+dire("== l'aperçu dit ce qu'on est en train de faire")
+F.nom:Saisir("Brûlure")
+U.Rendre()
+attendu("le nom", F.nomApercu:GetText(), "Brûlure")
+attendu("  et ce qu'il grignote", F.effetsApercu:GetText():find("PF", 1, true) ~= nil, true)
+
+dire("== la bibliothèque")
+attendu("vide au départ", #D.Modeles(), 0)
+attendu("on enregistre", (D.Enregistrer("Brûlure", "Ça pique.", nil, F.choix, "maladie")), true)
+attendu("  et on la retrouve", #D.Modeles(), 1)
+-- Reenregistrer le meme nom REMPLACE : on retouche un modele, on n'empile pas
+-- trois versions.
+D.Enregistrer("Brûlure", "Ça pique plus.", nil, F.choix, "maladie")
+attendu("  un seul exemplaire par nom", #D.Modeles(), 1)
+F.choix = { rounds = 0, stacks = 0, source = "force", niveau = 3 }
+U.Rendre()
+attendu("  le choix est vidé", (D.Cout(F.choix)), 0)
+F:Charger(D.Modeles()[1])
+attendu("  le modèle revient", (D.Cout(F.choix)) > 0, true)
+attendu("  avec sa nature", F.conteneur, "maladie")
+attendu("  et son nom", F.nom:GetText(), "Brûlure")
+attendu("on oublie", D.Oublier("Brûlure"), true)
+attendu("  la bibliothèque est vide", #D.Modeles(), 0)
+
+dire("== un dot qui ne grignote rien ne part pas")
+F.choix = { rounds = 0, stacks = 0, source = "force", niveau = 3 }
+U.Rendre()
+attendu("« Déclarer » est éteint", F.declarer:IsEnabled(), false)
+attendu("  et on dit pourquoi", F.blocage:GetText():find("grignoter", 1, true) ~= nil, true)
+F.choix.pf = 1
+U.Rendre()
+attendu("une morsure suffit", F.declarer:IsEnabled(), true)
+attendu("  et plus rien ne bloque", F.blocage:GetText(), "")
 F:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
