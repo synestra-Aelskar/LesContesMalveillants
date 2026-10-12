@@ -541,8 +541,18 @@ end
 
 -- ===== La repartition ======================================================
 
+-- La hauteur de depart. La fenetre s'allonge ensuite selon le nombre de zones
+-- a repartir (Ecran.Repartir).
+local HAUTEUR = 424
+-- Tout ce qui n'est pas la liste : le titre et son aide (14 + 14 + 8 + 46),
+-- les compteurs (8 + 40), l'ecart avant la liste (10), puis l'emote, le canal
+-- et les deux boutons (150). On l'ecrit plutot que de le mesurer : une
+-- hauteur de cadre ancre n'est pas connue avant la premiere disposition.
+local MARGE_LISTE = 14 + 14 + 8 + 46 + 8 + 40 + 10 + 150
+Ecran.MARGE_LISTE = MARGE_LISTE
+
 local function ConstruireRepartition()
-    local f = Fenetre("LCM_Repartition", 520, 424)
+    local f = Fenetre("LCM_Repartition", 520, HAUTEUR)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     f.titre = UI.Texte(f, "", DORE)
     Placer(f.titre, "TOPLEFT", f, "TOPLEFT", 14, -14)
@@ -745,6 +755,15 @@ function Ecran.Repartir(ctx, fin)
         f.lignes[i].valeur.suivant = f.lignes[i + 1] and f.lignes[i + 1].valeur or nil
     end
     f.zone:Regler(y)
+
+    -- La fenetre prend la hauteur de sa liste. On ne repartit pas des degats
+    -- en lisant cinq lignes a la fois : il faut voir toutes les zones pour
+    -- choisir, et chaque piece d'equipement portee ajoute une case
+    -- (12 octobre 2026).
+    local ecran = (UIParent and UIParent:GetHeight()) or 768
+    f.hauteurListe = y
+    f:SetHeight(math.max(HAUTEUR, math.min(MARGE_LISTE + y, math.floor(ecran * 0.92))))
+
     Rafraichir(f)
     f:Show()
     f:Raise()

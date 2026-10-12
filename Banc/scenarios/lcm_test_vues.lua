@@ -378,4 +378,34 @@ attendu("onglet vide non declare : refuse", refus({ id = "vide_x", onglets = { {
 M.Trouver("regles").onClick()
 attendu("refermee", r:IsShown(), false)
 
+dire("== Santé : chaque onglet ne montre que SES états temporaires")
+-- Le conteneur declare dans Data/Vues.lua (`{ temporaires = "etat" }`) etait
+-- ecrase par `true` a la resolution : le filtre tombait, et les trois onglets
+-- montraient la meme liste entiere. Un etat d'influence range en
+-- « intangible » apparaissait donc aussi dans Etats et dans Maladies
+-- (12 octobre 2026).
+local T = LCM.EtatsTemporaires
+for _, e in ipairs(T.Liste(moi)) do T.Retirer(moi, e.nom) end
+T.Poser(moi, { nom = "Terrifié", rounds = 3, debuff = true, conteneur = "intangible" })
+T.Poser(moi, { nom = "Ralenti", rounds = 2, debuff = true })
+LCM.UI.Menu.Trouver("sante").onClick()
+local sante = LCM.UI.Vues.frames.sante
+sante:Montrer(moi)
+local function temporairesDe(ongletId)
+    for _, b in ipairs(sante.barre.boutons) do if b.ongletId == ongletId then b:Click() end end
+    local noms = {}
+    for _, bloc in ipairs((sante.pages[ongletId] or {}).blocs or {}) do
+        for _, sl in ipairs(bloc.lignes or {}) do
+            if sl.lignes and sl.vide then
+                for _, r in ipairs(sl.lignes) do if r:IsShown() then noms[#noms + 1] = r.nom:GetText() end end
+            end
+        end
+    end
+    return table.concat(noms, ",")
+end
+attendu("États : seulement les états", temporairesDe("etats"), "Ralenti")
+attendu("Maladies : aucun ici", temporairesDe("maladies"), "")
+attendu("Intangible : l'état d'influence", temporairesDe("intangible"), "Terrifié")
+for _, e in ipairs(T.Liste(moi)) do T.Retirer(moi, e.nom) end
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

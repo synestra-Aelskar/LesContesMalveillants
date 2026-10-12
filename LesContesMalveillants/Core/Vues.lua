@@ -70,7 +70,14 @@ local function Resoudre(vueId, bloc, sections)
     elseif bloc.temporaires then
         -- Les etats poses par une action, pour quelques rounds
         -- (Core/EtatsTemporaires.lua) : pas d'emplacement, une ligne chacun.
-        sections[#sections + 1] = { label = tostring(bloc.label or "États temporaires"), temporaires = true, fields = {} }
+        --
+        -- On GARDE le nom du conteneur quand il est donne (« etat »,
+        -- « maladie », « intangible ») : c'est le filtre de l'onglet. Il etait
+        -- ecrase par `true`, et les trois onglets de la Sante montraient alors
+        -- la meme liste entiere (12 octobre 2026).
+        sections[#sections + 1] = { label = tostring(bloc.label or "États temporaires"),
+            temporaires = type(bloc.temporaires) == "string" and bloc.temporaires or true,
+            fields = {} }
 
     elseif bloc.texte then
         -- Un paragraphe (la description d'une fenetre du template).

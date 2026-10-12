@@ -83,6 +83,14 @@ for i, c in ipairs(R.cases) do if c.id == "armure" then boucliers = i end end
 R.lignes[boucliers].tout:Click()
 attendu("des boucliers vides n'absorbent rien", R.valeurs[boucliers], 0)
 
+-- La fenetre prend la hauteur de sa liste : on ne repartit pas des degats en
+-- lisant cinq lignes a la fois, il faut voir toutes les zones pour choisir
+-- (12 octobre 2026). Elle etait figee a 424 et la liste defilait.
+attendu("la fenetre fait la hauteur de sa liste",
+    R:GetHeight() >= U.MARGE_LISTE + R.hauteurListe, true)
+attendu("  elle grandit avec le nombre de zones", R.hauteurListe > 0, true)
+attendu("  et ne depasse pas l'ecran", R:GetHeight() <= UIParent:GetHeight(), true)
+
 -- Le chiffre se SAISIT : quarante-six points a coups de « + », c'est
 -- quarante-six clics. Le garde-fou est celui des boutons, pas un second.
 R.lignes[1].valeur:Saisir("99")
