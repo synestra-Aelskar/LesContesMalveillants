@@ -279,7 +279,13 @@ local function Construire()
                 -- le glisser-deposer semblait ne pas exister (5 octobre 2026).
                 l:RegisterForDrag("LeftButton")
                 l:SetScript("OnDragStart", function(self)
-                    if not LCM.IsMaster() then return end
+                    -- Cette fenetre montre TOUJOURS son propre inventaire
+                    -- (`Entite()` rend ce qu'on joue) : y prendre un objet est
+                    -- un geste de joueur. Le garde-fou etait pose ici aussi, et
+                    -- le glissement ne demarrait meme pas — la destination
+                    -- avait beau accepter, il n'y avait rien a deposer
+                    -- (12 octobre 2026). C'est la DESTINATION qui dit ce
+                    -- qu'elle autorise, pas la main qui prend.
                     if not self.place then return end
                     local ici = Inv.Emplacement(Entite(), self.place.onglet, self.place.index)
                     local c = ici and Inv.Case(ici, self.case)
@@ -553,7 +559,8 @@ local function NouvelleCase(s, n)
     -- fallait passer par le menu contextuel et son sous-menu.
     b:RegisterForDrag("LeftButton")
     b:SetScript("OnDragStart", function(self)
-        if not LCM.IsMaster() then return end
+        -- Son propre sac : on y prend ce qu'on veut. C'est la destination qui
+        -- juge (12 octobre 2026).
         local c = Inv.Case(s:Emplacement(), self.index)
         if not c then return end
         local element = LCM.Compendium.Resoudre(c.ref)

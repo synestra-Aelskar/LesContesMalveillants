@@ -481,6 +481,22 @@ attendu("  et on dit pourquoi",
 local depuisSac = { ref = "ressources/eau", quantite = 1,
     origine = { onglet = "sacs", index = 1, case = 1 } }
 attendu("déplacer ce qu'on a : permis", (case.glisserAccepte(depuisSac)), true)
+
+-- Et la SOURCE doit partir, sinon la destination a beau accepter : il n'y a
+-- rien a deposer. Le garde-fou etait pose la aussi, et le glissement ne
+-- demarrait meme pas.
+I.Ranger(moi, s.onglet, s.index, 1, "ressources/eau", 1)
+s:Rafraichir()
+local pleine
+for _, c in ipairs(s.cases) do
+    if c:IsShown() and I.Case(s:Emplacement(), c.index) then pleine = pleine or c end
+end
+attendu("une case pleine dans le sac", pleine ~= nil, true)
+LCM.UI.Glisser.Lacher()
+pleine:GetScript("OnDragStart")(pleine)
+attendu("un joueur peut prendre dans son sac", LCM.UI.Glisser.EnCours(), true)
+attendu("  et l'objet sait d'où il vient", LCM.UI.Glisser.objet.origine ~= nil, true)
+LCM.UI.Glisser.Lacher()
 LCM.BasculerModeJoueur(false)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
