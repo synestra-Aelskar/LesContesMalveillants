@@ -212,6 +212,12 @@ local function BarreFatigue(parent)
     b.icone:SetDrawLayer("OVERLAY", 1)
     b.icone:SetSize(23, 30)
     b.icone:SetPoint("CENTER", b.medaille, "CENTER")
+    -- Neutraliser l'or des textures avant la teinte bleue, en conservant
+    -- leurs reliefs et reflets, y compris sur le medaillon et son eclair.
+    for _, texture in ipairs({ b.fond, b.remplissage, b.fin, b.medaille, b.icone }) do
+        texture:SetDesaturated(true)
+        texture:SetVertexColor(0.35, 0.68, 1)
+    end
     b.label = UI.Texte(b, "", UI.C.texte)
     UI.Police(b.label, 11, "OUTLINE")
     b.label:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 1)
