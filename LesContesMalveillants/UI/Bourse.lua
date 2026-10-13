@@ -1,8 +1,8 @@
 -- La bourse.
 --
 -- Une ligne par devise declaree, meme a zero : savoir qu'une monnaie existe et
--- qu'on n'en a pas est une information. Le MJ ajuste les soldes ici ; le joueur
--- lit.
+-- qu'on n'en a pas est une information. Le MJ ajuste les soldes ici, en
+-- cliquant sur la valeur pour la taper ; le joueur lit.
 
 local _, LCM = ...
 local UI = LCM.UI
@@ -13,6 +13,22 @@ UI.Bourse = Ecran
 
 local LARGEUR, HAUTEUR = 420, 360
 local LIGNE = 34
+
+-- Un montant a prendre dans la bourse : un entier, 1 au moins, pas plus qu'on
+-- n'a. Un refus le dit et laisse la demande ouverte.
+local function DemanderMontant(titre, solde, suite)
+    UI.Demande():Demander(titre, solde, function(texte)
+        local n = tonumber(texte)
+        if not n or n ~= math.floor(n) or n < 1 then
+            return false, string.format("montant illisible (%s) : un nombre entier, 1 au moins.", tostring(texte))
+        end
+        if n > solde then return false, string.format("tu n'en as que %d.", solde) end
+        suite(n)
+        return true
+    end)
+end
+
+local confirmation
 
 local function Construire()
     local f = UI.Fenetre("bourse", "Bourse", LARGEUR, HAUTEUR, { x = -120, y = -60 })
@@ -29,6 +45,55 @@ local function Construire()
     f.vide:SetPoint("CENTER", f.zone, "CENTER", 0, 0)
     f.vide:SetJustifyH("CENTER")
 
+    -- Clic droit sur une devise : Échanger (a qui, puis combien) et Jeter
+    -- (combien, puis confirmation), comme un objet de sac (13 octobre 2026).
+    -- Seulement dans SA bourse : on ne donne ni ne jette l'argent d'un autre.
+    function f:MenuDevise(ligne)
+        local entity = self.entity
+        if not (entity and ligne.deviseId) or entity.distante or entity ~= LCM.Entities.Self() then return end
+        local id, label = ligne.deviseId, tostring(ligne.nom:GetText() or "")
+        local solde = Bourse.Solde(entity, id)
+        local function Rien() LCM.Alerte(string.format("pas de %s dans la bourse.", label)) end
+        local options = {}
+        local donner = LCM.Echange and LCM.Echange.Ecran and LCM.Echange.Ecran.Donner
+        if donner then
+            if solde <= 0 then
+                options[#options + 1] = { label = "Échanger", action = Rien }
+            else
+                local cibles = {}
+                local liste = UI.Inventaires and UI.Inventaires.Destinataires and UI.Inventaires.Destinataires() or {}
+                for _, qui in ipairs(liste) do
+                    cibles[#cibles + 1] = { label = qui, action = function()
+                        DemanderMontant(string.format("Donner combien de %s à %s ?", label, qui), solde, function(n)
+                            donner(qui, { devise = id, combien = n, nom = label })
+                        end)
+                    end }
+                end
+                if #cibles > 0 then
+                    options[#options + 1] = { label = "Échanger >", sous = cibles }
+                else
+                    options[#options + 1] = { label = "Échanger", action = function()
+                        LCM.Alerte("personne à qui le donner : cible un joueur ou forme un groupe.")
+                    end }
+                end
+            end
+        end
+        options[#options + 1] = { label = "Jeter", action = function()
+            if solde <= 0 then Rien() return end
+            DemanderMontant(string.format("Jeter combien de %s ?", label), solde, function(n)
+                confirmation = confirmation or UI.Confirmer(UIParent, "", "Jeter")
+                confirmation:Demander(string.format("Jeter %d %s ?\nC'est perdu : on ne le récupère pas.", n, label),
+                    function()
+                        local ok, raison = Bourse.Debiter(entity, id, n)
+                        if not ok then LCM.Alerte(tostring(raison)) return end
+                        LCM.Info(string.format("%d %s jeté(s).", n, label))
+                        self:Afficher()
+                    end)
+            end)
+        end }
+        UI.MenuContexte():Ouvrir(ligne, options)
+    end
+
     function f:Afficher()
         local entity = self.entity
         local devises = Bourse.Liste(entity)
@@ -39,15 +104,15 @@ local function Construire()
         -- avait trois lignes courtes dans un rectangle vide — « Essence
         -- stelaire » n'en demande pas la moitie (4 octobre 2026).
         --
-        -- 6 de marge + 24 d'icone + 8 + le nom + 16 + le solde + les deux
-        -- boutons du MJ + la marge de droite.
+        -- 6 de marge + 24 d'icone + 8 + le nom + 16 + le solde + la marge de
+        -- droite. Plus de boutons + et - (13 octobre 2026) : la ligne est la
+        -- meme pour le MJ et pour le joueur.
         local plusLong = 0
         for _, devise in ipairs(devises) do
             plusLong = math.max(plusLong, UI.Fiche.LargeurTexte(devise.label, 12) or 0)
         end
         if plusLong > 0 then
-            local boutons = mj and 52 or 8
-            local voulue = math.ceil(6 + 24 + 8 + plusLong + 16 + 44 + boutons + 24)
+            local voulue = math.ceil(6 + 24 + 8 + plusLong + 16 + 44 + 8 + 24)
             -- Un plancher : sous cette largeur, le titre de la fenetre et ses
             -- ornements ne tiennent plus.
             self:SetWidth(math.max(260, voulue))
@@ -56,8 +121,12 @@ local function Construire()
         for rang, devise in ipairs(devises) do
             local l = self.lignes[rang]
             if not l then
-                l = CreateFrame("Frame", nil, self.zone.contenu)
+                l = CreateFrame("Button", nil, self.zone.contenu)
                 l:SetHeight(LIGNE - 2)
+                l:RegisterForClicks("RightButtonUp")
+                l:SetScript("OnClick", function(ligne, bouton)
+                    if bouton == "RightButton" then self:MenuDevise(ligne) end
+                end)
                 if UI.SurfaceLigne then UI.SurfaceLigne(l) end
                 l.icone = l:CreateTexture(nil, "ARTWORK")
                 l.icone:SetSize(24, 24)
@@ -70,21 +139,37 @@ local function Construire()
                 UI.Police(l.solde, 13)
                 l.solde:SetJustifyH("RIGHT")
 
-                -- Le MJ donne et retire ; le joueur ne touche a rien.
-                l.plus = UI.Bouton(l, "+", 18, 18, function()
+                -- Le MJ clique sur le solde et tape le nouveau ; le joueur ne
+                -- touche a rien. Les boutons + et - (un par un, Maj par dix)
+                -- ont ete retires le 13 octobre 2026 : pour donner 250 ecus,
+                -- on tapait sur un bouton.
+                l.saisie = CreateFrame("Button", nil, l)
+                -- Le clic droit garde son menu, meme sur le montant.
+                l.saisie:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                l.saisie:SetPoint("TOPRIGHT", l, "TOPRIGHT", 0, 0)
+                l.saisie:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT", 0, 0)
+                l.saisie:SetWidth(70)
+                l.saisie.survol = UI.Aplat(l.saisie, UI.C.survol, "HIGHLIGHT")
+                l.saisie.survol:SetAllPoints(l.saisie)
+                l.saisie:SetScript("OnClick", function(_, bouton)
                     local ligne = self.lignes[rang]
-                    local ok, raison = Bourse.Crediter(self.entity, ligne.deviseId, self.pas)
-                    if not ok then LCM.Alerte(tostring(raison)) end
-                    self:Afficher()
+                    if bouton == "RightButton" then self:MenuDevise(ligne) return end
+                    if not (LCM.IsMaster() and self.entity and ligne.deviseId) then return end
+                    local deviseId = ligne.deviseId
+                    UI.Demande():Demander("Solde : " .. tostring(ligne.nom:GetText() or ""),
+                        Bourse.Solde(self.entity, deviseId), function(texte)
+                            local ok, raison = Bourse.Definir(self.entity, deviseId, texte)
+                            if ok then self:Afficher() end
+                            return ok, raison
+                        end)
                 end)
-                l.plus:SetPoint("RIGHT", l, "RIGHT", -6, 0)
-                l.moins = UI.Bouton(l, "-", 18, 18, function()
-                    local ligne = self.lignes[rang]
-                    local ok, raison = Bourse.Debiter(self.entity, ligne.deviseId, self.pas)
-                    if not ok then LCM.Alerte(tostring(raison)) end
-                    self:Afficher()
+                l.saisie:SetScript("OnEnter", function(bouton)
+                    GameTooltip:SetOwner(bouton, "ANCHOR_RIGHT")
+                    GameTooltip:SetText(tostring(l.nom:GetText() or ""))
+                    GameTooltip:AddLine("Clic : saisir le solde.", 0.55, 0.55, 0.55)
+                    GameTooltip:Show()
                 end)
-                l.moins:SetPoint("RIGHT", l.plus, "LEFT", -4, 0)
+                l.saisie:SetScript("OnLeave", function() GameTooltip:Hide() end)
                 self.lignes[rang] = l
             end
             l.deviseId = devise.id
@@ -95,9 +180,8 @@ local function Construire()
             local couleur = devise.solde > 0 and UI.C.titre or UI.C.discret
             l.solde:SetTextColor(couleur[1], couleur[2], couleur[3])
             l.solde:ClearAllPoints()
-            l.solde:SetPoint("RIGHT", l, "RIGHT", mj and -52 or -8, 0)
-            l.plus:SetShown(mj)
-            l.moins:SetShown(mj)
+            l.solde:SetPoint("RIGHT", l, "RIGHT", -10, 0)
+            l.saisie:SetShown(mj)
 
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
@@ -112,32 +196,18 @@ local function Construire()
         self.vide:SetText(#devises > 0 and "" or "Aucune devise déclarée.")
     end
 
-    -- De combien vont le + et le - du MJ. Maj : par dix, Ctrl : par cent.
-    function f:Pas()
-        if IsControlKeyDown and IsControlKeyDown() then return 100 end
-        if IsShiftKeyDown and IsShiftKeyDown() then return 10 end
-        return 1
-    end
-
     function f:Montrer(entity)
         self.entity = entity or LCM.Entities.Self()
         if not self.entity then
             LCM.Alerte("aucune entite a afficher.")
             return
         end
-        self.pas = 1
         self:SousTitre(self.entity.name or self.entity.id)
         self:Afficher()
         self:Show()
     end
 
-    -- Le pas se relit a chaque clic : on ne garde pas une touche enfoncee en
-    -- memoire d'une ouverture a l'autre.
-    f:HookScript("OnShow", function(self) self.pas = 1 end)
-    f:SetScript("OnMouseDown", function(self)
-        UI.Devant(self)
-        self.pas = self:Pas()
-    end)
+    f:SetScript("OnMouseDown", function(self) UI.Devant(self) end)
 
     -- Le personnage change (equipement, sac, trait...) : la fenetre suit.
     UI.SuivrePersonnage(f, function(self) self:Afficher() end)

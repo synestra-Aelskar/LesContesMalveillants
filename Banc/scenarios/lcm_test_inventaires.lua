@@ -28,7 +28,9 @@ attendu("un nombre illisible aussi", ok, false)
 dire("== les onglets du template")
 local ids = {}
 for _, c in ipairs(I.categories) do ids[#ids + 1] = c.label .. ":" .. I.Capacite(c.id) end
-attendu("Sacs 2, Saccoches 4", table.concat(ids, ","), "Sacs:2,Saccoches:4")
+-- + Ceintures:1 le 13 octobre 2026 : un emplacement de ceinture, toujours la
+-- (voir lcm_test_ceinture.lua).
+attendu("Sacs 2, Saccoches 4, Ceintures 1", table.concat(ids, ","), "Sacs:2,Saccoches:4,Ceintures:1")
 
 dire("== les sacs d'avant sont repris")
 attendu("sac 1", I.Emplacement(moi, "sacs", 1).sac, "gros_sac")
@@ -102,7 +104,8 @@ attendu("titre", f.titre:GetText(), "INVENTAIRES")
 -- Plus d'onglets depuis le 3 octobre 2026 : les six emplacements sont dans une
 -- colonne a gauche, deux sacs puis quatre sacoches.
 attendu("plus de bande d'onglets", f.onglets, nil)
-attendu("six emplacements", #f.cartes, 6)
+-- 6 -> 7 le 13 octobre 2026 : la ceinture s'ajoute en bas de la colonne.
+attendu("sept emplacements", #f.cartes, 7)
 attendu("le sac (nom et remplissage)", f.cartes[1].nom:GetText(), "Gros sac (0/12)")
 attendu("un emplacement de sac libre se nomme Sac", f.cartes[2].nom:GetText(), "Sac")
 attendu("et une sacoche libre, Sacoche", f.cartes[3].nom:GetText(), "Sacoche")
@@ -171,8 +174,17 @@ attendu("un sac refuse l'emplacement de sacoche",
     or I.Emplacement(moi, "saccoches", 1).sac ~= "sac_de_gros", true)
 Comp:Hide()
 
-dire("== un sac ouvert : clic DROIT")
+dire("== un sac ouvert : clic DROIT, puis Ouvrir")
+-- Depuis le 13 octobre 2026, le clic droit sur un emplacement ouvre un menu
+-- (Ouvrir, Voir, Échanger, Jeter) au lieu d'ouvrir le sac directement.
+local function choisirDansMenu(libelle)
+    for _, l in ipairs(LCM.UI.MenuContexte().lignes) do
+        if l:IsShown() and l.texte:GetText() == libelle then l:Click() return true end
+    end
+    return false
+end
 f.cartes[1]:Click("RightButton")
+attendu("le menu propose Ouvrir", choisirDansMenu("Ouvrir"), true)
 local s = LCM.UI.Inventaires.sacs["sacs_1"]
 attendu("fenetre du sac", s and s:IsShown(), true)
 attendu("son titre", s.titre:GetText(), "GROS SAC")
@@ -190,8 +202,12 @@ local menu = LCM_MenuContexte
 attendu("menu ouvert", menu:IsShown(), true)
 local libelles = {}
 for _, l in ipairs(menu.lignes) do if l:IsShown() then libelles[#libelles + 1] = l.texte:GetText() end end
-attendu("options", table.concat(libelles, ","), "Voir,Quantite : 1,Deplacer >,Supprimer")
-menu.lignes[2]:Click()
+-- 13 octobre 2026 : Voir, Échanger et Jeter sont pour tout le monde ; le MJ
+-- garde Quantite et Deplacer au milieu. « Supprimer » (sans confirmation) a
+-- laisse la place a « Jeter », qui demande. Pas de groupe ici : « Échanger »
+-- n'a pas de sous-menu et dit pourquoi.
+attendu("options", table.concat(libelles, ","), "Voir,Échanger,Quantite : 1,Deplacer >,Jeter")
+menu.lignes[3]:Click()
 local d = LCM_Demande
 d.saisie:SetText("abc")
 d.valider:Click()
@@ -203,25 +219,27 @@ attendu("quantite posee", I.Case(I.Emplacement(moi, "sacs", 1), 1).quantite, 5)
 attendu("affichee x5", s.cases[1].nombre:GetText(), "x5")
 -- Deplacer vers l'autre sac.
 s.cases[1]:Click("RightButton")
-menu.lignes[3]:Click()
+menu.lignes[4]:Click()   -- Deplacer > (decale par Échanger, voir plus haut)
 menu.sousLignes[1]:Click()
 attendu("deplacee hors du gros sac", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
 attendu("dans le sac d'essai", I.Case(I.Emplacement(moi, "sacs", 2), 1).ref, "ressources/eau")
 
-dire("== deux categories pour six emplacements")
+dire("== trois categories pour sept emplacements")
 -- Les categories restent le modele (combien d'emplacements, ce qu'ils
 -- acceptent) ; c'est leur bande d'onglets qui a disparu.
-attendu("Sacs et Saccoches", #LCM.Inventaire.categories, 2)
-attendu("deux sacs et quatre sacoches", #f.cartes, 6)
+-- La ceinture s'y ajoute le 13 octobre 2026.
+attendu("Sacs, Saccoches et Ceintures", #LCM.Inventaire.categories, 3)
+attendu("deux sacs, quatre sacoches et une ceinture", #f.cartes, 7)
 
 dire("== le joueur voit, n'y touche pas")
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 f:Rafraichir()
--- Un emplacement OCCUPE s'ouvre au clic droit, joueur comme MJ : il n'y a plus
--- de menu a cet endroit.
+-- Un emplacement OCCUPE : le clic droit ouvre son menu, joueur comme MJ, et
+-- « Ouvrir » ouvre le sac (13 octobre 2026 ; avant, il s'ouvrait directement).
 LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
 f.cartes[1]:Click("RightButton")
+choisirDansMenu("Ouvrir")
 attendu("le sac s'ouvre", LCM.UI.Inventaires.sacs["sacs_1"]:IsShown(), true)
 LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
 -- Un emplacement VIDE garde son menu : il n'y a rien a ouvrir, et c'est la

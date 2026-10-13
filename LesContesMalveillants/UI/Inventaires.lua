@@ -66,7 +66,7 @@ end
 
 -- Comment on nomme un emplacement vide : « Sac », « Sacoche », au singulier.
 -- « Emplacement » ne disait pas ce qu'on peut y mettre.
-local SINGULIER = { sacs = "Sac", saccoches = "Sacoche" }
+local SINGULIER = { sacs = "Sac", saccoches = "Sacoche", ceintures = "Ceinture" }
 local function NomVide(categorie)
     if categorie.contient == "devise" then return "Emplacement devise" end
     return SINGULIER[categorie.id] or categorie.label
@@ -84,6 +84,158 @@ end
 -- preference d'ecran, pas une donnee du personnage.
 local vues = {}
 local function Vue(cle, defaut) return vues[cle] or defaut end
+
+-- ===== Un objet de sac : le prendre, le donner, le jeter ===================
+
+-- Ce qu'une case contient, sous la forme d'un glissement (UI.Glisser) : il
+-- sait quitter sa case et y revenir. Le glisser-deposer, l'echange et le menu
+-- du clic droit partagent cet objet-la.
+local function ObjetDeCase(onglet, index, place)
+    local ici = Inv.Emplacement(Entite(), onglet, index)
+    local c = ici and Inv.Case(ici, place)
+    if not c then return nil end
+    local element = LCM.Compendium.Resoudre(c.ref)
+    local ref, quantite = c.ref, c.quantite
+    return {
+        icone = element and LCM.Icone(element.icone) or nil,
+        nom = element and element.label or tostring(ref),
+        ref = ref, quantite = quantite, element = element,
+        origine = { onglet = onglet, index = index, case = place },
+        retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
+        rendre = function() Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1) end,
+    }
+end
+
+-- Jeter, c'est detruire : on le demande toujours. Et au « oui », on verifie
+-- que l'objet est encore dans sa case — entre la question et la reponse, il a
+-- pu partir dans un echange ou changer de sac. On ne jette jamais ce qui a
+-- pris sa place.
+local confirmation
+local function Jeter(objet)
+    local o = type(objet) == "table" and objet.origine
+    if not (o and (o.case or o.emplacement)) then return false end
+    confirmation = confirmation or UI.Confirmer(UIParent, "", "Jeter")
+    local q = tonumber(objet.quantite) or 1
+    confirmation:Demander(string.format("Jeter « %s »%s ?\nIl est détruit : on ne le récupère pas.",
+        tostring(objet.nom), q > 1 and (" x" .. q) or ""), function()
+        local ici = Inv.Emplacement(Entite(), o.onglet, o.index)
+        if o.emplacement then
+            -- Ce que porte l'emplacement (un sac, une ceinture) : encore le
+            -- meme, et toujours vide la ou il faut — Retirer le reverifie.
+            local contenant = Inv.Contenant(ici)
+            if not (contenant and contenant.ref == objet.ref) then
+                Refuser("l'objet n'est plus à sa place : rien n'a été jeté.")
+                return
+            end
+            local ok, raison = Inv.Retirer(Entite(), o.onglet, o.index)
+            if not ok then Refuser(raison) return end
+            Ecran.FermerSac(o.onglet, o.index)
+        else
+            local c = ici and Inv.Case(ici, o.case)
+            if not (c and c.ref == objet.ref) then
+                Refuser("l'objet n'est plus à sa place : rien n'a été jeté.")
+                return
+            end
+            Inv.Vider(Entite(), o.onglet, o.index, o.case)
+        end
+        LCM.Info(string.format("%s jeté.", tostring(objet.nom)))
+        Ecran.Actualiser()
+    end)
+    return true
+end
+Ecran.Jeter = Jeter
+
+-- A qui l'on peut donner : sa cible si c'est un joueur, puis le groupe. La
+-- bourse s'en sert aussi (UI.Inventaires.Destinataires).
+local function Destinataires()
+    local out, vus = {}, {}
+    local moi = UnitName and UnitName("player")
+    local function Ajouter(unite)
+        if UnitExists and not UnitExists(unite) then return end
+        if UnitIsPlayer and not UnitIsPlayer(unite) then return end
+        local nom, royaume = UnitName(unite)
+        if not nom or nom == moi then return end
+        local qui = (royaume and royaume ~= "" and (nom .. "-" .. royaume)) or nom
+        if not vus[qui] then
+            vus[qui] = true
+            out[#out + 1] = qui
+        end
+    end
+    Ajouter("target")
+    local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
+    for i = 1, (GetNumGroupMembers and GetNumGroupMembers() or 0) do Ajouter(prefixe .. i) end
+    return out
+end
+Ecran.Destinataires = Destinataires
+
+-- Le menu d'un objet de sac, pour tout le monde : Voir, Échanger, Jeter. Le MJ
+-- y ajoute ses gestes (`extras`). Le jeter ne passait que par le glisser dans
+-- le vide, et l'echange que par le lacher sur quelqu'un : deux gestes qu'on
+-- ne devine pas (13 octobre 2026).
+-- « Échanger » : un sous-menu des destinataires, ou une entree qui dit
+-- pourquoi il n'y en a pas. `bloque` : la raison pour laquelle l'objet ne peut
+-- pas partir (un sac pas vide).
+local function OptionEchanger(objet, bloque)
+    local donner = LCM.Echange and LCM.Echange.Ecran and LCM.Echange.Ecran.Donner
+    if not donner then return nil end
+    if bloque then
+        return { label = "Échanger", action = function() Refuser(bloque) end }
+    end
+    local cibles = {}
+    for _, qui in ipairs(Destinataires()) do
+        cibles[#cibles + 1] = { label = qui, action = function() donner(qui, objet) end }
+    end
+    if #cibles > 0 then return { label = "Échanger >", sous = cibles } end
+    return { label = "Échanger", action = function()
+        Refuser("personne à qui le donner : cible un joueur ou forme un groupe.")
+    end }
+end
+
+local function MenuObjet(ancre, onglet, index, place, extras)
+    local objet = ObjetDeCase(onglet, index, place)
+    if not objet then return end
+    local options = { { label = "Voir", action = function() Voir(objet.ref, ancre) end } }
+    options[#options + 1] = OptionEchanger(objet)
+    for _, extra in ipairs(extras or {}) do options[#options + 1] = extra end
+    options[#options + 1] = { label = "Jeter", action = function() Jeter(objet) end }
+    UI.MenuContexte():Ouvrir(ancre, options)
+end
+
+-- Ce que porte un emplacement (un sac, une sacoche, l'objet d'une ceinture),
+-- sous la forme d'un glissement : il quitte l'emplacement s'il est vide, et y
+-- revient. Nil pour une ceinture nue : ses cases de base ne partent pas.
+local function ObjetDEmplacement(onglet, index)
+    local e = Inv.Emplacement(Entite(), onglet, index)
+    local contenant = Inv.Contenant(e)
+    if not (contenant and contenant.ref) then return nil end
+    local element = contenant.element
+    local id = contenant.id
+    return {
+        icone = element and LCM.Icone(element.icone) or nil,
+        nom = element and element.label or tostring(contenant.ref),
+        ref = contenant.ref, quantite = 1, element = element,
+        origine = { onglet = onglet, index = index, emplacement = true },
+        retirer = function()
+            Inv.Retirer(Entite(), onglet, index)
+            Ecran.FermerSac(onglet, index)
+        end,
+        rendre = function() Inv.Poser(Entite(), onglet, index, contenant.tente and contenant.ref or id, true) end,
+    }
+end
+
+-- Lache dans le vide — sur le monde, ni sur une fenetre ni sur quelqu'un :
+-- on propose de jeter. Seul un objet de SAC se jette ainsi ; une entree du
+-- compendium n'est a personne, et ce qu'on porte se retire d'abord.
+if UI.Glisser then
+    UI.Glisser.DansLeVide = function(objet)
+        if Creation(objet) or not objet.origine.case then return false end
+        local foci = (GetMouseFoci and GetMouseFoci())
+            or (GetMouseFocus and { GetMouseFocus() }) or {}
+        local focus = foci[1]
+        if focus and focus ~= WorldFrame then return false end
+        return Jeter(objet)
+    end
+end
 
 -- ===== Une carte d'emplacement ============================================
 
@@ -113,19 +265,39 @@ local function Carte(f)
             return false, categorie.contient == "sac" and "cet emplacement n'accepte qu'un sac."
                 or "cet emplacement n'accepte qu'une devise."
         end
+        local sac = not tente and LCM.Sacs.Get(objet.element and objet.element.id)
+        local ceinture = sac and LCM.Sacs.EstCeinture(sac)
+        if categorie.ceinture then
+            if not ceinture then return false, "cet emplacement n'accepte qu'une ceinture." end
+            if Inv.Emplacement(Entite(), c.onglet, c.index).sac then
+                return false, "une ceinture est déjà portée : retire-la d'abord."
+            end
+            return true
+        end
+        if ceinture then return false, "une ceinture se porte sur l'emplacement Ceinture." end
         if Inv.Emplacement(Entite(), c.onglet, c.index) then return false, "cet emplacement est déjà occupé." end
         return true
     end, function(objet)
         local tente = tostring(objet.ref or ""):match("^tentes/")
+        -- Un sac pris dans une CASE demenage : il quitte sa case, puis se pose.
+        -- Il etait pose sans quitter la case — on se retrouvait avec deux sacs
+        -- (13 octobre 2026). S'il ne se pose pas, il y retourne.
+        if objet.retirer then objet.retirer() end
         local ok, raison = Inv.Poser(Entite(), c.onglet, c.index, tente and objet.ref or objet.element.id)
-        if not ok then Refuser(raison) end
-        f:Rafraichir()
+        if not ok then
+            if objet.rendre then objet.rendre() end
+            Refuser(raison)
+        end
+        Ecran.Actualiser()
     end)
     c:SetScript("OnClick", function(self, bouton) f:CliquerEmplacement(self, bouton) end)
     c:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(self.nom:GetText() or "Emplacement", 1, 0.82, 0)
-        if self.aide then GameTooltip:AddLine(self.aide, 0.8, 0.75, 0.62, true) end
+        -- La description entiere : la carte n'en montre qu'une ligne.
+        local texte = self.description:GetText()
+        if texte and texte ~= "" then GameTooltip:AddLine(texte, 0.8, 0.75, 0.62, true) end
+        if self.aide then GameTooltip:AddLine(self.aide, 0.55, 0.55, 0.55, true) end
         GameTooltip:Show()
     end)
     c:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -288,24 +460,23 @@ local function Construire()
                     -- (12 octobre 2026). C'est la DESTINATION qui dit ce
                     -- qu'elle autorise, pas la main qui prend.
                     if not self.place then return end
+                    local objet = ObjetDeCase(self.place.onglet, self.place.index, self.case)
+                    if objet then UI.Glisser.Commencer(objet) end
+                end)
+                l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
+                -- Clic gauche : voir ; clic droit : Voir, Échanger, Jeter.
+                l:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                l:SetScript("OnClick", function(self, bouton)
+                    if not self.place then return end
                     local ici = Inv.Emplacement(Entite(), self.place.onglet, self.place.index)
                     local c = ici and Inv.Case(ici, self.case)
                     if not c then return end
-                    local element = LCM.Compendium.Resoudre(c.ref)
-                    local onglet, index, place = self.place.onglet, self.place.index, self.case
-                    local ref, quantite = c.ref, c.quantite
-                    UI.Glisser.Commencer({
-                        icone = element and LCM.Icone(element.icone) or nil,
-                        nom = element and element.label or tostring(ref),
-                        ref = ref, quantite = quantite, element = element,
-                        origine = { onglet = onglet, index = index, case = place },
-                        retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
-                        rendre = function()
-                            Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1)
-                        end,
-                    })
+                    if bouton == "RightButton" then
+                        MenuObjet(self, self.place.onglet, self.place.index, self.case)
+                    else
+                        Voir(c.ref, f)
+                    end
                 end)
-                l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
                 self.lignes[n] = l
             end
             l.place, l.case = place, n
@@ -385,6 +556,10 @@ local function Construire()
             c.description:SetPoint("RIGHT", c, "RIGHT", -12, 0)
             c.description:SetJustifyH("LEFT")
         end
+        -- En liste, la carte fait 60 de haut : une ligne de description, coupee.
+        -- Elle passait a la ligne sans limite et sortait de la carte
+        -- (13 octobre 2026). Le texte entier est dans l'infobulle.
+        c.description:SetWordWrap(vue == "grille")
         c.emplacement = e
         if not e then
             c.icone:SetTexture(VIDE)
@@ -434,13 +609,16 @@ local function Construire()
             return
         end
         if bouton == "RightButton" then
-            -- Clic droit sur un sac : il s'ouvre dans sa fenetre, comme avant.
-            if contenant then Ecran.OuvrirSac(onglet, index) return end
             if not e then return end
             local options = {}
             if contenant then
+                -- Le clic droit ouvrait le sac sans rien proposer d'autre. Il
+                -- ouvre maintenant un menu, comme sur un objet : Ouvrir, Voir,
+                -- Échanger, Jeter (13 octobre 2026).
                 options[#options + 1] = { label = "Ouvrir", action = function() Ecran.OuvrirSac(onglet, index) end }
-                options[#options + 1] = { label = "Voir", action = function() Voir(contenant.ref, self) end }
+                if contenant.ref then
+                    options[#options + 1] = { label = "Voir", action = function() Voir(contenant.ref, self) end }
+                end
             else
                 options[#options + 1] = { label = "Voir", action = function() Voir("devises/" .. e.devise, self) end }
             end
@@ -454,7 +632,8 @@ local function Construire()
                         end)
                     end }
                 end
-                if contenant then
+                -- La ceinture reste a sa place : elle n'a qu'un emplacement.
+                if contenant and not contenant.ceinture then
                     -- Deplacer > : vers un emplacement de sac libre (Sacs ou Saccoches).
                     local cibles = {}
                     for _, autre in ipairs(Inv.categories) do
@@ -475,10 +654,17 @@ local function Construire()
                     end
                     if #cibles > 0 then options[#options + 1] = { label = "Deplacer >", sous = cibles } end
                 end
-                options[#options + 1] = { label = "Supprimer", action = function()
-                    local ok, raison = Inv.Retirer(entity, onglet, index)
-                    if ok then Ecran.FermerSac(onglet, index) else Refuser(raison) end
-                    self:Rafraichir()
+            end
+            -- Ce que porte l'emplacement s'echange et se jette comme un objet,
+            -- s'il peut le quitter (un sac vide ; une ceinture dont les cases
+            -- en plus sont vides). Sinon l'entree dit pourquoi.
+            local objet = ObjetDEmplacement(onglet, index)
+            if objet then
+                local ok, raison = Inv.PeutRetirer(entity, onglet, index)
+                options[#options + 1] = OptionEchanger(objet, not ok and raison or nil)
+                options[#options + 1] = { label = "Jeter", action = function()
+                    if not ok then Refuser(raison) return end
+                    Jeter(objet)
                 end }
             end
             UI.MenuContexte():Ouvrir(c, options)
@@ -562,19 +748,8 @@ local function NouvelleCase(s, n)
     b:SetScript("OnDragStart", function(self)
         -- Son propre sac : on y prend ce qu'on veut. C'est la destination qui
         -- juge (12 octobre 2026).
-        local c = Inv.Case(s:Emplacement(), self.index)
-        if not c then return end
-        local element = LCM.Compendium.Resoudre(c.ref)
-        local onglet, index, place = s.onglet, s.index, self.index
-        local ref, quantite = c.ref, c.quantite
-        UI.Glisser.Commencer({
-            icone = element and LCM.Icone(element.icone) or nil,
-            nom = element and element.label or tostring(ref),
-            ref = ref, quantite = quantite, element = element,
-            origine = { onglet = onglet, index = index, case = place },
-            retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
-            rendre = function() Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1) end,
-        })
+        local objet = ObjetDeCase(s.onglet, s.index, self.index)
+        if objet then UI.Glisser.Commencer(objet) end
     end)
     -- Pas d'OnUpdate ici : c'est le fantome du kit qui bat la mesure, suit la
     -- souris et lache au relachement. En poser un second ferait le travail
@@ -736,7 +911,7 @@ local function ConstruireSac(onglet, index)
         local c = Inv.Case(e, b.index)
         if bouton == "RightButton" then
             if not c then return end
-            local options = { { label = "Voir", action = function() Voir(c.ref, self) end } }
+            local options = {}
             if LCM.IsMaster() then
                 options[#options + 1] = { label = "Quantite : " .. tostring(c.quantite or 1), action = function()
                     UI.Demande():Demander("Quantite de la pile", c.quantite or 1, function(texte)
@@ -769,12 +944,10 @@ local function ConstruireSac(onglet, index)
                     end
                 end
                 if #cibles > 0 then options[#options + 1] = { label = "Deplacer >", sous = cibles } end
-                options[#options + 1] = { label = "Supprimer", action = function()
-                    Inv.Vider(entity, self.onglet, self.index, b.index)
-                    Ecran.Actualiser()
-                end }
             end
-            UI.MenuContexte():Ouvrir(b, options)
+            -- « Supprimer » (MJ, sans confirmation) laisse la place a « Jeter »,
+            -- pour tout le monde et confirme : deux entrees pour le meme geste.
+            MenuObjet(b, self.onglet, self.index, b.index, options)
             return
         end
         if c then

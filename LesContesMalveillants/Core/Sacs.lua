@@ -11,7 +11,9 @@ local _, LCM = ...
 -- Ce qu'un sac est : « sac » ou « sacoche ». On ne devine pas — une entree
 -- sans nature est un sac, parce que c'est ce qu'etaient tous les sacs avant
 -- que la distinction existe (3 octobre 2026).
-local NATURES = { sac = true, sacoche = true }
+-- « ceinture » (13 octobre 2026) : ne se porte que sur l'emplacement
+-- Ceinture, et ajoute ses places aux cases de base de celle-ci.
+local NATURES = { sac = true, sacoche = true, ceinture = true }
 
 LCM.Sacs = LCM.Catalogue({
     nom = "sac", prefixe = "Sacs", cleEntite = "sacs", doublons = true,
@@ -22,7 +24,7 @@ LCM.Sacs = LCM.Catalogue({
         -- Sac ou sacoche. Un sac ne s'equipe que dans un emplacement de sac ;
         -- une sacoche va dans les deux. Et seul un SAC peut en contenir un
         -- autre : voir Core/Inventaire.lua.
-        { cle = "nature", libelle = "nature (sac ou sacoche)", genre = "choix",
+        { cle = "nature", libelle = "nature (sac, sacoche ou ceinture)", genre = "choix",
           valeurs = NATURES, defaut = "sac" },
         { cle = "places", libelle = "nombre de places", min = 1, defaut = 12 },
         { cle = "placesDevise", libelle = "places de devise", min = 0, defaut = 0 },
@@ -39,6 +41,7 @@ function LCM.Sacs.Nature(sac)
 end
 
 function LCM.Sacs.EstSacoche(sac) return LCM.Sacs.Nature(sac) == "sacoche" end
+function LCM.Sacs.EstCeinture(sac) return LCM.Sacs.Nature(sac) == "ceinture" end
 
 -- Ce qu'il coute DANS un autre sac : sa case, plus toutes les siennes.
 -- Un sac de 10 places occupe 11 cases dans celui qui le porte.

@@ -56,10 +56,39 @@ local function Rangee(entity, categorieId)
     return type(r) == "table" and r or VIDE
 end
 
--- Ce que tient un emplacement (une table) ou nil.
+-- La ceinture nue : ce que rend la lecture d'un emplacement de ceinture ou
+-- rien n'est ecrit. Partagee et en LECTURE SEULE : un accesseur ne cree rien,
+-- c'est l'ecriture (Ranger, Poser) qui pose la vraie table.
+local CEINTURE_NUE = { ceinture = true }
+
+local function EstCeinture(categorieId)
+    local categorie = Inventaire.parId[tostring(categorieId or "")]
+    return categorie and categorie.ceinture == true or false
+end
+Inventaire.EstCeinture = EstCeinture
+
+-- Ce que tient un emplacement (une table) ou nil. Une ceinture n'est jamais
+-- vide : elle a toujours ses cases de base.
 function Inventaire.Emplacement(entity, categorieId, index)
     local e = Rangee(entity, categorieId)[tonumber(index)]
-    return type(e) == "table" and e or nil
+    if type(e) == "table" then return e end
+    index = tonumber(index)
+    if EstCeinture(categorieId) and index and index >= 1 and index <= Inventaire.Capacite(categorieId) then
+        return CEINTURE_NUE
+    end
+    return nil
+end
+
+-- L'emplacement a ECRIRE : la table de la sauvegarde, creee pour une ceinture
+-- qui n'etait encore que nue.
+local function EmplacementPourEcrire(entity, categorieId, index)
+    local e = Inventaire.Emplacement(entity, categorieId, index)
+    if e ~= CEINTURE_NUE then return e end
+    entity.inventaire = type(entity.inventaire) == "table" and entity.inventaire or {}
+    entity.inventaire[categorieId] = type(entity.inventaire[categorieId]) == "table" and entity.inventaire[categorieId] or {}
+    local ecrite = { ceinture = true }
+    entity.inventaire[categorieId][tonumber(index)] = ecrite
+    return ecrite
 end
 
 -- Combien d'emplacements sont occupes dans un onglet.
@@ -78,8 +107,19 @@ end
 -- La tente a son registre (Core/Campement.lua) mais se porte comme un sac : sur
 -- un emplacement de sacoche, avec des cases ou l'on range ses accessoires.
 -- Rend { element, ref, places, placesDevise, tente } ou nil.
+local CEINTURE_SEULE = { id = "ceinture", label = "Ceinture", icone = "Interface\\Icons\\INV_Belt_05",
+    description = "Cases de base. Pose une ceinture dessus pour en ajouter." }
+
 function Inventaire.Contenant(emplacement)
     if type(emplacement) ~= "table" then return nil end
+    -- La ceinture : ses cases de base, plus celles de l'objet pose dessus.
+    if emplacement.ceinture then
+        local sac = emplacement.sac and LCM.Sacs.Get(emplacement.sac)
+        local base = math.max(0, math.floor(tonumber(Capacites().placesCeinture) or 0))
+        return { element = sac or CEINTURE_SEULE, ref = sac and ("sacs/" .. sac.id) or nil,
+                 id = emplacement.sac or "ceinture", places = base + (sac and sac.places or 0),
+                 placesDevise = 0, ceinture = true, base = base, nue = emplacement.sac == nil }
+    end
     if emplacement.sac then
         local sac = LCM.Sacs.Get(emplacement.sac)
         return { element = sac, ref = "sacs/" .. emplacement.sac, id = emplacement.sac,
@@ -151,6 +191,19 @@ end
 function Inventaire.Poser(entity, categorieId, index, id, forcer)
     local categorie, i = Verifier(entity, categorieId, index)
     if not categorie then return false, i end
+    -- La ceinture : on pose un objet « ceinture » PAR-DESSUS ses cases de base,
+    -- qui gardent ce qu'on y avait range.
+    if categorie.ceinture then
+        local sac = LCM.Sacs.Get(id)
+        if not (sac and LCM.Sacs.EstCeinture(sac)) then
+            return false, "cet emplacement n'accepte qu'une ceinture."
+        end
+        if Inventaire.Emplacement(entity, categorieId, i).sac then
+            return false, "une ceinture est déjà portée : retire-la d'abord."
+        end
+        EmplacementPourEcrire(entity, categorieId, i).sac = sac.id
+        return true
+    end
     if Inventaire.Emplacement(entity, categorieId, i) then
         return false, "cet emplacement est déjà occupé."
     end
@@ -165,6 +218,9 @@ function Inventaire.Poser(entity, categorieId, index, id, forcer)
     elseif categorie.contient == "sac" then
         local sac = LCM.Sacs.Get(id)
         if not sac then return false, "cet emplacement n'accepte qu'un sac." end
+        if LCM.Sacs.EstCeinture(sac) then
+            return false, "une ceinture se porte sur l'emplacement Ceinture."
+        end
         -- Un SAC se porte dans un emplacement de sac ; une SACOCHE va dans les
         -- deux. On ne met pas un sac de voyage dans une poche de ceinture.
         if not forcer and categorieId == "saccoches" and not LCM.Sacs.EstSacoche(sac) then
@@ -181,10 +237,46 @@ end
 
 -- Retire ce que tient un emplacement. Un sac qui contient quelque chose est
 -- refuse : on ne jette pas son contenu en douce.
+-- Ce que Retirer dirait, sans rien retirer : pour ne proposer « Échanger » ou
+-- « Jeter » que lorsque c'est possible, et dire pourquoi sinon.
+function Inventaire.PeutRetirer(entity, categorieId, index)
+    local categorie, i = Verifier(entity, categorieId, index)
+    if not categorie then return false, i end
+    local e = Inventaire.Emplacement(entity, categorieId, i)
+    if categorie.ceinture then
+        if not (e and e.sac) then return false, "aucune ceinture posée : ses cases de base restent." end
+        -- Les cases de l'objet, au-dela de la base, doivent etre vides : on ne
+        -- fait pas disparaitre ce qu'elles tiennent.
+        local base = Inventaire.Contenant(e).base
+        for case in pairs(type(e.cases) == "table" and e.cases or VIDE) do
+            if (tonumber(case) or 0) > base then
+                return false, string.format("vide d'abord les cases au-delà de %d.", base)
+            end
+        end
+        return true
+    end
+    if not e then return false, "cet emplacement est déjà vide." end
+    if type(e.cases) == "table" and next(e.cases) ~= nil then
+        return false, "ce sac n'est pas vide : vide-le d'abord."
+    end
+    return true
+end
+
 function Inventaire.Retirer(entity, categorieId, index)
     local _, i = Verifier(entity, categorieId, index)
     if not _ then return false, i end
     local e = Inventaire.Emplacement(entity, categorieId, i)
+    if EstCeinture(categorieId) then
+        local ok, raison = Inventaire.PeutRetirer(entity, categorieId, i)
+        if not ok then return false, raison end
+        e.sac = nil
+        -- Redevenue nue et sans rien dedans : la table s'efface.
+        if not (type(e.cases) == "table" and next(e.cases) ~= nil) then
+            entity.inventaire[categorieId][i] = nil
+            Nettoyer(entity, categorieId)
+        end
+        return true
+    end
     if not e then return false, "cet emplacement est déjà vide." end
     if type(e.cases) == "table" and next(e.cases) ~= nil then
         return false, "ce sac n'est pas vide : vide-le d'abord."
@@ -202,6 +294,9 @@ function Inventaire.Deplacer(entity, categorieId, index, versCategorieId, versIn
     if not depart then return false, i end
     local arrivee, j = Verifier(entity, versCategorieId, versIndex)
     if not arrivee then return false, j end
+    if depart.ceinture or arrivee.ceinture then
+        return false, "la ceinture ne change pas d'emplacement."
+    end
     local e = Inventaire.Emplacement(entity, categorieId, i)
     if not e then return false, "cet emplacement est vide." end
     if depart.id == arrivee.id and i == j then return false, "c'est déjà là." end
@@ -256,6 +351,9 @@ function Inventaire.Accepte(emplacement, index, ref)
     end
     -- Un contenant dans un contenant : seul un SAC en accepte, et il faut que
     -- le nouveau venu tienne — il occupe sa case plus toutes les siennes.
+    if famille == "sacs" and emplacement and emplacement.ceinture then
+        return false, "une ceinture ne contient pas de sac."
+    end
     if famille == "sacs" then
         local hote = LCM.Sacs.Get(emplacement and emplacement.sac)
         if not hote then return false, "aucun sac ici." end
@@ -295,7 +393,7 @@ end
 -- Range une entree dans une case libre d'un sac.
 function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite)
     local e = Inventaire.Emplacement(entity, categorieId, index)
-    if not e or not (e.sac or e.tente) then return false, "aucun sac dans cet emplacement." end
+    if not e or not (e.sac or e.tente or e.ceinture) then return false, "aucun sac dans cet emplacement." end
     local total = Inventaire.Cases(e)
     case = tonumber(case)
     if not case or case < 1 or case > total then return false, "ce sac n'a pas de case " .. tostring(case) .. "." end
@@ -306,6 +404,7 @@ function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite)
     if not quantite or quantite < 1 or quantite ~= math.floor(quantite) then
         return false, "quantité illisible : un nombre entier, 1 au moins."
     end
+    e = EmplacementPourEcrire(entity, categorieId, index)
     e.cases = type(e.cases) == "table" and e.cases or {}
     e.cases[case] = { ref = ref, quantite = quantite }
     return true
@@ -334,6 +433,11 @@ function Inventaire.Vider(entity, categorieId, index, case)
     if not Inventaire.Case(e, case) then return false, "case déjà vide." end
     e.cases[tonumber(case)] = nil
     if next(e.cases) == nil then e.cases = nil end
+    -- Une ceinture nue redevenue vide n'a plus rien a retenir.
+    if e.ceinture and not e.sac and not e.cases then
+        entity.inventaire[categorieId][tonumber(index)] = nil
+        Nettoyer(entity, categorieId)
+    end
     return true
 end
 

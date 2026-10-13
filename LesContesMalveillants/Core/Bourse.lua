@@ -95,6 +95,21 @@ function Bourse.Debiter(entity, deviseId, combien)
     return true
 end
 
+-- Poser un solde tel quel (le MJ le tape dans la bourse) : un entier, zero au
+-- moins. Passe par Crediter / Debiter, qui savent deja ecrire et effacer.
+function Bourse.Definir(entity, deviseId, solde)
+    local devise = LCM.Devises.Get(deviseId)
+    if not devise then return false, "devise inconnue." end
+    local n = tonumber(solde)
+    if not n or n ~= math.floor(n) or n < 0 then
+        return false, string.format("solde illisible (%s) : un nombre entier, zéro au moins.", tostring(solde))
+    end
+    local ecart = n - Bourse.Solde(entity, devise.id)
+    if ecart > 0 then return Bourse.Crediter(entity, devise.id, ecart) end
+    if ecart < 0 then return Bourse.Debiter(entity, devise.id, -ecart) end
+    return true
+end
+
 -- A-t-on de quoi payer ? Pose la question sans rien debiter.
 function Bourse.Peut(entity, deviseId, combien)
     return Bourse.Solde(entity, deviseId) >= math.floor(tonumber(combien) or 0)

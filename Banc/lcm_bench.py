@@ -288,7 +288,9 @@ local function NouvelleRegion(kind, parent)
         return rx + a[1] * rw / 2 + x - b[1] * w / 2, ry + a[2] * rh / 2 + y - b[2] * h / 2
     end
     function r:SetDrawLayer() end
-    function r:SetWordWrap() end
+    -- Retenu, pour qu'un scenario puisse verifier qu'un texte ne deborde pas.
+    function r:SetWordWrap(v) self.__retourLigne = v ~= false end
+    function r:CanWordWrap() return self.__retourLigne ~= false end
     -- Mesure approchee d'un texte qui passe a la ligne : 6 px par caractere,
     -- 12 px par ligne. Assez pour verifier qu'un bloc grandit avec son texte,
     -- pas pour juger d'un pixel.
@@ -435,6 +437,14 @@ end
 
 UIParent = NouveauCadre("Frame", "UIParent", nil, nil)
 UIParent:SetSize(1920, 1080)
+
+-- Le monde, sous l'interface. Ce que la souris survole : le monde par defaut ;
+-- `__focusSouris(cadre)` la pose sur une fenetre (nil la rend au monde). Sert a
+-- distinguer « lache dans le vide » de « lache sur une autre fenetre ».
+WorldFrame = NouveauCadre("Frame", "WorldFrame", nil, nil)
+local focusSouris = nil
+_G.__focusSouris = function(cadre) focusSouris = cadre end
+function GetMouseFoci() return { focusSouris or WorldFrame } end
 
 function __declencher(event, ...)
     for _, f in ipairs(tousLesCadres) do

@@ -264,7 +264,10 @@ C.Categorie({
         -- Sac ou sacoche : il faut choisir, et ce choix commande tout le
         -- rangement (ou l'on peut l'equiper, et ce qu'il peut contenir).
         { cle = "nature", label = "Nature", type = "choix", emplacement = "meta", obligatoire = true,
-          options = { { id = "sac", label = "Sac" }, { id = "sacoche", label = "Sacoche" } } },
+          -- Ceinture : ses emplacements s'AJOUTENT aux cases de base de la
+          -- ceinture qu'on porte (13 octobre 2026).
+          options = { { id = "sac", label = "Sac" }, { id = "sacoche", label = "Sacoche" },
+                      { id = "ceinture", label = "Ceinture" } } },
         { cle = "places", label = "Emplacements", type = "nombre", emplacement = "meta", min = 1 },
         { cle = "placesDevise", label = "Emplacements devise", type = "nombre", emplacement = "meta", min = 0 },
     },

@@ -1940,7 +1940,10 @@ function Glisser.Lacher()
     -- QUELQU'UN. C'est le geste qui ouvre un echange, et le kit n'a pas a
     -- savoir ce qu'est un echange — il demande (Core/Echange.lua s'inscrit).
     if not cible then
-        if Glisser.SansCible then return Glisser.SansCible(objet) and true or false end
+        if Glisser.SansCible and Glisser.SansCible(objet) then return true end
+        -- Ni case ni personne : lache dans le vide. Le kit ne sait pas ce que
+        -- ca veut dire pour un objet (UI/Inventaires.lua propose de le jeter).
+        if Glisser.DansLeVide then return Glisser.DansLeVide(objet) and true or false end
         return false
     end
     local ok, raison = cible.glisserAccepte(objet)

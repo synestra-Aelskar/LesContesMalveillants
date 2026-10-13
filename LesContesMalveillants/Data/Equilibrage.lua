@@ -335,6 +335,11 @@ E.forge = {
 E.inventaire = {
     sacs = 2,
     saccoches = 4,
+    -- Une ceinture, toujours portee : elle a ses cases de base meme nue, et un
+    -- objet « ceinture » pose par-dessus y AJOUTE les siennes. Pas dans le
+    -- template : demande de l'equipe le 13 octobre 2026.
+    ceintures = 1,
+    placesCeinture = 3,
     -- `devises` retire avec son onglet : voir Data/Inventaire.lua.
 }
 

@@ -262,16 +262,39 @@ if UI.Glisser then
         local nom, royaume = UnitName("mouseover")
         if not nom then return false end
         local qui = (royaume and royaume ~= "" and (nom .. "-" .. royaume)) or nom
+        -- Lache sur quelqu'un : le geste est traite, meme refuse. Rendre faux
+        -- le ferait passer pour un lacher dans le vide, qui propose de jeter.
+        Ecran.Donner(qui, objet)
+        return true
+    end
+end
 
-        if E.courant and E.courant.ouverte and E.courant.qui == qui then
-            local ok, raison = E.Offrir(objet)
-            if not ok and raison then LCM.Alerte(tostring(raison)) end
-            return true
+-- Donner un objet a quelqu'un : dans l'echange deja ouvert avec lui, sinon en
+-- lui en proposant un. Le lacher sur une personne et le menu « Échanger » d'un
+-- sac passent par ici.
+-- `objet` peut aussi etre une SOMME : { devise = id, combien = n } (le clic
+-- droit d'une devise de la bourse). Elle s'AJOUTE a ce qu'on offre deja.
+function Ecran.Donner(qui, objet)
+    if type(objet) == "table" and objet.devise then
+        if not LCM.Bourse.Peut(LCM.Entities.Self(), objet.devise, objet.combien) then
+            LCM.Alerte("la bourse n'a pas de quoi.")
+            return false
         end
-        local ok, raison = E.Proposer(qui, objet)
+        if E.courant and E.courant.ouverte and E.courant.qui == qui then
+            local deja = tonumber(E.courant.mien.devises[objet.devise]) or 0
+            local ok, raison = E.Monnayer(objet.devise, deja + objet.combien)
+            if not ok and raison then LCM.Alerte(tostring(raison)) end
+            return ok
+        end
+    end
+    if E.courant and E.courant.ouverte and E.courant.qui == qui then
+        local ok, raison = E.Offrir(objet)
         if not ok and raison then LCM.Alerte(tostring(raison)) end
         return ok
     end
+    local ok, raison = E.Proposer(qui, objet)
+    if not ok and raison then LCM.Alerte(tostring(raison)) end
+    return ok
 end
 
 LCM.Echange.Ecran = Ecran

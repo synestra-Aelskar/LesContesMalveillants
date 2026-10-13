@@ -139,7 +139,14 @@ local function SurOui(qui)
     -- qui a ouvert la fenetre.
     local attente = seance.attente
     seance.attente = nil
-    if attente then Echange.Offrir(attente) end
+    -- Une SOMME (la bourse : « Échanger » sur une devise) se pose par
+    -- Monnayer ; un objet, par Offrir.
+    if attente and attente.devise then
+        local ok, raison = Echange.Monnayer(attente.devise, attente.combien)
+        if not ok and raison then Refuser(raison) end
+    elseif attente then
+        Echange.Offrir(attente)
+    end
     Prevenir()
 end
 

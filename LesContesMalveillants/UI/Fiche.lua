@@ -175,20 +175,27 @@ local Icone = Fiche.Icone
 
 -- Une jauge du modele : barre avec embouts dores, chiffres contournes dessus,
 -- trois boutons carres a droite. `rappels` : moins(), plus(), remise().
-local function Jauge(l, c, couleur, rappels)
+-- `saisir(n)` : poser la valeur tapee, rend true ou false et la raison.
+--
+-- Boutons et saisie sont au MAITRE DU JEU (13 octobre 2026) : le joueur lit
+-- ses jauges, la partie les fait bouger. `l:Controles(mj)` les montre ou les
+-- cache ; sans eux, la barre prend leur place.
+local function Jauge(l, c, couleur, rappels, saisir)
     local debut = c.barreDebut
     -- Une jauge SANS boutons (les points de vie, qui se perdent et se rendent
     -- zone par zone) laissait derriere elle la place des trois boutons, vide.
     -- Elle va donc jusqu'au bord gauche du « R » des jauges d'en dessous : les
     -- colonnes restent alignees, et la barre occupe ce qui ne servait a rien.
-    local fin = rappels and c.barreFin or c.boutons[3]
-    l.barre = UI.Barre(l, couleur, fin - debut, c.barreHauteur)
+    local finAvec, finSans = c.barreFin, c.boutons[3]
+    l.finBarre = rappels and finAvec or finSans
+    l.barre = UI.Barre(l, couleur, l.finBarre - debut, c.barreHauteur)
     l.barre:SetPoint("LEFT", l, "LEFT", debut, 0)
     UI.Police(l.barre.label, c.police, "OUTLINE")
     if UI.AelCadreJauge then l.cadreJauge = UI.AelCadreJauge(l.barre) end
 
     -- La barre commence apres le nom : une police plus grande ne la cache pas.
     function l:CaleBarre()
+        local fin = self.finBarre
         local x = math.min(fin - 80 * c.echelle,
             math.max(debut, (self.nomX or c.nomSansIcone) + (self.nom:GetStringWidth() or 0) + 14 * c.echelle))
         self.barre:ClearAllPoints()
@@ -206,6 +213,49 @@ local function Jauge(l, c, couleur, rappels)
             l.boutons[i] = b
         end
     end
+
+    -- Un clic sur la barre : le MJ tape la valeur. Pose une fois, par-dessus
+    -- la barre, et seulement montre ou cache ensuite.
+    if saisir then
+        l.saisie = CreateFrame("Button", nil, l)
+        l.saisie:SetAllPoints(l.barre)
+        l.saisie:SetFrameLevel(l.barre:GetFrameLevel() + 5)
+        l.saisie:SetScript("OnClick", function()
+            if not LCM.IsMaster() then return end
+            UI.Demande():Demander(tostring(l.nom:GetText() or "Valeur"), l.barre.courant or 0, function(texte)
+                local n = tonumber(texte)
+                if not n or n ~= math.floor(n) then
+                    return false, string.format("valeur illisible (%s) : un nombre entier.", tostring(texte))
+                end
+                return saisir(n)
+            end)
+        end)
+        l.saisie:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(tostring(l.nom:GetText() or ""))
+            GameTooltip:AddLine("Clic : saisir la valeur.", 0.55, 0.55, 0.55)
+            GameTooltip:Show()
+        end)
+        l.saisie:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+
+    function l:Controles(mj)
+        for _, b in ipairs(self.boutons or {}) do b:SetShown(mj) end
+        if self.saisie then self.saisie:SetShown(mj) end
+        local fin = (rappels and mj) and finAvec or finSans
+        if fin ~= self.finBarre then
+            self.finBarre = fin
+            self:CaleBarre()
+        end
+    end
+end
+
+-- Une valeur saisie doit tenir dans la jauge : au-dessus du maximum ou sous
+-- zero, c'est refuse et dit, pas rabote.
+local function DansLaJauge(n, maximum)
+    if n < 0 then return false, "pas de valeur négative." end
+    if n > maximum then return false, string.format("au-dessus du maximum (%d).", maximum) end
+    return true
 end
 
 -- Bulle d'aide au survol d'une ligne. `texte` : une phrase, ou une
@@ -319,16 +369,14 @@ function Lignes.gauge(parent, field, c)
         LCM.Entities.SetGauge(e, field.id, cible)
         l:Actualiser(e)
     end
-    -- PA, fatigue et boucliers sont des ressources de jeu : le joueur ne les
-    -- fabrique ni ne les efface depuis sa fiche, leur chemin normal reste
-    -- l'action. Le MJ, lui, a les boutons — comme sur les zones du corps —
-    -- pour poser une situation ou essayer une regle sans jouer un tour entier
-    -- (11 octobre 2026). Elles etaient verrouillees pour TOUT LE MONDE.
-    local reserveeAuMJ = field.id == "pa" or field.id == "fatigue" or field.id == "armure"
+    -- Aucune jauge ne se regle a la main cote joueur : PA, fatigue et
+    -- boucliers l'etaient deja (11 octobre 2026), l'armure portee, l'Esprit et
+    -- l'Ame le sont depuis le 13 octobre. Leur chemin normal est la partie.
+    -- Le MJ a les boutons, et un clic sur la barre pour taper la valeur.
     -- Le bouton se cache, et le geste se refuse quand meme : une fenetre
     -- construite avant que l'on sache qui joue ne doit pas ouvrir une porte.
     local function Permis()
-        if not reserveeAuMJ or LCM.IsMaster() then return true end
+        if LCM.IsMaster() then return true end
         LCM.Erreur("Seul le maître du jeu peut modifier cette jauge.")
         return false
     end
@@ -341,16 +389,21 @@ function Lignes.gauge(parent, field, c)
             if jauge then Poser(0, field.default ~= nil and field.default or jauge.max) end
         end,
     }
-    Jauge(l, c, COULEURS_JAUGE[field.id] or UI.C.vie, rappels)
+    Jauge(l, c, COULEURS_JAUGE[field.id] or UI.C.vie, rappels, function(n)
+        if not (Permis() and l.entity) then return false end
+        local jauge = LCM.Entities.Gauge(l.entity, field.id)
+        local ok, raison = DansLaJauge(n, jauge.max)
+        if not ok then return false, raison end
+        Poser(0, n)
+        return true
+    end)
     Bulle(l, field.label, field.note)
     function l:Actualiser(e)
         self.entity = e
         local jauge = LCM.Entities.Gauge(e, field.id)
         if jauge then self.barre:Regler(jauge.current, jauge.max) end
+        self:Controles(LCM.IsMaster() and not e.distante)
         self:CaleBarre()
-        for _, bouton in ipairs(self.boutons or {}) do
-            bouton:SetShown((not reserveeAuMJ or LCM.IsMaster()) and not e.distante)
-        end
     end
     return l
 end
@@ -483,7 +536,14 @@ function Lignes.body(parent, field, c, options)
             moins = function() Agir(LCM.Body.Damage, 1) end,
             plus = function() Agir(LCM.Body.Heal, 1) end,
             remise = function() Agir(LCM.Body.Heal, 1000000) end,
-        })
+        }, function(n)
+            -- Les PV de la zone, tapes : la blessure se deduit du maximum.
+            if not (l.entity and z.partieId and LCM.IsMaster()) then return false end
+            local ok, raison = DansLaJauge(n, z.barre.maximum or 0)
+            if not ok then return false, raison end
+            Agir(LCM.Body.SetCurrent, n)
+            return true
+        end)
         l.zones[index] = z
         return z
     end
@@ -508,10 +568,8 @@ function Lignes.body(parent, field, c, options)
             z.icone:SetTexture(partie.part.icone)
             Bulle(z, partie.label, partie.part.description)
             z.barre:Regler(partie.current, partie.max)
+            z:Controles(LCM.IsMaster() and not e.distante)
             z:CaleBarre()
-            for _, bouton in ipairs(z.boutons or {}) do
-                bouton:SetShown(LCM.IsMaster() and not e.distante)
-            end
             z:ClearAllPoints()
             z:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             z:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)

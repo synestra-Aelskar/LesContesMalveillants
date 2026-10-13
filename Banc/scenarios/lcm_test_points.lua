@@ -94,11 +94,29 @@ LCM.Stock.Declarer("filon_cuivre/minerai", filon.offres[1].stock)
 LCM.Stock.Declarer("herboriste/herbe", marchand.offres[1].stock)
 
 dire("== recolter")
--- Il faut un sac pour recevoir : sans place, la recolte doit refuser.
+-- La ceinture (13 octobre 2026) a toujours ses cases de base : « plein »,
+-- c'est elles aussi. On les remplit le temps de verifier le refus.
+local function remplirCeinture(ref)
+    local e = LCM.Inventaire.Emplacement(moi, "ceintures", 1)
+    for case = 1, LCM.Inventaire.Cases(e) do
+        if not LCM.Inventaire.Case(LCM.Inventaire.Emplacement(moi, "ceintures", 1), case) then
+            LCM.Inventaire.Ranger(moi, "ceintures", 1, case, ref, 1)
+        end
+    end
+end
+local function viderCeinture()
+    for case = 1, LCM.Inventaire.Cases(LCM.Inventaire.Emplacement(moi, "ceintures", 1)) do
+        LCM.Inventaire.Vider(moi, "ceintures", 1, case)
+    end
+end
+-- Il faut de la place pour recevoir : sans place, la recolte doit refuser.
+-- Sans sac, il reste la ceinture : on la remplit d'abord.
+remplirCeinture("objets/dague_d_assassin_du_culte")
 local sansPlace, raison = P.Prendre(moi, "filon_cuivre", "minerai")
 attendu("sans place : refus", sansPlace, false)
 attendu("et on dit pourquoi", raison, "aucune place libre.")
 attendu("le stock n'a pas ete entame", LCM.Stock.Restant("filon_cuivre/minerai"), 3)
+viderCeinture()
 
 dire("== avec un sac")
 local categorie = LCM.Inventaire.categories[1]

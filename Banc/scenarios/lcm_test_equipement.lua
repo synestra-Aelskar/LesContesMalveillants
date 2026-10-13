@@ -56,7 +56,23 @@ attendu("retiree", ok, true)
 attendu("plus portee", O.Porte(moi, "dague_d_essai"), false)
 attendu("de retour au sac", O.Possede(moi, "dague_d_essai"), true)
 
+-- La ceinture (13 octobre 2026) a toujours ses cases de base : « plein »,
+-- c'est elles aussi. On les remplit le temps de verifier le refus.
+local function remplirCeinture(ref)
+    local e = LCM.Inventaire.Emplacement(moi, "ceintures", 1)
+    for case = 1, LCM.Inventaire.Cases(e) do
+        if not LCM.Inventaire.Case(LCM.Inventaire.Emplacement(moi, "ceintures", 1), case) then
+            LCM.Inventaire.Ranger(moi, "ceintures", 1, case, ref, 1)
+        end
+    end
+end
+local function viderCeinture()
+    for case = 1, LCM.Inventaire.Cases(LCM.Inventaire.Emplacement(moi, "ceintures", 1)) do
+        LCM.Inventaire.Vider(moi, "ceintures", 1, case)
+    end
+end
 -- Sac plein : l'objet porte reste porte, rien ne disparait.
+remplirCeinture("objets/epee_d_essai")
 for case = 1, 12 do
     if not I.Case(I.Emplacement(moi, "sacs", 1), case) then
         I.Ranger(moi, "sacs", 1, case, "objets/epee_d_essai", 1)
@@ -66,6 +82,7 @@ ok, raison = O.Desequiper(moi, "bague_d_essai")
 attendu("sac plein : refuse", ok, false)
 contient("dit pourquoi", raison, "aucune place libre")
 attendu("la bague reste portee", O.Porte(moi, "bague_d_essai"), true)
+viderCeinture()
 
 dire("== La fenetre : seul ce qui est dans les sacs est propose")
 -- La fenetre Inventaires ouverte a cote, sur le sac : elle doit suivre.
