@@ -515,20 +515,68 @@ function Inventaire.Deposer(entity, ref, quantite)
         end
         return false, "aucun emplacement de sacoche libre pour la tente."
     end
+    quantite = tonumber(quantite or 1)
+    if not quantite or quantite < 1 or quantite ~= math.floor(quantite) then
+        return false, "quantité illisible : un nombre entier, 1 au moins."
+    end
+    -- Ce qui s'empile COMPLETE d'abord les piles deja la, jusqu'a leur
+    -- maximum, et n'ouvre une case que pour le reste. Chaque eau recoltee
+    -- ouvrait sa propre case : « Eau », « Eau x9 », « Eau »… (13 octobre 2026).
+    -- Sans pile maximale, une entree s'empile sans borne (Inventaire.Quantite).
+    local element = LCM.Compendium.Resoudre(ref)
+    local pileMax = element and element.pileMax
+    local reste = quantite
+    local plan = {}
+
+    -- On PREVOIT avant d'ecrire : tout tient, ou rien ne bouge. Les appelants
+    -- (recolte, achat, echange) rendent ce qu'ils ont pris quand ca echoue,
+    -- et une moitie rangee serait une moitie dupliquee.
     for _, categorie in ipairs(Inventaire.categories) do
         for index = 1, Inventaire.Capacite(categorie.id) do
             local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
-            if emplacement then
-                local total, places = Inventaire.Cases(emplacement)
-                -- Une case qui n'accepte pas l'entree (une dague dans une tente)
-                -- n'est pas une place libre pour elle : on passe au sac suivant.
-                for case = 1, math.min(total, places) do
-                    if not Inventaire.Case(emplacement, case) and Inventaire.Accepte(emplacement, case, ref) then
-                        return Inventaire.Ranger(entity, categorie.id, index, case, ref, quantite)
+            -- Dans l'ordre des cases : la premiere pile du premier sac se
+            -- remplit en premier, comme on la voit.
+            local total = emplacement and Inventaire.Cases(emplacement) or 0
+            for case = 1, total do
+                local c = Inventaire.Case(emplacement, case)
+                if reste > 0 and type(c) == "table" and c.ref == ref then
+                    local dedans = tonumber(c.quantite) or 1
+                    local ajout = pileMax and math.min(reste, pileMax - dedans) or reste
+                    if ajout > 0 then
+                        plan[#plan + 1] = { pile = c, quantite = dedans + ajout }
+                        reste = reste - ajout
                     end
                 end
             end
         end
     end
-    return false, "aucune place libre."
+    for _, categorie in ipairs(Inventaire.categories) do
+        for index = 1, Inventaire.Capacite(categorie.id) do
+            local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
+            if reste > 0 and emplacement then
+                local total, places = Inventaire.Cases(emplacement)
+                -- Une case qui n'accepte pas l'entree (une dague dans une tente)
+                -- n'est pas une place libre pour elle : on passe au sac suivant.
+                for case = 1, math.min(total, places) do
+                    if reste > 0 and not Inventaire.Case(emplacement, case)
+                        and Inventaire.Accepte(emplacement, case, ref) then
+                        local pose = pileMax and math.min(reste, pileMax) or reste
+                        plan[#plan + 1] = { categorie = categorie.id, index = index, case = case, quantite = pose }
+                        reste = reste - pose
+                    end
+                end
+            end
+        end
+    end
+    if reste > 0 then return false, "aucune place libre." end
+
+    for _, etape in ipairs(plan) do
+        if etape.pile then
+            etape.pile.quantite = etape.quantite
+        else
+            local ok, raison = Inventaire.Ranger(entity, etape.categorie, etape.index, etape.case, ref, etape.quantite)
+            if not ok then return false, raison end
+        end
+    end
+    return true
 end

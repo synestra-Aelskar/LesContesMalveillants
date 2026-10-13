@@ -75,6 +75,33 @@ function UI.Texte(parent, texte, couleur, gabarit)
     return fs
 end
 
+-- Carte cliquable : icone, titre et sous-titre, ou action principale ambree.
+function UI.CarteAction(parent, texte, detail, icone, largeur, hauteur, principal, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(largeur, hauteur)
+    local normal = principal and { 0.30, 0.16, 0.045, 1 } or { 0.10, 0.085, 0.065, 1 }
+    b.fond = UI.Aplat(b, normal)
+    b.fond:SetAllPoints(b)
+    UI.Bordure(b, principal and UI.C.accent or UI.C.bordure)
+    b.icone = b:CreateTexture(nil, "ARTWORK")
+    b.icone:SetSize(32, 32)
+    b.icone:SetPoint("LEFT", b, "LEFT", 12, 0)
+    b.icone:SetTexture("Interface\\Icons\\" .. icone)
+    b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.label = UI.Texte(b, texte, UI.C.titre)
+    b.label:SetPoint("TOPLEFT", b, "TOPLEFT", 56, -12)
+    b.label:SetPoint("RIGHT", b, "RIGHT", -26, 0)
+    b.detail = UI.Texte(b, detail, UI.C.discret, "GameFontNormalSmall")
+    b.detail:SetPoint("TOPLEFT", b.label, "BOTTOMLEFT", 0, -5)
+    b.detail:SetPoint("RIGHT", b, "RIGHT", -26, 0)
+    b.fleche = UI.Texte(b, principal and ">" or "+", UI.C.accent)
+    b.fleche:SetPoint("RIGHT", b, "RIGHT", -12, 0)
+    b:SetScript("OnClick", onClick)
+    b:SetScript("OnEnter", function(self) self.fond:SetColorTexture(normal[1] + 0.055, normal[2] + 0.035, normal[3] + 0.015, 1) end)
+    b:SetScript("OnLeave", function(self) self.fond:SetColorTexture(unpack(normal)) end)
+    return b
+end
+
 -- Infobulle commune aux ecrans de l'addon. Elle reprend le fond sombre, le
 -- filet dore et la palette du Kit sans modifier les infobulles du jeu.
 function UI.Infobulle()

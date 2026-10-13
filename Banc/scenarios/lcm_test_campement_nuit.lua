@@ -385,6 +385,8 @@ K.Quitter()
 local fen = LCM.UI.Campement.frame
 fen:Rendre()
 attendu("sans campement, le MJ voit le lancement", fen.lancement:IsShown(), true)
+attendu("l'accueil tient dans une fenetre compacte", fen:GetHeight(), 410)
+attendu("la fenetre est moins large", fen:GetWidth(), 720)
 attendu("le MJ lance", K.Lancer(nil), true)
 attendu("il est responsable", K.courant.role, "chef")
 attendu("il campe", K.Participe(), true)
@@ -394,10 +396,11 @@ fen:Show()
 fen:Rendre()
 attendu("ses reglages sont la", fen.mj:IsShown(), true)
 attendu("et sa repartition aussi", fen.repartition:IsShown(), true)
+attendu("le camp reprend sa largeur pour les compteurs", fen:GetWidth(), 760)
+attendu("le MJ garde la place pour ses reglages", fen:GetHeight(), 770)
 local _, _, _, _, yRepartition = fen.repartition:GetPoint(1)
--- -240 : sous le resume (84 + 12) et les reglages du MJ (144), mise en page
--- du 10 octobre 2026.
-attendu("la repartition passe sous les reglages", yRepartition, -240)
+-- Refonte du 13 octobre : resume agrandi (112 + 12), puis reglages MJ (144).
+attendu("la repartition passe sous les reglages", yRepartition, -268)
 K.Quitter()
 
 dire("== la fenetre")

@@ -267,6 +267,20 @@ E.metiers = {
     },
 }
 
+-- ===== Recolte ============================================================
+-- Le jet de recolte de Necronicon (Resource.lua, RollResourceCollect) :
+-- D15 — de 0 a 15 — plus le bonus du metier (son rang de couleur), contre le
+-- DD que le MJ donne a la ressource. Reussi a egalite.
+-- `rayon` : la distance, en yards, a laquelle un point se recolte quand le MJ
+-- ne lui en donne pas. Pas une regle du template : il fallait « quelques »
+-- yards pour ne pas devoir se tenir pile dessus (demande du 13 octobre 2026).
+-- `rayonMax` borne ce que le createur accepte.
+E.recolte = {
+    des = { min = 0, max = 15 },
+    rayon = 3,
+    rayonMax = 30,
+}
+
 -- ===== Conteneurs ========================================================
 -- Combien d'elements chaque conteneur de fiche accueille (template) : pas de
 -- place precise, un emplacement accueille n'importe quel element de sa

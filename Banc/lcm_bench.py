@@ -88,6 +88,49 @@ function UnitName(unit)
     return "Reika"
 end
 function UnitFullName(unit) return "Reika", "Apertus" end
+
+-- La cible du joueur, et les auras du jeu qui l'affectent.
+-- `__cible("Nytherah", { utiles = {...}, nefastes = {...} })` la pose,
+-- `__cible(nil)` la retire. Une aura : { nom, icone, piles, type, duree,
+-- expiration, source, sort }. Les fonctions d'unite ne sont posees qu'au premier
+-- appel : un scenario qui ne cible personne garde le monde d'avant, ou
+-- UnitExists n'existe pas (Inventaires et Echange le testent).
+local cible
+_G.__cible = function(nom, auras)
+    cible = nom and { nom = nom, auras = auras or {} } or nil
+    local nomBase = UnitName
+    if not __uniteCible then
+        __uniteCible = true
+        function UnitExists(u)
+            if u == "player" then return true end
+            if u == "target" then return cible ~= nil end
+            return false
+        end
+        function UnitIsPlayer(u) return u == "player" or (u == "target" and cible ~= nil) end
+        function UnitIsUnit(a, b) return a == b end
+        function UnitName(u)
+            if u == "target" then
+                if not cible then return nil end
+                return cible.nom, ""
+            end
+            return nomBase(u)
+        end
+        -- L'API d'avant Dragonflight : celle du client d'Epsilon.
+        function UnitAura(u, index, filtre)
+            if u ~= "target" or not cible then return nil end
+            local liste
+            if tostring(filtre or ""):find("HARMFUL") then liste = cible.auras.nefastes
+            else liste = cible.auras.utiles end
+            local a = liste and liste[index]
+            if not a then return nil end
+            return a.nom, a.icone, a.piles or 0, a.type, a.duree or 0, a.expiration or 0,
+                a.source, false, nil, a.sort
+        end
+        function GameTooltip:SetUnitAura(u, index, filtre)
+            self.__aura = { unite = u, index = index, filtre = filtre }
+        end
+    end
+end
 function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0" end return nil end
 -- L'horloge est pilotable : la repousse d'un stock se verifie en avancant le
 -- temps, pas en attendant.
@@ -225,7 +268,17 @@ local function NouvelleRegion(kind, parent)
     function r:Hide() Visibilite(self, false) end
     function r:SetShown(v) Visibilite(self, v) end
     function r:IsShown() return self.__shown == true end
-    function r:IsVisible() return self.__shown == true end
+    -- Comme dans le jeu : visible, c'est montre ET tous ses parents montres.
+    -- Le banc confondait avec IsShown, et un bouton pose sur un cadre cache
+    -- passait pour visible.
+    function r:IsVisible()
+        local f = self
+        while f do
+            if f.__shown ~= true then return false end
+            f = f.parent
+        end
+        return true
+    end
     function r:SetAlpha(a) self.__alpha = a end
     function r:GetAlpha() return self.__alpha or 1 end
     function r:SetText(t) self.__text = t end

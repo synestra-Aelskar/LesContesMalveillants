@@ -178,10 +178,10 @@ end
 
 local function Payer(mode, paquet)
     local pa, pf = Reactions.Cout(mode, paquet)
-    local dpa, dpf = A.Disponible(LCM.Entities.Self())
+    local dpa, dpf = A.Disponible(LCM.Entities.Self(), true)
     if pa > 0 and (dpa or 0) < pa then return false, string.format("Pas assez de PA (%d requis).", pa) end
     if pf > 0 and (dpf or 0) < pf then return false, string.format("Pas assez de PF (%d requis).", pf) end
-    A.Payer(LCM.Entities.Self(), "#pa", pa)
+    if not A.Payer(LCM.Entities.Self(), "#pa", pa, true) then return false, "Pas assez de PA." end
     A.Payer(LCM.Entities.Self(), "#fatigue", pf)
     return true
 end

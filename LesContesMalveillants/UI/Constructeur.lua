@@ -537,7 +537,7 @@ function Ecran.Rendre()
     Gauche(f)
     Droite(f)
     local pa, pf = c.composeur:Deriver()
-    local dpa, dpf = A.Disponible(c.ctx.entity)
+    local dpa, dpf = A.Disponible(c.ctx.entity, c.ctx.recu ~= nil)
     f.couts:SetText("")
     local montreCout = not c.etape.hideCost
     f.carrePA:SetShown(montreCout and not f.replie)

@@ -493,7 +493,8 @@ function DeplacementForce.DemarrerMode(mode, entity)
         local pf = math.max(0, math.floor(tonumber(Reglages().supplementPF) or 1))
         local jaugePA = LCM.Entities.Gauge(entity, "pa")
         local jaugePF = LCM.Entities.Gauge(entity, "fatigue")
-        if (jaugePA and jaugePA.current or 0) < pa then return false, string.format("il faut %d PA.", pa) end
+        local disponibles = LCM.Combat and LCM.Combat.PADisponibles(entity)
+        if (disponibles or 0) < pa then return false, string.format("il faut %d PA disponibles ce round.", pa) end
         if (jaugePF and jaugePF.current or 0) < pf then return false, string.format("il faut %d PF.", pf) end
         LCM.Entities.SetGauge(entity, "pa", jaugePA.current - pa)
         LCM.Entities.SetGauge(entity, "fatigue", jaugePF.current - pf)

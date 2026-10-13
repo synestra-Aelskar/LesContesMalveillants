@@ -27,6 +27,24 @@ LCM.Points = LCM.Registre({
         element.icone = definition.icone and tostring(definition.icone):match("%S")
             and LCM.Icone(definition.icone) or nil
         element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
+        -- Un point de recolte PLACE sur la carte (MJ/Recoltes.lua) : une
+        -- ressource, combien on en tire, le jet de metier a reussir. Les
+        -- nombres sont bornes ici et pas dans l'ecran : un fichier ecrit a la
+        -- main passe par la meme porte.
+        if nature == "ressource" and type(definition.recolte) == "table" then
+            local r = definition.recolte
+            local mini = math.max(1, math.floor(tonumber(r.min) or 1))
+            local maxi = math.max(mini, math.floor(tonumber(r.max) or mini))
+            element.recolte = {
+                entree = tostring(r.entree or ""),
+                min = mini,
+                max = r.aleatoire and maxi or mini,
+                aleatoire = r.aleatoire and true or false,
+                metier = (r.metier and tostring(r.metier) ~= "") and tostring(r.metier) or nil,
+                dd = math.max(0, math.floor(tonumber(r.dd) or 0)),
+                rayon = tonumber(r.rayon) and math.max(0.5, tonumber(r.rayon)) or nil,
+            }
+        end
         element.offres = {}
         local ids = {}
         local function ConstruireOffre(offre, rang)

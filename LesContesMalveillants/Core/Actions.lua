@@ -701,17 +701,21 @@ function Composeur:Requis()
 end
 
 -- PA et fatigue disponibles chez celui qui agit.
-function Actions.Disponible(entity)
-    local pa = LCM.Entities.Gauge(entity, "pa")
+function Actions.Disponible(entity, defense)
     local pf = LCM.Entities.Gauge(entity, "fatigue")
-    return pa and pa.current, pf and pf.current
+    local pa = LCM.Combat and LCM.Combat.PADisponibles(entity)
+    if defense then
+        local jauge = LCM.Entities.Gauge(entity, "pa")
+        pa = jauge and jauge.current
+    end
+    return pa, pf and pf.current
 end
 
 -- Necronicon ne grise une option que sur les PA ; la fatigue peut passer dans
 -- le rouge pendant qu'on compose, c'est a la declaration qu'elle bloque.
 function Composeur:Abordable(q, o)
     if self:EstChoisie(q, o.id) then return true end
-    local dispo = Actions.Disponible(self.ctx.entity)
+    local dispo = Actions.Disponible(self.ctx.entity, self.ctx.recu ~= nil)
     if dispo == nil then return true end
     local engage = 0
     for _, qq in ipairs(self.questions) do
@@ -734,7 +738,7 @@ function Composeur:Blocage()
         end
     end
     local pa, pf = self:Deriver()
-    local dpa, dpf = Actions.Disponible(self.ctx.entity)
+    local dpa, dpf = Actions.Disponible(self.ctx.entity, self.ctx.recu ~= nil)
     if dpa and pa > dpa + 0.005 then return "PA insuffisants pour cette action." end
     if dpf and pf > dpf + 0.005 then return "PF insuffisants pour cette action." end
     return nil
@@ -950,12 +954,17 @@ local TAGS = { pa = "pa", fatigue = "fatigue", pf = "fatigue", bouclier = "armur
 Actions.TAGS = TAGS
 
 -- Debite (montant positif) ou credite (negatif) une jauge. true si trouvee.
-function Actions.Payer(entity, tag, montant)
+function Actions.Payer(entity, tag, montant, defense)
     local champ = TAGS[Cle(tostring(tag or ""):gsub("#", ""))]
     montant = tonumber(montant) or 0
     if not champ or montant == 0 then return montant == 0 end
     local jauge = LCM.Entities.Gauge(entity, champ)
     if not jauge then return false end
+    if champ == "pa" and montant > 0 then
+        if defense then return LCM.Combat.PayerPADefense(entity, montant) end
+        local disponibles = Actions.Disponible(entity)
+        if not disponibles or montant > disponibles then return false end
+    end
     return LCM.Entities.SetGauge(entity, champ, jauge.current - montant)
 end
 
@@ -1276,14 +1285,21 @@ end
 -- Le debit differe : applique a la declaration (ou en fin de feuille sans
 -- declaration).
 local function Regler(ctx)
-    if not ctx.dettes then return end
+    if not ctx.dettes then return true end
+    local totalPA = 0
     for _, d in ipairs(ctx.dettes) do
-        local ok = Actions.Payer(ctx.entity, d.tag, d.montant)
+        if tostring(d.tag or ""):gsub("#", "") == "pa" then totalPA = totalPA + (tonumber(d.montant) or 0) end
+    end
+    local disponibles = Actions.Disponible(ctx.entity, ctx.recu ~= nil)
+    if totalPA > 0 and disponibles and totalPA > disponibles then return false end
+    for _, d in ipairs(ctx.dettes) do
+        local ok = Actions.Payer(ctx.entity, d.tag, d.montant, ctx.recu ~= nil)
         Journal(ctx, string.format("%s %s : %s%s%s", d.montant < 0 and "Remboursement" or "Débit",
             tostring(d.tag), d.montant < 0 and "+" or "-", tostring(math.abs(d.montant)),
             ok and "" or " (jauge introuvable)"))
     end
     ctx.dettes = nil
+    return true
 end
 
 local Pas = {}
@@ -1366,7 +1382,10 @@ function Pas.pay(etape, ctx, suite)
         Journal(ctx, string.format("Débit différé %s : %s", tostring(etape.tag), tostring(montant)))
         return suite()
     end
-    local ok = Actions.Payer(ctx.entity, etape.tag, montant)
+    local ok = Actions.Payer(ctx.entity, etape.tag, montant, ctx.recu ~= nil)
+    if not ok and montant > 0 and tostring(etape.tag or ""):gsub("#", "") == "pa" then
+        return Arreter(ctx, "PA indisponibles pendant ce round.")
+    end
     Journal(ctx, string.format("%s %s : %s%s", montant < 0 and "Remboursement" or "Débit", tostring(etape.tag),
         tostring(math.abs(montant)), ok and "" or " (jauge introuvable)"))
     return suite()
@@ -1574,7 +1593,7 @@ function Pas.choice(etape, ctx, suite)
     local options = type(etape.options) == "table" and etape.options or {}
     if #options == 0 then return suite() end
     if not Actions.onChoix then return Arreter(ctx, "aucune fenêtre pour choisir.") end
-    local pa = Actions.Disponible(ctx.entity)
+    local pa = Actions.Disponible(ctx.entity, ctx.recu ~= nil)
     local boutons = {}
     for _, o in ipairs(options) do
         local cpa, cpf = CoutOption(o.steps, ctx)
@@ -2250,7 +2269,7 @@ function Actions.Dissiper(ctx, cfg, selection, choix)
     local nCibles = 0
     for _ in pairs(cibles) do nCibles = nCibles + 1 end
     local pa, pf = Actions.CoutDissipation(cfg, nCibles, #selection, choix.niveau)
-    Actions.Payer(ctx.entity, "#pa", pa)
+    if pa > 0 and not Actions.Payer(ctx.entity, "#pa", pa) then return false end
     Actions.Payer(ctx.entity, "#fatigue", pf)
     Journal(ctx, string.format("Dissipation : %d PA / %d PF (niveau %d, %s).", pa, pf, choix.niveau, choix.competence))
     local jets, resultats, reussis = {}, {}, 0
@@ -2314,7 +2333,9 @@ function Pas.dispel(etape, ctx, suite)
     local cfg = Actions.ConfigDissipation(etape, ctx)
     Actions.onDissiper(ctx, cfg, function(selection, choix)
         if not selection or #selection == 0 or not choix then return Arreter(ctx, "dissipation annulée.") end
-        Actions.Dissiper(ctx, cfg, selection, choix)
+        if Actions.Dissiper(ctx, cfg, selection, choix) == false then
+            return Arreter(ctx, "PA indisponibles pendant ce round.")
+        end
         suite()
     end)
 end
@@ -2567,7 +2588,7 @@ local function DeclarerEffet(etape, ctx, suite)
             ctx.dettes = ctx.dettes or {}
             if epa > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#pa", montant = epa } end
             if epf > 0 then ctx.dettes[#ctx.dettes + 1] = { tag = "#fatigue", montant = epf } end
-            Regler(ctx)
+            if not Regler(ctx) then return Arreter(ctx, "PA indisponibles pendant ce round.") end
             local attente = ctx.annonces
             ctx.annonces = nil
             for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
@@ -2925,7 +2946,7 @@ function Pas.declare(etape, ctx, suite)
             valeurs["Cout PA"] = tostring((tonumber(valeurs["Cout PA"]) or 0) + epa)
             valeurs["Cout PF"] = tostring((tonumber(valeurs["Cout PF"]) or 0) + epf)
         end
-        Regler(ctx)
+        if not Regler(ctx) then return Arreter(ctx, "PA indisponibles pendant ce round.") end
         local attente = ctx.annonces
         ctx.annonces = nil
         for _, texte in ipairs(attente) do Actions.Annoncer(texte) end
@@ -2990,7 +3011,7 @@ function Actions.Etapes(etapes, ctx, fin)
         index = index + 1
         local etape = etapes[index]
         if type(etape) ~= "table" then
-            if proprietaire then Regler(ctx) end
+            if proprietaire and not Regler(ctx) then return Arreter(ctx, "PA indisponibles pendant ce round.") end
             if fin then fin() end
             return
         end

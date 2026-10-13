@@ -1318,12 +1318,15 @@ local function EnregistrerActionArcanum()
 end
 
 LCM.AddCommand("vendeur", "ouvre les vendeurs", function() Ecran.Basculer("vendeur") end, true)
-LCM.AddCommand("ressources", "ouvre les points de recolte", function() Ecran.Basculer("ressource") end, true)
+-- Les ressources ont leur propre fenetre depuis le 13 octobre 2026 : creer,
+-- puis poser sur la carte (MJ/RecoltesUI.lua).
+LCM.AddCommand("ressources", "ouvre les points de recolte", function()
+    if UI.Recoltes then UI.Recoltes.Basculer() end
+end, true)
 
 LCM.WhenReady(function()
     EnregistrerActionArcanum()
     UI.Menu.Lier("vendeur", function() Ecran.Basculer("vendeur") end)
-    UI.Menu.Lier("ressources", function() Ecran.Basculer("ressource") end)
     -- Un stock qui bouge ailleurs se voit ici sans qu'on rouvre la fenetre.
     LCM.Stock.onChange = function()
         for _, f in pairs(Ecran.frames) do

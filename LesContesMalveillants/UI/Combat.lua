@@ -66,36 +66,23 @@ local function MaFiche()
     return LCM.Entities and LCM.Entities.Self and LCM.Entities.Self() or nil
 end
 
--- Une pastille de PA : disque rouge plein tant que le point est disponible,
--- anneau sombre une fois consomme. Le masque rond est natif au client ; le
--- repli sans masque reste lisible sur les environnements simplifies.
+-- Trois gemmes de meme silhouette : rubis, rubis/obsidienne, obsidienne.
+local GEMMES_PA = {
+    disponible = "Interface\\AddOns\\LesContesMalveillants\\ressources\\combat\\pa\\disponible.tga",
+    bloque = "Interface\\AddOns\\LesContesMalveillants\\ressources\\combat\\pa\\bloque.tga",
+    depense = "Interface\\AddOns\\LesContesMalveillants\\ressources\\combat\\pa\\depense.tga",
+}
 local function PastillePA(parent)
     local p = CreateFrame("Frame", nil, parent)
-    p:SetSize(20, 20)
-    p.exterieur = UI.Aplat(p, { 0.78, 0.13, 0.12, 1 }, "ARTWORK")
-    p.exterieur:SetAllPoints(p)
-    p.interieur = UI.Aplat(p, { 0.07, 0.035, 0.03, 0.96 }, "OVERLAY")
-    p.interieur:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4)
-    p.interieur:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -4, 4)
-    if p.CreateMaskTexture and p.exterieur.AddMaskTexture and p.interieur.AddMaskTexture then
-        p.masqueExterieur = p:CreateMaskTexture()
-        p.masqueExterieur:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
-            "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        p.masqueExterieur:SetAllPoints(p.exterieur)
-        p.exterieur:AddMaskTexture(p.masqueExterieur)
-        p.masqueInterieur = p:CreateMaskTexture()
-        p.masqueInterieur:SetTexture("Interface\\CHARACTERFRAME\\TempPortraitAlphaMask",
-            "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
-        p.masqueInterieur:SetAllPoints(p.interieur)
-        p.interieur:AddMaskTexture(p.masqueInterieur)
+    p:SetSize(24, 24)
+    p.gemme = p:CreateTexture(nil, "ARTWORK")
+    p.gemme:SetAllPoints(p)
+    function p:Regler(etat)
+        self.etat = etat
+        self.remplie = etat == "disponible"
+        self.gemme:SetTexture(GEMMES_PA[etat] or GEMMES_PA.depense)
     end
-    function p:Regler(remplie)
-        self.remplie = remplie == true
-        self.exterieur:SetColorTexture(self.remplie and 0.88 or 0.46,
-            self.remplie and 0.12 or 0.08, self.remplie and 0.10 or 0.07, 1)
-        self.interieur:SetShown(not self.remplie)
-    end
-    p:Regler(false)
+    p:Regler("depense")
     return p
 end
 
@@ -251,6 +238,27 @@ local function Construire()
     f.ressourcesPA.titre = UI.Texte(f.ressourcesPA, "PA :", UI.C.titre)
     f.ressourcesPA.titre:SetPoint("LEFT", f.ressourcesPA, "LEFT", 10, 0)
     f.ressourcesPA.pastilles = {}
+    f.ressourcesPA:EnableMouse(true)
+    f.ressourcesPA:SetScript("OnEnter", function(self)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:ClearLines()
+        GameTooltip:SetText("Points d'action")
+        local disponibles, tranche, total = LCM.Combat.PADisponibles(MaFiche())
+        local etat = LCM.Combat.Etat()
+        if etat and disponibles and etat.r < etat.rm then
+            GameTooltip:AddLine(string.format("Pendant ce round, vous ne pouvez dépenser que %d PA sur %d.", tranche, total),
+                1, 0.76, 0.55, true)
+            GameTooltip:AddLine(string.format("Il vous reste %d PA utilisables maintenant.", disponibles),
+                0.9, 0.85, 0.75, true)
+            GameTooltip:AddLine("Les défenses utilisent vos PA restants sans entamer cette limite.", 0.9, 0.85, 0.75, true)
+        elseif etat and disponibles then
+            GameTooltip:AddLine(string.format("Dernier round : vos %d PA restants sont disponibles.", disponibles),
+                1, 0.76, 0.55, true)
+        end
+        GameTooltip:Show()
+    end)
+    f.ressourcesPA:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
     f.ressourcesPF = CreateFrame("Frame", nil, f)
     f.ressourcesPF:SetSize(330, 30)
@@ -290,6 +298,7 @@ function Ecran.RafraichirRessources()
     local pf = entity and LCM.Entities.Gauge(entity, "fatigue") or { current = 0, max = 0 }
     local maximum = math.max(0, math.floor(tonumber(pa.max) or 0))
     local courant = math.max(0, math.min(maximum, math.floor(tonumber(pa.current) or 0)))
+    local disponibles = math.max(0, math.min(courant, LCM.Combat.PADisponibles(entity) or courant))
 
     for index = #f.ressourcesPA.pastilles + 1, maximum do
         local p = PastillePA(f.ressourcesPA)
@@ -298,7 +307,9 @@ function Ecran.RafraichirRessources()
     end
     for index, p in ipairs(f.ressourcesPA.pastilles) do
         p:SetShown(index <= maximum)
-        if index <= maximum then p:Regler(index <= courant) end
+        if index <= maximum then
+            p:Regler(index <= disponibles and "disponible" or index <= courant and "bloque" or "depense")
+        end
     end
     f.ressourcesPF.barre:Regler(pf.current, pf.max)
 end

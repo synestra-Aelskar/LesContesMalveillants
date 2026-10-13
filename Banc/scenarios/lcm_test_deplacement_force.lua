@@ -114,7 +114,9 @@ attendu("le combat est lance", DF.EnCombat(), true)
 __position(0, 0, 0)
 DF.NouveauRound()
 attendu("le premier est gratuit", DF.Prochain(), "gratuit")
-LCM.Entities.SetGauge(LCM.Entities.Self(), "pa", 5)
+-- Le nouveau budget de round compte toute baisse de PA depuis son debut :
+-- partir de la jauge pleine pour ne pas simuler une depense avant le trajet.
+LCM.Entities.SetGauge(LCM.Entities.Self(), "pa", LCM.Entities.Gauge(LCM.Entities.Self(), "pa").max)
 LCM.Entities.SetGauge(LCM.Entities.Self(), "fatigue", 5)
 -- Les jauges sont plafonnees par la fiche (les PA s'arretent plus bas que 5) :
 -- on compare donc des ECARTS, pas des valeurs qu'on ne choisit pas.

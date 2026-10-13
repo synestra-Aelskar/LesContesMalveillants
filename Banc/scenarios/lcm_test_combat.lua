@@ -95,13 +95,12 @@ local function pastillesVues()
     return n
 end
 attendu("cinq pastilles de PA", pastillesVues(), 5)
-attendu("trois PA rouges restants", f.ressourcesPA.pastilles[1].remplie
-    and f.ressourcesPA.pastilles[3].remplie and not f.ressourcesPA.pastilles[4].remplie, true)
+attendu("les PA non debloques utilisent la gemme rouge et noire", f.ressourcesPA.pastilles[2].etat, "bloque")
+attendu("les PA depenses utilisent la gemme noire", f.ressourcesPA.pastilles[4].etat, "depense")
 attendu("PF restant / maximum", f.ressourcesPF.barre.label:GetText(), "47 / 60")
 LCM.Entities.SetGauge(garde, "pa", 1)
 LCM.Entities.SetGauge(garde, "fatigue", 28)
-attendu("les PA suivent une depense", f.ressourcesPA.pastilles[1].remplie
-    and not f.ressourcesPA.pastilles[2].remplie, true)
+attendu("les PA suivent une depense", f.ressourcesPA.pastilles[2].etat, "depense")
 attendu("les PF suivent une depense", f.ressourcesPF.barre.label:GetText(), "28 / 60")
 -- Et surtout : ce ne sont PAS les miennes. C'est tout l'objet de la
 -- correction, et une valeur distincte suffit a le prouver.
@@ -134,12 +133,27 @@ attendu("c'est mon tour", C.EstMonTour(), true)
 attendu("« C'est votre tour »", f.avis:IsShown(), true)
 
 dire("== tours et rounds")
+local A = LCM.Actions
+local utilisables, tranche, totalPA = C.PADisponibles(maFiche)
+attendu("round 1 : tranche arrondie sur le total", tranche .. "/" .. totalPA, "2/5")
+attendu("round 1 : deux PA depensables", utilisables, 2)
+attendu("premier PA paye", A.Payer(maFiche, "#pa", 1), true)
+attendu("un PA utilisable reste", C.PADisponibles(maFiche), 1)
+attendu("second PA paye", A.Payer(maFiche, "#pa", 1), true)
+attendu("le troisieme est bloque malgre les PA conserves", A.Payer(maFiche, "#pa", 1), false)
+attendu("la fiche conserve trois PA", LCM.Entities.Gauge(maFiche, "pa").current, 3)
+attendu("un PA rendu revient dans la fiche", A.Payer(maFiche, "#pa", -1), true)
+attendu("le remboursement ne rouvre pas la tranche", C.PADisponibles(maFiche), 0)
 local avant = C.Etat()
 local t, r = avant.t, avant.r
 -- Deux combattants : deux pas font un round.
 C.Avancer(1) C.Avancer(1)
 attendu("un round de plus", C.Etat().r, r + 1)
+attendu("round 2 : nouvelle tranche", C.PADisponibles(maFiche), 2)
+attendu("round 2 : deux PA payes", A.Payer(maFiche, "#pa", 2), true)
+attendu("round 2 : reste conserve", LCM.Entities.Gauge(maFiche, "pa").current, 2)
 C.Etat().r = 3
+attendu("dernier round : tout le reste se debloque", C.PADisponibles(maFiche), 2)
 C.Etat().c = #C.Etat().entrees
 C.Avancer(1)
 attendu("apres le dernier round : round 1", C.Etat().r, 1)
@@ -325,5 +339,25 @@ SlashCmdList["LCM"]("combat")
 local panneau = LCM.UI.PanneauMJ.frame
 attendu("/lcm combat ouvre le Panel MJ sur l'onglet Combat",
     panneau:IsShown() and panneau.onglet == "combat" and LCM.UI.CombatMJ.frame:IsShown(), true)
+
+dire("== les defenses puisent dans la reserve sans consommer la tranche")
+__groupe({})
+I.Relacher()
+LCM.Entities.SetGauge(maFiche, "pa", 6, 6)
+C.Inviter({ moi = true })
+attendu("deux PA offensifs", C.PADisponibles(maFiche), 2)
+local defense = { entity = maFiche, recu = {}, vars = {}, journal = {}, nom = "Defense" }
+local suiteDefense = false
+A.Pas.pay({ tag = "#pa", amount = 1 }, defense, function() suiteDefense = true end)
+attendu("la defense est resolue", suiteDefense, true)
+attendu("elle consomme un PA reel", LCM.Entities.Gauge(maFiche, "pa").current, 5)
+attendu("elle conserve les deux PA offensifs", C.PADisponibles(maFiche), 2)
+attendu("les deux PA offensifs peuvent etre payes", A.Payer(maFiche, "#pa", 2), true)
+attendu("quota offensif epuise", C.PADisponibles(maFiche), 0)
+attendu("la defense voit encore trois PA", A.Disponible(maFiche, true), 3)
+attendu("une defense reste possible", A.Payer(maFiche, "#pa", 1, true), true)
+attendu("elle ne rend pas de quota offensif", C.PADisponibles(maFiche), 0)
+attendu("on ne se defend pas a credit", A.Payer(maFiche, "#pa", 3, true), false)
+C.Terminer()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

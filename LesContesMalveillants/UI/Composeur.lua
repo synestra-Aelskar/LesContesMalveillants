@@ -347,7 +347,7 @@ function Ecran.Entete()
     local f = Ecran.frame
     local c = f.composeur
     local pa, pf = c:Deriver()
-    local dpa, dpf = A.Disponible(c.ctx.entity)
+    local dpa, dpf = A.Disponible(c.ctx.entity, c.ctx.recu ~= nil)
     f.pa.valeur:SetText(Arrondi(pa) .. " / " .. Arrondi(dpa))
     f.pf.valeur:SetText(Arrondi(pf) .. " / " .. Arrondi(dpf))
     -- Trop cher : la valeur passe au rouge (le skin de Necronicon reportait la

@@ -110,8 +110,11 @@ local function viderCeinture()
     end
 end
 -- Il faut de la place pour recevoir : sans place, la recolte doit refuser.
--- Sans sac, il reste la ceinture : on la remplit d'abord.
-remplirCeinture("objets/dague_d_assassin_du_culte")
+-- Sans sac, il reste la ceinture : on la remplit d'abord — avec AUTRE CHOSE
+-- que ce que le filon donne. Remplie de dagues, la recolte de dagues s'y
+-- empilerait : depuis le 13 octobre 2026, ranger complete une pile existante
+-- avant d'ouvrir une case (regle Necronicon, sans pile maximale pas de borne).
+remplirCeinture("ressources/eau")
 local sansPlace, raison = P.Prendre(moi, "filon_cuivre", "minerai")
 attendu("sans place : refus", sansPlace, false)
 attendu("et on dit pourquoi", raison, "aucune place libre.")

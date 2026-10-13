@@ -166,6 +166,44 @@ function Combat.Etat() return Combat.etat end
 
 function Combat.EnCours() return Combat.etat ~= nil end
 
+-- Le plafond est une depense PAR round, pas une baisse de la jauge : les PA
+-- ignores restent dans la fiche et se debloquent tous au dernier round.
+-- On retient le solde au premier regard sur un round pour compter ce qui y a
+-- ete depense, y compris par un deplacement supplementaire. Les defenses
+-- passent par PayerPADefense pour laisser cette tranche intacte.
+local soldesPARound = setmetatable({}, { __mode = "k" })
+function Combat.PADisponibles(entity)
+    local jauge = entity and LCM.Entities.Gauge(entity, "pa")
+    if not jauge then return nil end
+    local etat = Combat.etat
+    local courant = math.max(0, math.floor(tonumber(jauge.current) or 0))
+    local maximum = math.max(0, math.floor(tonumber(jauge.max) or 0))
+    if not etat then return courant, maximum, maximum end
+    local rounds = math.max(1, math.floor(tonumber(etat.rm) or 1))
+    local round = math.max(1, math.floor(tonumber(etat.r) or 1))
+    local tranche = round >= rounds and maximum or math.floor(maximum / rounds + 0.5)
+    local cle = tostring(etat.s) .. ":" .. tostring(etat.t) .. ":" .. tostring(round)
+    local suivi = soldesPARound[entity]
+    if not suivi or suivi.cle ~= cle then
+        suivi = { cle = cle, dernier = courant, depenses = 0 }
+        soldesPARound[entity] = suivi
+    end
+    -- Une restitution de PA ne rend pas une tranche deja depensee.
+    if courant < suivi.dernier then suivi.depenses = suivi.depenses + suivi.dernier - courant end
+    suivi.dernier = courant
+    return math.max(0, math.min(courant, tranche - suivi.depenses)), tranche, maximum
+end
+
+function Combat.PayerPADefense(entity, montant)
+    local jauge = entity and LCM.Entities.Gauge(entity, "pa")
+    if not jauge or montant < 0 or montant > jauge.current then return false end
+    Combat.PADisponibles(entity)
+    local suivi = soldesPARound[entity]
+    -- Avant SetGauge : ses observateurs relisent immediatement le budget.
+    if suivi then suivi.dernier = jauge.current - montant end
+    return LCM.Entities.SetGauge(entity, "pa", jauge.current - montant)
+end
+
 -- Vrai chez le MJ qui tient ce combat.
 function Combat.EstMJ()
     return Combat.etat ~= nil and Combat.etat.mj == Moi()
@@ -304,6 +342,17 @@ local function Appliquer(etat)
     local avant = Combat.etat
     Combat.etat = etat
     RestaurerPADuTour(avant, etat)
+    -- Figer les soldes des fiches locales avant qu'un dot du nouveau round
+    -- retire des PA : cette perte doit compter dans sa tranche.
+    if etat then
+        for _, entree in ipairs(etat.entrees or {}) do
+            if not entree.pnj and entree.id == Moi() then
+                Combat.PADisponibles(LCM.Entities.Personnage())
+            elseif etat.mj == Moi() and entree.pnj and LCM.Incarnation then
+                Combat.PADisponibles(LCM.Incarnation.Instance(entree.id))
+            end
+        end
+    end
     if etat and etat.mj == Moi() then
         AnnoncerChangements(avant, etat)
         SuivreIncarnation()

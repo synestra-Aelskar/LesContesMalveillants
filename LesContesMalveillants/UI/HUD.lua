@@ -376,6 +376,12 @@ local function Construire()
     f.cible.entete:SetScript("OnClick", function(_, bouton)
         if bouton == "RightButton" then MenuUnite("target") end
     end)
+    -- Le portrait compact cache TargetFrame, et avec lui les auras du jeu que
+    -- Blizzard range dessous : ce bouton les rend (UI/Auras.lua).
+    f.cible.aura = UI.Bouton(f.cible, "Aura", CIBLE_L, 22, function()
+        if UI.Auras then UI.Auras.Basculer() end
+    end)
+    f.cible.aura:SetPoint("TOP", f.cible, "BOTTOM", 0, -4)
     f.cible:Hide()
 
     f:Hide()
@@ -479,9 +485,10 @@ end
 
 function Ecran.Actualiser()
     local f = Ecran.frame or Construire()
-    -- Le HUD represente le personnage du joueur, jamais le PNJ qu'un MJ est
-    -- en train d'incarner pour la scene.
-    local entity = LCM.Entities.Personnage()
+    -- Le HUD suit celui qu'on joue, comme toutes les fiches : le PNJ incarne
+    -- s'il y en a un. Il restait sur le personnage du MJ, et c'etait la seule
+    -- fenetre a ne pas changer de corps (13 octobre 2026).
+    local entity = LCM.Entities.Self()
     if not entity then
         f:Hide()
         f.cible:Hide()
@@ -536,8 +543,7 @@ end
 
 -- Les degats, soins et depenses de fatigue se voient immediatement.
 LCM.Entities.Ecouter(function(entity)
-    local personnage = LCM.Entities.Personnage()
-    if entity == personnage then Ecran.Actualiser() end
+    if entity == LCM.Entities.Self() then Ecran.Actualiser() end
 end)
 LCM.Entities.EcouterSoi(function() Ecran.Actualiser() end)
 

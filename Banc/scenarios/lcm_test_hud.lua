@@ -136,4 +136,28 @@ UI.EchelleHUD(50)
 attendu("et 50 ne laisse rien en sauvegarde", LCM.db.settings.echelleHud, nil)
 attendu("  en revenant à la référence", string.format("%.2f", f:GetScale()), "0.72")
 
+dire("== il suit le PNJ incarné, comme les fiches")
+-- Il restait sur le personnage du MJ : la seule fenetre a ne pas changer de
+-- corps quand on incarne (13 octobre 2026).
+local moi = LCM.Entities.Personnage()
+H.Actualiser()
+attendu("avant : le personnage", f.entity == moi, true)
+local garde = LCM.Incarnation.Incarner(LCM.PNJ.list[1].id, "Garde du HUD")
+attendu("le PNJ est incarné", garde ~= nil, true)
+attendu("le HUD passe au PNJ", f.entity == garde, true)
+attendu("  avec son nom", f.nom:GetText(), "Garde du HUD")
+local pv, pvMax = LCM.Body.Totals(garde)
+attendu("  et ses PV", f.total.valeur:GetText(), tostring(pv))
+local fatigue = LCM.Entities.Gauge(garde, "fatigue") or { current = 0, max = 0 }
+attendu("  et sa fatigue", f.fatigue.label:GetText(),
+    string.format("%d / %d", fatigue.current, fatigue.max))
+-- Un changement du PNJ se voit tout de suite, comme pour un personnage :
+-- l'ecoute comparait a Personnage(), et le PNJ n'y passait jamais.
+f.nom:SetText("périmé")
+LCM.Entities.Changed(garde)
+attendu("un changement du PNJ le rafraîchit", f.nom:GetText(), "Garde du HUD")
+LCM.Incarnation.Relacher()
+attendu("relâché : retour au personnage", f.entity == moi, true)
+attendu("  avec son nom", f.nom:GetText(), tostring(moi.name or moi.id))
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

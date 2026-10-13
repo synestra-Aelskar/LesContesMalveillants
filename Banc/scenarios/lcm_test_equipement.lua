@@ -72,6 +72,13 @@ local function viderCeinture()
     end
 end
 -- Sac plein : l'objet porte reste porte, rien ne disparait.
+-- La bague restee dans le sac (la pile de deux, moins celle qu'on porte) est
+-- mise de cote : depuis le 13 octobre 2026, ranger COMPLETE une pile existante
+-- avant d'ouvrir une case, et une bague sans pile maximale s'empilerait sur
+-- elle — c'est voulu (regle Necronicon), mais ce n'est plus un sac plein.
+local resteBague = I.Case(I.Emplacement(moi, "sacs", 1), 3)
+attendu("une bague est restée dans le sac", resteBague and resteBague.ref, "objets/bague_d_essai")
+I.Vider(moi, "sacs", 1, 3)
 remplirCeinture("objets/epee_d_essai")
 for case = 1, 12 do
     if not I.Case(I.Emplacement(moi, "sacs", 1), case) then
@@ -82,6 +89,14 @@ ok, raison = O.Desequiper(moi, "bague_d_essai")
 attendu("sac plein : refuse", ok, false)
 contient("dit pourquoi", raison, "aucune place libre")
 attendu("la bague reste portee", O.Porte(moi, "bague_d_essai"), true)
+-- Et avec sa pile dans le sac, elle la rejoint, meme sac plein.
+I.Vider(moi, "sacs", 1, 3)
+I.Ranger(moi, "sacs", 1, 3, "objets/bague_d_essai", 1)
+ok = O.Desequiper(moi, "bague_d_essai")
+attendu("sac plein mais sa pile est là : elle la rejoint", ok, true)
+attendu("  la pile remonte à deux", I.Case(I.Emplacement(moi, "sacs", 1), 3).quantite, 2)
+O.Equiper(moi, "bague_d_essai")
+I.Vider(moi, "sacs", 1, 3)
 viderCeinture()
 
 dire("== La fenetre : seul ce qui est dans les sacs est propose")

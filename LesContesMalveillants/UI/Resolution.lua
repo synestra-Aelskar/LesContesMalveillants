@@ -1342,7 +1342,7 @@ function Ecran.RendreReaction()
     lignes[#lignes + 1] = string.format("Bonus : |cff9be08f+%d|r%s", a.bonus, a.facteur > 1 and " (doublé)" or "")
     if a.mult ~= 1 then lignes[#lignes + 1] = string.format("|cff9be08fPart fixe x %.2f|r", a.mult) end
     if #a.types > 0 then lignes[#lignes + 1] = "|cff9a9a9aTypes de l'action : " .. table.concat(a.types, ", ") .. "|r" end
-    local dpa, dpf = A.Disponible(recu.entity)
+    local dpa, dpf = A.Disponible(recu.entity, true)
     local manque = (dpa or 0) < pa or (dpf or 0) < pf
     if manque then
         lignes[#lignes + 1] = string.format("|cffff5959Coût : %d PA + %d PF — tu as %d PA / %d PF.|r", pa, pf, dpa or 0, dpf or 0)

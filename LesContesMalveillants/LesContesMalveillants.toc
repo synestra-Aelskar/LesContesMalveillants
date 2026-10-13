@@ -58,6 +58,7 @@ Core\Direct.lua
 Core\Echange.lua
 Core\Campement.lua
 Core\Lieux.lua
+Core\Recolte.lua
 Core\Bannieres.lua
 Core\Defenses.lua
 Core\Expertises.lua
@@ -99,6 +100,7 @@ UI\Document.lua
 UI\Vues.lua
 UI\Experience.lua
 UI\HUD.lua
+UI\Auras.lua
 UI\Inventaires.lua
 UI\Metiers.lua
 UI\Grimoires.lua
@@ -109,6 +111,7 @@ UI\Bourse.lua
 UI\Echange.lua
 UI\Campement.lua
 UI\Banniere.lua
+UI\Recolte.lua
 UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua
