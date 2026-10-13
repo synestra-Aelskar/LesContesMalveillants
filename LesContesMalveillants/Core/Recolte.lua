@@ -450,10 +450,57 @@ function Recolte.Tenter(pointId)
 end
 
 -- Demander ce qu'il y a : a la connexion, et en entrant dans un groupe.
+--
+-- A la connexion, le jeu ne connait pas toujours encore le groupe : IsInGroup
+-- repond faux un instant, et la demande ne partait pas — le joueur ne recevait
+-- rien de ce qui avait ete pose pendant son absence (constate en jeu, 13
+-- octobre 2026). Une demande sans groupe reste donc EN SUSPENS, et part des
+-- que le groupe se fait connaitre (GROUP_ROSTER_UPDATE).
+local demandeEnSuspens = false
 function Recolte.Demander()
     local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
-    if not canal then return false end
+    if not canal then
+        demandeEnSuspens = true
+        return false
+    end
+    demandeEnSuspens = false
     return LCM.Reseau.Envoyer(S.demande, {}, canal)
+end
+function Recolte.DemandeEnSuspens() return demandeEnSuspens end
+
+-- Qui, dans le groupe, est connecte : { [nom] = vrai | faux }. Un membre
+-- deconnecte reste dans la liste du groupe ; c'est son RETOUR qu'on guette.
+function Recolte.Connectes()
+    local etats = {}
+    for _, nom in ipairs((LCM.Combat and LCM.Combat.Membres and LCM.Combat.Membres()) or {}) do
+        etats[nom] = Recolte.EnLigne(nom)
+    end
+    return etats
+end
+
+-- Faire quelque chose dans quelques secondes. OnUpdate plutot que C_Timer,
+-- comme les Lieux : il existe toujours, et le banc sait le faire avancer.
+local plusTard = {}
+local minuterie
+function Recolte.PlusTard(secondes, fn)
+    if not minuterie then
+        minuterie = CreateFrame("Frame", nil, UIParent)
+        minuterie:SetScript("OnUpdate", function(self, ecoule)
+            local maintenant = (GetTime and GetTime()) or 0
+            self.cumul = (self.cumul or 0) + (tonumber(ecoule) or 0)
+            for index = #plusTard, 1, -1 do
+                local t = plusTard[index]
+                if self.cumul >= t.quand then
+                    table.remove(plusTard, index)
+                    pcall(t.fn)
+                end
+            end
+            if #plusTard == 0 then self:Hide() end
+        end)
+    end
+    minuterie.cumul = minuterie.cumul or 0
+    plusTard[#plusTard + 1] = { quand = minuterie.cumul + (tonumber(secondes) or 0), fn = fn }
+    minuterie:Show()
 end
 
 LCM.WhenReady(function()
@@ -527,4 +574,7 @@ end)
 
 LCM.On("GROUP_JOINED", function()
     if not LCM.IsMaster() then Recolte.Demander() end
+end)
+LCM.On("GROUP_ROSTER_UPDATE", function()
+    if LCM.ready and demandeEnSuspens and not LCM.IsMaster() then Recolte.Demander() end
 end)

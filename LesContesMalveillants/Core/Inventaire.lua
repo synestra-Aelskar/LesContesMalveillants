@@ -496,41 +496,18 @@ function Inventaire.Prendre(entity, ref)
     return Inventaire.Vider(entity, categorieId, index, case)
 end
 
--- Ranger une entree SANS dire ou : la premiere case libre venue, tous sacs
--- confondus. C'est ce dont ont besoin la recolte et l'achat, qui donnent un
--- objet sans savoir ce que le joueur a dans ses sacs.
+-- Prevoir ou ranger `quantite` d'une entree dans les CASES des sacs, sans rien
+-- ecrire. Rend le plan et ce qui ne tient pas.
 --
--- Les cases de devise sont sautees : une devise ne se range pas comme un objet,
--- et une herbe n'a rien a faire dans un porte-monnaie.
-function Inventaire.Deposer(entity, ref, quantite)
-    if type(entity) ~= "table" then return false, "aucun personnage." end
-    -- Une tente ne se range pas dans un sac : elle s'equipe, sur le premier
-    -- emplacement de sacoche libre. Sans quoi on ne pourrait ni l'acheter ni
-    -- la recevoir.
-    if tostring(ref or ""):match("^tentes/") then
-        for index = 1, Inventaire.Capacite("saccoches") do
-            if not Inventaire.Emplacement(entity, "saccoches", index) then
-                return Inventaire.Poser(entity, "saccoches", index, ref)
-            end
-        end
-        return false, "aucun emplacement de sacoche libre pour la tente."
-    end
-    quantite = tonumber(quantite or 1)
-    if not quantite or quantite < 1 or quantite ~= math.floor(quantite) then
-        return false, "quantité illisible : un nombre entier, 1 au moins."
-    end
-    -- Ce qui s'empile COMPLETE d'abord les piles deja la, jusqu'a leur
-    -- maximum, et n'ouvre une case que pour le reste. Chaque eau recoltee
-    -- ouvrait sa propre case : « Eau », « Eau x9 », « Eau »… (13 octobre 2026).
-    -- Sans pile maximale, une entree s'empile sans borne (Inventaire.Quantite).
+-- Ce qui s'empile COMPLETE d'abord les piles deja la, jusqu'a leur maximum, et
+-- n'ouvre une case que pour le reste. Chaque eau recoltee ouvrait sa propre
+-- case : « Eau », « Eau x9 », « Eau »… (13 octobre 2026). Sans pile maximale,
+-- une entree s'empile sans borne (Inventaire.Quantite).
+local function PrevoirCases(entity, ref, quantite)
     local element = LCM.Compendium.Resoudre(ref)
     local pileMax = element and element.pileMax
     local reste = quantite
     local plan = {}
-
-    -- On PREVOIT avant d'ecrire : tout tient, ou rien ne bouge. Les appelants
-    -- (recolte, achat, echange) rendent ce qu'ils ont pris quand ca echoue,
-    -- et une moitie rangee serait une moitie dupliquee.
     for _, categorie in ipairs(Inventaire.categories) do
         for index = 1, Inventaire.Capacite(categorie.id) do
             local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
@@ -568,8 +545,92 @@ function Inventaire.Deposer(entity, ref, quantite)
             end
         end
     end
-    if reste > 0 then return false, "aucune place libre." end
+    return plan, reste
+end
 
+-- Prevoir ou PORTER des contenants : un sac, une sacoche ou une ceinture
+-- s'equipe dans l'emplacement fait pour lui avant d'etre range comme un objet.
+-- Range comme un objet, un sac achete echouait : sans sac porte, ou avec des
+-- sacoches seulement (qui ne contiennent pas de sac), il n'avait nulle part ou
+-- aller (13 octobre 2026). Rend le plan et combien restent a ranger en case.
+local function PrevoirEmplacements(entity, sac, quantite)
+    local nature = LCM.Sacs.Nature(sac)
+    -- Ou chaque nature se porte, dans l'ordre de preference : une sacoche
+    -- prefere sa place de sacoche, et garde les emplacements de sac pour les
+    -- sacs.
+    local rangees = nature == "ceinture" and { "ceintures" }
+        or nature == "sacoche" and { "saccoches", "sacs" }
+        or { "sacs" }
+    local plan, reste = {}, quantite
+    for _, categorieId in ipairs(rangees) do
+        local categorie = Inventaire.Get(categorieId)
+        for index = 1, Inventaire.Capacite(categorieId) do
+            if reste > 0 then
+                local e = Inventaire.Emplacement(entity, categorieId, index)
+                -- La ceinture existe toujours (ses cases de base) : elle est
+                -- libre tant qu'aucun objet ceinture n'y est pose.
+                local libre = (categorie and categorie.ceinture) and not (e and e.sac) or not e
+                if libre then
+                    plan[#plan + 1] = { categorie = categorieId, index = index }
+                    reste = reste - 1
+                end
+            end
+        end
+    end
+    return plan, reste
+end
+
+-- Ranger une entree SANS dire ou. C'est ce dont ont besoin la recolte, l'achat
+-- et l'echange, qui donnent un objet sans savoir ce que le joueur a sur lui.
+--
+-- Les cases de devise sont sautees : une devise ne se range pas comme un objet,
+-- et une herbe n'a rien a faire dans un porte-monnaie.
+--
+-- On PREVOIT avant d'ecrire : tout tient, ou rien ne bouge. Les appelants
+-- rendent ce qu'ils ont pris quand ca echoue, et une moitie rangee serait une
+-- moitie dupliquee.
+function Inventaire.Deposer(entity, ref, quantite)
+    if type(entity) ~= "table" then return false, "aucun personnage." end
+    -- Une tente ne se range pas dans un sac : elle s'equipe, sur le premier
+    -- emplacement de sacoche libre. Sans quoi on ne pourrait ni l'acheter ni
+    -- la recevoir.
+    if tostring(ref or ""):match("^tentes/") then
+        for index = 1, Inventaire.Capacite("saccoches") do
+            if not Inventaire.Emplacement(entity, "saccoches", index) then
+                return Inventaire.Poser(entity, "saccoches", index, ref)
+            end
+        end
+        return false, "aucun emplacement de sacoche libre pour la tente."
+    end
+    quantite = tonumber(quantite or 1)
+    if not quantite or quantite < 1 or quantite ~= math.floor(quantite) then
+        return false, "quantité illisible : un nombre entier, 1 au moins."
+    end
+
+    -- Un contenant se PORTE d'abord, la ou sa nature le veut ; ce qui ne
+    -- trouve pas d'emplacement libre se range ensuite comme un objet.
+    local portes, aRanger = {}, quantite
+    local sacId = tostring(ref or ""):match("^sacs/(.+)$")
+    local sac = sacId and LCM.Sacs.Get(sacId)
+    if sac then portes, aRanger = PrevoirEmplacements(entity, sac, quantite) end
+
+    local plan, reste = {}, 0
+    if aRanger > 0 then plan, reste = PrevoirCases(entity, ref, aRanger) end
+    if reste > 0 then
+        if sac then
+            local nature = LCM.Sacs.Nature(sac)
+            local ou = nature == "ceinture" and "l'emplacement Ceinture est déjà pris"
+                or nature == "sacoche" and "aucun emplacement de sacoche ou de sac libre"
+                or "aucun emplacement de sac libre"
+            return false, ou .. ", et aucun sac ne peut le contenir."
+        end
+        return false, "aucune place libre."
+    end
+
+    for _, etape in ipairs(portes) do
+        local ok, raison = Inventaire.Poser(entity, etape.categorie, etape.index, sac.id)
+        if not ok then return false, raison end
+    end
     for _, etape in ipairs(plan) do
         if etape.pile then
             etape.pile.quantite = etape.quantite

@@ -383,9 +383,16 @@ function Marchands.Signaler(auteur)
     return LCM.Reseau.Envoyer(S.signaler, { l = table.concat(morceaux, ",") }, "WHISPER", auteur)
 end
 
+-- Sans groupe connu encore (juste apres la connexion), la demande attend que
+-- le groupe se fasse connaitre : meme piege que la recolte.
+local demandeEnSuspens = false
 function Marchands.Demander()
     local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
-    if not canal then return false end
+    if not canal then
+        demandeEnSuspens = true
+        return false
+    end
+    demandeEnSuspens = false
     return LCM.Reseau.Envoyer(S.demande, {}, canal)
 end
 
@@ -464,4 +471,7 @@ end)
 
 LCM.On("GROUP_JOINED", function()
     if not LCM.IsMaster() then Marchands.Demander() end
+end)
+LCM.On("GROUP_ROSTER_UPDATE", function()
+    if LCM.ready and demandeEnSuspens and not LCM.IsMaster() then Marchands.Demander() end
 end)

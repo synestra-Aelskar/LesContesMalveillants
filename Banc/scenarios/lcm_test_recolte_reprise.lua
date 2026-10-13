@@ -100,4 +100,21 @@ __groupe({ LCM.PlayerId(), "Claydenn-Apertus", "A-Apertus", "B-Apertus", "C-Aper
 __declencher("GROUP_ROSTER_UPDATE")
 attendu("des points partent au groupe", #Envois(DEF, avant) > 0, true)
 
+dire("== groupe permanent : celui qui se RECONNECTE est servi")
+-- Le groupe ne se defait jamais (constate en jeu, 13 octobre 2026) : un joueur
+-- deconnecte reste dans la liste, et a son retour il n'etait pas « nouveau ».
+-- Rien ne lui partait des points poses pendant son absence.
+__groupe({ LCM.PlayerId(), "Claydenn-Apertus" })
+__declencher("GROUP_ROSTER_UPDATE")
+UnitIsConnected = function(unite) return (UnitName(unite)) ~= "Claydenn" end
+__declencher("UNIT_CONNECTION")
+avant = #__envois
+UnitIsConnected = nil
+__declencher("UNIT_CONNECTION")
+attendu("pas tout de suite : son addon charge encore", #Envois(DEF, avant), 0)
+__avancer(6)
+local servi = Envois(DEF, avant)
+attendu("quelques secondes après, il est servi", #servi, 1)
+attendu("  à lui seul", servi[1] and servi[1].cible, "Claydenn-Apertus")
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

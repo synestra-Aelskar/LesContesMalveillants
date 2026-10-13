@@ -330,13 +330,27 @@ local servis = {}
 -- diffusion au groupe coute moins qu'un chuchotement par tete.
 local ARRIVANTS_GROUPES = 3
 
+-- Un membre DECONNECTE reste dans la liste du groupe : a son retour, il
+-- n'etait pas « nouveau », et rien ne lui partait (constate en jeu, 13
+-- octobre 2026). On retient donc qui est connecte : un nouveau venu est servi
+-- tout de suite ; celui qui revient l'est quelques secondes plus tard, le
+-- temps que son addon soit pret a ecouter. Il demande aussi de lui-meme a sa
+-- connexion — ceci est le filet.
+local DELAI_RETOUR = 5
+
 function Recoltes.Accueillir()
-    local presents, nouveaux = {}, {}
-    for _, nom in ipairs(LCM.Combat.Membres()) do
-        presents[nom] = true
-        if not servis[nom] then nouveaux[#nouveaux + 1] = nom end
+    local etats = R.Connectes()
+    local nouveaux, revenus = {}, {}
+    for nom, enLigne in pairs(etats) do
+        if enLigne and servis[nom] == nil then nouveaux[#nouveaux + 1] = nom
+        elseif enLigne and servis[nom] == false then revenus[#revenus + 1] = nom end
     end
-    servis = presents
+    servis = etats
+    for _, nom in ipairs(revenus) do
+        R.PlusTard(DELAI_RETOUR, function()
+            if R.EnLigne(nom) then Recoltes.Renvoyer(nom) end
+        end)
+    end
     if #nouveaux == 0 then return 0 end
     if #nouveaux > ARRIVANTS_GROUPES then return Recoltes.Renvoyer() end
     local n = 0
@@ -345,6 +359,10 @@ function Recoltes.Accueillir()
 end
 
 LCM.On("GROUP_ROSTER_UPDATE", function()
+    if LCM.ready and LCM.IsMaster() then Recoltes.Accueillir() end
+end)
+-- Un membre se connecte ou se deconnecte sans que la liste change.
+LCM.On("UNIT_CONNECTION", function()
     if LCM.ready and LCM.IsMaster() then Recoltes.Accueillir() end
 end)
 
