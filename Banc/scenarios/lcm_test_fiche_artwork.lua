@@ -18,7 +18,10 @@ local _, _, _, artX = f.artwork.art:GetPoint(1)
 assert(artX >= 2, "l'image laisse la place au cadre")
 assert(not f.artwork.inconscient:IsShown(), "artwork normal quand le personnage vit")
 local _, _, _, ongletsX = f.barre:GetPoint(1)
-assert(ongletsX == 24 and f.barre:GetWidth() == f:GetWidth() - 72, "onglets rentres dans le cadre")
+-- 13 octobre 2026 : les onglets ne sont plus rentres de 24 de chaque cote.
+-- Ils s'alignent sur les blocs, comme ceux des Expertises (demande en jeu :
+-- « pas propres et pas places correctement »).
+assert(ongletsX == 0 and f.barre:GetWidth() == f:GetWidth() - 24, "onglets alignes sur les blocs")
 local enc = LCM.UI.AelEncoches(f)
 if enc then
     local pc, _, rc, canalX, canalY = f.canal:GetPoint(1)
@@ -36,7 +39,8 @@ f:Afficher("traits")
 -- est retenu.
 assert(f:GetWidth() == 340, "traits : meme largeur")
 assert(f.artwork:IsShown(), "traits : le volet reste ouvert d'un onglet a l'autre")
-assert(f.barre:GetWidth() == 268, "onglets compacts dans le cadre")
+-- 268 -> 316 le 13 octobre 2026 : plus de retrait de 24 de chaque cote.
+assert(f.barre:GetWidth() == 316, "onglets sur toute la largeur du contenu")
 f.replierArtwork:Click()
 assert(not f.artwork:IsShown(), "et c'est son bouton qui le replie")
 f.replierArtwork:Click()

@@ -82,16 +82,22 @@ end
 -- viennent de la race, d'un trait ou de l'equipement — et c'est la premiere
 -- question qu'on se pose devant une fiche (5 octobre 2026).
 --
--- Rend une liste { nom, total }, dans l'ordre de declaration des sources, en
--- ne gardant que celles qui apportent quelque chose.
+-- Rend une liste { nom, total, elements = { { label, montant } } }, dans
+-- l'ordre de declaration des sources, en ne gardant que celles qui apportent
+-- quelque chose.
 function Effets.Detail(entity, fieldId)
     local cible, out = tostring(fieldId), {}
     for _, source in ipairs(Effets.sources) do
-        local total = 0
+        local total, elements = 0, {}
         for _, element in ipairs(source.portes(entity)) do
-            total = total + Apport(source, entity, element, cible)
+            local montant = Apport(source, entity, element, cible)
+            total = total + montant
+            -- Un par un : « Traits +3 » ne dit pas lequel des traits le donne.
+            if montant ~= 0 then
+                elements[#elements + 1] = { label = element.label, montant = montant }
+            end
         end
-        if total ~= 0 then out[#out + 1] = { nom = source.nom, total = total } end
+        if total ~= 0 then out[#out + 1] = { nom = source.nom, total = total, elements = elements } end
     end
     return out
 end

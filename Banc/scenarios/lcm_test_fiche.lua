@@ -83,6 +83,35 @@ attendu("les deux qui se lancent", table.concat(habilites, ","), "adresse,esprit
 attendu("et les quatre qui se lisent", table.concat(stats, ","),
     "force,mystique,perception,constitution")
 
+dire("== le survol d'une statistique reprend le style de la fiche")
+local force = page.blocs[3].lignes[1]
+LCM.UI.Fiche.Bulle(force, "Force", LCM.UI.Fiche.Decomposition(moi, force.field, 2, 0))
+force:GetScript("OnEnter")(force)
+local bulle = LCM.UI.Infobulle()
+attendu("la bulle nomme la statistique", bulle.titre:GetText(), "Force")
+-- Les points un par un, texte a gauche et valeur a droite, le total en
+-- dernier (demande du 13 octobre 2026 : le total ouvrait la bulle).
+attendu("la premiere ligne dit ce qui est investi", bulle.lignes[1]:GetText(), "Points investis")
+attendu("sa valeur est a droite", bulle.droites[1]:GetText(), "2")
+local derniere = bulle.nombreLignes
+attendu("le total ferme la bulle", bulle.lignes[derniere]:GetText(), "Total")
+attendu("avec sa valeur a droite", bulle.droites[derniere]:GetText() ~= nil, true)
+attendu("un filet separe le total", bulle.filets[derniere - 1]:IsShown(), true)
+-- Une source qui donne quelque chose se lit element par element.
+local detail = LCM.UI.Fiche.Decomposition(moi, { id = "force" }, 0, 0)
+for _, ligne in ipairs(detail) do
+    attendu("une ligne par element : " .. ligne[1], ligne[1]:find(" · ", 1, true) ~= nil, true)
+end
+attendu("elle utilise le fond de l'interface", bulle.fond.__color[1], LCM.UI.C.fond[1])
+attendu("elle est visible", bulle:IsShown(), true)
+force:GetScript("OnLeave")(force)
+attendu("elle disparait en quittant la ligne", bulle:IsShown(), false)
+bulle:SetText("Court")
+local largeurCourte = bulle:GetWidth()
+bulle:SetText("Une longue infobulle partagee entre plusieurs survols")
+attendu("une autre bulle peut s'elargir", bulle:GetWidth() > largeurCourte, true)
+bulle:Hide()
+
 dire("== rien ne traine a droite d'une ligne")
 -- Le gabarit arrete sa derniere colonne a 762 unites sur 786 ; reportees
 -- telles quelles, ces 24 unites laissaient une bande vide entre le dernier

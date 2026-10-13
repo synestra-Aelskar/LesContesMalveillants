@@ -193,7 +193,17 @@ function Entities.Gauge(entity, fieldId)
         end
         return { current = 0, max = 0 }
     end
-    local maximum = (type(stored) == "table" and tonumber(stored.max)) or nil
+    -- Un maximum retenu ne passe devant la formule que s'il a ete IMPOSE (un PNJ
+    -- costaud) ou s'il arrive du reseau, ou la formule n'a pas tout ce qu'il
+    -- faut. Jusqu'au 13 octobre 2026, SetGauge recopiait le maximum du moment a
+    -- chaque depense : il restait fige, et ni le niveau, ni les points
+    -- secondaires, ni un objet ne le faisaient plus bouger. Ces anciens
+    -- maximums sans `maxImpose` sont ignores, la formule reprend la main.
+    local maximum
+    if type(stored) == "table" and (stored.maxImpose or entity.distante
+        or type(field.maxFormula) ~= "function") then
+        maximum = tonumber(stored.max)
+    end
     if not maximum and type(field.maxFormula) == "function" then
         local ok, value = pcall(field.maxFormula, entity)
         if ok then maximum = math.floor(tonumber(value) or 0) end
@@ -219,13 +229,24 @@ function Entities.SetGauge(entity, fieldId, current, maximum)
         return ecrit
     end
     local gauge = Entities.Gauge(entity, fieldId)
+    local stored = entity.values[field.id]
     local newMax = tonumber(maximum) or gauge.max
     local newCurrent = math.max(0, math.min(tonumber(current) or gauge.current, newMax))
     local depart = tonumber(field.default) or newMax
-    if newCurrent == depart and newMax == (tonumber(field.max) or 0) then
+    -- Une jauge a formule ne retient son maximum que s'il est impose, par cet
+    -- appel ou par un precedent : sinon on le figerait (voir Entities.Gauge).
+    local impose = type(field.maxFormula) == "function"
+        and (tonumber(maximum) ~= nil or (type(stored) == "table" and stored.maxImpose == true))
+    if type(field.maxFormula) == "function" and not impose then
+        if newCurrent == depart then
+            entity.values[field.id] = nil
+        else
+            entity.values[field.id] = { current = newCurrent }
+        end
+    elseif not impose and newCurrent == depart and newMax == (tonumber(field.max) or 0) then
         entity.values[field.id] = nil
     else
-        entity.values[field.id] = { current = newCurrent, max = newMax }
+        entity.values[field.id] = { current = newCurrent, max = newMax, maxImpose = impose or nil }
     end
     Entities.Changed(entity, field.id)
     return true

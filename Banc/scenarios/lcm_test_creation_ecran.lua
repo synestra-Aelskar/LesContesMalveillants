@@ -395,9 +395,12 @@ local function lire(champ) return __sansCouleur(secDe(champ).total:GetText()) en
 attendu("vitalite : des PV", lire("sec_vitalite"):find("PV") ~= nil, true)
 attendu("fatigue : de la fatigue", lire("sec_fatigue"):find("fatigue") ~= nil, true)
 attendu("initiative", lire("sec_initiative"):find("init%.") ~= nil, true)
--- Quatre de base, plus ce qui a ete investi.
-attendu("points d'action : quatre de base plus l'investi", lire("sec_pa"),
-    string.format("%d PA", LCM.Equilibrage.pa.base + LCM.Creation.Valeur(f.brouillon, "sec_pa")))
+-- Quatre de base, un de plus par tranche de 5 niveaux (depuis le 13 octobre
+-- 2026 : la creation se fait au niveau 5, d'ou un PA de plus), plus l'investi.
+local paliersPA = math.floor((tonumber(f.brouillon.niveau) or 1) / LCM.Equilibrage.pa.niveauxParPA)
+attendu("la creation part bien du niveau 5", f.brouillon.niveau, 5)
+attendu("points d'action : base, palier de niveau, investi", lire("sec_pa"),
+    string.format("%d PA", LCM.Equilibrage.pa.base + paliersPA + LCM.Creation.Valeur(f.brouillon, "sec_pa")))
 -- Terrestre 8 + 2 secondaires + la Course, Nage 5 + 2 + la Nage, Vol 0 + 2.
 -- Depuis le 11 octobre 2026 une expertise donne un DEMI-yard par point sur sa
 -- valeur TOTALE : la Course et la Nage sont nourries par la Force et

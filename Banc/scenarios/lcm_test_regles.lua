@@ -75,10 +75,39 @@ attendu("+ 2 points secondaires", E.Get_Value(moi, "depl_terrestre"), 13)
 -- ignorait donc ce que la Force y apporte.
 attendu("nage", E.Get_Value(moi, "depl_nage"), 8)
 
-dire("== points d'action (4 + secondaires)")
-attendu("PA max", E.Gauge(moi, "pa").max, 4)
+dire("== points d'action (4 + 1 tous les 5 niveaux + secondaires)")
+-- 4 -> 5 le 13 octobre 2026 : un PA de plus par tranche de 5 niveaux, et ce
+-- personnage est niveau 5. Les paliers sont verifies juste en dessous.
+attendu("PA max", E.Gauge(moi, "pa").max, 5)
+local niveauAvant = E.Get_Value(moi, "niveau")
+for _, cas in ipairs({ { 1, 4 }, { 4, 4 }, { 5, 5 }, { 9, 5 }, { 10, 6 }, { 15, 7 } }) do
+    E.Set_Value(moi, "niveau", cas[1])
+    attendu("PA max au niveau " .. cas[1], E.Gauge(moi, "pa").max, cas[2])
+end
+E.Set_Value(moi, "niveau", niveauAvant)
 E.Set_Value(moi, "sec_pa", 1)
-attendu("PA max + 1 secondaire", E.Gauge(moi, "pa").max, 5)
+attendu("PA max + 1 secondaire", E.Gauge(moi, "pa").max, 6)
+
+dire("== une jauge entamee suit encore sa formule")
+-- Le bug du 13 octobre 2026 : depenser un PA recopiait le maximum du moment
+-- dans la sauvegarde, et la fiche restait a 5 quand la creation montrait 6.
+E.SetGauge(moi, "pa", E.Gauge(moi, "pa").current - 1)
+attendu("la depense ne retient pas le maximum", moi.values.pa.max, nil)
+E.Set_Value(moi, "niveau", 10)
+attendu("le niveau monte, le maximum suit", E.Gauge(moi, "pa").max, 7)
+attendu("ce qui reste ne bouge pas", E.Gauge(moi, "pa").current, 5)
+E.Set_Value(moi, "niveau", niveauAvant)
+-- Une sauvegarde d'avant le correctif : un maximum fige, sans maxImpose.
+moi.values.pa = { current = 3, max = 5 }
+attendu("un ancien maximum fige est ignore", E.Gauge(moi, "pa").max, 6)
+attendu("son courant est garde", E.Gauge(moi, "pa").current, 3)
+-- Un maximum impose expres (un PNJ costaud) reste, meme apres une depense.
+E.SetGauge(moi, "pa", 9, 9)
+E.SetGauge(moi, "pa", 8)
+attendu("un maximum impose tient", E.Gauge(moi, "pa").max, 9)
+attendu("et passe devant la formule", E.Gauge(moi, "pa").current, 8)
+moi.values.pa = nil
+attendu("sans rien de retenu, la jauge est pleine", E.Gauge(moi, "pa").current, 6)
 
 dire("== initiative (secondaires + niveau/2 + esprit/2 + perception/2)")
 -- 0 + 2,5 + 1 + 3 = 6,5 -> 6
@@ -97,7 +126,8 @@ attendu("force saisie inchangee", E.Get_Value(moi, "force"), 4)
 -- Course : 3 + (0,25 x 6 + 0,25 x 3 = 2,25 -> 2) + 2 (trait) = 7
 attendu("course monte", F.Expertise(moi, "course"), 7)
 attendu("terrestre + 1 (objet)", E.Get_Value(moi, "depl_terrestre"), 14)
-attendu("PA + 1 (objet)", E.Gauge(moi, "pa").max, 6)
+-- 6 -> 7 le 13 octobre 2026 : le palier du niveau 5 (voir plus haut).
+attendu("PA + 1 (objet)", E.Gauge(moi, "pa").max, 7)
 
 dire("== un trait ne donne toujours pas de primaire")
 local ok = pcall(LCM.Traits.Add, { id = "triche", label = "Triche", bonus = { force = 1 } })

@@ -12,6 +12,7 @@
 
 local _, LCM = ...
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 local C = LCM.Creation
 
 local Ecran = {}

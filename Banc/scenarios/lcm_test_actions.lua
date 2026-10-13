@@ -84,7 +84,9 @@ attendu("titre", f.titre:GetText(), "Composer mon attaque")
 -- Une seule icone : celle du bouton du lanceur, pas l'icone WoW importee.
 attendu("icone du bouton dans le composeur", f.icone:GetTexture(), R.Trouver("attaque_simple").icone)
 attendu("premiere question", f.question:GetText():find("Type d'action", 1, true) ~= nil, true)
-attendu("PA : rien d'engage sur 4", f.pa.valeur:GetText(), "0 / 4")
+-- Sur 5 et non plus 4 depuis le 13 octobre 2026 : le personnage est niveau 5,
+-- et le niveau 5 donne un PA de plus (Equilibrage.pa.niveauxParPA).
+attendu("PA : rien d'engage sur 5", f.pa.valeur:GetText(), "0 / 5")
 attendu("on ne passe pas sans repondre", f.suivant:IsEnabled(), false)
 
 local function choisir(libelle)
@@ -101,7 +103,7 @@ attendu("le recapitulatif le note", f.recapLignes[1]:IsShown() and f.recapLignes
 f.suivant:Click()
 attendu("la question suivante depend du choix", f.question:GetText():find("Poids (CaC)", 1, true) ~= nil, true)
 choisir("CaC puissant")
-attendu("le cout s'affiche", f.pa.valeur:GetText(), "2 / 4")
+attendu("le cout s'affiche", f.pa.valeur:GetText(), "2 / 5")
 attendu("et la fatigue", f.pf.valeur:GetText():match("^3 /") ~= nil, true)
 f.suivant:Click()
 choisir("Rand Adresse") f.suivant:Click()
@@ -152,7 +154,7 @@ attendu("sans cible, on ne declare pas", C.declarer:IsEnabled(), false)
 C.joueurs.lignes[1]:Click()
 C.joueurs.lignes[2]:Click()
 attendu("une seule cible a la fois", C.joueurs.lignes[1]:EstCochee(), false)
-attendu("le cout reste celui du composeur", C.pa.valeur:GetText(), "2 / 4")
+attendu("le cout reste celui du composeur", C.pa.valeur:GetText(), "2 / 5")
 local n = #__envois
 C.declarer:Click()
 attendu("PA debites", E.Gauge(moi, "pa").current, paAvant - 2)

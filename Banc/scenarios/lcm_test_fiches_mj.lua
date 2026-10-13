@@ -120,7 +120,7 @@ attendu("sept onglets de consultation", #consultation.barre.boutons, 7)
 attendu("Fiche reprend l'icone du radial", consultation.barre.boutons[1].icone.__texture,
     LCM.UI.Menu.Trouver("fiche").icone)
 consultation.barre.boutons[2]:GetScript("OnEnter")(consultation.barre.boutons[2])
-attendu("le survol nomme l'onglet", GameTooltip.__text, "Santé")
+attendu("le survol nomme l'onglet", LCM.UI.Infobulle().titre:GetText(), "Santé")
 consultation.barre.boutons[2]:GetScript("OnLeave")(consultation.barre.boutons[2])
 attendu("Fiche est l'onglet actif", consultation.barre.boutons[1].__selectionne, true)
 attendu("les autres onglets sont grisés", consultation.barre.boutons[2].__selectionne, false)

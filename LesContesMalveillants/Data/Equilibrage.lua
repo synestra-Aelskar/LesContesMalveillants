@@ -159,8 +159,10 @@ E.puissanceMecanique = {
     parMecanique = {},
 }
 
--- Points d'action max = base + points secondaires investis.
-E.pa = { base = 4 }
+-- Points d'action max = base + 1 par palier de niveaux + points secondaires
+-- investis. Le palier est entier : 4 PA du niveau 1 au 4, 5 au niveau 5, 6 au
+-- niveau 10. Pas dans le template : demande de l'equipe le 13 octobre 2026.
+E.pa = { base = 4, niveauxParPA = 5 }
 
 -- Deplacement = base + points investis dans l'expertise (Course / Nage)
 --             + parSecondaire x points secondaires « Deplacement ».

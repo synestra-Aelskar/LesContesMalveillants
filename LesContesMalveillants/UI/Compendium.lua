@@ -24,6 +24,7 @@
 
 local _, LCM = ...
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 local C = LCM.Compendium
 
 local Fenetre = {}

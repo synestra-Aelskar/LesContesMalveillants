@@ -27,6 +27,7 @@
 
 local _, LCM = ...
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 
 local Radial = {}
 UI.Radial = Radial

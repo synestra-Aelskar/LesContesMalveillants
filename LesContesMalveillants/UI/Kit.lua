@@ -75,6 +75,156 @@ function UI.Texte(parent, texte, couleur, gabarit)
     return fs
 end
 
+-- Infobulle commune aux ecrans de l'addon. Elle reprend le fond sombre, le
+-- filet dore et la palette du Kit sans modifier les infobulles du jeu.
+function UI.Infobulle()
+    if UI.infoBulle then return UI.infoBulle end
+    local bulle = CreateFrame("Frame", "LCM_Infobulle", UIParent)
+    bulle:SetFrameStrata("TOOLTIP")
+    bulle:SetClampedToScreen(true)
+    bulle.fond = UI.Aplat(bulle, { UI.C.fond[1], UI.C.fond[2], UI.C.fond[3], 0.98 })
+    bulle.fond:SetAllPoints(bulle)
+    UI.Bordure(bulle, { UI.C.bordure[1], UI.C.bordure[2], UI.C.bordure[3], 0.8 })
+    bulle.titre = UI.Texte(bulle, "", UI.C.titre, "GameFontNormal")
+    bulle.titre:SetPoint("TOPLEFT", bulle, "TOPLEFT", 11, -9)
+    bulle.titre:SetWordWrap(true)
+    bulle.lignes = {}
+    -- Colonne de droite (AddDoubleLine) et filets (AddFilet), indexes comme
+    -- les lignes : une ligne a l'un, l'autre, ou rien.
+    bulle.droites = {}
+    bulle.filets = {}
+    bulle.nombreLignes = 0
+
+    function bulle:SetOwner(cible, ancre)
+        self:Hide()
+        self:ClearLines()
+        self:ClearAllPoints()
+        if ancre == "ANCHOR_LEFT" then
+            self:SetPoint("TOPRIGHT", cible, "TOPLEFT", -10, 0)
+        elseif ancre == "ANCHOR_BOTTOM" then
+            self:SetPoint("TOP", cible, "BOTTOM", 0, -10)
+        else
+            self:SetPoint("TOPLEFT", cible, "TOPRIGHT", 10, 0)
+        end
+    end
+
+    function bulle:ClearLines()
+        self.nombreLignes = 0
+        self.titre:SetText("")
+        for _, ligne in ipairs(self.lignes) do ligne:Hide() end
+        for _, droite in pairs(self.droites) do droite:Hide() end
+        for _, filet in pairs(self.filets) do filet:Hide() end
+    end
+
+    function bulle:Mesurer()
+        -- Les textes reutilises gardent leur ancienne largeur : la remettre a
+        -- la limite avant de mesurer, sinon une bulle courte retrecit la suivante.
+        self.titre:SetWidth(300)
+        for i = 1, self.nombreLignes do self.lignes[i]:SetWidth(300) end
+        local largeur = self.titre:GetStringWidth() or 0
+        -- La colonne de droite est commune : ses valeurs s'alignent toutes sur
+        -- le bord, et le texte de gauche garde toute la place qui reste.
+        local droiteMax = 0
+        for i = 1, self.nombreLignes do
+            local droite = self.droites[i]
+            if droite and droite:IsShown() then
+                droiteMax = math.max(droiteMax, droite:GetStringWidth() or 0)
+            end
+        end
+        for i = 1, self.nombreLignes do
+            local l = self.lignes[i]:GetStringWidth() or 0
+            local droite = self.droites[i]
+            if droite and droite:IsShown() then l = l + 16 + droiteMax end
+            largeur = math.max(largeur, l)
+        end
+        largeur = math.max(85, math.min(300, largeur))
+        self.titre:SetWidth(largeur)
+        local y = 9 + (self.titre:GetStringHeight() or 0) + 5
+        for i = 1, self.nombreLignes do
+            local ligne, droite, filet = self.lignes[i], self.droites[i], self.filets[i]
+            local double = droite and droite:IsShown()
+            ligne:SetWidth(double and (largeur - droiteMax - 16) or largeur)
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", self, "TOPLEFT", 11, -y)
+            if double then
+                droite:ClearAllPoints()
+                droite:SetPoint("TOPRIGHT", self, "TOPRIGHT", -11, -y)
+            end
+            if filet and filet:IsShown() then
+                filet:ClearAllPoints()
+                filet:SetPoint("TOPLEFT", self, "TOPLEFT", 11, -(y + 3))
+                filet:SetSize(largeur, 1)
+            end
+            y = y + math.max(6, ligne:GetStringHeight() or 0) + 3
+        end
+        self:SetSize(largeur + 22, y + 6)
+    end
+
+    function bulle:SetText(texte, r, g, b)
+        self:ClearLines()
+        self.titre:SetText(tostring(texte or ""))
+        local c = UI.C.titre
+        self.titre:SetTextColor(r or c[1], g or c[2], b or c[3])
+        self:Mesurer()
+    end
+
+    function bulle:AddLine(texte, r, g, b)
+        self.nombreLignes = self.nombreLignes + 1
+        local i = self.nombreLignes
+        if not self.lignes[i] then
+            self.lignes[i] = UI.Texte(self, "", UI.C.texte, "GameFontNormalSmall")
+            self.lignes[i]:SetWordWrap(true)
+        end
+        local ligne = self.lignes[i]
+        -- Une ligne reutilisee a pu servir de colonne gauche, qui ne passe pas
+        -- a la ligne.
+        ligne:SetWordWrap(true)
+        local c = UI.C.texte
+        ligne:SetText(tostring(texte or ""))
+        ligne:SetTextColor(r or c[1], g or c[2], b or c[3])
+        ligne:Show()
+        self:Mesurer()
+        return i
+    end
+
+    -- Meme signature que celle du jeu : le texte a gauche, la valeur alignee
+    -- a droite.
+    function bulle:AddDoubleLine(gauche, droite, lr, lg, lb, dr, dg, db)
+        local i = self:AddLine(gauche, lr, lg, lb)
+        self.lignes[i]:SetWordWrap(false)
+        if not self.droites[i] then
+            self.droites[i] = UI.Texte(self, "", UI.C.texte, "GameFontNormalSmall")
+            self.droites[i]:SetJustifyH("RIGHT")
+            self.droites[i]:SetWordWrap(false)
+        end
+        local c = UI.C.texte
+        self.droites[i]:SetText(tostring(droite or ""))
+        self.droites[i]:SetTextColor(dr or c[1], dg or c[2], db or c[3])
+        self.droites[i]:Show()
+        self:Mesurer()
+        return i
+    end
+
+    -- Un filet dore fin, pour separer un total de ce qui le compose.
+    function bulle:AddFilet()
+        local i = self:AddLine("")
+        if not self.filets[i] then
+            self.filets[i] = self:CreateTexture(nil, "ARTWORK")
+            local b = UI.C.bordure
+            self.filets[i]:SetColorTexture(b[1], b[2], b[3], 0.5)
+        end
+        self.filets[i]:Show()
+        self:Mesurer()
+        return i
+    end
+
+    bulle:Hide()
+    UI.infoBulle = bulle
+    return bulle
+end
+
+local GameTooltip = UI.Infobulle()
+
 -- Capitales avec leurs accents : string.upper ne connait que l'ASCII, il
 -- laisserait « é » en minuscule au milieu d'un titre.
 local CAPITALES = { ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["ë"] = "Ë", ["à"] = "À", ["â"] = "Â",
@@ -554,6 +704,35 @@ function UI.BandeauOnglets(parent, onglets, onChange)
             courante.boutons[#courante.boutons + 1] = { bouton = b, largeur = l }
             courante.naturelle = courante.naturelle + l
             x = x + l + 6
+        end
+        -- Sur plusieurs rangees : une GRILLE, tous les onglets de la meme
+        -- largeur. Justifiee rangee par rangee, la bande donnait deux grands
+        -- onglets en haut et un petit seul en dessous (Expertises, 13 octobre
+        -- 2026). Autant de colonnes que le plus long libelle le permet ; la
+        -- derniere rangee, incomplete, est centree.
+        if #rangees > 1 then
+            local plusLarge = 0
+            for _, rangee in ipairs(rangees) do
+                for _, info in ipairs(rangee.boutons) do plusLarge = math.max(plusLarge, info.largeur) end
+            end
+            local n = #boutons
+            local colonnes = math.max(1, math.min(n, math.floor((largeur + 6) / (plusLarge + 6))))
+            local case = (largeur - (colonnes - 1) * 6) / colonnes
+            local nRangees = math.ceil(n / colonnes)
+            for index, b in ipairs(boutons) do
+                local r = math.floor((index - 1) / colonnes)
+                local col = (index - 1) % colonnes
+                local dansRangee = math.min(colonnes, n - r * colonnes)
+                local depart = (largeur - (dansRangee * case + (dansRangee - 1) * 6)) / 2
+                b:SetSize(case, hauteurRangee - 2)
+                b:ClearAllPoints()
+                b:SetPoint("TOPLEFT", self, "TOPLEFT", depart + col * (case + 6), -r * hauteurRangee)
+            end
+            local hauteur = nRangees * hauteurRangee
+            self:SetHeight(hauteur)
+            self.rangees = nRangees
+            self:Selectionner(self.actif or (boutons[1] and boutons[1].ongletId))
+            return hauteur
         end
         for r, rangee in ipairs(rangees) do
             local n = #rangee.boutons

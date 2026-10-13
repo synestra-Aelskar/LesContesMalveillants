@@ -97,8 +97,14 @@ end
 function Fiches.Paquet(entity)
     local paquet = { nom = tostring(entity.name or entity.id), id = tostring(entity.id), v = {} }
     for champ, valeur in pairs(entity.values or {}) do
-        -- Les jauges sont des tables : elles se disent « courant/max ».
-        if type(valeur) == "table" then
+        -- Les jauges sont des tables : elles se disent « courant/max ». Lues,
+        -- pas recopiees : le maximum d'une jauge a formule n'est plus retenu
+        -- dans les valeurs, et l'autre cote n'a pas de quoi le recalculer.
+        local field = LCM.Schema.Field(champ)
+        if type(valeur) == "table" and field and field.kind == "gauge" then
+            local jauge = LCM.Entities.Gauge(entity, champ)
+            paquet.v[champ] = string.format("%d/%d", jauge.current, jauge.max)
+        elseif type(valeur) == "table" then
             paquet.v[champ] = string.format("%s/%s",
                 tostring(valeur.current or ""), tostring(valeur.max or ""))
         else

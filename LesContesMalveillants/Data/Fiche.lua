@@ -186,11 +186,15 @@ Schema.AddTab({
                           + LCM.Formules.Primaire(entity, "esprit") / e.diviseurEsprit
                           + LCM.Formules.Primaire(entity, "perception") / e.diviseurPerception)
                   end },
-                -- Points d'action : 4 + pts secondaires + bonus portes.
+                -- Points d'action : 4 + 1 tous les 5 niveaux + pts secondaires
+                --   + bonus portes.
                 { id = "pa",         kind = "gauge", label = "PA",
                   maxFormula = function(entity)
+                      local e = LCM.Equilibrage.pa
                       local v = tonumber(LCM.Entities.Get_Value(entity, "sec_pa")) or 0
-                      return math.floor(LCM.Equilibrage.pa.base + v + LCM.Effets.Bonus(entity, "pa"))
+                      local niveau = tonumber(LCM.Entities.Get_Value(entity, "niveau")) or 1
+                      local paliers = math.floor(niveau / e.niveauxParPA)
+                      return math.floor(e.base + paliers + v + LCM.Effets.Bonus(entity, "pa"))
                   end },
                 -- Deplacement : base + ce que la Course ou la Nage apporte
                 --   + pts secondaires x 1 + bonus portes (compris dans la formule :

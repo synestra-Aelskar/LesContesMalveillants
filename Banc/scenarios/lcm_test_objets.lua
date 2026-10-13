@@ -104,9 +104,13 @@ attendu("Ombre : plus de second nombre", ombre.bonus:GetText(), "")
 -- contribue. « D'ou viennent ces +4 ? » est la premiere question devant une
 -- fiche, et le total seul n'y repondait pas (5 octobre 2026).
 local champOmbre = LCM.Schema.Field(ombre.field.id)
-local texte = LCM.UI.Fiche.Decomposition(moi, champOmbre, 0, 0)
-attendu("l'infobulle donne le total", texte:find("Total : 2") ~= nil, true)
-attendu("et nomme la source", texte:find("Équipement") ~= nil, true)
+-- Depuis le 13 octobre 2026 la decomposition est une liste de lignes (texte
+-- a gauche, valeur a droite), une par element, et le total vient en dernier.
+local detail = LCM.UI.Fiche.Decomposition(moi, champOmbre, 0, 0)
+attendu("l'infobulle donne le total", detail.total, "2")
+attendu("et nomme la source", detail[1] and detail[1][1]:find("^Équipement · ") ~= nil, true)
+attendu("avec ce qu'elle donne", detail[1] and detail[1][2], "+2")
+dire("  (ligne : " .. tostring(detail[1] and detail[1][1]) .. ")")
 local feu
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Feu" then feu = l end end
 attendu("Feu : pas de bonus, pas de signe", feu.valeur:GetText(), "0")

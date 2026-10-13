@@ -23,6 +23,7 @@
 
 local _, LCM = ...
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 local Inv = LCM.Inventaire
 
 -- Un glissement qui vient du COMPENDIUM fabrique un objet : c'est au MJ. Un

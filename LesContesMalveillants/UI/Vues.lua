@@ -168,7 +168,10 @@ local function Sommaire(f, vue)
     return s
 end
 
-local RETRAIT_ONGLETS_FICHE = 24
+-- 24 du 4 octobre au 13 octobre 2026 : rentres entre les montants du cadre,
+-- les onglets de la fiche ne s'alignaient plus sur ses blocs et paraissaient
+-- etriques a cote de ceux des Expertises. Ils prennent la meme largeur.
+local RETRAIT_ONGLETS_FICHE = 0
 
 local function Construire(vue, rang)
     local f = UI.Fenetre("vue_" .. vue.id, vue.titre, vue.largeur, vue.hauteur,
@@ -244,8 +247,7 @@ local function Construire(vue, rang)
         f.sommaire:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -haut)
         f.sommaire:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     elseif #vue.onglets > 1 then
-        -- La fiche resserre ses onglets pour qu'ils tiennent entre les
-        -- montants du cadre (24 de chaque cote depuis le 4 octobre 2026).
+        -- Un retrait propre a la fiche (voir RETRAIT_ONGLETS_FICHE).
         local retraitOnglets = vue.id == "fiche" and RETRAIT_ONGLETS_FICHE or 0
         local onglets = {}
         for _, onglet in ipairs(vue.onglets) do
@@ -255,7 +257,7 @@ local function Construire(vue, rang)
         f.barre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", retraitOnglets, -haut)
         f.barre:SetWidth(largeurContenu - 2 * retraitOnglets)
         haut = haut + f.barre:Disposer(largeurContenu - 2 * retraitOnglets,
-            f.mesures.onglet, vue.id == "fiche" and { uneRangee = true } or nil) + 6
+            f.mesures.onglet, (vue.id == "fiche" or vue.ongletsUneRangee) and { uneRangee = true } or nil) + 6
     end
 
     f.zone = UI.Defilement(f.contenu)

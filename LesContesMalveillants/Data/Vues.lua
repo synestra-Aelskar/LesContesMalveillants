@@ -137,6 +137,9 @@ Vues.Add({
 Vues.Add({
     id = "expertise", titre = "Expertises",
     largeur = 340, hauteur = 460,
+    -- Les trois familles cote a cote (demande du 13 octobre 2026) : sur deux
+    -- rangees, Filouterie restait seule en dessous.
+    ongletsUneRangee = true,
     onglets = {
         { id = "observations", label = "Observations", blocs = { { section = { "expertises", "observations" } } } },
         { id = "athletisme",   label = "Athlétisme",   blocs = { { section = { "expertises", "athletisme" } } } },

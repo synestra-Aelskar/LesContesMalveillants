@@ -442,8 +442,11 @@ local function Jeux(f)
         if not l then
             l = CreateFrame("Frame", nil, f.corps.contenu)
             l:SetHeight(26)
+            -- La ligne est creee une fois et resservira pour d'autres actions :
+            -- elle relit la resolution courante (l.resolution) a chaque clic,
+            -- jamais celle de la premiere action qui l'a fait naitre.
             l.charger = UI.Bouton(l, "", 100, 24, function()
-                A.ChargerJeu(f.composeur, A.JeuxDeChoix(id)[l.index])
+                A.ChargerJeu(f.composeur, A.JeuxDeChoix(l.resolution)[l.index])
                 -- Charge, on va droit a la fin : il ne reste qu'a declarer.
                 f.ecran = "fin"
                 Ecran.Rendre()
@@ -453,23 +456,24 @@ local function Jeux(f)
                 local b = UI.Bouton(l, texte, 22, 22, function() action(l.index) Ecran.Rendre() end)
                 return b
             end
-            l.supprimer = Petit("x", function(n) A.SupprimerJeu(id, n) end)
+            l.supprimer = Petit("x", function(n) A.SupprimerJeu(l.resolution, n) end)
             l.supprimer:SetPoint("RIGHT", l, "RIGHT", -2, 0)
             l.renommer = Petit("R", function(n)
-                UI.Demande():Demander("Renommer le jeu de choix", A.JeuxDeChoix(id)[n].nom, function(nom)
-                    A.RenommerJeu(id, n, nom)
+                UI.Demande():Demander("Renommer le jeu de choix", A.JeuxDeChoix(l.resolution)[n].nom, function(nom)
+                    A.RenommerJeu(l.resolution, n, nom)
                     Ecran.Rendre()
                     return true
                 end)
             end)
             l.renommer:SetPoint("RIGHT", l.supprimer, "LEFT", -3, 0)
-            l.bas = Petit("v", function(n) A.DeplacerJeu(id, n, 1) end)
+            l.bas = Petit("v", function(n) A.DeplacerJeu(l.resolution, n, 1) end)
             l.bas:SetPoint("RIGHT", l.renommer, "LEFT", -3, 0)
-            l.haut = Petit("^", function(n) A.DeplacerJeu(id, n, -1) end)
+            l.haut = Petit("^", function(n) A.DeplacerJeu(l.resolution, n, -1) end)
             l.haut:SetPoint("RIGHT", l.bas, "LEFT", -3, 0)
             f.lignesJeux[i] = l
         end
         l.index = i
+        l.resolution = id
         l:SetWidth(largeur)
         l.charger:SetWidth(math.max(60, largeur - 110))
         l.charger.label:SetText(string.format("%s  |cff909090(PA %d · PF %d)|r", jeu.nom, jeu.pa or 0, jeu.pf or 0))
@@ -536,7 +540,12 @@ local function Question(f, q)
                 case = UI.Case(f.corps.contenu, "", function(coche)
                     local cible = f.cases[i]
                     if not cible.o then return end
-                    if coche and not c:Abordable(f.q, cible.o) then cible:Cocher(false) return end
+                    -- f.composeur et pas `c` : la case est creee une fois et
+                    -- sert a toutes les actions suivantes. `c` etait celui de
+                    -- la PREMIERE : il jugeait avec ses reponses et ses PA, ne
+                    -- laissait cocher que les types deja pris la premiere fois
+                    -- et decochait les autres sans rien dire (13 octobre 2026).
+                    if coche and not f.composeur:Abordable(f.q, cible.o) then cible:Cocher(false) return end
                     f.composeur:Cocher(f.q, cible.o.id, coche)
                     Ecran.Rendre()
                 end)

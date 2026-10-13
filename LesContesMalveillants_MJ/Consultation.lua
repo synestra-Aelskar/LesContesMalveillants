@@ -9,6 +9,7 @@ local LCM = _G.LCM
 if not LCM then return end
 
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 local Consultation = {}
 MJ.Consultation = Consultation
 UI.ConsultationMJ = Consultation

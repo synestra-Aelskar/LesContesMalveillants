@@ -169,6 +169,9 @@ function Vues.Add(definition)
         -- Ses chapitres a gauche, en sommaire, plutot qu'en bande d'onglets :
         -- c'est une vue qu'on lit, pas une qu'on remplit.
         sommaire = definition.sommaire == true,
+        -- Tous les onglets cote a cote, la police reduite s'il le faut, au
+        -- lieu de passer a la ligne.
+        ongletsUneRangee = definition.ongletsUneRangee == true,
     }
     if definition.onglets then
         for _, onglet in ipairs(definition.onglets) do

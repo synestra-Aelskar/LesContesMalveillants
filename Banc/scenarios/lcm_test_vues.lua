@@ -140,6 +140,33 @@ local fe = LCM.UI.Vues.frames.expertise
 attendu("ouverte", fe:IsShown(), true)
 attendu("onglet Observations", fe.onglet, "observations")
 attendu("9 observations", #fe.pages.observations.lignes, 9)
+-- Les noms longs (« Investigation », « Communication ») poussaient le bouton
+-- Jet hors du cadre : la vue a onglets ne s'elargit pas. La plage (« 0-15 »)
+-- cede maintenant la place la premiere (13 octobre 2026).
+-- Les trois onglets ont la meme taille, sur une rangee ou deux : justifiee
+-- rangee par rangee, la bande en faisait deux grands et un petit (13 octobre
+-- 2026).
+local b = fe.barre.boutons
+dire("   onglets : " .. b[1]:GetWidth() .. " / " .. b[2]:GetWidth() .. " / " .. b[3]:GetWidth()
+    .. " sur " .. tostring(fe.barre.rangees) .. " rangee(s)")
+attendu("onglets de meme largeur", b[1]:GetWidth() == b[2]:GetWidth() and b[2]:GetWidth() == b[3]:GetWidth(), true)
+attendu("les trois cote a cote", fe.barre.rangees, 1)
+local police = select(2, b[1].label:GetFont())
+dire("   police des onglets : " .. tostring(police))
+attendu("lisible (9 au moins)", (tonumber(police) or 0) >= 9, true)
+local bord = fe.pages.observations.colonnes.largeurLigne
+for _, l in ipairs(fe.pages.observations.lignes) do
+    if l.lancer then
+        local x = select(4, l.lancer:GetPoint(1))
+        attendu("Jet dans la ligne : " .. l.label:GetText(),
+            x + l.lancer:GetWidth() <= bord + 0.5, true)
+        attendu("la valeur avant le bonus : " .. l.label:GetText(),
+            select(4, l.valeur:GetPoint(1)) + l.valeur:GetWidth() <= select(4, l.bonus:GetPoint(1)) + 0.5, true)
+        local finNom = select(4, l.nom:GetPoint(1)) + l.nom:GetWidth()
+        attendu("la plage ne mord pas sur le nom : " .. l.label:GetText(),
+            select(4, l.plage:GetPoint(1)) >= finNom, true)
+    end
+end
 fe.barre.boutons[2]:Click()
 attendu("10 en athletisme", #fe.pages.athletisme.lignes, 10)
 local escalade

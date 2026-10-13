@@ -16,6 +16,7 @@
 
 local _, LCM = ...
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 
 local Fiche = {}
 UI.Fiche = Fiche
@@ -85,40 +86,42 @@ end
 
 -- Les noms des sources, tels qu'on veut les lire sur une fiche. Ceux du code
 -- sont au singulier et en minuscules ; ici on parle au joueur.
+-- Un element seul, d'ou le singulier : « Trait · Colosse ».
 local LIBELLE_SOURCE = {
-    ["race"] = "Racial",
-    ["trait"] = "Traits",
+    ["race"] = "Race",
+    ["trait"] = "Trait",
     ["objet"] = "Équipement",
-    ["etat"] = "États",
-    ["état temporaire"] = "États temporaires",
-    ["apprentissage"] = "Apprentissages",
+    ["etat"] = "État",
+    ["état temporaire"] = "État temporaire",
+    ["apprentissage"] = "Apprentissage",
 }
 
--- « D'où viennent ces +4 ? » : le total, puis chaque source qui y contribue.
+-- « D'où viennent ces +4 ? » : chaque point, un par un, ce qui le donne a
+-- gauche et combien a droite ; le total en dernier, sous un filet.
 -- `apport` est la part qui vient des primaires (la formule de la fiche), qui
 -- n'est pas une source d'effets mais compte dans le total.
+-- Rend une liste de lignes { gauche, droite, couleur } que Fiche.Bulle sait
+-- poser, et la note du champ a part.
 function Fiche.Decomposition(e, field, base, apport)
-    local lignes = {}
+    local lignes = { note = field.note ~= "" and field.note or nil }
     local total = (base or 0) + (apport or 0)
-    for _, part in ipairs(LCM.Effets.Detail(e, field.id)) do
-        total = total + part.total
-        lignes[#lignes + 1] = string.format("%s : %s",
-            LIBELLE_SOURCE[part.nom] or (part.nom:sub(1, 1):upper() .. part.nom:sub(2)),
-            Montant(part.total))
-    end
-    local texte = { string.format("Total : %s", Nombre(total)) }
     if (base or 0) ~= 0 then
-        texte[#texte + 1] = string.format("Investi : %s", Nombre(base))
+        lignes[#lignes + 1] = { "Points investis", Nombre(base) }
     end
     if (apport or 0) ~= 0 then
-        texte[#texte + 1] = string.format("Stat : %s", Montant(apport))
+        lignes[#lignes + 1] = { "Apport des statistiques", Montant(apport) }
     end
-    for _, ligne in ipairs(lignes) do texte[#texte + 1] = ligne end
-    if field.note and field.note ~= "" then
-        texte[#texte + 1] = ""
-        texte[#texte + 1] = field.note
+    for _, part in ipairs(LCM.Effets.Detail(e, field.id)) do
+        total = total + part.total
+        local source = LIBELLE_SOURCE[part.nom] or (part.nom:sub(1, 1):upper() .. part.nom:sub(2))
+        for _, element in ipairs(part.elements or {}) do
+            local nom = element.label and (source .. " · " .. tostring(element.label)) or source
+            lignes[#lignes + 1] = { nom, Montant(element.montant),
+                                    element.montant < 0 and UI.C.plein or UI.C.accent }
+        end
     end
-    return table.concat(texte, "\n")
+    lignes.total = Nombre(total)
+    return lignes
 end
 
 function Fiche.Nom(l, c, texte, avecIcone)
@@ -205,7 +208,8 @@ local function Jauge(l, c, couleur, rappels)
     end
 end
 
--- Bulle d'aide au survol d'une ligne.
+-- Bulle d'aide au survol d'une ligne. `texte` : une phrase, ou une
+-- decomposition (Fiche.Decomposition) posee en deux colonnes.
 function Fiche.Bulle(l, titre, texte)
     if not texte or texte == "" then return end
     l:EnableMouse(true)
@@ -213,7 +217,22 @@ function Fiche.Bulle(l, titre, texte)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         GameTooltip:SetText(titre)
-        GameTooltip:AddLine(texte, 0.88, 0.84, 0.76, true)
+        if type(texte) == "table" then
+            local t, d = UI.C.texte, UI.C.titre
+            for _, ligne in ipairs(texte) do
+                local c = ligne[3] or d
+                GameTooltip:AddDoubleLine(ligne[1], ligne[2], t[1], t[2], t[3], c[1], c[2], c[3])
+            end
+            if #texte > 0 then GameTooltip:AddFilet() end
+            GameTooltip:AddDoubleLine("Total", texte.total, d[1], d[2], d[3], d[1], d[2], d[3])
+            if texte.note then
+                local n = UI.C.discret
+                GameTooltip:AddLine(" ")
+                GameTooltip:AddLine(texte.note, n[1], n[2], n[3], true)
+            end
+        else
+            GameTooltip:AddLine(texte, 0.88, 0.84, 0.76, true)
+        end
         GameTooltip:Show()
     end)
     l:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
@@ -1557,22 +1576,50 @@ local Bloc = Fiche.Bloc
 -- plage, la valeur, le bonus et le bouton. Quand un bloc elargit sa colonne de
 -- noms pour ne couper aucun libelle, il faut les pousser d'autant — sans quoi
 -- le libelle leur passe dessus.
+--
+-- Les colonnes du jet sont larges pour des textes de deux ou trois signes : ce
+-- sont elles qui cedent la place, dans l'ordre plage (« 0-15 »), valeur,
+-- bonus, chacune jusqu'a la largeur de ce qu'elle ecrit. Le bouton ne bouge
+-- que si ca ne suffit pas. Tout decaler d'un bloc poussait le bouton Jet hors
+-- du cadre dans une vue a largeur fixe (Expertises › Observations :
+-- « Investigation », « Communication », 13 octobre 2026).
+-- Rend ce dont le bouton a du bouger.
 function Fiche.DecalerJet(ligne, c, decalage)
-    if decalage <= 0 then return end
-    local function Poser(region, x)
+    if decalage <= 0 then return 0 end
+    local function Texte(t) return Fiche.LargeurTexte(t, c.police) end
+    local reste = decalage
+    local function Ceder(largeur, minimum)
+        local cede = math.max(0, math.min(reste, largeur - minimum))
+        reste = reste - cede
+        return cede
+    end
+    local cedePlage = Ceder(c.plageLargeur, ligne.plage and (Texte(ligne.plage:GetText()) + 8) or 0)
+    local cedeValeur = Ceder(c.valeurLargeur, Texte("00") + 8)
+    -- Le bonus partage sa colonne avec la case d'avantage, calee a droite.
+    local caseAvantage = ligne.avantage and ligne.avantage:GetWidth() or 0
+    local cedeBonus = Ceder(c.modificateurLargeur, caseAvantage + Texte("+00") + 6)
+
+    local function Poser(region, x, largeur)
         if not region then return end
         region:ClearAllPoints()
-        region:SetPoint("LEFT", ligne, "LEFT", x + decalage, 0)
+        region:SetPoint("LEFT", ligne, "LEFT", x, 0)
+        if largeur then region:SetWidth(math.max(1, largeur)) end
     end
-    Poser(ligne.plage, c.plage)
-    Poser(ligne.valeur, c.valeur)
-    Poser(ligne.bonus, c.modificateur)
-    Poser(ligne.lancer, c.action)
+    -- Chaque colonne commence ou la precedente finit desormais : decalee de ce
+    -- que le nom a pris, moins ce que les colonnes d'avant ont rendu.
+    Poser(ligne.plage, c.plage + decalage, c.plageLargeur - cedePlage)
+    local apresPlage = decalage - cedePlage
+    Poser(ligne.valeur, c.valeur + apresPlage, c.valeurLargeur - cedeValeur)
+    local apresValeur = apresPlage - cedeValeur
+    Poser(ligne.bonus, c.modificateur + apresValeur,
+        c.modificateurLargeur - cedeBonus - 22 * c.echelle)
+    Poser(ligne.lancer, c.action + reste)
     if ligne.avantage then
         ligne.avantage:ClearAllPoints()
         ligne.avantage:SetPoint("RIGHT", ligne, "LEFT",
-            c.modificateur + c.modificateurLargeur + decalage, 0)
+            c.modificateur + c.modificateurLargeur + reste, 0)
     end
+    return reste
 end
 
 function Fiche.Page(parent, sections, largeur)
@@ -1584,6 +1631,7 @@ function Fiche.Page(parent, sections, largeur)
     local largeurLigne = largeur - 2 * MARGE_BLOC
     local c = UI.AelColonnes(largeurLigne)
     c.largeurLigne = largeurLigne
+    page.colonnes = c
 
     for _, section in ipairs(sections) do
         local bloc = Bloc(page, section, largeur)
@@ -1643,7 +1691,7 @@ function Fiche.Page(parent, sections, largeur)
             local depart = c.nom
             local largeur = math.max(plusLong, c.nomLargeur)
             local decalage = math.max(0, largeur - c.nomLargeur)
-            local avecJet = false
+            local avecJet, resteJet = false, 0
             for _, ligne in ipairs(bloc.lignes) do
                 if ligne.nom and ligne.valeur and ligne.field then
                     ligne.nom:SetWidth(largeur)
@@ -1654,7 +1702,7 @@ function Fiche.Page(parent, sections, largeur)
                         -- (le bonus) a cote d'un vide, et le total nulle part
                         -- (5 octobre 2026).
                         avecJet = true
-                        Fiche.DecalerJet(ligne, c, decalage)
+                        resteJet = math.max(resteJet, Fiche.DecalerJet(ligne, c, decalage))
                     else
                         -- Au BOUT de la ligne, pas a une abscisse calculee :
                         -- une fois le bloc taille sur son contenu, le bord est
@@ -1674,7 +1722,7 @@ function Fiche.Page(parent, sections, largeur)
             if avecJet then
                 -- Avec un jet, il faut aussi la plage, le bonus et le bouton.
                 bloc.largeurVoulue = math.ceil(c.action + c.actionLargeur
-                    + decalage + 2 * MARGE_BLOC)
+                    + resteJet + 2 * MARGE_BLOC)
             end
         end
 
