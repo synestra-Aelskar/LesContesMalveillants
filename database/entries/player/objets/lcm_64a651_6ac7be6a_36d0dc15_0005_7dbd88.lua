@@ -23,4 +23,5 @@ return {
     label = "Soutane des ombres",
     remplacePublie = true,
     tags = "Rare",
+    type = "jambiere",
 }

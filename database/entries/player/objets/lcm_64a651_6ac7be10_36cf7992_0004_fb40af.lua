@@ -21,5 +21,7 @@ return {
     icone = "Interface\\ICONS\\inv_leather_raidrogue_p_01chest",
     id = "lcm_64a651_6ac7be10_36cf7992_0004_fb40af",
     label = "Tenue d'assassin du culte.",
+    remplacePublie = true,
     tags = "Rare",
+    type = "plastron",
 }

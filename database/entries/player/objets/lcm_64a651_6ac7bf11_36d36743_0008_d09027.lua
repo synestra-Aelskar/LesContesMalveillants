@@ -23,4 +23,5 @@ return {
     label = "Voile du corbeau",
     remplacePublie = true,
     tags = "Rare",
+    type = "casque",
 }

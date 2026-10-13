@@ -4,8 +4,11 @@ return {
     bonus = {
         depl_nage = -1,
         depl_terrestre = -1,
+        force_brise_armure = 2,
+        mystique_brise_armure = 2,
         pen_contondant = 2,
         pen_perforant = 10,
+        perception_brise_armure = 2,
     },
     categorie = "arme",
     couleurTitre = "FF8CB8",
@@ -21,4 +24,5 @@ return {
     remplacePublie = true,
     tags = "Commun",
     taille = 1,
+    type = "lcm_64a651_6acd5c99_0f3d75d2_0003_0cffbf",
 }

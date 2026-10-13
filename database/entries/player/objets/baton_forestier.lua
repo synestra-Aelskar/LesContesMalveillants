@@ -5,8 +5,11 @@ return {
         acrobaties = -1,
         equilibre = -1,
         escalade = -1,
+        force_brise_armure = 2,
         meca_buff = 1,
         meca_soin = 1,
+        mystique_brise_armure = 2,
+        perception_brise_armure = 2,
     },
     categorie = "arme",
     couleurTitre = "4DE04D",
@@ -22,4 +25,5 @@ return {
     remplacePublie = true,
     tags = "Inhabituel",
     taille = 1,
+    type = "baton",
 }

@@ -23,4 +23,5 @@ return {
     label = "Harnois blanc",
     remplacePublie = true,
     tags = "Rare",
+    type = "plastron",
 }

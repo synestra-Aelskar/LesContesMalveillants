@@ -2,10 +2,13 @@
 return {
     avantage = {  },
     bonus = {
+        force_brise_armure = 2,
+        mystique_brise_armure = 2,
         pen_contondant = 4,
         pen_ombre = 12,
         pen_perforant = 12,
         pen_tranchant = 12,
+        perception_brise_armure = 2,
     },
     categorie = "arme",
     couleurTitre = "4D8CFF",
@@ -21,4 +24,5 @@ return {
     remplacePublie = true,
     tags = "Rare",
     taille = 1,
+    type = "lcm_64a651_6acd5caa_0f3db97f_0004_0e6737",
 }

@@ -24,4 +24,5 @@ return {
     label = "Gants du cultiste des ombres",
     remplacePublie = true,
     tags = "Rare",
+    type = "gants",
 }

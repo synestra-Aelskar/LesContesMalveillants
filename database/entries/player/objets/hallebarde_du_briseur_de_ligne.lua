@@ -21,6 +21,8 @@ return {
     icone = "Interface\\ICONS\\inv_polearm_2h_maw_c_01",
     id = "hallebarde_du_briseur_de_ligne",
     label = "Hallebarde du briseur de ligne",
+    remplacePublie = true,
     tags = "Inhabituel",
-    taille = 1,
+    taille = 2,
+    type = "lcm_64a651_6acd5d29_0f3fa8ea_000b_0d4e18",
 }

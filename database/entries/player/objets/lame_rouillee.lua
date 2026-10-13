@@ -6,9 +6,12 @@ return {
         depl_nage = -1,
         equilibre = -1,
         escalade = -1,
+        force_brise_armure = 2,
+        mystique_brise_armure = 2,
         pen_contondant = 2,
         pen_perforant = 4,
         pen_tranchant = 6,
+        perception_brise_armure = 2,
     },
     categorie = "arme",
     couleurTitre = "FF8CB8",
@@ -23,4 +26,5 @@ return {
     remplacePublie = true,
     tags = "Commun",
     taille = 1,
+    type = "epee",
 }

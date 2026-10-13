@@ -16,4 +16,5 @@ return {
     label = "Bridandine de pauvre",
     remplacePublie = true,
     tags = "Commun",
+    type = "plastron",
 }

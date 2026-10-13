@@ -23,4 +23,5 @@ return {
     label = "Rempart de guerre",
     remplacePublie = true,
     tags = "Inhabituel",
+    type = "plastron",
 }

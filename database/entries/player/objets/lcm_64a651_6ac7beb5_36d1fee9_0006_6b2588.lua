@@ -24,4 +24,5 @@ return {
     label = "Bottes des ombres",
     remplacePublie = true,
     tags = "Rare",
+    type = "bottes",
 }

@@ -7,9 +7,12 @@ return {
         depl_terrestre = -1,
         equilibre = -2,
         escalade = -2,
+        force_brise_armure = 2,
         initiative = -1,
         meca_intervention = 1,
+        mystique_brise_armure = 2,
         pen_contondant = 2,
+        perception_brise_armure = 2,
         resi_contondant = 3,
         resi_perforant = 3,
         resi_tranchant = 3,
@@ -28,4 +31,5 @@ return {
     remplacePublie = true,
     tags = "Inhabituel",
     taille = 1,
+    type = "lcm_64a651_6acd5da2_0f417f8c_000d_4f2944",
 }
