@@ -1317,7 +1317,11 @@ local function EnregistrerActionArcanum()
     return actionArcanumEnregistree
 end
 
-LCM.AddCommand("vendeur", "ouvre les vendeurs", function() Ecran.Basculer("vendeur") end, true)
+-- Les vendeurs ont leur fenetre de creation et de placement depuis le 13
+-- octobre 2026 (MJ/MarchandsUI.lua). Cette vue-ci reste celle du sort Arcanum.
+LCM.AddCommand("vendeur", "ouvre les vendeurs", function()
+    if UI.MarchandsMJ then UI.MarchandsMJ.Basculer() end
+end, true)
 -- Les ressources ont leur propre fenetre depuis le 13 octobre 2026 : creer,
 -- puis poser sur la carte (MJ/RecoltesUI.lua).
 LCM.AddCommand("ressources", "ouvre les points de recolte", function()

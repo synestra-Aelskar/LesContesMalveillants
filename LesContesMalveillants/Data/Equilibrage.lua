@@ -281,6 +281,14 @@ E.recolte = {
     rayonMax = 30,
 }
 
+-- ===== Marchands ===========================================================
+-- `rayon` : a combien de yards d'un vendeur pose sur la carte on peut
+-- commercer. Pas une regle du template, comme pour la recolte : il faut
+-- pouvoir se tenir devant l'etal sans etre pile dessus (13 octobre 2026).
+E.marchands = {
+    rayon = 4,
+}
+
 -- ===== Conteneurs ========================================================
 -- Combien d'elements chaque conteneur de fiche accueille (template) : pas de
 -- place precise, un emplacement accueille n'importe quel element de sa

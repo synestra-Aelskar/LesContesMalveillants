@@ -59,6 +59,7 @@ Core\Echange.lua
 Core\Campement.lua
 Core\Lieux.lua
 Core\Recolte.lua
+Core\Marchands.lua
 Core\Bannieres.lua
 Core\Defenses.lua
 Core\Expertises.lua
@@ -112,6 +113,7 @@ UI\Echange.lua
 UI\Campement.lua
 UI\Banniere.lua
 UI\Recolte.lua
+UI\Marchand.lua
 UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua

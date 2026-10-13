@@ -29,6 +29,9 @@ local LIGNE = 26
 
 local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.recolte) or {} end
 
+-- « Nytherah-Apertus » -> « Nytherah ».
+local function Court(nom) return (tostring(nom or ""):match("^([^%-]+)")) or "" end
+
 local function Libelle(parent, texte, x, y)
     local t = UI.Texte(parent, texte, UI.C.discret, "GameFontNormalSmall")
     t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
@@ -373,7 +376,7 @@ local function Construire()
     function f:Supprimer()
         local point = self:Point()
         if not point then return end
-        local n = Recoltes.Compte(point.id)
+        local n = #Recoltes.Carnet(point.id)
         local texte = n > 0 and string.format("Supprimer « %s » et ses %d point(s) posé(s) ?", point.label, n)
             or string.format("Supprimer « %s » ?", point.label)
         self.confirmation:Demander(texte, function()
@@ -398,7 +401,7 @@ local function Construire()
     function f:ToutRetirer()
         local point = self:Point()
         if not point then return end
-        local n = Recoltes.Compte(point.id)
+        local n = #Recoltes.Carnet(point.id)
         if n == 0 then return end
         self.confirmation:Demander(string.format("Retirer les %d point(s) posé(s) de « %s » ?", n, point.label),
             function()
@@ -421,7 +424,9 @@ local function Construire()
 
     function f:AfficherPoints()
         local point = self:Point()
-        local liste = point and Recoltes.Points(point.id) or {}
+        -- Tout le carnet : les points recoltes y restent, grises, avec qui
+        -- les a pris. Seuls les CREES partent aux joueurs.
+        local liste = point and Recoltes.Carnet(point.id) or {}
         local x, y, source = self:Position()
         local carte = LCM.Recolte.Carte()
         local h = 0
@@ -450,9 +455,13 @@ local function Construire()
             elseif pose.carte ~= carte then
                 distance = "  —  autre carte"
             end
-            l.texte:SetText(string.format("#%d   %.1f, %.1f   (%s%s)%s", #liste - rang + 1,
+            local par = pose.par and (" par " .. Court(pose.par)) or ""
+            local statut = pose.statut == "recolte" and string.format("|cff9d9d9dRécolté%s|r", par)
+                or pose.statut == "attente" and string.format("|cffe0c060En attente%s|r", par)
+                or "|cff7fd07fCréé|r"
+            l.texte:SetText(string.format("#%d   %s   %.1f, %.1f   (%s%s)%s", #liste - rang + 1, statut,
                 pose.x, pose.y, tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "",
-                distance))
+                pose.statut == "cree" and distance or ""))
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, -h)
             l:SetPoint("TOPRIGHT", p.zone.contenu, "TOPRIGHT", 0, -h)
@@ -462,7 +471,12 @@ local function Construire()
         for rang = #liste + 1, #p.lignes do p.lignes[rang]:Hide() end
         p.zone:Regler(h)
         p.vide:SetShown(point ~= nil and #liste == 0)
-        p.compte:SetText(point and string.format("%d point(s) posé(s)", #liste) or "")
+        local recoltes = point and Recoltes.CompteRecoltes(point.id) or 0
+        local attente = point and Recoltes.CompteAttente(point.id) or 0
+        local morceaux = { string.format("%d disponible(s)", #liste - recoltes - attente) }
+        if attente > 0 then morceaux[#morceaux + 1] = string.format("%d en attente", attente) end
+        if recoltes > 0 then morceaux[#morceaux + 1] = string.format("%d récolté(s)", recoltes) end
+        p.compte:SetText(point and table.concat(morceaux, ", ") or "")
         p.toutRetirer:SetEnabled(#liste > 0)
     end
 

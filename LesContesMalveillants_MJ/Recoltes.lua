@@ -73,12 +73,24 @@ end
 
 -- ===== Les points poses ====================================================
 
-function Recoltes.Points(defId)
+-- Un point a un STATUT :
+--   CREE        (`statut` absent) il est la ;
+--   EN ATTENTE  le MJ a accorde la prise, le joueur n'a pas encore confirme
+--               qu'il a range sa part. Il n'est plus envoye a personne ; s'il
+--               ne peut pas ranger, le point repasse a CREE ;
+--   RECOLTE     le joueur a confirme, ou il a signale apres coup un point
+--               recolte en l'absence du MJ (Core/Recolte.lua).
+-- Un point recolte reste au carnet, avec qui et quand : il n'est plus jamais
+-- envoye, et c'est lui qu'une future repousse remettra a CREE.
+
+-- Tout le carnet d'une definition, recoltes compris.
+function Recoltes.Carnet(defId)
     local out = {}
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
             out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y,
-                source = p.source, carte = p.carte, quand = p.quand }
+                source = p.source, carte = p.carte, quand = p.quand,
+                statut = p.statut or "cree", par = p.par, le = p.le }
         end
     end
     -- Du plus recent au plus ancien : celui qu'on vient de poser en tete.
@@ -89,10 +101,36 @@ function Recoltes.Points(defId)
     return out
 end
 
+-- Les points encore la : les seuls qu'on envoie.
+function Recoltes.Points(defId)
+    local out = {}
+    for _, p in ipairs(Recoltes.Carnet(defId)) do
+        if p.statut == "cree" then out[#out + 1] = p end
+    end
+    return out
+end
+
 function Recoltes.Compte(defId)
     local n = 0
-    for _, p in pairs(Magasin()) do if p.def == defId then n = n + 1 end end
+    for _, p in pairs(Magasin()) do if p.def == defId and not p.statut then n = n + 1 end end
     return n
+end
+
+local function CompteStatut(defId, statut)
+    local n = 0
+    for _, p in pairs(Magasin()) do if p.def == defId and p.statut == statut then n = n + 1 end end
+    return n
+end
+function Recoltes.CompteRecoltes(defId) return CompteStatut(defId, "recolte") end
+function Recoltes.CompteAttente(defId) return CompteStatut(defId, "attente") end
+
+-- Passer un point a un statut. Rend vrai s'il a change. Un point RECOLTE ne
+-- revient a rien d'autre par ici : seule une repousse (ou le MJ) le rendra.
+local function Marquer(id, statut, par)
+    local p = Magasin()[id]
+    if not p or p.statut == "recolte" or p.statut == statut then return false end
+    p.statut, p.par, p.le = statut, par, (time and time()) or 0
+    return true
 end
 
 -- Ce que le MJ connait, il le connait aussi en joueur : il peut recolter ses
@@ -161,42 +199,50 @@ function Recoltes.RetirerTout(defId)
 end
 
 -- ===== L'arbitrage =========================================================
--- Une prise retire le point AVANT de repondre : deux demandes sur le meme filon
--- arrivent l'une apres l'autre, et la seconde le trouve vide. Le point retire
--- est garde un moment, au cas ou le joueur ne pourrait pas ranger sa part.
-
-local rendus = {}
+-- Une prise met le point EN ATTENTE avant de repondre : deux demandes sur le
+-- meme filon arrivent l'une apres l'autre, et la seconde le trouve pris. Le
+-- joueur confirme (RECOLTE) ou rend (CREE).
 
 -- Rend la quantite et l'entree, ou nil et la raison.
-function Recoltes.Accorder(id)
+function Recoltes.Accorder(id, par)
     id = tostring(id or "")
     local p = Magasin()[id]
-    if not p then return nil, "ce point a déjà été récolté." end
+    if not p or p.statut then return nil, "ce point a déjà été récolté." end
     local point = Recoltes.Definition(p.def)
     if not point then return nil, "ce point ne donne plus rien." end
     local r = point.recolte
     local quantite = LCM.Roll.Des(r.min, r.max)
-    rendus[id] = p
-    Magasin()[id] = nil
+    Marquer(id, "attente", par)
     Rafraichir(p.def)
     local canal = Canal()
     if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
     return quantite, r.entree
 end
 
-function Recoltes.Restituer(id)
+-- `par` : seul celui a qui la prise a ete accordee la rend ou la confirme.
+-- Rien (le MJ local) : pas de controle.
+function Recoltes.Restituer(id, par)
     id = tostring(id or "")
-    local p = rendus[id]
-    if not p then return false end
-    rendus[id] = nil
-    Magasin()[id] = p
+    local p = Magasin()[id]
+    if not p or p.statut ~= "attente" or (par and p.par ~= par) then return false end
+    p.statut, p.par, p.le = nil, nil, nil
     Rafraichir(p.def)
     Recoltes.Diffuser(p.def)
     return true
 end
 
+function Recoltes.Confirmer(id, par)
+    id = tostring(id or "")
+    local p = Magasin()[id]
+    if not p or p.statut ~= "attente" or (par and p.par ~= par) then return false end
+    Marquer(id, "recolte", p.par)
+    Rafraichir(p.def)
+    return true
+end
+
 R.Arbitre = Recoltes.Accorder
 R.Restituer = Recoltes.Restituer
+R.Confirmer = Recoltes.Confirmer
 
 -- Tout renvoyer a un joueur qui demande : une definition par message, avec
 -- ses points. Celles qui n'ont aucun point ne servent a rien chez lui.
@@ -220,7 +266,7 @@ LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.prendre, function(expediteur, donnees)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end
         local id = tostring(donnees.i or "")
-        local quantite, entree = Recoltes.Accorder(id)
+        local quantite, entree = Recoltes.Accorder(id, expediteur)
         if quantite then
             LCM.Reseau.Envoyer(S.reponse, { i = id, q = quantite, e = entree }, "WHISPER", expediteur)
         else
@@ -230,7 +276,34 @@ LCM.WhenReady(function()
 
     LCM.Reseau.Ecouter(S.rendre, function(expediteur, donnees)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end
-        Recoltes.Restituer(donnees.i)
+        Recoltes.Restituer(donnees.i, expediteur)
+    end)
+
+    LCM.Reseau.Ecouter(S.confirmer, function(expediteur, donnees)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        Recoltes.Confirmer(donnees.i, expediteur)
+    end)
+
+    -- Un joueur nous dit ce qu'il a recolte en notre absence : ces points
+    -- passent a RECOLTE, le groupe les retire, et on accuse reception de TOUT
+    -- ce qu'il a cite — meme d'un point deja pris ou retire, sinon il le
+    -- redirait a chaque rencontre.
+    LCM.Reseau.Ecouter(S.signaler, function(expediteur, donnees)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        local cites, touches = {}, {}
+        local canal = Canal()
+        for id in tostring(donnees.l or ""):gmatch("[^,]+") do
+            cites[#cites + 1] = id
+            local p = Magasin()[id]
+            if p and Marquer(id, "recolte", expediteur) then
+                touches[p.def] = true
+                if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
+            end
+        end
+        for defId in pairs(touches) do Rafraichir(defId) end
+        if #cites > 0 then
+            LCM.Reseau.Envoyer(S.accuse, { l = table.concat(cites, ",") }, "WHISPER", expediteur)
+        end
     end)
 
     -- Le MJ connait ses propres points des le chargement. Leurs DEFINITIONS
