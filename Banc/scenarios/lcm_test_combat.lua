@@ -98,6 +98,17 @@ attendu("cinq pastilles de PA", pastillesVues(), 5)
 attendu("les PA non debloques utilisent la gemme rouge et noire", f.ressourcesPA.pastilles[2].etat, "bloque")
 attendu("les PA depenses utilisent la gemme noire", f.ressourcesPA.pastilles[4].etat, "depense")
 attendu("PF restant / maximum", f.ressourcesPF.barre.label:GetText(), "47 / 60")
+
+dire("== les états sous les PA suivent ce que le MJ incarne")
+LCM.EtatsTemporaires.Poser(garde, { nom = "Fièvre du garde", icone = "Spell_Nature_NullifyDisease",
+    description = "Une fièvre de test.", conteneur = "maladie", rounds = 2, debuff = true })
+attendu("la maladie temporaire apparaît", f.ressourcesEtats:IsShown(), true)
+attendu("son icône apparaît", f.ressourcesEtats.icones[1].etat.nom, "Fièvre du garde")
+attendu("sa durée apparaît dans le coin", f.ressourcesEtats.icones[1].temps:GetText(), "2")
+LCM.EtatsTemporaires.Poser(maFiche, { nom = "État du joueur", icone = "Spell_Holy_BlessingOfStamina",
+    description = "Un état de test.", conteneur = "etat", rounds = 3 })
+attendu("l'état du joueur reste caché pendant l'incarnation",
+    f.ressourcesEtats.icones[1].etat.nom, "Fièvre du garde")
 LCM.Entities.SetGauge(garde, "pa", 1)
 LCM.Entities.SetGauge(garde, "fatigue", 28)
 attendu("les PA suivent une depense", f.ressourcesPA.pastilles[2].etat, "depense")
@@ -129,6 +140,8 @@ attendu("a mon tour, je reprends ma place", I.ActuelleId(), "")
 -- Relacher est un changement de peau, et rien d'autre n'a bouge : le bandeau
 -- doit suivre tout seul (il n'ecoutait pas `EcouterSoi`).
 attendu("et le bandeau me rend mes PF", f.ressourcesPF.barre.label:GetText(), "60 / 60")
+attendu("et remplace les états par ceux de mon personnage",
+    f.ressourcesEtats.icones[1].etat.nom, "État du joueur")
 attendu("c'est mon tour", C.EstMonTour(), true)
 attendu("« C'est votre tour »", f.avis:IsShown(), true)
 

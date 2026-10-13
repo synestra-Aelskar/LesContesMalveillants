@@ -29,6 +29,7 @@ local CASE, PAS, RANGEE_X, RANGEE_Y = 74, 79, 151, 61
 -- elle qu'on pose au bord de l'ecran, les ornements au-dessus peuvent sortir.
 local RAIL_HAUT = 44
 local ECHELLE = 0.70
+local MAX_ETATS_HUD = 13
 -- Les quatre bords du cadre actif, pris separement dans l'atlas : le portrait
 -- de la capture d'origine ne doit jamais apparaitre en jeu.
 local BORDS = { { 0, 0, 92, 7 }, { 0, 83, 92, 7 }, { 0, 7, 7, 76 }, { 85, 7, 7, 76 } }
@@ -84,6 +85,80 @@ local function PastillePA(parent)
     end
     p:Regler("depense")
     return p
+end
+
+local LIBELLES_ETATS = {
+    etat = "État",
+    maladie = "Maladie",
+    intangible = "État intangible",
+}
+
+local function EffetsEtat(etat)
+    local effets = {}
+    for champ, valeur in pairs(etat.bonus or {}) do
+        local field = LCM.Schema.Field(champ)
+        effets[#effets + 1] = string.format("%s %+g", field and field.label or champ, valeur)
+    end
+    table.sort(effets)
+    return table.concat(effets, ", ")
+end
+
+-- Le bandeau rassemble les états posés par une action et ceux que le MJ a
+-- placés durablement sur la fiche. Ce sont deux stockages différents dans la
+-- fenêtre Santé, mais pour le joueur ils répondent à la même question :
+-- « qu'est-ce qui m'affecte maintenant ? ».
+local function EtatsDe(entity)
+    local out = {}
+    if not entity then return out end
+    for _, etat in ipairs(LCM.EtatsTemporaires.Liste(entity)) do
+        out[#out + 1] = {
+            nom = etat.nom,
+            icone = etat.icone,
+            description = etat.description,
+            bonus = etat.bonus,
+            categorie = etat.conteneur or "etat",
+            restant = etat.restant,
+            duree = LCM.EtatsTemporaires.Duree(etat),
+            debuff = etat.debuff,
+        }
+    end
+    for _, etat in ipairs(LCM.Etats.Portes(entity)) do
+        out[#out + 1] = {
+            nom = etat.label,
+            icone = etat.icone,
+            description = etat.description,
+            bonus = etat.bonus,
+            categorie = etat.categorie or "etat",
+            debuff = etat.categorie == "maladie",
+        }
+    end
+    return out
+end
+
+local function MontrerBulleEtat(cadre)
+    local etat = cadre.etat
+    if not (GameTooltip and etat) then return end
+    GameTooltip:SetOwner(cadre, "ANCHOR_BOTTOM")
+    GameTooltip:ClearLines()
+    if etat.resume then
+        GameTooltip:SetText(string.format("%d autres états", #etat.caches))
+        for _, cache in ipairs(etat.caches) do
+            GameTooltip:AddLine(cache.nom, cache.debuff and 1 or 0.94,
+                cache.debuff and 0.28 or 0.82, cache.debuff and 0.20 or 0.55)
+        end
+    else
+        GameTooltip:SetText(etat.nom or "État")
+        GameTooltip:AddLine(LIBELLES_ETATS[etat.categorie] or "État",
+            etat.debuff and 1 or 0.94, etat.debuff and 0.28 or 0.82,
+            etat.debuff and 0.20 or 0.55)
+        if etat.description and etat.description ~= "" then
+            GameTooltip:AddLine(etat.description, 0.82, 0.79, 0.72, true)
+        end
+        local effets = EffetsEtat(etat)
+        if effets ~= "" then GameTooltip:AddLine(effets, 0.95, 0.72, 0.32, true) end
+        if etat.duree then GameTooltip:AddLine("Durée : " .. etat.duree, 1, 0.32, 0.25) end
+    end
+    GameTooltip:Show()
 end
 
 -- Les combattants a montrer, au plus seize. Celui qui joue reste toujours
@@ -260,6 +335,33 @@ local function Construire()
     end)
     f.ressourcesPA:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
+    -- Une seule ligne compacte sous les PA. Les cadres existent dès la
+    -- construction : un changement d'état ne crée rien pendant le rendu.
+    f.ressourcesEtats = CreateFrame("Frame", nil, f)
+    Placer(f.ressourcesEtats, f, 170, 192, 410, 28)
+    f.ressourcesEtats.icones = {}
+    for index = 1, MAX_ETATS_HUD do
+        local bouton = CreateFrame("Frame", nil, f.ressourcesEtats)
+        bouton:SetSize(28, 28)
+        bouton:SetPoint("LEFT", f.ressourcesEtats, "LEFT", (index - 1) * 31, 0)
+        bouton:EnableMouse(true)
+        bouton.fond = UI.Aplat(bouton, { 0.025, 0.018, 0.015, 0.94 }, "BACKGROUND")
+        bouton.fond:SetAllPoints(bouton)
+        UI.BordureFine(bouton, 0.62)
+        bouton.icone = bouton:CreateTexture(nil, "ARTWORK")
+        Placer(bouton.icone, bouton, 2, 2, 24, 24)
+        bouton.temps = UI.Texte(bouton, "", { 1, 0.12, 0.08 }, "GameFontNormalSmall")
+        bouton.temps:SetPoint("BOTTOMRIGHT", bouton, "BOTTOMRIGHT", -1, 0)
+        bouton.temps:SetJustifyH("RIGHT")
+        bouton.temps:SetShadowColor(0, 0, 0, 1)
+        bouton.temps:SetShadowOffset(1, -1)
+        bouton:SetScript("OnEnter", MontrerBulleEtat)
+        bouton:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        bouton:Hide()
+        f.ressourcesEtats.icones[index] = bouton
+    end
+    f.ressourcesEtats:Hide()
+
     f.ressourcesPF = CreateFrame("Frame", nil, f)
     f.ressourcesPF:SetSize(330, 30)
     f.ressourcesPF:SetPoint("TOPRIGHT", f, "TOPRIGHT", -170, -158)
@@ -314,6 +416,33 @@ function Ecran.RafraichirRessources()
     f.ressourcesPF.barre:Regler(pf.current, pf.max)
 end
 
+function Ecran.RafraichirEtats()
+    local f = Ecran.frame
+    if not f then return end
+    local liste = EtatsDe(MaFiche())
+    for index, bouton in ipairs(f.ressourcesEtats.icones) do
+        local etat = liste[index]
+        -- La dernière case résume ce qui ne tient pas sur la ligne plutôt que
+        -- de laisser des icônes déborder sur l'avis central.
+        if index == MAX_ETATS_HUD and #liste > MAX_ETATS_HUD then
+            local caches = {}
+            for i = MAX_ETATS_HUD, #liste do caches[#caches + 1] = liste[i] end
+            etat = { resume = true, caches = caches,
+                nom = string.format("+%d", #caches),
+                icone = "Interface\\Icons\\INV_Misc_QuestionMark" }
+        end
+        bouton.etat = etat
+        bouton:SetShown(etat ~= nil)
+        if etat then
+            bouton.icone:SetTexture(LCM.Icone(etat.icone))
+            bouton.icone:SetDesaturated(etat.resume == true)
+            bouton.temps:SetText(etat.resume and etat.nom
+                or (etat.restant and tostring(etat.restant) or ""))
+        end
+    end
+    f.ressourcesEtats:SetShown(#liste > 0)
+end
+
 function Ecran.Rafraichir()
     local etat = LCM.Combat.Etat()
     if not etat then
@@ -326,6 +455,7 @@ function Ecran.Rafraichir()
     local f = Ecran.Fenetre()
     Positionner(f)
     Ecran.RafraichirRessources()
+    Ecran.RafraichirEtats()
 
     f.tour:SetText(string.format("%02d", etat.t))
     f.round:SetText(string.format("Round %d / %d", etat.r, etat.rm))
@@ -424,7 +554,10 @@ LCM.Combat.onInvitationRecue = function(recue) Ecran.Invitation(recue) end
 -- sans faire avancer l'initiative : le bandeau doit alors suivre aussitot.
 LCM.Entities.Ecouter(function(entity)
     local f = Ecran.frame
-    if f and f:IsShown() and entity == MaFiche() then Ecran.RafraichirRessources() end
+    if f and f:IsShown() and entity == MaFiche() then
+        Ecran.RafraichirRessources()
+        Ecran.RafraichirEtats()
+    end
 end)
 
 -- Et quand on change de peau — incarnation prise ou relachee, autre
@@ -433,6 +566,9 @@ end)
 if LCM.Entities.EcouterSoi then
     LCM.Entities.EcouterSoi(function()
         local f = Ecran.frame
-        if f and f:IsShown() then Ecran.RafraichirRessources() end
+        if f and f:IsShown() then
+            Ecran.RafraichirRessources()
+            Ecran.RafraichirEtats()
+        end
     end)
 end
