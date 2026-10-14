@@ -8,7 +8,271 @@
 local LCM = _G.LCM
 if not LCM then return end
 
--- ----- jeux (6) ----------------------------------------------------
+-- ----- jeux (8) ----------------------------------------------------
+LCM.Publier(LCM.Forge, {
+    categorie = "armes",
+    champs = {
+        acrobaties = {
+            cout = "3",
+        },
+        adresse = {
+            verrou = true,
+        },
+        communication = {
+            cout = "3",
+        },
+        constitution = {
+            verrou = true,
+        },
+        constitution_bouclier = {
+            cout = "4",
+        },
+        constitution_buff = {
+            cout = "4",
+        },
+        constitution_provocation = {
+            cout = "7",
+        },
+        constitution_soin = {
+            cout = "4",
+        },
+        cosmique = {
+            cout = "3",
+        },
+        course = {
+            cout = "3",
+        },
+        crochetage = {
+            cout = "3",
+        },
+        deguisement = {
+            cout = "3",
+        },
+        depl_nage = {
+            cout = "5",
+        },
+        depl_terrestre = {
+            cout = "5",
+        },
+        discretion = {
+            cout = "3",
+        },
+        duree_buff = {
+            cout = "4",
+        },
+        elementaire = {
+            cout = "3",
+        },
+        endurance = {
+            cout = "3",
+        },
+        equilibre = {
+            cout = "3",
+        },
+        escalade = {
+            cout = "3",
+        },
+        escamotage = {
+            cout = "3",
+        },
+        esprit = {
+            verrou = true,
+        },
+        esprit_provocation = {
+            cout = "7",
+        },
+        evasion = {
+            cout = "3",
+        },
+        fatigue = {
+            cout = "5",
+        },
+        force = {
+            verrou = true,
+        },
+        force_bouclier = {
+            cout = "4",
+        },
+        force_buff = {
+            cout = "4",
+        },
+        force_perce_armure = {
+            cout = "4",
+        },
+        force_provocation = {
+            cout = "7",
+        },
+        initiative = {
+            cout = "5",
+        },
+        investigation = {
+            cout = "3",
+        },
+        mystique = {
+            verrou = true,
+        },
+        mystique_bouclier = {
+            cout = "4",
+        },
+        mystique_buff = {
+            cout = "4",
+        },
+        mystique_perce_armure = {
+            cout = "4",
+        },
+        mystique_provocation = {
+            cout = "7",
+        },
+        mystique_soin = {
+            cout = "4",
+        },
+        nage = {
+            cout = "3",
+        },
+        odorat_gout = {
+            cout = "3",
+        },
+        ouie = {
+            cout = "3",
+        },
+        pa = {
+            cout = "5",
+        },
+        perception = {
+            verrou = true,
+        },
+        perception_buff = {
+            cout = "4",
+        },
+        perception_perce_armure = {
+            cout = "4",
+        },
+        pistage = {
+            cout = "3",
+        },
+        prise = {
+            cout = "3",
+        },
+        projection = {
+            cout = "3",
+        },
+        puissance = {
+            cout = "3",
+        },
+        puissance_buff = {
+            cout = "4",
+        },
+        resi_contondant = {
+            cout = "1",
+        },
+        resi_desordre = {
+            cout = "1",
+        },
+        resi_eau = {
+            cout = "1",
+        },
+        resi_esprit = {
+            cout = "1",
+        },
+        resi_feu = {
+            cout = "1",
+        },
+        resi_lumiere = {
+            cout = "1",
+        },
+        resi_mort = {
+            cout = "1",
+        },
+        resi_ombre = {
+            cout = "1",
+        },
+        resi_ordre = {
+            cout = "1",
+        },
+        resi_perforant = {
+            cout = "1",
+        },
+        resi_pourriture = {
+            cout = "1",
+        },
+        resi_terre = {
+            cout = "1",
+        },
+        resi_tranchant = {
+            cout = "1",
+        },
+        resi_vent = {
+            cout = "1",
+        },
+        resi_vie = {
+            cout = "1",
+        },
+        resistance = {
+            cout = "3",
+        },
+        sabotage = {
+            cout = "3",
+        },
+        toucher = {
+            cout = "3",
+        },
+        vol_a_la_tire = {
+            cout = "3",
+        },
+        vue = {
+            cout = "3",
+        },
+    },
+    description = "",
+    icone = "Interface\\Icons\\INV_Misc_QuestionMark",
+    id = "armes",
+    label = "Armes",
+    raretes = {
+        {
+            couleur = "FF8CB8",
+            id = "commun",
+            label = "Commun",
+            points = 0,
+        },
+        {
+            couleur = "4DE04D",
+            id = "inhabituel",
+            label = "Inhabituel",
+            points = 6,
+        },
+        {
+            couleur = "4D8CFF",
+            id = "rare",
+            label = "Rare",
+            points = 12,
+        },
+        {
+            couleur = "FF9926",
+            id = "epique",
+            label = "Épique",
+            points = 18,
+        },
+        {
+            couleur = "FF3838",
+            id = "legendaire",
+            label = "Légendaire",
+            points = 24,
+        },
+        {
+            couleur = "BF4DFF",
+            id = "mythique",
+            label = "Mythique",
+            points = 32,
+        },
+        {
+            couleur = "9999A6",
+            id = "unique",
+            label = "Unique",
+            points = 40,
+        },
+    },
+})
+
 LCM.Publier(LCM.Forge, {
     categorie = "armes",
     champs = {
@@ -1469,6 +1733,59 @@ LCM.Publier(LCM.Forge, {
 })
 
 LCM.Publier(LCM.Forge, {
+    categorie = "etats",
+    champs = {  },
+    description = "",
+    icone = "Interface\\Icons\\INV_Misc_QuestionMark",
+    id = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8",
+    label = "Equilibrage-Etats",
+    raretes = {
+        {
+            couleur = "FF8CB8",
+            id = "commun",
+            label = "Commun",
+            points = 1,
+        },
+        {
+            couleur = "4DE04D",
+            id = "inhabituel",
+            label = "Inhabituel",
+            points = 5,
+        },
+        {
+            couleur = "4D8CFF",
+            id = "rare",
+            label = "Rare",
+            points = 9,
+        },
+        {
+            couleur = "FF9926",
+            id = "epique",
+            label = "Épique",
+            points = 14,
+        },
+        {
+            couleur = "FF3838",
+            id = "legendaire",
+            label = "Légendaire",
+            points = 20,
+        },
+        {
+            couleur = "BF4DFF",
+            id = "mythique",
+            label = "Mythique",
+            points = 30,
+        },
+        {
+            couleur = "9999A6",
+            id = "unique",
+            label = "Unique",
+            points = 50,
+        },
+    },
+})
+
+LCM.Publier(LCM.Forge, {
     categorie = "races",
     champs = {
         acrobaties = {
@@ -2040,7 +2357,7 @@ LCM.Publier(LCM.Forge, {
             couleur = "FF8CB8",
             id = "commun",
             label = "Commun",
-            points = "6",
+            points = "40",
         },
     },
 })
@@ -2086,6 +2403,48 @@ LCM.Publier(LCM.Forge, {
             base = 0,
             cout = 2,
             max = 4,
+            min = 0,
+        },
+        def_agilite = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_courage = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_defense = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_esprit_libre = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_insensible = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_mental = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = 0,
+        },
+        def_stable = {
+            base = 0,
+            cout = 2,
+            max = 8,
             min = 0,
         },
         defense_constitution = {
@@ -2191,122 +2550,146 @@ LCM.Publier(LCM.Forge, {
         },
         meca_attaque_simple = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_attraction = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_bouclier = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_brise_armure = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_buff = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_confusion = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_controle_mental = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_creation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_debuff = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_deviation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_dissipation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
+            min = -4,
+        },
+        meca_dot = {
+            base = 0,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_entrave = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_illusion = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_immobilisation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_intervention = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
+            min = -4,
+        },
+        meca_intimidation = {
+            base = 0,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_levitation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_perce_armure = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_permutation = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
+            min = -4,
+        },
+        meca_peur = {
+            base = 0,
+            cout = 2,
+            max = 8,
+            min = -4,
+        },
+        meca_provocation = {
+            base = 0,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_repulsion = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         meca_soin = {
             base = 0,
-            cout = "2",
-            max = 4,
+            cout = 2,
+            max = 8,
             min = -4,
         },
         mystique = {
@@ -2631,18 +3014,21 @@ LCM.Publier(LCM.Forge, {
         },
         {
             couleur = "4DE04D",
+            coutTrait = "2",
             id = "inhabituel",
             label = "Inhabituel",
             points = 12,
         },
         {
             couleur = "4D8CFF",
+            coutTrait = "3",
             id = "rare",
             label = "Rare",
             points = 18,
         },
         {
             couleur = "FF9926",
+            coutTrait = "4",
             id = "epique",
             label = "Épique",
             points = 26,
@@ -2650,7 +3036,7 @@ LCM.Publier(LCM.Forge, {
     },
 })
 
--- ----- pnj (1) -----------------------------------------------------
+-- ----- pnj (2) -----------------------------------------------------
 LCM.Publier(LCM.PNJ, {
     apprentissages = {  },
     equipement = {
@@ -2720,7 +3106,169 @@ LCM.Publier(LCM.PNJ, {
     },
 })
 
--- ----- points (1) --------------------------------------------------
+LCM.Publier(LCM.PNJ, {
+    apprentissages = {  },
+    equipement = {
+        accessoire = { "lcm_64a651_6aced581_02029a27_0024_0779ae" },
+        arme = { "lcm_64a651_6aced4fa_02008acc_0023_de2ead" },
+        equipement = { "lcm_64a651_6aced371_01fa872b_0008_2528da", "lcm_64a651_6aced3c9_01fbe20c_000b_ffef6c", "lcm_64a651_6aced474_01fe7f4a_000e_7cd315", "lcm_64a651_6aced4d3_01fff30d_001f_3216c5" },
+    },
+    etats = {  },
+    icone = "Interface\\ICONS\\eps_lol_item_bamiscinder",
+    id = "lcm_64a651_6aced381_01fac6f6_0009_468327",
+    label = "Nhin Géolier",
+    metiersNiveaux = {  },
+    traits = { "lcm_64a651_6aced2e4_01f863c6_0003_d663b1", "lcm_64a651_6aced05c_01ee805c_0002_685bb7" },
+    valeurs = {
+        adresse = 7,
+        age = 140,
+        constitution = 11,
+        def_defense = 8,
+        endurance = 8,
+        esprit = 7,
+        force = 14,
+        meca_attaque_simple = 10,
+        meca_attraction = 5,
+        meca_brise_armure = 6,
+        meca_peur = 8,
+        mystique = 6,
+        niveau = 16,
+        pen_contondant = 17,
+        pen_perforant = 14,
+        pen_pourriture = 17,
+        pen_tranchant = 14,
+        perception = 6,
+        poids = 250,
+        prise = 8,
+        projection = 8,
+        puissance = 8,
+        race = "lcm_aa9c40_6acecf5e_01ea95fe_0001_4b65d0",
+        resi_contondant = 30,
+        resi_perforant = 30,
+        resi_pourriture = 31,
+        resi_tranchant = 30,
+        resistance = 8,
+        sec_initiative = 10,
+        sec_mecanique = 10,
+        sec_penetration = 9,
+        sec_resistance = 15,
+        sec_vitalite = 22,
+        sexe = "Masculin",
+    },
+})
+
+-- ----- points (5) --------------------------------------------------
+LCM.Publier(LCM.Points, {
+    description = "",
+    id = "lcm_132159_6ace28f1_02d0f402_0002_80cb9c",
+    label = "Récolter de l'eau",
+    nature = "ressource",
+    offres = {  },
+    recolte = {
+        aleatoire = true,
+        dd = 0,
+        entree = "ressources/eau",
+        max = 18,
+        min = 1,
+        rayon = 3,
+    },
+})
+
+LCM.Publier(LCM.Points, {
+    arcId = "vendeur_9_6ace46bf_03455ffe_0002_644c43",
+    description = "",
+    deviseDefaut = "ecus",
+    icone = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-bourse.tga",
+    id = "lcm_132159_6ace46bf_03455ffe_0002_644c43",
+    label = "Segarmat",
+    nature = "vendeur",
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
+            offres = {
+                {
+                    cle = "lcm_132159_6ace46bf_03455ffe_0002_644c43/lcm_132159_6ace46e5_0345f355_0003_6ee99a",
+                    devise = "ecus",
+                    entree = "sacs/gros_sac",
+                    icone = "Interface\\Icons\\INV_Misc_QuestionMark",
+                    id = "lcm_132159_6ace46e5_0345f355_0003_6ee99a",
+                    label = "",
+                    prix = "600",
+                    quantite = 1,
+                    stock = {
+                        limite = "1",
+                        minutes = 0,
+                        unites = 0,
+                    },
+                },
+                {
+                    cle = "lcm_132159_6ace46bf_03455ffe_0002_644c43/lcm_132159_6ace46e5_0345f5ad_0004_a6c4af",
+                    devise = "ecus",
+                    entree = "sacs/sac_de_gros",
+                    icone = "Interface\\Icons\\INV_Misc_QuestionMark",
+                    id = "lcm_132159_6ace46e5_0345f5ad_0004_a6c4af",
+                    label = "",
+                    prix = "250",
+                    quantite = 1,
+                    stock = {
+                        limite = 0,
+                        minutes = 0,
+                        unites = 0,
+                    },
+                },
+                {
+                    cle = "lcm_132159_6ace46bf_03455ffe_0002_644c43/lcm_132159_6ace46e6_0345f783_0005_5058fc",
+                    devise = "ecus",
+                    entree = "sacs/sacoche_de_depart",
+                    icone = "Interface\\Icons\\INV_Misc_QuestionMark",
+                    id = "lcm_132159_6ace46e6_0345f783_0005_5058fc",
+                    label = "",
+                    prix = "150",
+                    quantite = 1,
+                    stock = {
+                        limite = 0,
+                        minutes = 0,
+                        unites = 0,
+                    },
+                },
+            },
+        },
+    },
+    rachats = {
+        {
+            id = "rachat_1",
+            label = "Rachats",
+            offres = {  },
+        },
+    },
+})
+
+LCM.Publier(LCM.Points, {
+    description = "",
+    id = "lcm_132159_6ace475d_0347c919_0006_5acd69",
+    label = "Récolter des fleurs de métal",
+    nature = "ressource",
+    offres = {  },
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
+            offres = {  },
+        },
+    },
+    rachats = {  },
+    recolte = {
+        aleatoire = true,
+        dd = 12,
+        entree = "ressources/argent",
+        max = 10,
+        metier = "mineur",
+        min = 5,
+        rayon = 2,
+    },
+})
+
 LCM.Publier(LCM.Points, {
     arcId = "vendeur_1_6ac4d4a7_2b6fce7a_0003_2eb5f7",
     description = "",
@@ -2753,4 +3301,38 @@ LCM.Publier(LCM.Points, {
             label = "Rachats",
             offres = {},
         } },
+})
+
+LCM.Publier(LCM.Points, {
+    description = "",
+    id = "lcm_64a651_6ace4c99_12e6ed6b_0002_67745d",
+    label = "Récolter des gravats",
+    nature = "ressource",
+    offres = {  },
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
+            offres = {  },
+        },
+    },
+    rachats = {  },
+    recolte = {
+        dd = 10,
+        echecConsomme = false,
+        limite = 1,
+        metiers = {  },
+        rayon = 3,
+        ressources = {
+            {
+                aleatoire = true,
+                chance = 100,
+                entree = "ressources/lcm_64a651_6ace4cd9_12e7e6e8_0004_f78759",
+                max = 6,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+        },
+    },
 })

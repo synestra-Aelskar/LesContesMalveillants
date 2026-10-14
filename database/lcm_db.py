@@ -17,6 +17,7 @@ utilise par les SavedVariables de WoW : tables, chaines, nombres et booleens.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -43,6 +44,8 @@ def addons_directory() -> Path:
         return Path(configured).expanduser().resolve()
     if (PROJECT / "LesContesMalveillants").is_dir():
         return PROJECT
+    if PROJECT.name == "Sync" and PROJECT.parent.name == "LesContesMalveillants_MJ":
+        return PROJECT.parent.parent
     return PROJECT.parent
 
 
@@ -314,6 +317,10 @@ def side_for(family: str, definition: dict) -> str:
         return "mj"
     if family == "resolutions" and str(definition.get("categorie", "")) == "mj":
         return "mj"
+    # Une entree reservee au compagnon MJ ne doit jamais etre livree dans
+    # l'addon joueur. Distinct de mjSeulement, qui ne masque que son affichage.
+    if definition.get("distributionMJ") is True:
+        return "mj"
     return "player"
 
 
@@ -549,8 +556,13 @@ def build() -> dict[str, int]:
         for family in sorted(grouped[side]):
             entries = sorted(grouped[side][family], key=lambda item: item[0])
             chunks.append(f"-- ----- {family} ({len(entries)}) " + "-" * max(0, 56 - len(family)) + "\n")
-            for _, registry, table_source in entries:
-                chunks.append(f"LCM.Publier(LCM.{registry}, {table_source})\n\n")
+            for identifier, registry, table_source in entries:
+                if side == "player":
+                    revision = hashlib.sha256(table_source.encode("utf-8")).hexdigest()[:16]
+                    chunks.append(f"LCM.PublierPublique(LCM.{registry}, {lua_string(family)}, "
+                                  f"{table_source}, {lua_string(revision)})\n\n")
+                else:
+                    chunks.append(f"LCM.Publier(LCM.{registry}, {table_source})\n\n")
             total += len(entries)
         # Les reglages d'equilibrage partent chez TOUT LE MONDE : le MJ et ses
         # joueurs doivent calculer avec les memes nombres. Ils vont donc dans le

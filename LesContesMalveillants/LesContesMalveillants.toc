@@ -88,6 +88,7 @@ Data\Genere\Compendium_Contenu.lua
 Data\Genere\Compendium_Resolutions.lua
 Data\Genere\Necronicon_Grimoires.lua
 Data\Genere\Atelier.lua
+Core\BasePublique.lua
 Data\ActionsBoutons.lua
 Data\Receptions.lua
 

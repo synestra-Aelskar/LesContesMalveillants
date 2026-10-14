@@ -591,6 +591,9 @@ end
 -- moitie dupliquee.
 function Inventaire.Deposer(entity, ref, quantite)
     if type(entity) ~= "table" then return false, "aucun personnage." end
+    if not LCM.Compendium.Resoudre(ref) then
+        return false, "entrée inconnue du compendium."
+    end
     -- Une tente ne se range pas dans un sac : elle s'equipe, sur le premier
     -- emplacement de sacoche libre. Sans quoi on ne pourrait ni l'acheter ni
     -- la recevoir.

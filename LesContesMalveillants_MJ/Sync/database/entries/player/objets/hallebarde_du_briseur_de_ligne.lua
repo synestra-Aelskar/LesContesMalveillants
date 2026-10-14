@@ -1,0 +1,28 @@
+-- lcm-db: {"family": "objets", "id": "hallebarde_du_briseur_de_ligne", "registry": "Objets", "side": "player"}
+return {
+    avantage = {  },
+    bonus = {
+        force_brise_armure = 2,
+        meca_brise_armure = 1,
+        mystique_brise_armure = 2,
+        pen_contondant = 2,
+        pen_perforant = 2,
+        pen_tranchant = 4,
+        perception_brise_armure = 2,
+    },
+    categorie = "arme",
+    couleurTitre = "4DE04D",
+    description = "Une hallebarde forgée en thorium et pourvue de nombreux enchantement, l'arme est particulièrement lourde du fait de l'alliage qui la compose. Un utilisateur habile peut ouvrir des armures et tenir tête à une foule d'ennemis. On raconte même qu'elle permet à son utilisateur de briser le sol.\n\nEn puissant dans la magie de l'arme, l'utilisateur peut fracasser le sol sous les pieds de ses adversaires pour les faire tomber à la renverse.",
+    etat = {
+        courant = 10,
+        max = 10,
+    },
+    forge = "equilibrage_arme/inhabituel",
+    icone = "Interface\\ICONS\\inv_polearm_2h_maw_c_01",
+    id = "hallebarde_du_briseur_de_ligne",
+    label = "Hallebarde du briseur de ligne",
+    remplacePublie = true,
+    tags = "Inhabituel",
+    taille = 2,
+    type = "lcm_64a651_6acd5d29_0f3fa8ea_000b_0d4e18",
+}

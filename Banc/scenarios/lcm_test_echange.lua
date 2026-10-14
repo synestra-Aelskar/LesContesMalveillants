@@ -187,4 +187,35 @@ LCM.Reseau.Recevoir(LONG, string.format("%d:1:1:ECH_CONTENU|%s", numero,
 attendu("ce qu'il pose arrive", #E.courant.sien.objets, 1)
 E.Annuler()
 
+dire("== la place est verifiee avec les vraies regles de rangement")
+-- Le joueur ne connait pas forcement un objet cree par le MJ. L'accord doit
+-- etre refuse avant de conclure, avec la vraie raison au lieu de « sac plein ».
+E.Proposer(AUTRE)
+recevoir("ECH_OUI", {})
+recevoir("ECH_CONTENU", { objets = { { ref = "objets/inconnu_du_joueur", quantite = 1,
+    nom = "Objet du MJ" } }, devises = {} })
+local place, raisonPlace = E.Place()
+attendu("objet inconnu refuse avant accord", place, false)
+attendu("raison precise", raisonPlace:find("entrée inconnue", 1, true) ~= nil, true)
+attendu("aucun accord envoye", E.Accepter(true), false)
+attendu("la seance reste ouverte", E.courant ~= nil, true)
+E.Annuler()
+
+-- Une tente a des cases libres, mais n'accepte aucun objet ordinaire.
+local inventaireAvant = moi.inventaire
+moi.inventaire = { ceintures = { [1] = { ceinture = true, cases = {
+    [1] = { ref = "ressources/eau", quantite = 1 },
+    [2] = { ref = "ressources/eau", quantite = 1 },
+    [3] = { ref = "ressources/eau", quantite = 1 },
+} } }, saccoches = { [1] = { tente = "auberge_de_tephris" } } }
+E.Proposer(AUTRE)
+recevoir("ECH_OUI", {})
+recevoir("ECH_CONTENU", { objets = { { ref = "objets/dague_d_assassin_du_culte",
+    quantite = 1, nom = "Dague" } }, devises = {} })
+place, raisonPlace = E.Place()
+attendu("les cases de tente ne comptent pas pour une dague", place, false)
+attendu("raison du rangement conservee", raisonPlace:find("aucune place libre", 1, true) ~= nil, true)
+E.Annuler()
+moi.inventaire = inventaireAvant
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

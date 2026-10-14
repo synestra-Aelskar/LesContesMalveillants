@@ -248,27 +248,24 @@ end
 
 -- ===== Accepter et conclure ================================================
 
--- Assez de cases libres pour ce que l'autre pose ? On le verifie AVANT
--- d'accepter : au moment de conclure, un objet sans place serait perdu des
--- deux cotes.
+-- Essayer le rangement sur une copie : une case de tente n'accepte pas une
+-- arme, une pile peut deja etre pleine, et une entree MJ peut etre inconnue
+-- du compendium du joueur. Compter les cases vides donnait un faux accord.
 function Echange.Place()
     local seance = Echange.courant
     if not seance then return true end
-    local besoin = #(seance.sien.objets or {})
-    if besoin == 0 then return true end
-    local libres = 0
-    for _, categorie in ipairs(Inv.categories) do
-        for index = 1, Inv.Capacite(categorie.id) do
-            local emplacement = Inv.Emplacement(Moi(), categorie.id, index)
-            if emplacement then
-                local total, places = Inv.Cases(emplacement)
-                for case = 1, math.min(total, places) do
-                    if not Inv.Case(emplacement, case) then libres = libres + 1 end
-                end
-            end
+    if #(seance.sien.objets or {}) == 0 then return true end
+    local personnage = Moi()
+    if not personnage then return false, "aucun personnage actif." end
+    local essai = LCM.Copie(personnage)
+    for _, pose in ipairs(seance.sien.objets) do
+        local ok, raison = Inv.Deposer(essai, pose.ref, tonumber(pose.quantite) or 1)
+        if not ok then
+            return false, string.format("%s : %s", tostring(pose.nom or pose.ref),
+                tostring(raison or "impossible à ranger."))
         end
     end
-    return libres >= besoin, libres
+    return true
 end
 
 function Echange.Accepter(oui)
@@ -276,9 +273,9 @@ function Echange.Accepter(oui)
     if not (seance and seance.ouverte) then return false, "aucun échange en cours." end
     if oui == nil then oui = true end
     if oui then
-        local place, libres = Echange.Place()
+        local place, raison = Echange.Place()
         if not place then
-            return false, string.format("pas assez de place : %d case(s) libre(s).", libres or 0)
+            return false, raison
         end
     end
     seance.monAccord = oui and true or false

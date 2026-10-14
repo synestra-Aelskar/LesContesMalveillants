@@ -217,9 +217,9 @@ local function Construire()
 
         -- Ce qui bloque, dit AVANT d'accepter : un objet sans place serait
         -- perdu des deux cotes au moment de conclure.
-        local place, libres = E.Place()
+        local place, raison = E.Place()
         if not place then
-            self.etat:SetText(string.format("pas assez de place : %d case(s) libre(s).", libres or 0))
+            self.etat:SetText(raison or "Impossible de recevoir cet objet.")
             self.etat:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
         else
             self.etat:SetText("Clic droit sur une ligne pour la reprendre.")

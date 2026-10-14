@@ -1,0 +1,9 @@
+/Sauvegardes_LCM/
+/database/.gsheet_state_*.json
+/Outils/.gsheet_auto_state.json
+/Outils/__pycache__/
+/Banc/__pycache__/
+/LesContesMalveillants_MJ/Sync/**/__pycache__/
+/LesContesMalveillants_MJ/Sync/database/.gsheet_state_*.json
+/LesContesMalveillants_MJ/Sync/Outils/.gsheet_auto_state.json
+/LesContesMalveillants_MJ/Sync/Sauvegardes_LCM/

@@ -176,6 +176,19 @@ function LCM.Publier(registre, definition)
     return existant
 end
 
+-- Les definitions du fichier public genere servent aussi de source aux MJ
+-- pour la synchronisation entre addons. Aucune entree du compagnon MJ ne passe
+-- par cette porte.
+LCM.SourcePublique = {}
+function LCM.PublierPublique(registre, famille, definition, revision)
+    local element = LCM.Publier(registre, definition)
+    local cle = tostring(famille) .. "/" .. tostring(definition.id)
+    LCM.SourcePublique[cle] = {
+        famille = famille, definition = LCM.Copie(definition), revision = revision,
+    }
+    return element
+end
+
 -- Une copie profonde : un brouillon ou un fichier genere ne doit partager
 -- aucune table avec ce qu'on enregistre.
 local function Copie(v)
