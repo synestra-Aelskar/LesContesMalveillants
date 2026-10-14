@@ -22,7 +22,18 @@ for _, b in ipairs(p.barre.boutons) do ids[#ids + 1] = b.ongletId end
 -- Six depuis que « Contenu » s'est scinde en « PNJ » et « Contenus », et que
 -- l'« Équilibrage » a sa page (octobre 2026). Le scenario en connaissait
 -- quatre.
-attendu("les onglets", table.concat(ids, ","), "joueurs,combat,pnj,contenus,outils,equilibrage")
+attendu("les onglets", table.concat(ids, ","), "joueurs,traits,combat,pnj,contenus,outils,equilibrage")
+local pageTraits = p.pages.traits
+attendu("le panneau de partage des traits existe", pageTraits ~= nil, true)
+pageTraits:ChoisirJoueur("Nytherah-Apertus")
+local trait = LCM.Traits.list[1]
+local numero
+for i, case in ipairs(pageTraits.casesTraits) do if case.traitId == trait.id then numero = i break end end
+attendu("une case par trait", numero ~= nil, true)
+pageTraits.casesTraits[numero]:Click()
+attendu("le MJ autorise le trait au joueur", LCM.AccesTraits.Liste("Nytherah-Apertus")[trait.id], true)
+pageTraits.casesTraits[numero]:Click()
+attendu("le MJ peut retirer l'autorisation", LCM.AccesTraits.Liste("Nytherah-Apertus")[trait.id], nil)
 local function onglet(id)
     for _, b in ipairs(p.barre.boutons) do if b.ongletId == id then b:Click() end end
     return p.pages[id]

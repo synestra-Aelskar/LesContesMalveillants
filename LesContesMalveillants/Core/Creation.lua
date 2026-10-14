@@ -556,7 +556,7 @@ function Creation.PeutEncoreDepenser(brouillon, categorie)
     if reste <= 0 then return false end
     if categorie == "traits" then
         local places = (tonumber(Eq().conteneurs.traits) or 0) - Creation.Depense(brouillon, "traits")
-        for _, trait in ipairs(LCM.Traits.list) do
+        for _, trait in ipairs(LCM.Traits.Accessibles()) do
             if LCM.Traits.Cout(trait) <= math.min(reste, places)
                 and not Creation.ATrait(brouillon, trait.id) then
                 return true

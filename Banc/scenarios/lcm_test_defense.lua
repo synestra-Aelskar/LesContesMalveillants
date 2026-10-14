@@ -65,9 +65,13 @@ attendu("on choisit son jet", C.titre:GetText(), "Opposer avec")
 attendu("avec sa plage", C.boutons[1].label:GetText():find("0-15", 1, true) ~= nil, true)
 C.boutons[1]:Click()
 attendu("le message", C.titre:GetText(), "Encaissement critique")
+local estMJ = LCM.IsMaster
+LCM.IsMaster = function() return false end
 C.boutons[1]:Click()
 local R = U.repartition
 attendu("la repartition s'ouvre", R:IsShown(), true)
+attendu("un joueur ne voit pas Ignorer les degats", R.ignorer:IsShown(), false)
+LCM.IsMaster = estMJ
 attendu("le degat critique net", R.montant, 5)
 attendu("le perce-armure impose", R.minimum, 3)
 -- #armure vise les pieces portees (2 octobre 2026) : nu, rien a proposer, et
@@ -189,5 +193,32 @@ __addonsCharges["LesContesMalveillants_MJ"] = false
 attendu("refuse", A.Recevoir(attaque(0, { p = garde.id }), "Nytherah-Apertus"), false)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
+
+dire("== couleur des lignes de repartition")
+local zonesOriginales = A.Zones
+local casTeintes = {
+    { genre = "zone", id = "tete", nom = "Tête", courant = 0, max = 1, plafond = 1 },
+    { genre = "jauge", id = "armure", nom = "Boucliers", courant = 0, max = 1, plafond = 1 },
+    { genre = "objet", id = "arme", nom = "Arme", categorie = "arme", courant = 0, max = 1, plafond = 1 },
+    { genre = "objet", id = "armure", nom = "Armure", categorie = "equipement", courant = 0, max = 1, plafond = 1 },
+    { genre = "objet", id = "accessoire", nom = "Accessoire", categorie = "accessoire", courant = 0, max = 1, plafond = 1 },
+}
+A.Zones = function() return casTeintes, {} end
+U.Repartir({ entity = moi, effets = { { montant = 1, signe = "+", tags = {} } } }, function() end)
+local teintesAttendue = {
+    { 0.78, 0.12, 0.12, 0.20 }, { 1.00, 0.36, 0.04, 0.34 },
+    { 0.12, 0.38, 0.88, 0.24 }, { 0.92, 0.68, 0.10, 0.23 },
+    { 0.12, 0.62, 0.24, 0.23 },
+}
+for i, attenduCouleur in ipairs(teintesAttendue) do
+    local couleur = U.repartition.lignes[i].teinte.__color
+    local identique = couleur ~= nil
+    for composante = 1, 4 do
+        identique = identique and math.abs((couleur and couleur[composante] or -1) - attenduCouleur[composante]) < 0.001
+    end
+    attendu("teinte de ligne " .. i, identique, true)
+end
+A.Zones = zonesOriginales
+U.repartition:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

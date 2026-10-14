@@ -22,6 +22,38 @@ local _, LCM = ...
 local Traits = { list = {}, byId = {} }
 LCM.Traits = Traits
 
+-- L'addon contient les definitions, mais le joueur n'en expose que celles
+-- que le MJ lui a revelees. La liste est volontairement en memoire vive : a
+-- chaque connexion, le joueur la redemande au MJ de son groupe.
+local accesAutorises
+
+function Traits.Accessibles()
+    if LCM.IsMaster() then return Traits.list end
+    local out = {}
+    for _, trait in ipairs(Traits.list) do
+        if accesAutorises and accesAutorises[trait.id] then out[#out + 1] = trait end
+    end
+    return out
+end
+
+function Traits.EstAccessible(id)
+    if LCM.IsMaster() then return Traits.Get(id) ~= nil end
+    return accesAutorises ~= nil and accesAutorises[tostring(id or "")] == true
+end
+
+function Traits.DefinirAccessibles(ids)
+    accesAutorises = {}
+    for id, autorise in pairs(type(ids) == "table" and ids or {}) do
+        if autorise and Traits.Get(id) then accesAutorises[tostring(id)] = true end
+    end
+    if LCM.UI and LCM.UI.Compendium and LCM.UI.Compendium.Actualiser then
+        LCM.UI.Compendium.Actualiser()
+    end
+    if LCM.UI and LCM.UI.Creation and LCM.UI.Creation.Actualiser then
+        LCM.UI.Creation.Actualiser()
+    end
+end
+
 -- La regle vit dans Effets ; le nom reste ici pour qui le lisait deja.
 Traits.PRIMAIRES = LCM.Effets.PRIMAIRES
 
@@ -212,6 +244,26 @@ function Traits.Advantage(entity, fieldId)
     end
     return nil
 end
+
+LCM.WhenReady(function()
+    LCM.Reseau.Ecouter("traits_acces", function(expediteur, donnees)
+        if LCM.Reseau.DansLeGroupe(expediteur) then
+            Traits.DefinirAccessibles(donnees and donnees.ids or {})
+        end
+    end)
+    LCM.Reseau.Ecouter("traits_acces_demande", function(expediteur)
+        if not LCM.IsMaster() or not Traits.EnvoyerAccessibles then return end
+        Traits.EnvoyerAccessibles(expediteur)
+    end)
+    local function DemanderAcces()
+        if LCM.IsMaster() or not LCM.Reseau then return end
+        local canal = IsInRaid and IsInRaid() and "RAID" or "PARTY"
+        LCM.Reseau.Envoyer("traits_acces_demande", {}, canal)
+    end
+    LCM.On("PLAYER_LOGIN", DemanderAcces)
+    LCM.On("GROUP_ROSTER_UPDATE", DemanderAcces)
+    if C_Timer and C_Timer.After then C_Timer.After(1, DemanderAcces) else DemanderAcces() end
+end)
 
 -- Les traits portes sont une source d'effets comme une autre.
 LCM.Effets.Source("trait", Traits.Owned, function() return Traits.list end)

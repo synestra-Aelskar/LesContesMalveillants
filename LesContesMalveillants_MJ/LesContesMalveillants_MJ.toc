@@ -7,6 +7,7 @@
 ## SavedVariables: LCM_MJ_DB
 
 MJ.lua
+Traits.lua
 Stock.lua
 Points.lua
 Genere\Points.lua

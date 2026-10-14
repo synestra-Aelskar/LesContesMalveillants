@@ -76,8 +76,15 @@ recevoir("Nytherah-Apertus", "act", attaque(99))
 P.devier:Click()
 W.jets[1]:Click()
 for _, b in ipairs(W.second) do if b:IsShown() and b.cible and b.cible.id == "Bram-Apertus" then b:Click() end end
+local incoming = W.recu
+local analyse = R.Analyse(incoming.paquet, "deviation", "Esprit", nil, moi)
+local fixe = math.floor((analyse.valeur + analyse.bonus) * analyse.mult + 0.5)
+local ancienDes = LCM.Roll.Des
+LCM.Roll.Des = function() return analyse.aBattre - 5 - fixe end
 W.agir:Click()
+LCM.Roll.Des = ancienDes
 attendu("echec annonce", chatDit("échoue à dévier") ~= nil, true)
+attendu("écart de 5 : le normal devient critique", incoming.paquet.valeurs["Total Normal"], "8")
 attendu("l'action revient", P:IsShown(), true)
 attendu("on ne peut plus la detourner", P.devier:IsShown(), false)
 attendu("et on dit pourquoi", P.resume:GetText():find("redirection a déjà échoué", 1, true) ~= nil, true)
@@ -93,6 +100,12 @@ local sansJet = attaque(0)
 sansJet.v["Rand Résultat"] = nil
 recevoir("Nytherah-Apertus", "act", sansJet)
 attendu("sans jet d'attaquant : dit", P.resume:GetText():find("Rand Résultat", 1, true) ~= nil, true)
+U.Ignorer()
+local estMJ = LCM.IsMaster
+LCM.IsMaster = function() return false end
+recevoir("Nytherah-Apertus", "act", attaque(0, { n = "Chant inconnu" }))
+attendu("un joueur ne voit pas le bouton Ignorer", U.recu.ignorer:IsShown(), false)
+LCM.IsMaster = estMJ
 U.Ignorer()
 
 dire("== proposer une intervention : refusee")

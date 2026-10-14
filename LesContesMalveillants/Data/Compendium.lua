@@ -402,7 +402,7 @@ Generique({ id = "races", label = "Races",
         { cle = "mjSeulement", label = "Réservée au MJ", type = "case", emplacement = "meta" },
     } })
 
-Generique({ id = "traits", label = "Traits", liste = "armes",
+Generique({ id = "traits", label = "Traits",
     registre = "Traits", famille = "traits",
     extras = {
         -- Ajout de l'addon : le template mettait ce chiffre dans les tags.

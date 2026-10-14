@@ -77,7 +77,8 @@ function Compendium.Entrees(categorie)
     local registre = Compendium.Registre(categorie)
     local out = {}
     for _, element in ipairs(registre and registre.list or {}) do
-        if not categorie.filtre or categorie.filtre(element) then out[#out + 1] = element end
+        local visible = categorie.id ~= "traits" or LCM.Traits.EstAccessible(element.id)
+        if visible and (not categorie.filtre or categorie.filtre(element)) then out[#out + 1] = element end
     end
     return out
 end
@@ -249,7 +250,7 @@ function Compendium.Options(champ)
     elseif source == "races" then
         Ajouter(LCM.Races.list)
     elseif source == "traits" then
-        Ajouter(LCM.Traits.list)
+        Ajouter(LCM.Traits.Accessibles())
     elseif source == "accessoires_camping" then
         Ajouter(LCM.AccessoiresCamping.list)
     elseif source == "etats" then
@@ -286,6 +287,7 @@ function Compendium.Resoudre(ref)
     local registre = famille and FAMILLES[famille] and LCM[FAMILLES[famille]]
     local element = registre and registre.Get(id)
     if not element then return nil end
+    if famille == "traits" and not LCM.Traits.EstAccessible(id) then return nil end
     for _, categorie in ipairs(Compendium.categories) do
         if categorie.famille == famille and (not categorie.filtre or categorie.filtre(element)) then
             return element, categorie

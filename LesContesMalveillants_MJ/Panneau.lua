@@ -33,6 +33,7 @@ local LIGNE = 28
 
 Ecran.ONGLETS = {
     { id = "joueurs", label = "Joueurs" },
+    { id = "traits", label = "Traits" },
     { id = "combat",  label = "Combat" },
     { id = "pnj",     label = "PNJ" },
     { id = "contenus", label = "Contenus" },
@@ -625,6 +626,100 @@ function Pages.joueurs(page, f)
         self.etat:SetText(string.format("%d joueur%s", #membres, #membres > 1 and "s" or ""))
         if self.xpPanneau:IsShown() then self.xpPanneau:Remplir(false) end
         if self.regainPanneau:IsShown() then self.regainPanneau:Remplir(false) end
+    end
+end
+
+-- ===== Visibilite des traits ===============================================
+
+function Pages.traits(page, f)
+    page.titre = Titre(page, "Traits visibles par joueur")
+    page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    page.aideTraits = UI.Texte(page,
+        "Coche les traits que chaque joueur peut consulter dans son compendium et sa création.", UI.C.discret)
+    UI.Police(page.aideTraits, 10)
+    page.aideTraits:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -20)
+    page.aideTraits:SetPoint("RIGHT", page, "RIGHT", -2, 0)
+    page.aideTraits:SetJustifyH("LEFT")
+    page.joueursZone = UI.Defilement(page)
+    page.joueursZone:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -46)
+    page.joueursZone:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
+    page.joueursZone:SetWidth(190)
+    page.joueurs = {}
+    page.traitsZone = UI.Defilement(page)
+    page.traitsZone:SetPoint("TOPLEFT", page.joueursZone, "TOPRIGHT", 12, 0)
+    page.traitsZone:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+    page.casesTraits = {}
+    page.joueurActif = nil
+    page.videJoueurs = UI.Texte(page.joueursZone.contenu, "Aucun joueur dans le groupe.", UI.C.discret)
+    page.videJoueurs:SetPoint("TOPLEFT", page.joueursZone.contenu, "TOPLEFT", 6, -6)
+    page.videTraits = UI.Texte(page.traitsZone.contenu, "Choisis un joueur à gauche.", UI.C.discret)
+    page.videTraits:SetPoint("TOPLEFT", page.traitsZone.contenu, "TOPLEFT", 6, -6)
+
+    function page:ChoisirJoueur(joueur)
+        self.joueurActif = joueur
+        self:AfficherTraits()
+    end
+
+    function page:AfficherTraits()
+        local liste = {}
+        for _, trait in ipairs(LCM.Traits.list) do liste[#liste + 1] = trait end
+        table.sort(liste, function(a, b) return tostring(a.label):lower() < tostring(b.label):lower() end)
+        local y = 0
+        for rang, trait in ipairs(liste) do
+            local c = self.casesTraits[rang]
+            if not c then
+                local index = rang
+                c = UI.Case(self.traitsZone.contenu, "", function(cochee)
+                    local ligne = page.casesTraits[index]
+                    if page.joueurActif and ligne and MJ.AccesTraits then
+                        MJ.AccesTraits.Definir(page.joueurActif, ligne.traitId, cochee)
+                    end
+                end)
+                self.casesTraits[rang] = c
+            end
+            c.traitId = trait.id
+            c.label:SetText(string.format("%s  ·  %d pt%s", tostring(trait.label),
+                LCM.Traits.Cout(trait), LCM.Traits.Cout(trait) > 1 and "s" or ""))
+            c:SetPoint("TOPLEFT", self.traitsZone.contenu, "TOPLEFT", 6, -6 - y)
+            c:Cocher(self.joueurActif ~= nil
+                and MJ.AccesTraits.Liste(self.joueurActif)[trait.id] == true)
+            c:SetShown(self.joueurActif ~= nil)
+            y = y + 25
+        end
+        for rang = #liste + 1, #self.casesTraits do self.casesTraits[rang]:Hide() end
+        self.videTraits:SetShown(self.joueurActif == nil)
+        self.traitsZone:Regler(math.max(1, y + 6))
+    end
+
+    function page:Afficher()
+        local membres = {}
+        for _, joueur in ipairs(Groupe()) do
+            if not EstMoi(joueur) then membres[#membres + 1] = joueur end
+        end
+        local encore = false
+        local y = 0
+        for rang, joueur in ipairs(membres) do
+            if joueur == self.joueurActif then encore = true end
+            local b = self.joueurs[rang]
+            if not b then
+                b = UI.Bouton(self.joueursZone.contenu, "", 178, 24, function(bouton)
+                    page:ChoisirJoueur(bouton.joueur)
+                    page:Afficher()
+                end)
+                self.joueurs[rang] = b
+            end
+            b.joueur = joueur
+            b.label:SetText(NomPersonnage(joueur))
+            b:Selectionner(joueur == self.joueurActif)
+            b:SetPoint("TOPLEFT", self.joueursZone.contenu, "TOPLEFT", 4, -y)
+            b:Show()
+            y = y + 28
+        end
+        for rang = #membres + 1, #self.joueurs do self.joueurs[rang]:Hide() end
+        self.joueursZone:Regler(math.max(1, y))
+        self.videJoueurs:SetShown(#membres == 0)
+        if not encore then self.joueurActif = membres[1] end
+        self:AfficherTraits()
     end
 end
 

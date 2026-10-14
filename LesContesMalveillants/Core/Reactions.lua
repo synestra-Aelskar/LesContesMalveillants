@@ -209,6 +209,17 @@ function Reactions.Agir(recu, mode, competence, cible, deplacement)
     local nature = tostring(paquet.n or "action")
     local attaquant = Trim(paquet.rp) ~= "" and paquet.rp or tostring(paquet.a)
     if not reussi then
+        -- Une deviation ratee expose davantage a l'attaque : a partir de 5
+        -- points d'ecart, le resultat normal devient le resultat critique.
+        -- La resolution peut encore etre evitee ensuite par une defense reussie.
+        local ecart = a.aBattre - total
+        if mode == "deviation" and ecart >= 5 then
+            local valeurs = paquet.valeurs or paquet.v
+            local critique = valeurs and tonumber(valeurs["Total Critique"])
+            if critique then
+                valeurs["Total Normal"] = tostring(critique)
+            end
+        end
         A.Annoncer(string.format("%s échoue à %s « %s » de %s (jet %d contre %d) : l'action continue.", MonNom(),
             mode == "intervention" and "intervenir contre" or "dévier", nature, attaquant, total, a.aBattre))
         paquet.nr = 1

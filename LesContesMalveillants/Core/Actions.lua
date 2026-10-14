@@ -2349,9 +2349,8 @@ end
 
 -- ===== Declarer : choisir ses cibles, envoyer ==============================
 
--- Les cibles possibles : soi, le groupe ou le raid, et les PNJ — ceux du
--- combat en cours et ceux que le MJ a mis en scene (Core/Scene.lua), une fois
--- chacun. Chaque PNJ dit a quel MJ s'adresser : c'est lui qui le resout.
+-- Hors combat : soi, le groupe/raid et les PNJ de la scene. En combat, seuls
+-- les combattants inscrits au roster sont ciblables. Chaque PNJ indique son MJ.
 -- Les joueurs s'affichent sous le nom de leur PERSONNAGE actif (4 octobre
 -- 2026) : le sien meme quand on incarne un PNJ, celui des autres tel que leur
 -- addon l'annonce (Core/Presence.lua) ; le nom WoW a defaut. L'identifiant,
@@ -2361,25 +2360,36 @@ local function Court(nom) return tostring(nom or ""):match("^([^-]+)") or tostri
 function Actions.Cibles()
     local moi = LCM.PlayerId()
     local perso = LCM.Entities.Personnage()
-    local joueurs = { { id = moi, soi = true,
-                        nom = perso and perso.name or (UnitName and UnitName("player")) or moi } }
-    for _, m in ipairs(LCM.Combat.Membres()) do
-        -- Le groupe compte aussi le joueur lui-meme : il etait liste deux fois.
-        if m ~= moi and Court(m) ~= Court(moi) then
-            joueurs[#joueurs + 1] = { id = m, nom = LCM.Presence.Personnage(m) or m }
+    local etat = LCM.Combat.Etat()
+    local joueurs, pnj, vus = {}, {}, {}
+    local function AjouterPNJ(e, mj)
+        if not e or not e.id or vus[e.id] then return end
+        vus[e.id] = true
+        pnj[#pnj + 1] = { id = e.id, nom = e.nom, icone = e.icone, mj = e.mj or mj }
+    end
+    if etat then
+        for _, e in ipairs(etat.entrees or {}) do
+            if e.pnj then
+                AjouterPNJ(e, etat.mj)
+            elseif e.id then
+                local soi = Court(e.id) == Court(moi)
+                joueurs[#joueurs + 1] = { id = e.id, soi = soi,
+                    nom = soi and (perso and perso.name or (UnitName and UnitName("player")) or moi)
+                        or LCM.Presence.Personnage(e.id) or e.nom or e.id }
+            end
+        end
+    else
+        joueurs[1] = { id = moi, soi = true,
+                       nom = perso and perso.name or (UnitName and UnitName("player")) or moi }
+        for _, m in ipairs(LCM.Combat.Membres()) do
+            if m ~= moi and Court(m) ~= Court(moi) then
+                joueurs[#joueurs + 1] = { id = m, nom = LCM.Presence.Personnage(m) or m }
+            end
         end
     end
-    local pnj, vus = {}, {}
-    local function Ajouter(e)
-        if vus[e.id] then return end
-        vus[e.id] = true
-        pnj[#pnj + 1] = { id = e.id, nom = e.nom, icone = e.icone, mj = e.mj }
+    if not etat then
+        for _, e in ipairs(LCM.Scene.Liste()) do AjouterPNJ(e) end
     end
-    local etat = LCM.Combat.Etat()
-    for _, e in ipairs(etat and etat.entrees or {}) do
-        if e.pnj then Ajouter({ id = e.id, nom = e.nom, icone = e.icone, mj = etat.mj }) end
-    end
-    for _, e in ipairs(LCM.Scene.Liste()) do Ajouter(e) end
     return joueurs, pnj
 end
 
@@ -3207,8 +3217,8 @@ function Actions.Zones(entity, tags)
     end
     if voulus.bouclier or voulus.armure then
         for _, objet in ipairs(LCM.Objets.EquipementsEtat(entity)) do
-            out[#out + 1] = { genre = "objet", id = objet.id, nom = objet.label, courant = objet.reste,
-                              max = objet.valeur, plafond = objet.reste, tag = "#bouclier" }
+            out[#out + 1] = { genre = "objet", id = objet.id, nom = objet.label, categorie = objet.categorie,
+                              courant = objet.reste, max = objet.valeur, plafond = objet.reste, tag = "#bouclier" }
         end
     end
     local inconnus = {}

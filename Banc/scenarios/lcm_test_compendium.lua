@@ -53,6 +53,8 @@ attendu("races : l'humain est importe", LCM.Races.Get("humain") ~= nil, true)
 attendu("  et il y en a d'autres", N("races") > 1, true)
 attendu("traits : l'escalade est importee", LCM.Traits.Get("escalade_jungle") ~= nil, true)
 attendu("  et il y en a d'autres", N("traits") > 1, true)
+attendu("la forge des traits n'a pas de type inutile",
+    LCM.UI.Forge.ListeDuType(C.Get("traits")), nil)
 attendu("armes : la dague est importee",
     LCM.Objets.Get("dague_d_assassin_du_culte") ~= nil, true)
 attendu("armures : il y en a", N("armures") > 0, true)
@@ -108,7 +110,7 @@ for _, g in ipairs(groupes) do etiquettes[#etiquettes + 1] = g.label end
 attendu("types de ressources, tries", table.concat(etiquettes, ","), "Lingot,Liquide,Minerais,poisson")
 attendu("sans sous-categorie", C.SousCategories(C.Get("devises")), nil)
 local sansType = C.SousCategories(C.Get("traits"))
-attendu("traits sans type : Sans valeur", sansType[1].label, "Sans valeur")
+attendu("les traits n'ont pas de sous-categorie inutile", sansType, nil)
 
 dire("== La fenetre")
 local F = LCM.UI.Compendium
@@ -599,6 +601,7 @@ n = #__envois
 __cliquerLien("lcmentree:Nytherah-Apertus:armes:lame_absente")
 attendu("demande envoyee", __envois[n + 1] and __envois[n + 1].message:find("entree?|", 1, true) ~= nil, true)
 attendu("au proprietaire du lien", __envois[n + 1] and __envois[n + 1].cible, "Nytherah-Apertus")
+LCM.AccesTraits.Definir("Nytherah-Apertus", rl.element.id, true)
 n = #__envois
 LCM.Reseau.Recevoir("Nytherah-Apertus", "1:1:1:entree?|" .. LCM.Reseau.Encoder({ categorie = "traits", id = rl.element.id }))
 attendu("le proprietaire repond", __envois[n + 1] and __envois[n + 1].message:find("entree|", 1, true) ~= nil, true)
@@ -641,5 +644,19 @@ attendu("une fenetre de chat se branche", L.BrancherChat(fausse), true)
 attendu("ses liens sont allumes", fausse.liens, true)
 attendu("et son clic nous arrive", fausse.crochets, 1)
 attendu("la rebrancher ne double rien", L.BrancherChat(fausse) and fausse.crochets, 1)
+
+dire("== les traits du compendium suivent les autorisations MJ")
+local estMJ = LCM.IsMaster
+LCM.IsMaster = function() return false end
+local traitConnu = LCM.Traits.list[1]
+LCM.Traits.DefinirAccessibles({})
+attendu("aucun trait n'est visible par defaut", #C.Entrees(C.Get("traits")), 0)
+attendu("un lien vers un trait cache ne le resout pas",
+    C.Resoudre("traits/" .. traitConnu.id), nil)
+LCM.Traits.DefinirAccessibles({ [traitConnu.id] = true })
+attendu("le trait autorise apparait seul", #C.Entrees(C.Get("traits")), 1)
+attendu("la creation ne propose que le trait autorise", #LCM.Traits.Accessibles(), 1)
+LCM.IsMaster = estMJ
+LCM.Traits.DefinirAccessibles({})
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

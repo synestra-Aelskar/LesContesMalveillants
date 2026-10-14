@@ -30,6 +30,7 @@ local CASE, PAS, RANGEE_X, RANGEE_Y = 74, 79, 151, 61
 local RAIL_HAUT = 44
 local ECHELLE = 0.70
 local MAX_ETATS_HUD = 13
+local LARGEUR_RESSOURCES = 410
 -- Les quatre bords du cadre actif, pris separement dans l'atlas : le portrait
 -- de la capture d'origine ne doit jamais apparaitre en jeu.
 local BORDS = { { 0, 0, 92, 7 }, { 0, 83, 92, 7 }, { 0, 7, 7, 76 }, { 85, 7, 7, 76 } }
@@ -306,12 +307,13 @@ local function Construire()
     -- Les ressources personnelles restent sous les extremites du rail afin de
     -- ne jamais concurrencer l'ordre d'initiative ni l'avis central.
     f.ressourcesPA = CreateFrame("Frame", nil, f)
-    Placer(f.ressourcesPA, f, 170, 158, 410, 30)
+    Placer(f.ressourcesPA, f, 170, 158, LARGEUR_RESSOURCES, 30)
     f.ressourcesPA.fond = UI.Aplat(f.ressourcesPA, { 0.035, 0.025, 0.02, 0.84 })
     f.ressourcesPA.fond:SetAllPoints(f.ressourcesPA)
     UI.BordureFine(f.ressourcesPA, 0.42)
     f.ressourcesPA.titre = UI.Texte(f.ressourcesPA, "PA :", UI.C.titre)
     f.ressourcesPA.titre:SetPoint("LEFT", f.ressourcesPA, "LEFT", 10, 0)
+    UI.Police(f.ressourcesPA.titre, 14, "OUTLINE")
     f.ressourcesPA.pastilles = {}
     f.ressourcesPA:EnableMouse(true)
     f.ressourcesPA:SetScript("OnEnter", function(self)
@@ -363,15 +365,18 @@ local function Construire()
     f.ressourcesEtats:Hide()
 
     f.ressourcesPF = CreateFrame("Frame", nil, f)
-    f.ressourcesPF:SetSize(330, 30)
+    f.ressourcesPF:SetSize(LARGEUR_RESSOURCES, 30)
     f.ressourcesPF:SetPoint("TOPRIGHT", f, "TOPRIGHT", -170, -158)
     f.ressourcesPF.fond = UI.Aplat(f.ressourcesPF, { 0.025, 0.035, 0.055, 0.86 })
     f.ressourcesPF.fond:SetAllPoints(f.ressourcesPF)
     UI.BordureFine(f.ressourcesPF, 0.42)
     f.ressourcesPF.titre = UI.Texte(f.ressourcesPF, "PF :", UI.C.titre)
     f.ressourcesPF.titre:SetPoint("LEFT", f.ressourcesPF, "LEFT", 10, 0)
-    f.ressourcesPF.barre = UI.Barre(f.ressourcesPF, UI.C.fatigue, 270, 16)
+    UI.Police(f.ressourcesPF.titre, 14, "OUTLINE")
+    f.ressourcesPF.barre = UI.Barre(f.ressourcesPF, UI.C.fatigue, LARGEUR_RESSOURCES - 60, 18)
     f.ressourcesPF.barre:SetPoint("RIGHT", f.ressourcesPF, "RIGHT", -8, 0)
+    UI.Police(f.ressourcesPF.barre.label, 16, "OUTLINE")
+    f.ressourcesPF.barre.label:SetTextColor(1, 1, 1, 1)
     f.ressourcesPF.barre.vide:SetColorTexture(0.05, 0.09, 0.16, 0.96)
     if UI.AelCadreJauge then f.ressourcesPF.barre.cadre = UI.AelCadreJauge(f.ressourcesPF.barre) end
 

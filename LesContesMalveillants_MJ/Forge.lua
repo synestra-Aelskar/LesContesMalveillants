@@ -179,6 +179,7 @@ function ForgeUI.Definition()
         def.mjSeulement = courant.mjSeulement and true or nil
         def.type = nil
     elseif categorie.famille == "traits" then
+        def.type = nil
         def.cout = math.max(tonumber(def.cout) or 1, LCM.Forge.CoutTrait(jeu, rarete))
     end
     -- L'entree prend la couleur et le tag de sa rarete, comme dans Necronicon

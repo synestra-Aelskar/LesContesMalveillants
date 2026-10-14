@@ -1024,14 +1024,15 @@ function Pages.traits(page, f)
             -- Tous les traits non pris, avec leur cout : un trait trop cher
             -- reste proposé, et son refus dit combien il manque.
             local options = {}
-            for _, t in ipairs(LCM.Traits.list) do
+            local traitsAccessibles = LCM.Traits.Accessibles()
+            for _, t in ipairs(traitsAccessibles) do
                 if t.id == actuel or not C.ATrait(f.brouillon, t.id) then
                     options[#options + 1] = { id = t.id, icone = t.icone,
                         label = string.format("%s (%d)", t.label, LCM.Traits.Cout(t)) }
                 end
             end
             if #options == 0 then
-                LCM.Alerte(#LCM.Traits.list == 0 and "aucun trait au compendium."
+                LCM.Alerte(#traitsAccessibles == 0 and "aucun trait autorisé par le MJ."
                     or "tous les traits du compendium sont déjà pris.")
                 return
             end
@@ -1635,6 +1636,10 @@ end
 function Ecran.Fenetre()
     if not Ecran.frame then Construire() end
     return Ecran.frame
+end
+
+function Ecran.Actualiser()
+    if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Actualiser() end
 end
 
 local function ProfilActifAReequilibrer()

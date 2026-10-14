@@ -268,4 +268,30 @@ attendu("dit pourquoi", aDit(livree and "Attaque MJ : réservé au maître du je
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
+dire("== les cibles suivent la scene hors combat et le roster en combat")
+__groupe({ "Reika-Apertus", "Nytherah-Apertus", "Bram-Apertus" }, true)
+local sceneListe = LCM.Scene.Liste
+LCM.Scene.Liste = function()
+    return { { id = "pnj:scene", nom = "PNJ hors combat", mj = "Reika-Apertus" } }
+end
+local joueursScene, pnjScene = A.Cibles()
+attendu("PNJ de scene cible hors combat", #pnjScene, 1)
+attendu("groupe hors combat conserve", #joueursScene, 3)
+local ancienEtat = LCM.Combat.etat
+LCM.Combat.etat = { mj = "Reika-Apertus", entrees = {
+    { id = moi, nom = "Reika", pnj = false },
+    { id = "Nytherah-Apertus", nom = "Nytherah", pnj = false },
+    { id = "pnj:combat", nom = "PNJ au combat", pnj = true },
+} }
+local joueursCombat, pnjCombat = A.Cibles()
+attendu("joueurs inscrits seulement", #joueursCombat, 2)
+attendu("PNJ inscrits seulement", #pnjCombat, 1)
+attendu("PNJ de scene exclu du combat", pnjCombat[1] and pnjCombat[1].id, "pnj:combat")
+local horsCombatDansRoster = false
+for _, j in ipairs(joueursCombat) do if j.id == "Bram-Apertus" then horsCombatDansRoster = true end end
+attendu("joueur non inscrit exclu", horsCombatDansRoster, false)
+LCM.Combat.etat = ancienEtat
+LCM.Scene.Liste = sceneListe
+__groupe({})
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

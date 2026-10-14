@@ -379,6 +379,8 @@ function Ecran.Montrer(recu)
         end
         -- Une zone : on peut dire qu'on n'y est pas (« Ignorer », renomme).
         f.ignorer.label:SetText(zone and "Je ne suis pas dans la zone AoE." or "Ignorer")
+        -- Le retrait d'une cible de zone est une declaration de portee, pas
+        -- l'outil MJ « Ignorer » : il reste donc disponible aux joueurs.
         f.ignorer:SetShown(zone ~= nil)
     else
         f.resume:SetText("|cffff8080Aucune résolution configurée pour cette nature.|r")
@@ -387,7 +389,7 @@ function Ecran.Montrer(recu)
         f.devier:Hide()
         f.proposer:Hide()
         f.ignorer.label:SetText("Ignorer")
-        f.ignorer:Show()
+        f.ignorer:SetShown(LCM.IsMaster())
     end
     if f.ignorer:IsShown() then
         Placer(f.ignorer, "TOPLEFT", f, "TOPLEFT", 16, -y)
@@ -552,6 +554,27 @@ local HAUTEUR = 424
 local MARGE_LISTE = 14 + 14 + 8 + 46 + 8 + 40 + 10 + 150
 Ecran.MARGE_LISTE = MARGE_LISTE
 
+-- Des teintes distinctes mais legeres permettent de lire la nature des zones
+-- sans rivaliser avec les controles de repartition.
+local COULEURS_REPARTITION = {
+    sante = { 0.78, 0.12, 0.12, 0.20 },
+    bouclier = { 1.00, 0.36, 0.04, 0.34 },
+    arme = { 0.12, 0.38, 0.88, 0.24 },
+    armure = { 0.92, 0.68, 0.10, 0.23 },
+    accessoire = { 0.12, 0.62, 0.24, 0.23 },
+}
+
+local function TeinteRepartition(case)
+    if case.sante or case.genre == "zone" then return COULEURS_REPARTITION.sante end
+    if case.genre == "jauge" then return COULEURS_REPARTITION.bouclier end
+    if case.genre == "objet" then
+        if case.categorie == "arme" then return COULEURS_REPARTITION.arme end
+        if case.categorie == "equipement" then return COULEURS_REPARTITION.armure end
+        if case.categorie == "accessoire" then return COULEURS_REPARTITION.accessoire end
+    end
+    return { 0, 0, 0, 0 }
+end
+
 local function ConstruireRepartition()
     local f = Fenetre("LCM_Repartition", 520, HAUTEUR)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
@@ -600,6 +623,7 @@ local function ConstruireRepartition()
     f.appliquer = UI.Bouton(f, "Appliquer", 150, 24, function() Ecran.Appliquer(true) end)
     Placer(f.appliquer, "BOTTOM", f, "BOTTOM", 0, 12)
     f.ignorer = UI.Bouton(f, "Ignorer", 110, 24, function() Ecran.Appliquer(false) end)
+    f.ignorer:SetShown(LCM.IsMaster())
     Placer(f.ignorer, "RIGHT", f.appliquer, "LEFT", -8, 0)
     -- L'emote de reponse, au-dessus des boutons (Necronicon : 46 de haut).
     f.canal = BoutonCanal(f)
@@ -670,6 +694,7 @@ function Ecran.Repartir(ctx, fin)
     end
     local cases, inconnus = A.Zones(ctx.entity, tags)
     f.ctx, f.fin, f.cases, f.montant, f.signe = ctx, fin, cases, montant, signe
+    f.ignorer:SetShown(LCM.IsMaster())
     f.minimum = signe == "-" and A.PerceMinimum(ctx, montant) or 0
     f.pourcentagePerce = signe == "-" and A.PercePourcentage(ctx) or 0
     f.valeurs = {}
@@ -703,6 +728,8 @@ function Ecran.Repartir(ctx, fin)
             l = CreateFrame("Frame", nil, f.zone.contenu)
             l:SetHeight(26)
             if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+            l.teinte = UI.Aplat(l, { 0, 0, 0, 0 }, "ARTWORK")
+            l.teinte:SetAllPoints(l)
             l.nom = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
             Placer(l.nom, "LEFT", l, "LEFT", 8, 0)
             -- Borne a sa colonne : une piece d'armure au long nom (« Capuche
@@ -741,6 +768,8 @@ function Ecran.Repartir(ctx, fin)
             Placer(l.tout, "RIGHT", l.moins, "LEFT", -6, 0)
             f.lignes[i] = l
         end
+        local teinte = TeinteRepartition(case)
+        l.teinte:SetColorTexture(teinte[1], teinte[2], teinte[3], teinte[4])
         l.nom:SetText(case.sante and case.nom or (case.nom .. " |cff9fbfdf" .. tostring(case.tag or "#bouclier") .. "|r"))
         l.nomComplet = case.sante and case.nom or (case.nom .. " " .. tostring(case.tag or "#bouclier"))
         l:ClearAllPoints()

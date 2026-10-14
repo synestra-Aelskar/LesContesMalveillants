@@ -79,6 +79,13 @@ attendu("le premier est actif", f.cartes[1].actif:IsShown() and not f.cartes[2].
 attendu("pas de pages a seize ou moins", f.suivant:IsShown(), false)
 attendu("a 70 %", f:GetScale(), 0.7)
 attendu("decor en cinq morceaux", #f.decor, 5)
+attendu("longueur PA et PF symetrique", f.ressourcesPA:GetWidth(), f.ressourcesPF:GetWidth())
+attendu("la barre PF remplit symetriquement le panneau", f.ressourcesPF.barre:GetWidth(),
+    f.ressourcesPF:GetWidth() - 60)
+local _, taillePF = f.ressourcesPF.barre.label:GetFont()
+attendu("valeur PF agrandie", taillePF, 16)
+local rougePF, vertPF, bleuPF = f.ressourcesPF.barre.label:GetTextColor()
+attendu("valeur PF tres claire", rougePF > 0.9 and vertPF > 0.9 and bleuPF > 0.9, true)
 -- Les ressources sous le bandeau sont celles de CE QU'ON JOUE. Le garde a
 -- l'initiative, le MJ l'incarne donc deja : ce sont les siennes qu'on lit.
 -- Le bandeau demandait `Personnages.Actif()` avant `Self()` ; l'incarnation

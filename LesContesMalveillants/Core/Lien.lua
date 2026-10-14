@@ -307,6 +307,15 @@ function Lien.EnvoyerEntree(categorie, element, joueurs)
         end
     end
     if #cibles == 0 then return false, "choisis au moins un joueur." end
+    if categorie.id == "traits" and LCM.IsMaster() then
+        for _, joueur in ipairs(cibles) do
+            local acces = LCM.AccesTraits and LCM.AccesTraits.Liste(joueur)
+            if not (acces and acces[element.id]) then
+                return false, string.format("« %s » n'est pas autorisé pour %s.",
+                    tostring(element.label or element.id), joueur)
+            end
+        end
+    end
     local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
     local tousDuGroupe = canal ~= nil
     for _, j in ipairs(cibles) do
@@ -342,6 +351,10 @@ LCM.WhenReady(function()
     -- On me demande une entree que j'ai citee.
     LCM.Reseau.Ecouter("entree?", function(expediteur, donnees)
         local categorie = LCM.Compendium.Get(donnees.categorie)
+        if categorie and categorie.id == "traits" and LCM.IsMaster() then
+            local acces = LCM.AccesTraits and LCM.AccesTraits.Liste(expediteur)
+            if not (acces and acces[donnees.id]) then return end
+        end
         local element = categorie and LCM.Compendium.Entree(categorie, donnees.id)
         if not element then return end
         LCM.Reseau.Envoyer("entree", Paquet(categorie, element), "WHISPER", expediteur, { etale = true })
@@ -361,6 +374,7 @@ LCM.WhenReady(function()
         if type(element) ~= "table" then return end
         element.id = tostring(donnees.id)
         element.label = tostring(element.label or element.id)
+        if categorie.id == "traits" and not LCM.Traits.EstAccessible(element.id) then return end
         entreesRecues[Cle(expediteur, categorie.id .. "/" .. element.id)] = element
         LCM.Info(string.format("%s te montre %s", tostring(expediteur), Lien.Entree(categorie, element, expediteur)))
         Lien.OuvrirEntree(expediteur, categorie.id, element.id)
