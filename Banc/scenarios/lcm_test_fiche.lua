@@ -282,6 +282,37 @@ attendu("le bonus vient apres la valeur",
     x(jet.bonus) >= x(jet.valeur) + jet.valeur:GetWidth(), true)
 attendu("et le bouton ferme la marche",
     x(jet.lancer) >= x(jet.bonus) + jet.bonus:GetWidth(), true)
+
+dire("== un jet d'expertise demande DD/NF et applique le resultat")
+attendu("expertise configuree pour DD/NF", cible.jetExpertise, true)
+jet.lancer:Click()
+attendu("la saisie expertise s'ouvre", jet.saisieExpertise:IsShown(), true)
+attendu("DD vide affiche son indication", jet.saisieExpertise.dd.indication:IsShown(), true)
+attendu("NF vide affiche son indication", jet.saisieExpertise.nf.indication:IsShown(), true)
+jet.saisieExpertise.lancer:Click()
+attendu("DD est obligatoire", jet.saisieExpertise:IsShown(), true)
+
+local ancienRandom = math.random
+local jaugeFatigue = LCM.Entities.Gauge(moi, "fatigue")
+local fatigueAvant = jaugeFatigue.current
+math.random = function(minimum) return minimum end
+local echec, erreur = LCM.Roll.ResoudreExpertise(moi, cible.id, 9999, 3)
+attendu("DD trop eleve produit un echec", echec and echec.issue, "Échec")
+attendu("NF est perdu en echec", echec and echec.perteFatigue, 3)
+attendu("la fatigue est retiree", LCM.Entities.Gauge(moi, "fatigue").current, fatigueAvant - 3)
+
+local jetMinimum = LCM.Roll.Field(moi, cible.id)
+local ddPartiel = jetMinimum.total
+local partiel = LCM.Roll.ResoudreExpertise(moi, cible.id, ddPartiel, 2)
+attendu("egaliser DD est une reussite partielle", partiel and partiel.issue, "Réussite partielle")
+attendu("NF est perdu en partiel", partiel and partiel.perteFatigue, 2)
+
+math.random = function(_, maximum) return maximum end
+local critique = LCM.Roll.ResoudreExpertise(moi, cible.id, 9999, 4)
+attendu("le maximum du de est une reussite totale", critique and critique.issue, "Réussite totale")
+attendu("le critique ne coute pas de fatigue", critique and critique.perteFatigue, 0)
+math.random = ancienRandom
+jet.saisieExpertise:Hide()
 vue:Hide()
 
 dire("== les jauges de ressource : les boutons sont au MJ")

@@ -408,6 +408,87 @@ function Lignes.gauge(parent, field, c)
     return l
 end
 
+local function SaisieExpertise(parent, code)
+    local champ
+    champ = UI.Champ(parent, 58, 26, function(texte)
+        champ.indication:SetShown(tostring(texte or "") == "")
+    end)
+    champ:SetNumeric(true)
+    champ:SetMaxLetters(5)
+    champ.indication = UI.Texte(parent, code, UI.C.discret, "GameFontNormalSmall")
+    champ.indication:SetAllPoints(champ)
+    return champ
+end
+
+local function OuvrirSaisieExpertise(ligne, field)
+    local panneau = ligne.saisieExpertise
+    if not panneau then
+        panneau = CreateFrame("Frame", nil, UIParent)
+        panneau:SetSize(246, 112)
+        panneau:SetFrameStrata("DIALOG")
+        panneau:SetFrameLevel((UIParent:GetFrameLevel() or 0) + 30)
+        panneau:EnableMouse(true)
+        panneau.fond = UI.Aplat(panneau, UI.C.fond)
+        panneau.fond:SetAllPoints(panneau)
+        UI.Bordure(panneau, UI.C.accent)
+        panneau.titre = UI.Texte(panneau, "Jet d'expertise", UI.C.titre)
+        panneau.titre:SetPoint("TOPLEFT", panneau, "TOPLEFT", 12, -8)
+
+        panneau.dd = SaisieExpertise(panneau, "DD")
+        panneau.dd:SetPoint("TOPLEFT", panneau, "TOPLEFT", 40, -32)
+        panneau.nf = SaisieExpertise(panneau, "NF")
+        panneau.nf:SetPoint("TOPLEFT", panneau, "TOPLEFT", 148, -32)
+        UI.Bulle(panneau.dd, "DD — Dés de difficulté",
+            "Valeur à égaler ou dépasser pour réussir votre action.")
+        UI.Bulle(panneau.nf, "NF — No fatigue",
+            "Fatigue perdue en cas d'échec ou de réussite partielle. Dépasser le DD de 10 ou réaliser un critique ne fait pas perdre de fatigue.")
+
+        panneau.lancer = UI.Bouton(panneau, "Lancer", 88, 22, function()
+            panneau.dd:ClearFocus()
+            panneau.nf:ClearFocus()
+            local ddTexte = tostring(panneau.dd:GetText() or "")
+            if ddTexte == "" then
+                LCM.Alerte("Indique le DD pour lancer ce jet.")
+                panneau.dd:SetFocus()
+                return
+            end
+            local resultat, raison = LCM.Roll.ResoudreExpertise(ligne.entity, field.id, ddTexte,
+                panneau.nf:GetText(), { avantage = ligne.avantage:GetChecked() })
+            if not resultat then
+                LCM.Alerte(tostring(raison or "jet impossible"))
+                return
+            end
+            local jet = resultat.jet
+            local des = #jet.jets > 1
+                and string.format("%d et %d (gardé : %d)", jet.jets[1], jet.jets[2], jet.garde)
+                or tostring(jet.garde)
+            local recap = string.format("%s : %s (Jets : %s, Stat : %s) = %s",
+                field.label, Nombre(jet.total), des, Nombre(resultat.stat), resultat.issue)
+            LCM.Canal.Dire(recap)
+            LCM.Info(string.format("Perte de %s PF", Nombre(resultat.perteFatigue)))
+            panneau:Hide()
+        end)
+        panneau.lancer:SetPoint("BOTTOMLEFT", panneau, "BOTTOMLEFT", 24, 9)
+        panneau.annuler = UI.Bouton(panneau, "Annuler", 88, 22, function() panneau:Hide() end)
+        panneau.annuler:SetPoint("BOTTOMRIGHT", panneau, "BOTTOMRIGHT", -24, 9)
+        panneau:Hide()
+        ligne.saisieExpertise = panneau
+    end
+
+    if panneau:IsShown() then
+        panneau:Hide()
+        return
+    end
+    panneau.dd:SetText("")
+    panneau.nf:SetText("")
+    panneau.dd.indication:Show()
+    panneau.nf.indication:Show()
+    panneau:ClearAllPoints()
+    panneau:SetPoint("BOTTOM", ligne.lancer, "TOP", 0, 6)
+    panneau:Show()
+    panneau.dd:SetFocus()
+end
+
 function Lignes.roll(parent, field, c)
     local l = Ligne(parent, c)
     local icone = LCM.IconeChamp(field)
@@ -453,6 +534,10 @@ function Lignes.roll(parent, field, c)
     l.lancer = UI.Bouton(l, "Jet", c.actionLargeur, c.boutonH, function()
         local entite = l.entity
         if not entite then return end
+        if field.jetExpertise then
+            OuvrirSaisieExpertise(l, field)
+            return
+        end
         local resultat = LCM.Roll.Field(entite, field.id, { avantage = l.avantage:GetChecked() })
         if resultat then LCM.Canal.Dire(LCM.Roll.Describe(resultat)) end
     end)

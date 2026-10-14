@@ -92,6 +92,44 @@ function Roll.Field(entity, fieldId, options)
     }
 end
 
+-- Un jet d'expertise compare le resultat a un DD. En cas d'echec ou de
+-- reussite partielle, le NF saisi est retire de la fatigue ; une reussite
+-- totale (DD + 10 ou maximum possible du jet) ne coute rien.
+function Roll.ResoudreExpertise(entity, fieldId, dd, nf, options)
+    local field = LCM.Schema.Field(fieldId)
+    if not field or field.jetExpertise ~= true then return nil, "expertise inconnue" end
+    dd, nf = tonumber(dd), tonumber(nf) or 0
+    if not dd or dd < 0 or dd ~= math.floor(dd) then return nil, "DD invalide" end
+    if nf < 0 or nf ~= math.floor(nf) then return nil, "NF invalide" end
+    if type(entity) ~= "table" or entity.distante then return nil, "personnage indisponible" end
+
+    local resultat, raison = Roll.Field(entity, fieldId, options)
+    if not resultat then return nil, raison end
+    local stat = resultat.valeur + resultat.apport + resultat.bonus + resultat.modificateur
+    local maximum = resultat.des.max + stat
+    local critique = resultat.total >= maximum
+    local issue
+    if critique or resultat.total >= dd + 10 then
+        issue = "Réussite totale"
+    elseif resultat.total >= dd then
+        issue = "Réussite partielle"
+    else
+        issue = "Échec"
+    end
+
+    local perte = 0
+    if issue ~= "Réussite totale" and nf > 0 then
+        local fatigue = LCM.Entities.Gauge(entity, "fatigue")
+        if not fatigue then return nil, "fatigue indisponible" end
+        perte = math.min(nf, fatigue.current)
+        if perte > 0 and not LCM.Entities.SetGauge(entity, "fatigue", fatigue.current - perte) then
+            return nil, "fatigue impossible à dépenser"
+        end
+    end
+    return { jet = resultat, dd = dd, nf = nf, stat = stat, issue = issue,
+        critique = critique, perteFatigue = perte }
+end
+
 -- Une ligne lisible, pour le chat.
 function Roll.Describe(resultat)
     if type(resultat) ~= "table" then return "" end

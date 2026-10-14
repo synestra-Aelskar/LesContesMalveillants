@@ -90,6 +90,7 @@ function Schema.AddTab(definition)
                 lire = fieldDef.lire,
                 ecrire = fieldDef.ecrire,
                 note = fieldDef.note,
+                jetExpertise = fieldDef.jetExpertise == true,
                 -- Un champ calcule qui accepte les bonus portes (sa formule les
                 -- lit) : l'atelier le propose comme cible d'un bonus.
                 recoitBonus = fieldDef.recoitBonus == true,

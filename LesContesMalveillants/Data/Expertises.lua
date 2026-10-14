@@ -9,7 +9,8 @@ local _, LCM = ...
 local Schema = LCM.Schema
 
 local function expertise(id, label)
-    return { id = id, kind = "roll", label = label, default = 0, dice = { min = 0, max = 15 } }
+    return { id = id, kind = "roll", label = label, default = 0, dice = { min = 0, max = 15 },
+        jetExpertise = true }
 end
 
 Schema.AddTab({
