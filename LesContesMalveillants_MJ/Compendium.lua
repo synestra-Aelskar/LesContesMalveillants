@@ -118,6 +118,11 @@ local function PageUnique(categorie)
     return categorie.type == "list" or categorie.type == "list_multiple"
 end
 
+local function TypeEquipement(categorie)
+    return categorie and (categorie.id == "type_armures"
+        or categorie.id == "type_accessoires" or categorie.id == "liste_armes")
+end
+
 -- ===== La copie de travail =================================================
 -- Rien n'est ecrit tant que le MJ ne valide pas, et la copie ne partage
 -- aucune table avec ce qui est enregistre.
@@ -569,7 +574,7 @@ function Editeur.Comportement(f)
         if not t then return end
         local categorie = t.categorie
         local id, ic = self.identite, self.panneauIcone
-        self.lecture = t.publie or not C.Editable(categorie)
+        self.lecture = (t.publie and not TypeEquipement(categorie)) or not C.Editable(categorie)
         self.titre:SetText("Configuration entree" .. (self.lecture and "  |cff99907f(lecture seule)|r" or ""))
 
         local unique = PageUnique(categorie)
@@ -728,7 +733,8 @@ function Editeur.Comportement(f)
             self:Message("Refusé : " .. raison, UI.C.plein)
             return
         end
-        local ok, refus = Brouillons.Enregistrer(t.categorie.famille, def, t.creation)
+        local ok, refus = Brouillons.Enregistrer(t.categorie.famille, def, t.creation,
+            t.publie and TypeEquipement(t.categorie))
         if not ok then
             self:Message("Refusé : " .. tostring(refus), UI.C.plein)
             return

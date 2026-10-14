@@ -779,9 +779,10 @@ function Lignes.traits(parent, field, c)
         local options = {}
         for _, trait in ipairs(LCM.Traits.list) do
             if not LCM.Traits.Has(self.entity, trait.id) then
+                local cout = LCM.Traits.Cout(trait)
                 options[#options + 1] = {
                     id = trait.id,
-                    label = string.format("%s  (%d pt%s)", trait.label, trait.cout, trait.cout > 1 and "s" or ""),
+                    label = string.format("%s  (%d pt%s)", trait.label, cout, cout > 1 and "s" or ""),
                 }
             end
         end
@@ -851,8 +852,9 @@ function Lignes.traits(parent, field, c)
             -- Exception : un trait qui n'existe plus (brouillon supprime) reste
             -- retirable, meme sur sa propre fiche. Sinon il y resterait colle,
             -- sans rien donner, sans moyen de s'en defaire.
+            local cout = trait and LCM.Traits.Cout(trait)
             local hauteur = carte:Habiller(id, trait, peutRetirer or (mj and trait == nil),
-                trait and string.format("%d pt%s", trait.cout, trait.cout > 1 and "s" or ""))
+                cout and string.format("%d pt%s", cout, cout > 1 and "s" or ""))
             carte:SetHeight(hauteur)
             carte:Show()
             y = y + hauteur + ECART_LIGNES

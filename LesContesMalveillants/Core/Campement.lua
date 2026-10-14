@@ -645,7 +645,14 @@ function Campement.Conclure()
     local attente = Campement.EnAttente()
     if #attente > 0 then return false, "pas encore prêts : " .. table.concat(attente, ", ") end
     local campeurs = #Campement.Participants()
-    Envoyer("FIN", { n = campeurs })
+    local debut = ((GetServerTime and GetServerTime()) or time()) + 2
+    local graine = math.random(1, 2147483646)
+    local votants = LCM.Combat.Membres()
+    votants[#votants + 1] = Moi()
+    Envoyer("FIN", { n = campeurs, nuit = 1, debut = debut, graine = graine, votants = votants })
+    if LCM.UI and LCM.UI.NuitCampement then
+        LCM.UI.NuitCampement.Lancer(camp.id, graine, debut, votants)
+    end
     -- Un MJ responsable du camp tire lui-meme l'embuscade, avant que les heures
     -- de la nuit ne s'effacent.
     if LCM.IsMaster() then Campement.TirerEmbuscade() end
@@ -655,9 +662,18 @@ function Campement.Conclure()
 end
 
 local function SurFin(qui, d)
+    -- La transition concerne tout le groupe, meme ceux qui ne dorment pas
+    -- sous cette tente. Le calcul de recuperation reste reserve aux campeurs.
+    local courant = Campement.courant
+    if tonumber(d.nuit) == 1 and LCM.Reseau.DansLeGroupe(qui)
+        and (not courant or courant.id ~= d.c or qui == courant.chef)
+        and LCM.UI and LCM.UI.NuitCampement then
+        LCM.UI.NuitCampement.Lancer(d.c, tonumber(d.graine), tonumber(d.debut), d.votants)
+    end
     if not Mien(qui, d) then return end
     local camp = Campement.courant
     if qui ~= camp.chef then return end
+    if camp.etape ~= "preparation" then return end
     if camp.role == "mj" then
         camp.etape = "soins"
         Campement.TirerEmbuscade()

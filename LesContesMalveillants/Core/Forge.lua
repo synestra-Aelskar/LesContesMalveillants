@@ -108,7 +108,17 @@ local Forge = LCM.Registre({
             if not couleur:match("^%x%x%x%x%x%x$") then
                 Erreur(string.format("%s : couleur de %s illisible (%s), attendu RRVVBB", id, nom, tostring(r.couleur)))
             end
-            element.raretes[index] = { id = rid, label = nom, points = points, couleur = couleur }
+            local coutTrait = nil
+            if r.coutTrait ~= nil and Texte(r.coutTrait) ~= "" then
+                coutTrait = tonumber(r.coutTrait)
+                if not coutTrait or coutTrait ~= math.floor(coutTrait)
+                    or coutTrait < 1 or coutTrait > LCM.Traits.COUT_MAX then
+                    Erreur(string.format("%s : coût de trait de %s invalide (%s)",
+                        id, nom, tostring(r.coutTrait)))
+                end
+            end
+            element.raretes[index] = { id = rid, label = nom, points = points,
+                couleur = couleur, coutTrait = coutTrait }
         end
 
         -- Les reglages par statistique. Un reglage vide ne se retient pas :
@@ -156,6 +166,19 @@ function Forge.Rarete(jeu, rareteId)
         if r.id == rareteId then return r end
     end
     return nil
+end
+
+-- Le cout d'un trait suit sa rarete. Les anciens jeux n'ont pas ce champ :
+-- le bareme par defaut conserve rose/vert a 1, bleu a 2, orange a 3.
+function Forge.CoutTrait(jeu, rarete)
+    if type(rarete) ~= "table" then return 1 end
+    local explicite = tonumber(rarete.coutTrait)
+    if explicite then return explicite end
+    local parId = { commun = 1, inhabituel = 1, rare = 2,
+        epique = 3, legendaire = 4, mythique = 4, unique = 4 }
+    local parCouleur = { FF8CB8 = 1, ["4DE04D"] = 1, ["4D8CFF"] = 2,
+        FF9926 = 3, FF3838 = 4, BF4DFF = 4, ["9999A6"] = 4 }
+    return parId[rarete.id] or parCouleur[tostring(rarete.couleur or ""):upper()] or 1
 end
 
 -- Les jeux qui visent une categorie, dans l'ordre de declaration.

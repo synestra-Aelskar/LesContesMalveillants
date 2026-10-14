@@ -2,8 +2,9 @@
 --
 -- Le MJ pose des points sur la carte (« Miner du fer », ici, ici et ici) ; un
 -- aventurier qui marche dessus voit un bouton « Recolter », lance son jet de
--- metier et, s'il reussit, recoit la ressource. Le point disparait alors pour
--- tout le monde : il a ete consomme.
+-- metier et, s'il reussit, recoit les ressources tirees. Un point limite
+-- disparait apres le nombre de recoltes prevu ; les ressources regenerables
+-- reviennent apres leur delai.
 --
 -- Rien de tout cela n'est livre dans l'addon joueur. Le joueur DEMANDE les
 -- points a la connexion (« rec? » au groupe) ; ceux qui ont le panneau MJ lui
@@ -46,8 +47,10 @@ local Recolte = {
     -- En sauvegarde : ils doivent survivre a une deconnexion, c'est tout
     -- l'interet.
     attente = {},
+    echecs = {}, -- echecs hors ligne : usages locaux a signaler au MJ
 }
 LCM.Recolte = Recolte
+Recolte.METIER_AUCUN = "__aucun__"
 
 local INTERVALLE = 0.25
 -- Une demande au MJ sans reponse au bout de ce delai (il s'est deconnecte
@@ -64,6 +67,7 @@ Recolte.SUJETS = {
     signaler   = "rec#",  -- joueur -> MJ   : j'ai recolte ceux-la en ton absence
     accuse     = "rec*",  -- MJ -> joueur   : c'est note, oublie-les
     confirmer  = "rec^",  -- joueur -> MJ   : j'ai bien range ma part
+    echec      = "recx",  -- joueur -> MJ   : le jet rate consomme une utilisation
 }
 local S = Recolte.SUJETS
 
@@ -95,6 +99,69 @@ function Recolte.Rayon(definition)
     return tonumber(definition and definition.rayon) or tonumber(Eq().rayon) or 3
 end
 
+function Recolte.Ressources(definition)
+    if type(definition.ressources) == "table" then return definition.ressources end
+    return { { entree = definition.entree, min = definition.min, max = definition.max,
+        chance = 100, regeneration = false } }
+end
+
+-- L'etat appartient au point pose, jamais a sa definition partagee.
+function Recolte.Disponible(point, definition, maintenant)
+    maintenant = maintenant or (time and time()) or 0
+    if (tonumber(definition.limite) or 1) > 0
+        and (tonumber(point.usages) or 0) >= (tonumber(definition.limite) or 1) then return false end
+    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+        local prochain = point.prochain and tonumber(point.prochain[index])
+        local consomme = point.consomme and point.consomme[index]
+        if ressource.regeneration then
+            if not prochain or prochain <= maintenant then return true end
+        elseif not consomme then return true end
+    end
+    return false
+end
+
+function Recolte.Epuise(point, definition)
+    if tonumber(definition.limite) == 0 then return false end
+    if (tonumber(definition.limite) or 1) > 0
+        and (tonumber(point.usages) or 0) >= (tonumber(definition.limite) or 1) then return true end
+    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+        if ressource.regeneration or not (point.consomme and point.consomme[index]) then
+            return false
+        end
+    end
+    return true
+end
+
+-- Calcule une prise sans modifier le point : le MJ ne la valide qu'apres
+-- confirmation du rangement dans le sac.
+function Recolte.Tirer(point, definition, maintenant)
+    maintenant = maintenant or (time and time()) or 0
+    if not Recolte.Disponible(point, definition, maintenant) then return nil end
+    local lots, consomme, prochain = {}, {}, {}
+    for i, v in pairs(point.consomme or {}) do consomme[i] = v end
+    for i, v in pairs(point.prochain or {}) do prochain[i] = v end
+    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+        local disponible = ressource.regeneration
+            and (not prochain[index] or prochain[index] <= maintenant)
+            or (not ressource.regeneration and not consomme[index])
+        if disponible then
+            local chance = math.max(0, math.min(100, tonumber(ressource.chance) or 100))
+            if chance == 100 or (chance > 0 and LCM.Roll.Des(1, 100) <= chance) then
+                if ressource.regeneration then
+                    prochain[index] = maintenant + math.max(0, tonumber(ressource.minutes) or 0) * 60
+                else
+                    consomme[index] = true
+                end
+                lots[#lots + 1] = { index = index, entree = ressource.entree,
+                    quantite = LCM.Roll.Des(tonumber(ressource.min) or 1,
+                        tonumber(ressource.max) or tonumber(ressource.min) or 1) }
+            end
+        end
+    end
+    return lots, { usages = (tonumber(point.usages) or 0) + 1,
+        consomme = consomme, prochain = prochain }
+end
+
 -- ===== Les points en une chaine ============================================
 -- Comme les Lieux : « id,x,y,source,carte|… ». Une table imbriquee coute une
 -- ligne par champ a l'encodeur, et cent points depasseraient de loin ce qu'on
@@ -103,8 +170,15 @@ end
 function Recolte.Plier(points)
     local out = {}
     for _, p in ipairs(points or {}) do
-        out[#out + 1] = string.format("%s,%.2f,%.2f,%s,%s", p.id, p.x, p.y,
-            tostring(p.source or ""), p.carte and tostring(p.carte) or "")
+        local marques = {}
+        for i, v in pairs(p.consomme or {}) do if v then marques[#marques + 1] = tostring(i) end end
+        table.sort(marques)
+        local delais = {}
+        for i, v in pairs(p.prochain or {}) do delais[#delais + 1] = tostring(i) .. ":" .. tostring(v) end
+        table.sort(delais)
+        out[#out + 1] = string.format("%s,%.2f,%.2f,%s,%s,%d,%s,%s", p.id, p.x, p.y,
+            tostring(p.source or ""), p.carte and tostring(p.carte) or "",
+            tonumber(p.usages) or 0, table.concat(marques, ":"), table.concat(delais, ":"))
     end
     return table.concat(out, "|")
 end
@@ -112,10 +186,18 @@ end
 function Recolte.Deplier(texte)
     local out = {}
     for morceau in tostring(texte or ""):gmatch("[^|]+") do
-        local id, x, y, source, carte = morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*)$")
+        local id, x, y, source, carte, usages, marques, delais =
+            morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)$")
+        if not id then
+            id, x, y, source, carte = morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*)$")
+        end
         if id and tonumber(x) and tonumber(y) then
-            out[#out + 1] = { id = id, x = tonumber(x), y = tonumber(y),
-                source = source ~= "" and source or nil, carte = tonumber(carte) }
+            local p = { id = id, x = tonumber(x), y = tonumber(y), usages = tonumber(usages) or 0,
+                source = source ~= "" and source or nil, carte = tonumber(carte),
+                consomme = {}, prochain = {} }
+            for i in tostring(marques or ""):gmatch("%d+") do p.consomme[tonumber(i)] = true end
+            for i, v in tostring(delais or ""):gmatch("(%d+):(%d+)") do p.prochain[tonumber(i)] = tonumber(v) end
+            out[#out + 1] = p
         end
     end
     return out
@@ -128,7 +210,9 @@ function Recolte.Paquet(definition, points)
         i = definition.id, n = definition.label, e = definition.entree,
         a = definition.min, b = definition.max,
         m = definition.metier, d = definition.dd, r = definition.rayon,
-        p = Recolte.Plier(points),
+        p = Recolte.Plier(points), l = definition.limite,
+        u = definition.ressources, v = definition.metiers,
+        f = definition.echecConsomme and true or nil,
     }
 end
 
@@ -137,6 +221,31 @@ function Recolte.Lire(paquet)
     local id = Texte(paquet and paquet.i)
     if id == "" then return nil end
     local mini = math.max(1, math.floor(tonumber(paquet.a) or 1))
+    local ressources
+    if type(paquet.u) == "table" then
+        ressources = {}
+        for _, r in ipairs(paquet.u) do
+            ressources[#ressources + 1] = {
+                entree = Texte(r.entree), min = tonumber(r.min) or 1,
+                max = tonumber(r.max) or tonumber(r.min) or 1,
+                chance = tonumber(r.chance) or 100,
+                aleatoire = r.aleatoire == true or r.aleatoire == "true",
+                regeneration = r.regeneration == true or r.regeneration == "true",
+                minutes = tonumber(r.minutes) or 0,
+            }
+        end
+    end
+    local metiers
+    if type(paquet.v) == "table" then
+        metiers = {}
+        for _, choix in ipairs(paquet.v) do
+            local id = type(choix) == "table" and Texte(choix.id) or Texte(choix)
+            if id ~= "" then
+                metiers[#metiers + 1] = { id = id,
+                    bonus = type(choix) ~= "table" or choix.bonus == true or choix.bonus == "true" }
+            end
+        end
+    end
     return {
         id = id,
         label = Texte(paquet.n) ~= "" and Texte(paquet.n) or "Point de récolte",
@@ -144,8 +253,11 @@ function Recolte.Lire(paquet)
         min = mini,
         max = math.max(mini, math.floor(tonumber(paquet.b) or mini)),
         metier = Texte(paquet.m) ~= "" and Texte(paquet.m) or nil,
+        metiers = metiers,
         dd = math.max(0, math.floor(tonumber(paquet.d) or 0)),
-        rayon = tonumber(paquet.r),
+        rayon = tonumber(paquet.r), limite = tonumber(paquet.l) or 1,
+        ressources = ressources,
+        echecConsomme = paquet.f == true or paquet.f == "true",
     }, Recolte.Deplier(paquet.p)
 end
 
@@ -168,8 +280,9 @@ function Recolte.Sauver()
     for id, p in pairs(Recolte.points) do
         if definitions[p.def] then points[id] = p end
     end
-    if next(definitions) or next(Recolte.attente) then
-        LCM.db.recolte = { definitions = definitions, points = points, attente = Recolte.attente }
+    if next(definitions) or next(Recolte.attente) or next(Recolte.echecs) then
+        LCM.db.recolte = { definitions = definitions, points = points,
+            attente = Recolte.attente, echecs = Recolte.echecs }
     else
         LCM.db.recolte = nil
     end
@@ -189,6 +302,9 @@ function Recolte.Charger()
     for id, a in pairs(type(garde.attente) == "table" and garde.attente or {}) do
         if type(a) == "table" then Recolte.attente[id] = a end
     end
+    for id, a in pairs(type(garde.echecs) == "table" and garde.echecs or {}) do
+        if type(a) == "table" then Recolte.echecs[id] = a end
+    end
 end
 
 -- ===== Ce qu'on connait ====================================================
@@ -206,15 +322,20 @@ function Recolte.Connaitre(definition, points, auteur)
     if type(definition) ~= "table" or not definition.id then return false end
     definition.auteur = auteur or definition.auteur
     Recolte.definitions[definition.id] = definition
+    local gardes = {}
     for id, p in pairs(Recolte.points) do
-        if p.def == definition.id then Recolte.points[id] = nil end
+        if p.def == definition.id then
+            if Recolte.attente[id] or Recolte.echecs[id] then gardes[id] = p end
+            Recolte.points[id] = nil
+        end
     end
     for _, p in ipairs(points or {}) do
-        if not Recolte.attente[p.id] then
+        if not Recolte.attente[p.id] and not Recolte.echecs[p.id] then
             p.def = definition.id
             Recolte.points[p.id] = p
         end
     end
+    for id, p in pairs(gardes) do Recolte.points[id] = p end
     Prevenir()
     return true
 end
@@ -259,7 +380,7 @@ function Recolte.Proche(positions)
     local meilleur, meilleureDistance
     for _, p in pairs(Recolte.points) do
         local definition = Recolte.definitions[p.def]
-        if definition and p.carte == carte then
+        if definition and p.carte == carte and Recolte.Disponible(p, definition) then
             local source = p.source or "?"
             local pos = positions[source]
             if pos == nil then
@@ -322,20 +443,43 @@ function Recolte.Regler()
 end
 
 -- ===== Le jet ==============================================================
--- D15 + bonus du metier contre le DD (Equilibrage.recolte, regle Necronicon).
--- Sans metier ni DD, il n'y a rien a reussir : on ramasse.
+-- Un métier de la liste est requis dès qu'elle n'est pas vide. Parmi ceux
+-- appris, on garde le meilleur bonus autorisé pour ce point.
+function Recolte.ChoisirMetier(entity, definition)
+    local choix = type(definition.metiers) == "table" and definition.metiers
+        or (definition.metier and { { id = definition.metier, bonus = true } } or {})
+    if #choix == 0 then return nil, 0, true end
+    local retenu, meilleur, sansMetier = nil, -1, false
+    for _, regle in ipairs(choix) do
+        local id = type(regle) == "table" and regle.id or regle
+        if id == Recolte.METIER_AUCUN then
+            sansMetier = true
+        elseif id and LCM.Metiers.Get(id) and LCM.Metiers.Palier(entity, id).rang > 0 then
+            local bonus = (type(regle) ~= "table" or regle.bonus ~= false)
+                and LCM.Metiers.Bonus(entity, id) or 0
+            if bonus > meilleur then retenu, meilleur = id, bonus end
+        end
+    end
+    if not retenu and sansMetier then return nil, 0, true end
+    if not retenu then return nil, 0, false end
+    return retenu, meilleur, true
+end
+
+-- D15 + bonus du métier retenu contre le DD (Equilibrage.recolte).
+-- Sans métier requis ni DD, il n'y a rien à réussir : on ramasse.
 
 function Recolte.Jet(entity, definition)
     local des = Eq().des or {}
-    local bonus = definition.metier and LCM.Metiers.Bonus(entity, definition.metier) or 0
+    local metier, bonus, autorise = Recolte.ChoisirMetier(entity, definition)
+    if not autorise then return nil, "aucun des métiers requis n'est appris." end
     local jet = LCM.Roll.Des(des.min or 0, des.max or 15)
     local total = jet + bonus
-    return { jet = jet, bonus = bonus, total = total, dd = definition.dd,
+    return { jet = jet, bonus = bonus, metier = metier, total = total, dd = definition.dd,
              reussi = total >= definition.dd, min = des.min or 0, max = des.max or 15 }
 end
 
 local function Annoncer(definition, r)
-    local metier = definition.metier and LCM.Metiers.Get(definition.metier)
+    local metier = r.metier and LCM.Metiers.Get(r.metier)
     local texte = string.format("Récolte : %s (DD %d) : %d  (D%d : %d%s) — %s",
         definition.label, r.dd, r.total, r.max, r.jet,
         metier and string.format(", %s : %+d", metier.label, r.bonus) or "",
@@ -349,15 +493,28 @@ end
 function Recolte.Recevoir(pointId, quantite, entree, defId)
     Recolte.enAttente[pointId] = nil
     local definition = Recolte.definitions[defId or ""]
-    Recolte.Oublier(pointId)
+    local lots = type(quantite) == "table" and quantite
+        or { { entree = entree, quantite = quantite } }
     local entity = LCM.Entities.Self()
-    local ok, raison = LCM.Inventaire.Deposer(entity, entree, quantite)
-    if not ok then
-        return false, raison or "impossible de ranger."
+    if not entity then return false, "aucun personnage." end
+    local essai = LCM.Copie(entity)
+    for _, lot in ipairs(lots) do
+        local ok, raison = LCM.Inventaire.Deposer(essai, lot.entree, tonumber(lot.quantite))
+        if not ok then return false, raison or "impossible de ranger." end
     end
-    local ressource = LCM.Compendium and LCM.Compendium.Resoudre and LCM.Compendium.Resoudre(entree)
-    LCM.Ok(string.format("Tu récoltes %s x%d.",
-        (ressource and ressource.label) or (definition and definition.label) or entree, quantite))
+    -- Le MJ rediffuse l'etat du point apres confirmation si celui-ci reste
+    -- exploitable. Jusque-la, on cache l'ancienne version au joueur.
+    Recolte.Oublier(pointId)
+    for _, lot in ipairs(lots) do
+        local ok, raison = LCM.Inventaire.Deposer(entity, lot.entree, tonumber(lot.quantite))
+        if not ok then return false, raison or "impossible de ranger." end
+        local ressource = LCM.Compendium and LCM.Compendium.Resoudre
+            and LCM.Compendium.Resoudre(lot.entree)
+        LCM.Ok(string.format("Tu récoltes %s x%d.",
+            (ressource and ressource.label) or (definition and definition.label) or lot.entree,
+            tonumber(lot.quantite)))
+    end
+    if #lots == 0 then LCM.Info("Cette récolte ne donne aucune ressource.") end
     if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
     return true
 end
@@ -384,12 +541,21 @@ end
 -- se manifeste : tant qu'il n'a pas accuse reception, on redit.
 function Recolte.Signaler(auteur)
     local ids = {}
+    local comptes = {}
+    local echecs = {}
     for id, a in pairs(Recolte.attente) do
-        if a.a == auteur then ids[#ids + 1] = id end
+        if a.a == auteur then
+            ids[#ids + 1] = id
+            if a.n then comptes[id] = { n = a.n, c = a.c, p = a.p } end
+        end
     end
-    if #ids == 0 then return false end
+    for id, a in pairs(Recolte.echecs) do
+        if a.a == auteur then echecs[id] = a.n end
+    end
+    if #ids == 0 and not next(echecs) then return false end
     table.sort(ids)
-    return LCM.Reseau.Envoyer(S.signaler, { l = table.concat(ids, ",") }, "WHISPER", auteur)
+    return LCM.Reseau.Envoyer(S.signaler,
+        { l = table.concat(ids, ","), c = comptes, f = echecs }, "WHISPER", auteur)
 end
 
 -- Le geste du joueur. Rend vrai quand la prise est faite (ou demandee au MJ).
@@ -401,25 +567,42 @@ function Recolte.Tenter(pointId)
     if not definition then return false, "point inconnu." end
     local maintenant = (GetTime and GetTime()) or 0
     local demande = Recolte.enAttente[pointId]
-    if demande and maintenant - demande < DELAI_REPONSE then return false, "récolte déjà en cours." end
+    if demande and maintenant - (type(demande) == "table" and demande.quand or demande) < DELAI_REPONSE then
+        return false, "récolte déjà en cours."
+    end
     Recolte.enAttente[pointId] = nil
     if Recolte.Proche() ~= p then return false, "tu es trop loin." end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
 
-    if definition.metier or definition.dd > 0 then
-        local r = Recolte.Jet(entity, definition)
+    if (definition.metiers and #definition.metiers > 0) or definition.metier or definition.dd > 0 then
+        local r, raison = Recolte.Jet(entity, definition)
+        if not r then return false, raison end
         Annoncer(definition, r)
-        if not r.reussi then return false, "jet raté : tu peux retenter." end
+        if not r.reussi then
+            if not definition.echecConsomme then return false, "jet raté : tu peux retenter." end
+            if definition.auteur == Moi() then
+                if Recolte.Echec then Recolte.Echec(pointId, Moi()) end
+            elseif Recolte.EnLigne(definition.auteur) then
+                LCM.Reseau.Envoyer(S.echec, { i = pointId }, "WHISPER", definition.auteur)
+            else
+                p.usages = (tonumber(p.usages) or 0) + 1
+                Recolte.echecs[pointId] = { a = definition.auteur, n = p.usages }
+                Prevenir()
+                LCM.Info("Le MJ sera averti de cet échec à son retour.")
+            end
+            return false, "jet raté : une récolte a été consommée."
+        end
     end
 
     -- Le MJ lui-meme : il est son propre arbitre, et un message a soi-meme ne
     -- revient pas (Reseau ignore ce qu'on s'envoie).
     if definition.auteur == Moi() then
         if not Recolte.Arbitre then return false, "aucun arbitre." end
-        local quantite, entree = Recolte.Arbitre(pointId, Moi())
-        if not quantite then return false, entree or "déjà récolté." end
-        local ok, raison = Recolte.Recevoir(pointId, quantite, entree, definition.id)
+        local lots, raison = Recolte.Arbitre(pointId, Moi())
+        if not lots then return false, raison or "déjà récolté." end
+        local ok
+        ok, raison = Recolte.Recevoir(pointId, lots, nil, definition.id)
         if ok and Recolte.Confirmer then Recolte.Confirmer(pointId)
         elseif not ok and Recolte.Restituer then Recolte.Restituer(pointId) end
         return ok, raison
@@ -427,25 +610,25 @@ function Recolte.Tenter(pointId)
 
     -- Son MJ est la : il arbitre.
     if Recolte.EnLigne(definition.auteur) then
-        Recolte.enAttente[pointId] = maintenant
+        Recolte.enAttente[pointId] = { quand = maintenant,
+            auteur = definition.auteur, defId = definition.id }
         LCM.Reseau.Envoyer(S.prendre, { i = pointId }, "WHISPER", definition.auteur)
         return true
     end
 
     -- Il n'est pas la : on recolte tout de suite, et le point passe EN ATTENTE
     -- jusqu'a ce qu'on le lui dise. La quantite se tire ici, faute d'arbitre.
-    local quantite = LCM.Roll.Des(definition.min, definition.max)
-    local entite = LCM.Entities.Self()
-    local ok, raison = LCM.Inventaire.Deposer(entite, definition.entree, quantite)
-    if not ok then return false, raison or "impossible de ranger." end
-    Recolte.attente[pointId] = { a = definition.auteur, d = definition.id, q = quantite,
-        t = (time and time()) or 0 }
-    Recolte.points[pointId] = nil
+    local lots, etat = Recolte.Tirer(p, definition)
+    if not lots then return false, "ce point ne donne plus rien pour le moment." end
+    local ok, raison = Recolte.Recevoir(pointId, lots, nil, definition.id)
+    if not ok then return false, raison end
+    p.usages, p.consomme, p.prochain = etat.usages, etat.consomme, etat.prochain
+    Recolte.attente[pointId] = { a = definition.auteur, d = definition.id,
+        q = lots[1] and lots[1].quantite or 0, n = p.usages,
+        c = p.consomme, p = p.prochain, t = (time and time()) or 0 }
+    if not Recolte.Epuise(p, definition) then Recolte.points[pointId] = p end
     Prevenir()
-    local ressource = LCM.Compendium and LCM.Compendium.Resoudre and LCM.Compendium.Resoudre(definition.entree)
-    LCM.Ok(string.format("Tu récoltes %s x%d. Le MJ en sera averti à son retour.",
-        (ressource and ressource.label) or definition.label, quantite))
-    if LCM.Entities.Changed then LCM.Entities.Changed(entite) end
+    LCM.Info("Le MJ sera averti de cette récolte à son retour.")
     return true
 end
 
@@ -529,7 +712,17 @@ LCM.WhenReady(function()
                 change = true
             end
         end
-        if change then Prevenir() end
+        for id, n in pairs(type(donnees.f) == "table" and donnees.f or {}) do
+            local a = Recolte.echecs[id]
+            if a and a.a == expediteur and tonumber(n) and tonumber(n) >= (tonumber(a.n) or 0) then
+                Recolte.echecs[id] = nil
+                change = true
+            end
+        end
+        if change then
+            Prevenir()
+            Recolte.Demander()
+        end
     end)
 
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, donnees)
@@ -548,18 +741,24 @@ LCM.WhenReady(function()
 
     LCM.Reseau.Ecouter(S.reponse, function(expediteur, donnees)
         local id = Texte(donnees.i)
-        if not Recolte.enAttente[id] then return end
+        local demande = Recolte.enAttente[id]
+        if not demande then return end
         local p = Recolte.points[id]
-        local definition = p and Recolte.definitions[p.def]
-        if definition and definition.auteur ~= expediteur then return end
+        local definition = Recolte.definitions[(type(demande) == "table" and demande.defId)
+            or (p and p.def) or ""]
+        if (type(demande) == "table" and demande.auteur ~= expediteur)
+            or (definition and definition.auteur ~= expediteur) then return end
         local quantite = tonumber(donnees.q)
-        if not quantite then
+        if not quantite and type(donnees.l) ~= "table" then
             Recolte.enAttente[id] = nil
             Recolte.Oublier(id)
             LCM.Alerte(Texte(donnees.n) ~= "" and Texte(donnees.n) or "ce point a déjà été récolté.")
             return
         end
-        local ok, raison = Recolte.Recevoir(id, quantite, Texte(donnees.e), definition and definition.id)
+        local lots = type(donnees.l) == "table" and donnees.l or
+            (quantite == 0 and {}) or nil
+        local ok, raison = Recolte.Recevoir(id, lots or quantite, Texte(donnees.e),
+            definition and definition.id)
         if ok then
             LCM.Reseau.Envoyer(S.confirmer, { i = id }, "WHISPER", expediteur)
         else

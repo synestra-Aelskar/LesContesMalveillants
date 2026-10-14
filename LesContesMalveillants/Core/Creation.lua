@@ -354,7 +354,7 @@ function Creation.Depense(brouillon, categorie)
         local total = 0
         for _, id in ipairs(brouillon.traits) do
             local trait = LCM.Traits.Get(id)
-            total = total + (trait and trait.cout or 1)
+            total = total + LCM.Traits.Cout(trait)
         end
         return total
     elseif categorie == "metiers" then
@@ -555,8 +555,10 @@ function Creation.PeutEncoreDepenser(brouillon, categorie)
     local reste = Creation.Budget(brouillon, categorie).reste
     if reste <= 0 then return false end
     if categorie == "traits" then
+        local places = (tonumber(Eq().conteneurs.traits) or 0) - Creation.Depense(brouillon, "traits")
         for _, trait in ipairs(LCM.Traits.list) do
-            if (tonumber(trait.cout) or 1) <= reste and not Creation.ATrait(brouillon, trait.id) then
+            if LCM.Traits.Cout(trait) <= math.min(reste, places)
+                and not Creation.ATrait(brouillon, trait.id) then
                 return true
             end
         end
@@ -600,9 +602,15 @@ function Creation.AjouterTrait(brouillon, id)
     if not trait then return false, "trait inconnu." end
     if Creation.ATrait(brouillon, id) then return false, "trait deja choisi." end
     local budget = Creation.Budget(brouillon, "traits")
-    if trait.cout > budget.reste then
+    local cout = LCM.Traits.Cout(trait)
+    if cout > budget.reste then
         return false, string.format("%s coute %d point%s, il en reste %d.",
-            trait.label, trait.cout, trait.cout > 1 and "s" or "", budget.reste)
+            trait.label, cout, cout > 1 and "s" or "", budget.reste)
+    end
+    local places = tonumber(Eq().conteneurs.traits) or 0
+    if Creation.Depense(brouillon, "traits") + cout > places then
+        return false, string.format("%s occupe %d emplacements de traits, %d disponibles.",
+            trait.label, cout, math.max(0, places - Creation.Depense(brouillon, "traits")))
     end
     brouillon.traits[#brouillon.traits + 1] = id
     return true

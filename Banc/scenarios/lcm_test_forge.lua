@@ -683,8 +683,14 @@ ok, raison = B.Enregistrer("jeux", {
 }, true)
 attendu("jeu de race disponible", ok, true)
 local races = LCM.Compendium.Get("races")
+local raceAvecType = false
+for _, champ in ipairs(LCM.Compendium.Champs(races)) do
+    if champ.cle == "type" then raceAvecType = true end
+end
+attendu("type absent de la catégorie Races", raceAvecType, false)
 FU.Ouvrir("races")
 attendu("case visible pour une race", f.mjSeulement:IsShown(), true)
+attendu("type absent pour une race", f.type:IsShown(), false)
 attendu("publique par defaut", f.mjSeulement:EstCochee(), false)
 local idRaceForge = FU.courant.creationId
 f.nom:Saisir("Race jumelle")
@@ -712,5 +718,51 @@ LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = chargeMJ
 B.Supprimer("races", idRaceForge)
 B.Supprimer("jeux", "jeu_race_acces")
+
+dire("== Cout d'un trait forge et budget de creation")
+ok, raison = B.Enregistrer("jeux", {
+    id = "jeu_trait_cout", label = "Création de trait", categorie = "traits",
+    raretes = {
+        { id = "commun", label = "Commun", points = 10, couleur = "FF8CB8" },
+        { id = "rare", label = "Rare", points = 18, couleur = "4D8CFF", coutTrait = 2 },
+    },
+    champs = { escalade = { cout = 1, base = 0, max = 4 } },
+}, true)
+attendu("jeu de trait disponible", ok, true)
+FU.Ouvrir("traits")
+attendu("rare rose à un point", F.CoutTrait(nil, { id = "commun" }), 1)
+attendu("rare bleu à deux points", F.CoutTrait(nil, { id = "rare" }), 2)
+f.nom:Saisir("Trait bleu")
+FU.courant.rareteId = "rare"
+f:Rafraichir()
+local idTraitForge = FU.courant.creationId
+f.creer:Click()
+local traitForge = LCM.Traits.Get(idTraitForge)
+attendu("coût bleu enregistré", traitForge and traitForge.cout, 2)
+local brouillonTrait = LCM.Creation.Nouveau(5)
+attendu("trait sélectionné", LCM.Creation.AjouterTrait(brouillonTrait, idTraitForge), true)
+attendu("deux points déduits à la création", LCM.Creation.Budget(brouillonTrait, "traits").reste, 1)
+Ed.Ouvrir(LCM.Compendium.Get("traits"), traitForge)
+attendu("rareté relue en modification", FU.courant.rareteId, "rare")
+local ancienBleu = LCM.Traits.Construire({ id = "trait_bleu_ancien", label = "Ancien bleu",
+    forge = "jeu_trait_cout/rare", cout = 1 })
+attendu("ancien trait bleu à un point corrigé", ancienBleu.cout, 2)
+FU.Editer(F.Get("jeu_trait_cout"))
+local jeuTraits = FU.Equilibrage()
+attendu("coût réglable dans le jeu de traits", jeuTraits.pageJeu.lignes[2].coutTrait:IsShown(), true)
+jeuTraits.pageJeu.lignes[2].coutTrait:Saisir("3")
+jeuTraits.enregistrer:Click()
+attendu("coût de la rareté enregistré", F.Get("jeu_trait_cout").raretes[2].coutTrait, 3)
+attendu("budget recalculé après modification du jeu", LCM.Creation.Budget(brouillonTrait, "traits").reste, 0)
+local mauvaisJeu = {
+    id = "jeu_trait_invalide", label = "Jeu invalide", categorie = "traits",
+    raretes = { { id = "rare", label = "Rare", points = 18,
+        couleur = "4D8CFF", coutTrait = 5 } },
+}
+local valide, erreurCout = pcall(F.Construire, mauvaisJeu)
+attendu("coût de rareté supérieur à quatre refusé", valide, false)
+contient("raison du refus", erreurCout, "coût de trait")
+B.Supprimer("traits", idTraitForge)
+B.Supprimer("jeux", "jeu_trait_cout")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

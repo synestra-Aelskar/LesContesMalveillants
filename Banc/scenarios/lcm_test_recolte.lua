@@ -79,6 +79,8 @@ attendu("ouverte", f and f:IsShown(), true)
 attendu("sur la création", f.creation:IsShown(), true)
 attendu("  le placement est caché", f.placement:IsShown(), false)
 local c = f.creation
+attendu("réglages communs visibles", c.communs:IsShown(), true)
+attendu("réglages communs ont une hauteur", c.communs:GetHeight(), 229)
 
 dire("== un refus dit pourquoi")
 f:Nouveau()
@@ -118,9 +120,10 @@ __souris.LeftButton = false
 __avancer(0.05)
 c.entree.__survol = nil
 attendu("elle est retenue", f.travail.recolte.entree, REF)
-attendu("  et la case la nomme", c.entree.label:GetText(), "Minerai témoin")
+attendu("  et la ligne la nomme", c.lignesRessources[1].nom:GetText(), "Minerai témoin")
 
 dire("== quantité aléatoire, métier, DD, rayon")
+c.lignesRessources[1]:Click()
 c.aleatoire:Click()
 attendu("le maximum apparaît", c.max:IsShown(), true)
 c.min:Saisir("4")

@@ -988,7 +988,8 @@ function Pages.traits(page, f)
             local t = self.traitId and LCM.Traits.Get(self.traitId)
             if t then
                 GameTooltip:SetText(t.label)
-                GameTooltip:AddLine(string.format("Coût : %d point%s", t.cout, t.cout > 1 and "s" or ""),
+                local cout = LCM.Traits.Cout(t)
+                GameTooltip:AddLine(string.format("Coût : %d point%s", cout, cout > 1 and "s" or ""),
                     0.83, 0.68, 0.33)
                 if t.description ~= "" then GameTooltip:AddLine(t.description, 0.88, 0.84, 0.76, true) end
                 local effets = UI.Fiche.Effets(t)
@@ -1026,7 +1027,7 @@ function Pages.traits(page, f)
             for _, t in ipairs(LCM.Traits.list) do
                 if t.id == actuel or not C.ATrait(f.brouillon, t.id) then
                     options[#options + 1] = { id = t.id, icone = t.icone,
-                        label = string.format("%s (%d)", t.label, t.cout) }
+                        label = string.format("%s (%d)", t.label, LCM.Traits.Cout(t)) }
                 end
             end
             if #options == 0 then
@@ -1045,20 +1046,30 @@ function Pages.traits(page, f)
     function page:Actualiser()
         local pris = f.brouillon.traits
         local places = tonumber(LCM.Equilibrage.conteneurs.traits) or 0
-        local n = math.max(#pris, math.min(places, #pris + 1))
+        local cases = {}
+        for _, id in ipairs(pris) do
+            local trait = LCM.Traits.Get(id)
+            local cout = trait and LCM.Traits.Cout(trait) or 1
+            for rang = 1, cout do
+                cases[#cases + 1] = { id = id, trait = trait, rang = rang, cout = cout }
+            end
+        end
+        local n = math.max(#cases, math.min(places, #cases + 1))
         local y = Haut(bloc)
         for index = 1, n do
             local l = self.emplacements[index] or Emplacement(index)
-            local id = pris[index]
-            local trait = id and LCM.Traits.Get(id)
+            local occupe = cases[index]
+            local id = occupe and occupe.id
+            local trait = occupe and occupe.trait
             l.traitId = id
             -- Un trait disparu du compendium reste visible, marque : on ne le
             -- retire pas en douce, le joueur le retire d'un clic droit.
             if trait then
                 l.icone:SetTexture(trait.icone)
-                l.nom:SetText(trait.label)
+                l.nom:SetText(occupe.rang == 1 and trait.label
+                    or string.format("%s (%d/%d)", trait.label, occupe.rang, occupe.cout))
                 l.nom:SetTextColor(UI.Compendium.Couleur(trait.couleurTitre or LCM.COULEUR_TITRE))
-                l.effets:SetText(UI.Fiche.Effets(trait))
+                l.effets:SetText(occupe.rang == 1 and UI.Fiche.Effets(trait) or "Emplacement occupé")
             elseif id then
                 l.icone:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
                 l.nom:SetText("? " .. tostring(id))
@@ -1299,9 +1310,9 @@ local function Construire()
             for _, id in ipairs(brouillon.traits) do
                 if not (brouillon.mode == "niveau" and brouillon.base and C.ATrait(brouillon.base, id)) then
                     local trait = LCM.Traits.Get(id)
+                    local cout = LCM.Traits.Cout(trait)
                     out[#out + 1] = { (trait and trait.label) or id,
-                        brouillon.mode == "niveau" and ("+" .. tostring((trait and trait.cout) or 1))
-                            or tostring((trait and trait.cout) or 1) }
+                        brouillon.mode == "niveau" and ("+" .. tostring(cout)) or tostring(cout) }
                 end
             end
             return out

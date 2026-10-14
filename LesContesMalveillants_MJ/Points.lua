@@ -27,20 +27,49 @@ LCM.Points = LCM.Registre({
         element.icone = definition.icone and tostring(definition.icone):match("%S")
             and LCM.Icone(definition.icone) or nil
         element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
-        -- Un point de recolte PLACE sur la carte (MJ/Recoltes.lua) : une
-        -- ressource, combien on en tire, le jet de metier a reussir. Les
-        -- nombres sont bornes ici et pas dans l'ecran : un fichier ecrit a la
-        -- main passe par la meme porte.
+        -- Les anciennes definitions ont une seule entree ; les nouvelles
+        -- portent une liste de ressources, chacune avec ses propres regles.
         if nature == "ressource" and type(definition.recolte) == "table" then
             local r = definition.recolte
-            local mini = math.max(1, math.floor(tonumber(r.min) or 1))
-            local maxi = math.max(mini, math.floor(tonumber(r.max) or mini))
+            local sources = type(r.ressources) == "table" and r.ressources or { r }
+            local ressources = {}
+            for _, source in ipairs(sources) do
+                local mini = math.max(1, math.floor(tonumber(source.min) or 1))
+                local maxi = math.max(mini, math.floor(tonumber(source.max) or mini))
+                ressources[#ressources + 1] = {
+                    entree = tostring(source.entree or ""),
+                    min = mini, max = source.aleatoire and maxi or mini,
+                    aleatoire = source.aleatoire and true or false,
+                    chance = math.max(0, math.min(100, math.floor(tonumber(source.chance) or 100))),
+                    regeneration = source.regeneration and true or false,
+                    minutes = math.max(0, tonumber(source.minutes) or 0),
+                }
+            end
+            local metiers = {}
+            local choix = type(r.metiers) == "table" and r.metiers
+                or ((r.metier and r.metier ~= "") and { { id = r.metier, bonus = true } } or {})
+            local vus = {}
+            for _, choixMetier in ipairs(choix) do
+                local id = type(choixMetier) == "table" and choixMetier.id or choixMetier
+                id = tostring(id or "")
+                if id ~= "" and (id == LCM.Recolte.METIER_AUCUN or LCM.Metiers.Get(id)) and not vus[id] then
+                    metiers[#metiers + 1] = { id = id,
+                        bonus = id ~= LCM.Recolte.METIER_AUCUN
+                            and (type(choixMetier) ~= "table" or choixMetier.bonus ~= false) }
+                    vus[id] = true
+                end
+            end
             element.recolte = {
-                entree = tostring(r.entree or ""),
-                min = mini,
-                max = r.aleatoire and maxi or mini,
-                aleatoire = r.aleatoire and true or false,
-                metier = (r.metier and tostring(r.metier) ~= "") and tostring(r.metier) or nil,
+                ressources = ressources,
+                metiers = metiers,
+                -- Ces champs restent lisibles par les anciens consommateurs.
+                entree = ressources[1] and ressources[1].entree or "",
+                min = ressources[1] and ressources[1].min or 1,
+                max = ressources[1] and ressources[1].max or 1,
+                aleatoire = ressources[1] and ressources[1].aleatoire or false,
+                limite = math.max(0, math.floor(tonumber(r.limite) or 1)),
+                echecConsomme = r.echecConsomme == true,
+                metier = metiers[1] and metiers[1].id or nil,
                 dd = math.max(0, math.floor(tonumber(r.dd) or 0)),
                 rayon = tonumber(r.rayon) and math.max(0.5, tonumber(r.rayon)) or nil,
             }

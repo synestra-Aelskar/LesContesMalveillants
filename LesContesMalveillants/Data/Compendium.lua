@@ -103,14 +103,18 @@ end
 -- Une categorie generique du template : Type (liste), Etat (jauge),
 -- Description, Metier, et le bloc de statistiques.
 local function Generique(def)
-    local champs = {
-        Icone(),
-        { cle = "type", label = "Type", type = "liste", source = "listes:" .. def.liste, emplacement = "header" },
+    local champs = { Icone() }
+    if def.liste then
+        champs[#champs + 1] = { cle = "type", label = "Type", type = "liste",
+            source = "listes:" .. def.liste, emplacement = "header" }
+    end
+    local suite = {
         { cle = "etat", label = "Etat", type = "jauge", emplacement = "meta",
           defaut = def.etatDefaut or { courant = 100, max = 100 } },
         Description(true),
         { cle = "metiers", label = "Metier", type = "liste", source = "metiers", multiple = true, emplacement = "body" },
     }
+    for _, champ in ipairs(suite) do champs[#champs + 1] = champ end
     for _, champ in ipairs(def.extras or {}) do champs[#champs + 1] = champ end
     -- Ajout de l'addon (3 octobre 2026) : le jeu d'equilibrage et la rarete
     -- de l'entree (Core/Forge.lua). Des qu'un jeu vise la categorie, le MJ
@@ -124,7 +128,7 @@ local function Generique(def)
     -- colonne par statistique. Les statistiques se lisent dans « Voir ».
     def.colonnesTableau = def.colonnesTableau or { "description" }
     def.dossiers = DOSSIERS_GENERIQUES
-    def.sousCategorie = "type"
+    def.sousCategorie = def.liste and "type" or nil
     def.type = "generic"
     -- L'avantage (relance, garde le meilleur) est une regle de l'addon, pas
     -- un champ du template : il a son onglet dans l'editeur et sa ligne en pied
@@ -386,9 +390,8 @@ Campement({
     champs = { Description(true) },
 })
 
--- Races, traits, etats, maladies, apprentissages : le template leur donne la
--- « Liste Armes » pour Type, sans doute par copie ; garde tel quel, a trancher.
-Generique({ id = "races", label = "Races", liste = "armes",
+-- Une race n'a pas de type d'arme.
+Generique({ id = "races", label = "Races",
     registre = "Races", famille = "races",
     defaut = { morphology = "humanoide" },
     extras = {

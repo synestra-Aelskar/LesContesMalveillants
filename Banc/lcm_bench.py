@@ -136,6 +136,7 @@ function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0
 -- temps, pas en attendant.
 local horloge = 1000
 function GetTime() return horloge end
+function GetServerTime() return 1791936000 + math.floor(horloge) end
 function __temps(secondes) horloge = secondes end
 function __avancerTemps(secondes) horloge = horloge + secondes end
 
@@ -403,6 +404,8 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetMovable() end
     function f:SetResizable() end
     function f:EnableMouse() end
+    function f:EnableKeyboard(v) self.__keyboard = v end
+    function f:SetPropagateKeyboardInput(v) self.__propagateKeyboard = v end
     function f:EnableMouseWheel() end
     function f:RegisterForDrag() end
     function f:RegisterForClicks()

@@ -1,11 +1,12 @@
 -- Les points de recolte poses par le MJ (13 octobre 2026).
 --
 -- Deux choses distinctes, et il ne faut pas les confondre :
---   * la DEFINITION (« Miner du fer » : quelle ressource, combien, quel jet) est
+--   * la DEFINITION (« Miner du fer » : quelles ressources, combien, quel jet) est
 --     du contenu. C'est un point de nature « ressource » (MJ/Points.lua), cree
 --     dans l'atelier et exporte comme le reste ;
 --   * les POINTS POSES sont l'etat du monde : ici, ici et ici, et chacun
---     disparait quand on le recolte. Ils vivent dans la sauvegarde du MJ,
+--     garde ses usages et ses delais, puis s'epuise selon sa limite. Ils vivent
+--     dans la sauvegarde du MJ,
 --     comme les Lieux, parce qu'ils changent a chaque recolte — un fichier
 --     publie ne peut pas suivre un filon qu'on vide en seance.
 --
@@ -67,7 +68,9 @@ local function Publique(point)
     return {
         id = point.id, label = point.label, entree = r.entree,
         min = r.min, max = r.max, metier = r.metier, dd = r.dd, rayon = r.rayon,
-        auteur = Moi(),
+        ressources = r.ressources, metiers = r.metiers,
+        limite = r.limite, auteur = Moi(),
+        echecConsomme = r.echecConsomme,
     }
 end
 
@@ -88,9 +91,22 @@ function Recoltes.Carnet(defId)
     local out = {}
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
+            local point = Recoltes.Definition(p.def)
+            local actif = point and R.Disponible(p, point.recolte) or false
+            local retour
+            if point and not actif and not p.statut then
+                for _, date in pairs(p.prochain or {}) do
+                    date = tonumber(date)
+                    if date and date > ((time and time()) or 0) and (not retour or date < retour) then
+                        retour = date
+                    end
+                end
+            end
             out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y,
                 source = p.source, carte = p.carte, quand = p.quand,
-                statut = p.statut or "cree", par = p.par, le = p.le }
+                statut = p.statut or "cree", par = p.par, le = p.le,
+                usages = p.usages, consomme = p.consomme, prochain = p.prochain,
+                actif = actif, retour = retour }
         end
     end
     -- Du plus recent au plus ancien : celui qu'on vient de poser en tete.
@@ -156,7 +172,7 @@ function Recoltes.Placer(defId)
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     local point = Recoltes.Definition(defId)
     if not point then return nil, "choisis d'abord un point de récolte configuré." end
-    if point.recolte.entree == "" then
+    if not point.recolte.ressources[1] or point.recolte.ressources[1].entree == "" then
         return nil, "« " .. point.label .. " » ne donne aucune ressource : choisis-la dans la création."
     end
     local x, y, source = R.Position()
@@ -210,13 +226,14 @@ function Recoltes.Accorder(id, par)
     if not p or p.statut then return nil, "ce point a déjà été récolté." end
     local point = Recoltes.Definition(p.def)
     if not point then return nil, "ce point ne donne plus rien." end
-    local r = point.recolte
-    local quantite = LCM.Roll.Des(r.min, r.max)
+    local lots, etat = R.Tirer(p, point.recolte)
+    if not lots then return nil, "ce point ne donne plus rien pour le moment." end
+    p.prise = etat
     Marquer(id, "attente", par)
     Rafraichir(p.def)
     local canal = Canal()
     if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
-    return quantite, r.entree
+    return lots
 end
 
 -- `par` : seul celui a qui la prise a ete accordee la rend ou la confirme.
@@ -225,7 +242,7 @@ function Recoltes.Restituer(id, par)
     id = tostring(id or "")
     local p = Magasin()[id]
     if not p or p.statut ~= "attente" or (par and p.par ~= par) then return false end
-    p.statut, p.par, p.le = nil, nil, nil
+    p.statut, p.par, p.le, p.prise = nil, nil, nil, nil
     Rafraichir(p.def)
     Recoltes.Diffuser(p.def)
     return true
@@ -235,14 +252,43 @@ function Recoltes.Confirmer(id, par)
     id = tostring(id or "")
     local p = Magasin()[id]
     if not p or p.statut ~= "attente" or (par and p.par ~= par) then return false end
-    Marquer(id, "recolte", p.par)
+    local prise = p.prise
+    if prise then
+        p.usages, p.consomme, p.prochain = prise.usages, prise.consomme, prise.prochain
+    end
+    p.prise = nil
+    local point = Recoltes.Definition(p.def)
+    if point and not R.Epuise(p, point.recolte) then
+        p.statut, p.par, p.le = nil, nil, nil
+    else
+        Marquer(id, "recolte", p.par)
+    end
     Rafraichir(p.def)
+    Recoltes.Diffuser(p.def)
+    return true
+end
+
+-- Un jet rate peut epuiser le point sans attribuer le moindre lot.
+function Recoltes.Echec(id, par, compte)
+    id = tostring(id or "")
+    local p = Magasin()[id]
+    if not p or p.statut then return false end
+    local point = Recoltes.Definition(p.def)
+    if not point or not point.recolte.echecConsomme
+        or not R.Disponible(p, point.recolte) then return false end
+    local ancien = tonumber(p.usages) or 0
+    p.usages = compte and math.max(ancien, math.floor(tonumber(compte) or ancien)) or ancien + 1
+    if p.usages == ancien then return true end
+    if R.Epuise(p, point.recolte) then Marquer(id, "recolte", par) end
+    Rafraichir(p.def)
+    Recoltes.Diffuser(p.def)
     return true
 end
 
 R.Arbitre = Recoltes.Accorder
 R.Restituer = Recoltes.Restituer
 R.Confirmer = Recoltes.Confirmer
+R.Echec = Recoltes.Echec
 
 -- Tout renvoyer a un joueur qui demande : une definition par message, avec
 -- ses points. Celles qui n'ont aucun point ne servent a rien chez lui.
@@ -266,12 +312,26 @@ LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.prendre, function(expediteur, donnees)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end
         local id = tostring(donnees.i or "")
-        local quantite, entree = Recoltes.Accorder(id, expediteur)
-        if quantite then
-            LCM.Reseau.Envoyer(S.reponse, { i = id, q = quantite, e = entree }, "WHISPER", expediteur)
+        local lots, raison = Recoltes.Accorder(id, expediteur)
+        if lots then
+            local point = Magasin()[id] and Recoltes.Definition(Magasin()[id].def)
+            local r = point and point.recolte
+            local ancien = r and r.limite == 1 and #r.ressources == 1
+                and r.ressources[1].chance == 100 and not r.ressources[1].regeneration
+            if ancien and lots[1] then
+                LCM.Reseau.Envoyer(S.reponse,
+                    { i = id, q = lots[1].quantite, e = lots[1].entree }, "WHISPER", expediteur)
+            else
+                LCM.Reseau.Envoyer(S.reponse, { i = id, q = 0, l = lots }, "WHISPER", expediteur)
+            end
         else
-            LCM.Reseau.Envoyer(S.reponse, { i = id, n = entree }, "WHISPER", expediteur)
+            LCM.Reseau.Envoyer(S.reponse, { i = id, n = raison }, "WHISPER", expediteur)
         end
+    end)
+
+    LCM.Reseau.Ecouter(S.echec, function(expediteur, donnees)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        Recoltes.Echec(donnees.i, expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.rendre, function(expediteur, donnees)
@@ -291,18 +351,59 @@ LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.signaler, function(expediteur, donnees)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end
         local cites, touches = {}, {}
+        local echecs = {}
         local canal = Canal()
         for id in tostring(donnees.l or ""):gmatch("[^,]+") do
             cites[#cites + 1] = id
             local p = Magasin()[id]
-            if p and Marquer(id, "recolte", expediteur) then
+            if p and p.statut ~= "recolte" then
+                local point = Recoltes.Definition(p.def)
+                local compte = type(donnees.c) == "table" and donnees.c[id]
+                if point and type(compte) == "table" then
+                    p.usages = math.max(tonumber(p.usages) or 0,
+                        math.max(1, tonumber(compte.n) or 1))
+                    p.consomme = p.consomme or {}
+                    for i, v in pairs(compte.c or {}) do
+                        if v == true or v == "true" then p.consomme[tonumber(i) or i] = true end
+                    end
+                    p.prochain = p.prochain or {}
+                    for i, v in pairs(compte.p or {}) do
+                        local index, date = tonumber(i), tonumber(v)
+                        if index and date then p.prochain[index] = math.max(p.prochain[index] or 0, date) end
+                    end
+                    if R.Epuise(p, point.recolte) then Marquer(id, "recolte", expediteur)
+                    else p.statut, p.par, p.le = nil, nil, nil end
+                else
+                    Marquer(id, "recolte", expediteur)
+                end
                 touches[p.def] = true
-                if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
+                if p.statut == "recolte" and canal then
+                    LCM.Reseau.Envoyer(S.retrait, { i = id }, canal)
+                end
             end
         end
-        for defId in pairs(touches) do Rafraichir(defId) end
-        if #cites > 0 then
-            LCM.Reseau.Envoyer(S.accuse, { l = table.concat(cites, ",") }, "WHISPER", expediteur)
+        for id, n in pairs(type(donnees.f) == "table" and donnees.f or {}) do
+            local compte = tonumber(n)
+            if compte and compte >= 0 then
+                echecs[id] = compte
+                local p = Magasin()[id]
+                if p and p.statut ~= "recolte" then
+                    local point = Recoltes.Definition(p.def)
+                    if point and point.recolte.echecConsomme then
+                        p.usages = math.max(tonumber(p.usages) or 0, math.floor(compte))
+                        if R.Epuise(p, point.recolte) then Marquer(id, "recolte", expediteur) end
+                        touches[p.def] = true
+                        if p.statut == "recolte" and canal then
+                            LCM.Reseau.Envoyer(S.retrait, { i = id }, canal)
+                        end
+                    end
+                end
+            end
+        end
+        for defId in pairs(touches) do Rafraichir(defId) Recoltes.Diffuser(defId) end
+        if #cites > 0 or next(echecs) then
+            LCM.Reseau.Envoyer(S.accuse,
+                { l = table.concat(cites, ","), f = echecs }, "WHISPER", expediteur)
         end
     end)
 

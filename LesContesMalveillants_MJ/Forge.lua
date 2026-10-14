@@ -177,6 +177,9 @@ function ForgeUI.Definition()
     -- la source de cette propriete, y compris lors d'une modification.
     if categorie.famille == "races" then
         def.mjSeulement = courant.mjSeulement and true or nil
+        def.type = nil
+    elseif categorie.famille == "traits" then
+        def.cout = math.max(tonumber(def.cout) or 1, LCM.Forge.CoutTrait(jeu, rarete))
     end
     -- L'entree prend la couleur et le tag de sa rarete, comme dans Necronicon
     -- (ForgeCreateEntry).
@@ -1150,6 +1153,10 @@ local function ConstruireEquilibrage()
         l.nom:SetPoint("LEFT", l, "LEFT", 4, 0)
         l.points = UI.Champ(l, 60, 20, function(texte) if l.rarete then l.rarete.points = texte Touche() end end)
         l.points:SetPoint("LEFT", l.nom, "RIGHT", 8, 0)
+        l.coutTrait = UI.Champ(l, 40, 20, function(texte)
+            if l.rarete then l.rarete.coutTrait = texte Touche() end
+        end)
+        l.coutTrait:SetPoint("LEFT", l.points, "RIGHT", 8, 0)
         l.couleur = UI.Champ(l, 80, 20, function(texte)
             if not l.rarete then return end
             l.rarete.couleur = texte
@@ -1186,6 +1193,11 @@ local function ConstruireEquilibrage()
         if not pj.nom:HasFocus() then pj.nom:SetText(t.def.label or "") end
         local categorie = C.Get(t.def.categorie)
         pj.categorie.label:SetText(categorie and categorie.label or "Choisir une catégorie...")
+        local traits = categorie and categorie.famille == "traits"
+        pj.titreRaretes:SetText(traits and "Raretés : pool, coût du trait et couleur"
+            or "Raretés : pool de points et couleur")
+        pj.aide:SetText(traits and "Nom · pool · coût en création (1-4) · couleur (RRVVBB)."
+            or "Nom · points · couleur (RRVVBB). L'entrée forgée prend la couleur et le tag de sa rareté.")
         local y = 168
         for index, r in ipairs(t.def.raretes) do
             local l = self:LigneRarete(index)
@@ -1194,6 +1206,12 @@ local function ConstruireEquilibrage()
             l:SetPoint("TOPLEFT", pj, "TOPLEFT", 0, -y)
             if not l.nom:HasFocus() then l.nom:SetText(r.label or "") end
             if not l.points:HasFocus() then l.points:SetText(tostring(r.points or "")) end
+            l.coutTrait:SetShown(traits)
+            if traits and not l.coutTrait:HasFocus() then
+                l.coutTrait:SetText(tostring(r.coutTrait or LCM.Forge.CoutTrait(nil, r)))
+            end
+            l.couleur:ClearAllPoints()
+            l.couleur:SetPoint("LEFT", traits and l.coutTrait or l.points, "RIGHT", 8, 0)
             if not l.couleur:HasFocus() then l.couleur:SetText(r.couleur or "") end
             l.pastille:SetColorTexture(RVB(r.couleur))
             l:Show()

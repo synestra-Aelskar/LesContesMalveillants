@@ -42,6 +42,12 @@ function Traits.Construire(definition)
 
     -- Un trait coute de 1 a 4 points ; c'est la regle, donc le code la tient.
     local cout = tonumber(definition.cout) or 1
+    if LCM.Forge and LCM.Forge.CoutTrait then
+        local jeu, rarete, jeuId, rareteId = LCM.Forge.Lire(definition.forge)
+        if rareteId and (jeu and jeu.categorie == "traits" or jeuId == "traits") then
+            cout = math.max(cout, LCM.Forge.CoutTrait(jeu, rarete or { id = rareteId }))
+        end
+    end
     if cout ~= math.floor(cout) or cout < 1 or cout > Traits.COUT_MAX then
         Erreur(id .. " : cout invalide (" .. tostring(definition.cout) .. "), attendu 1 a " .. Traits.COUT_MAX)
     end
@@ -143,10 +149,21 @@ function Traits.Ids(entity)
     return out
 end
 
+function Traits.Cout(trait)
+    local cout = tonumber(trait and trait.cout) or 1
+    if LCM.Forge and LCM.Forge.CoutTrait then
+        local jeu, rarete, jeuId, rareteId = LCM.Forge.Lire(trait and trait.forge)
+        if rareteId and (jeu and jeu.categorie == "traits" or jeuId == "traits") then
+            cout = math.max(cout, LCM.Forge.CoutTrait(jeu, rarete or { id = rareteId }))
+        end
+    end
+    return cout
+end
+
 -- Somme des couts des traits portes et connus.
 function Traits.CoutTotal(entity)
     local total = 0
-    for _, trait in ipairs(Traits.Owned(entity)) do total = total + trait.cout end
+    for _, trait in ipairs(Traits.Owned(entity)) do total = total + Traits.Cout(trait) end
     return total
 end
 

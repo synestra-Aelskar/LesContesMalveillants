@@ -111,6 +111,7 @@ UI\Parametres.lua
 UI\Bourse.lua
 UI\Echange.lua
 UI\Campement.lua
+UI\NuitCampement.lua
 UI\Banniere.lua
 UI\Recolte.lua
 UI\Marchand.lua

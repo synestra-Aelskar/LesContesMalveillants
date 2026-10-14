@@ -853,6 +853,22 @@ Par ordre de ce qui bloque le plus :
       créent, modifient et suppriment leurs points et leurs offres. Ils vivent
       comme brouillons MJ, se synchronisent entre MJ et s'exportent dans le
       compagnon ; aucun de ces outils n'est chargé chez les joueurs.
+      Dans « Ressources », le MJ ajoute autant de ressources que nécessaire
+      dans un tableau compact. La dernière ligne « Ajoutez un élément » permet
+      d'en ajouter une autre. Un clic sur une ressource ouvre ou referme ses
+      réglages ; fermée, sa ligne affiche directement quantité, chance et repousse.
+      Chaque ressource règle sa chance (100 % par défaut), une quantité fixe ou
+      aléatoire et, si voulu, un délai de régénération en minutes. Une
+      limite de récoltes s'applique à chaque point posé ; « Infini » le garde
+      en place. Une ressource sans régénération ne peut être obtenue qu'une
+      fois par point, et une chance ratée ne la consomme pas.
+      Le MJ peut aussi lister plusieurs métiers autorisés. Le personnage doit
+      en avoir appris au moins un ; seul un métier dont « Bonus de jet » est
+      activé ajoute son bonus au D15. Si plusieurs conviennent, le meilleur
+      bonus activé est retenu. « Aucun métier » est une option de la liste :
+      elle ouvre aussi la récolte aux personnages sans métier avec un jet sans
+      bonus, tout en conservant le bonus des autres métiers autorisés. Une liste
+      vide n'impose aucun métier.
 - [x] **Un outil MJ pour l'expérience** (3 octobre 2026). Le MJ donne l'XP
       depuis le Panel MJ : un montant par joueur, un motif commun pour la
       tablée. Le palier franchi fait monter le niveau tout seul

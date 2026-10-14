@@ -101,4 +101,22 @@ attendu("la cape passe à deux", O.Placer(moi, "cape_rouge"), true)
 attendu("mais pas à trois", (O.Placer(moi, "cape_grise")), false)
 accessoires.cape.maxEquipe = 1
 
+dire("== modifier le max d'un type publié depuis l'éditeur")
+local ed = LCM.CompendiumEditeur
+local categorie = LCM.Compendium.Get("type_accessoires")
+ed.Ouvrir(categorie, accessoires.cape)
+local fenetre = ed.frame
+attendu("type publié modifiable", fenetre.lecture, false)
+local champMax
+for _, champ in ipairs(LCM.Compendium.Champs(categorie)) do
+    if champ.cle == "maxEquipe" then champMax = champ break end
+end
+attendu("champ max présent", champMax ~= nil, true)
+fenetre.editeurs[champMax].saisie:Saisir("2")
+fenetre:Valider()
+attendu("nouveau max appliqué", accessoires.cape.maxEquipe, 2)
+attendu("brouillon de remplacement", LCM.Brouillons.Get("listes", "cape") ~= nil, true)
+LCM.Brouillons.Supprimer("listes", "cape")
+attendu("original restauré", accessoires.cape.maxEquipe, 1)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
