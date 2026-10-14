@@ -12,24 +12,33 @@ temps(0); test("debut transparent",f:GetAlpha()==0)
 temps(4); test("voile opaque au dessus du HUD",f:GetAlpha()==1 and f.__strata=="TOOLTIP" and f.__level==9000)
 test("calques distincts dans la plage du moteur",f.ciel.__level<f.terre.__level and f.terre.__level<f.tente.__level and f.tente.__level<f.feu.__level and f.voteCadre.__level<10000)
 test("decor rogne aux limites de la scene",f.scene:DoesClipChildren())
-for _,nom in ipairs({"foret","sol","tente","ciel-cycle","feu1","feu2","feu3","feu4"}) do
+for _,nom in ipairs({"lac-montagne","tente","ciel-nuit","ciel-aube","lune","soleil","feu1","feu2","feu3","feu4"}) do
     test("BLP livre : "..nom,__fichierExiste("LesContesMalveillants/ressources/campement/"..nom..".blp"))
 end
 local imageFeu=f.imageFeu
 temps(4.2); test("feu change de frame",f.imageFeu~=imageFeu)
 test("tente visible",f.tente:GetAlpha()==1)
-local avant=f.ciel.image:GetRotation()
-temps(8); test("ciel complet tourne",f.ciel.image:GetRotation()>avant)
-test("un seul BLP pour le ciel et les astres",#f.ciel.pool==1 and not f.lune and not f.soleil and f.ciel.image:GetTexture():find("ciel-cycle.blp",1,true)~=nil)
--- La distance du pivot aux quatre coins reste inferieure au demi-cote du ciel,
--- quelle que soit sa rotation : pas de bord transparent au milieu du panneau.
-test("rotation couvre les quatre coins",math.sqrt(192^2+176^2)<f.ciel.image.__w/2)
+local avant=f.lune.__points[1][4]
+temps(8); test("lune traverse le ciel",f.lune.__points[1][4]>avant)
+test("deux ciels fixes sans rotation",f.ciel.nuit:GetRotation()==0 and f.ciel.aube:GetRotation()==0)
+test("aucune bordure",f.bords==nil)
+test("texte visible dans sa seule banniere",f.titre:GetAlpha()==1 and f.legende:GetAlpha()>0 and f.legende:GetWidth()<UIParent:GetWidth())
+test("scene couvre tout l ecran",math.abs(f.scene:GetWidth()*f.scene:GetScale()-UIParent:GetWidth())<.01 and math.abs(f.scene:GetHeight()*f.scene:GetScale()-UIParent:GetHeight())<.01)
+test("feu interpole deux poses",f.feu.base:GetTexture()~=f.feu.suivante:GetTexture() and f.feu.suivante:GetAlpha()>=0 and f.feu.suivante:GetAlpha()<=1)
 test("doublon ignore",not N.Lancer("nuit-test",12345,GetServerTime()))
-temps(14); test("moitie soleil a la fin du cycle",math.abs(f.ciel.image:GetRotation()-math.pi)<.001)
+temps(14); test("aube et soleil a la fin",f.ciel.aube:GetAlpha()==1 and f.soleil:GetAlpha()>.8 and f.lune:GetAlpha()==0)
+local ancienneLargeur,ancienneHauteur=UIParent:GetWidth(),UIParent:GetHeight()
+for _,taille in ipairs({{2560,1080},{1024,768}}) do
+    UIParent:SetSize(taille[1],taille[2]); temps(14)
+    test("plein ecran "..taille[1].."x"..taille[2],math.abs(f.scene:GetWidth()*f.scene:GetScale()-taille[1])<.01 and f.foret.__w>=f.scene:GetWidth() and f.foret.__h>=216)
+end
+UIParent:SetSize(ancienneLargeur,ancienneHauteur); temps(14)
 local empreinte=f.graine
 local textures=#f.terre.pool
 temps(18); test("voile retire et animation arretee",not f:IsShown() and not f:GetScript("OnUpdate"))
+test("clavier libere en fin de nuit",f.__keyboard==false)
 test("autre nuit",N.Lancer("nuit-2",12345,GetServerTime()))
+test("clavier reactive a la nuit suivante",f.__keyboard==true)
 test("decor commun reproductible",f.graine==empreinte)
 test("textures reutilisees",#f.terre.pool==textures)
 temps(18)
