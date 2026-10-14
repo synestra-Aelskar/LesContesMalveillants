@@ -263,10 +263,9 @@ end)
 
 -- De quoi la regarder sans se faire pousser, et verifier qu'elle va bien.
 LCM.WhenReady(function()
-    -- L'entree « Deplacement » du menu ouvre la jauge : c'est elle qui montre
-    -- l'allocation de la fiche ET la decompte pendant qu'on marche. Avant,
-    -- elle ouvrait une vue qui ne faisait que lire les deux nombres.
-    UI.Menu.Lier("deplacement", function()
+    -- L'entree « Deplacement » du radial Combat ouvre la jauge : c'est elle
+    -- qui montre l'allocation de la fiche ET la decompte pendant qu'on marche.
+    UI.Radial.Lier("mouvement", function()
         local f = Ecran.Fenetre()
         if f:IsShown() then f:Hide() else f:Montrer() end
     end)

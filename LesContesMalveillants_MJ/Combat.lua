@@ -142,31 +142,60 @@ function Ecran.Construire(page, fenetre)
     end)
     f.terminer:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
+    f.integrer = UI.Bouton(f.contenu, "Intégrer au combat", 150, 24, function()
+        local joueurs = {}
+        for _, joueur in ipairs(LCM.Combat.Membres()) do
+            if f.choisis[joueur] then joueurs[#joueurs + 1] = joueur end
+        end
+        local invitation, raison = C.Integrer(joueurs)
+        Dire(invitation ~= nil, raison)
+        f:Afficher()
+    end)
+    f.integrer:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+
     function f:AfficherPNJ(modifiable)
+        local etat = C.Etat()
+        local actifs = {}
+        if etat then
+            for _, entree in ipairs(etat.entrees) do
+                if not entree.pnj then actifs[entree.id] = true end
+            end
+        end
         local liste = LCM.Incarnation.Liste()
+        local candidats = {}
+        if etat then
+            for _, joueur in ipairs(C.Membres()) do
+                if not actifs[joueur] then candidats[#candidats + 1] = { id = joueur, name = joueur } end
+            end
+        end
         local y = 0
-        for rang, instance in ipairs(liste) do
+        local source = etat and candidats or liste
+        for rang, instance in ipairs(source) do
             local l = self.lignesPNJ[rang]
             if not l then
                 l = Rangee(self.zonePNJ.contenu)
+                local ligne = l
                 l.case = UI.Case(l, "", function(coche)
-                    self.choisis[self.lignesPNJ[rang].instanceId] = coche or nil
+                    self.choisis[ligne.cle] = coche or nil
                 end)
                 l.case:SetPoint("LEFT", l, "LEFT", 4, 0)
                 self.lignesPNJ[rang] = l
             end
-            l.instanceId = instance.id
+            l.cle = instance.id
             l.icone:SetTexture(LCM.Icone(instance.icon))
             l.nom:SetText(tostring(instance.name))
             l.case:Cocher(self.choisis[instance.id] == true)
-            l.case:SetEnabled(modifiable)
+            l.case:SetEnabled(etat ~= nil or modifiable)
             Poser(l, self.zonePNJ.contenu, y)
             y = y + LIGNE
         end
-        for rang = #liste + 1, #self.lignesPNJ do self.lignesPNJ[rang]:Hide() end
+        for rang = #source + 1, #self.lignesPNJ do self.lignesPNJ[rang]:Hide() end
         self.zonePNJ:Regler(y)
-        self.aucunPNJ:SetText(#liste > 0 and ""
-            or "Aucun PNJ en jeu. Mets-en en jeu depuis la fenêtre Incarner pour qu'ils combattent.")
+        self.titreQui:SetText(etat and "Joueurs à intégrer" or "Au combat")
+        self.aucunPNJ:SetText(#source > 0 and ""
+            or (etat and "Aucun joueur disponible hors du combat." or "Aucun PNJ en jeu. Mets-en en jeu depuis la fenêtre Incarner pour qu'ils combattent."))
+        self.integrer:SetShown(etat ~= nil)
+        self.integrer:SetEnabled(etat ~= nil and #candidats > 0)
     end
 
     function f:AfficherListe()
@@ -178,6 +207,15 @@ function Ecran.Construire(page, fenetre)
             for index, e in ipairs(etat.entrees) do
                 lignes[#lignes + 1] = { icone = e.icone, nom = e.nom,
                     etat = tostring(e.v), actif = index == etat.c }
+            end
+            local tardive = C.invitationTardive
+            if tardive then
+                local noms = {}
+                for joueur in pairs(tardive.cibles) do noms[#noms + 1] = joueur end
+                table.sort(noms)
+                for _, joueur in ipairs(noms) do
+                    lignes[#lignes + 1] = { nom = joueur, etat = "attend…" }
+                end
             end
         elseif invitation then
             self.titreListe:SetText("Invités")
@@ -239,6 +277,7 @@ function Ecran.Construire(page, fenetre)
         self.precedent:SetShown(etat ~= nil)
         self.suivant:SetShown(etat ~= nil)
         self.terminer:SetShown(etat ~= nil)
+        self.integrer:SetShown(etat ~= nil)
     end
 
     return f

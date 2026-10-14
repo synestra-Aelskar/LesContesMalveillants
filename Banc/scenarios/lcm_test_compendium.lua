@@ -35,7 +35,7 @@ attendu("ordre", table.concat(ids, ","),
 dire("== Le contenu importe")
 local function N(id) return #C.Entrees(C.Get(id)) end
 attendu("type armures", N("type_armures"), 8)
-attendu("metiers (figes dans le code)", N("liste_metiers"), 31)
+attendu("metiers (figes dans le code)", N("liste_metiers"), 32)
 -- Les actions des boutons du radial et les receptions ne sont plus des
 -- entrees du compendium depuis le 3 octobre 2026 (Core/ActionsBoutons.lua,
 -- Data/ActionsBoutons.lua, Data/Receptions.lua) : la categorie est vide, prete
@@ -107,7 +107,7 @@ dire("== Sous-categories")
 local groupes = C.SousCategories(C.Get("ressources"))
 local etiquettes = {}
 for _, g in ipairs(groupes) do etiquettes[#etiquettes + 1] = g.label end
-attendu("types de ressources, tries", table.concat(etiquettes, ","), "Lingot,Liquide,Minerais,poisson")
+attendu("types de ressources, tries", table.concat(etiquettes, ","), "Lingot,Liquide,Minerais,poisson,Sans valeur")
 attendu("sans sous-categorie", C.SousCategories(C.Get("devises")), nil)
 local sansType = C.SousCategories(C.Get("traits"))
 attendu("les traits n'ont pas de sous-categorie inutile", sansType, nil)
@@ -177,14 +177,14 @@ lignes = 0
 for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
 attendu("filtre retire", lignes, #LCM.Compendium.Entrees(LCM.Compendium.Get("ressources")))
 
--- Pagination : 31 metiers, 20 par page.
+-- Pagination : 32 metiers, 20 par page.
 f:ChoisirCategorie("liste_metiers")
 attendu("deux pages", f.pages, 2)
 attendu("indicateur", f.pageTexte:GetText(), "1 / 2")
 f.pageSuiv:Click()
 lignes = 0
 for _, r in ipairs(f.rangees) do if r:IsShown() then lignes = lignes + 1 end end
-attendu("onze metiers en page 2", lignes, 11)
+attendu("douze metiers en page 2", lignes, 12)
 
 -- Recherche d'entree (nom, tags et valeurs).
 f:ChoisirCategorie("traits")
@@ -439,11 +439,18 @@ attendu("categorie mj (par la categorie)", essai and essai.categorie, "mj")
 dire("== Le joueur consulte, il n'edite pas")
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
+LCM.db.settings.modeJoueur = true
+attendu("le mode joueur est actif", LCM.ModeJoueur(), true)
+attendu("et il neutralise le MJ", LCM.IsMaster(), false)
+f:Show()
+attendu("le compendium est visible en mode joueur", f:IsShown(), true)
 f:ChoisirCategorie("traits")
+f:Rafraichir()
 attendu("pas de Nouvelle entree", f.nouvelle:IsShown(), false)
 attendu("pas de mode edition", f.reglages:IsShown(), false)
 attendu("Voir reste", f.rangees[1].voir:IsShown(), true)
 attendu("pas de Dup", f.rangees[1].dupliquer:IsShown(), false)
+LCM.db.settings.modeJoueur = nil
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
@@ -509,6 +516,10 @@ __groupe({ "Reika-Apertus", "Nytherah-Apertus", "Moryn-Apertus", "Lyse-Apertus" 
 LCM.Reseau.Recevoir("Nytherah-Apertus", "1:1:1:ici|" .. LCM.Reseau.Encoder({ v = "0.1.0" }))
 local fl = LCM.UI.Compendium.Ouvrir("traits")
 local rl = fl.rangees[1]
+for _, joueur in ipairs({ "Nytherah-Apertus", "Reika-Apertus", "Moryn-Apertus", "Lyse-Apertus", "Lointain-Autreroyaume" }) do
+    LCM.AccesTraits.Definir(joueur, rl.element.id, true)
+end
+__avancer(60)
 attendu("bouton Link", rl.lien:IsShown(), true)
 rl.lien:Click()
 local dj = LCM.UI.Compendium.choixJoueurs

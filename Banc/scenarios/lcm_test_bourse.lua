@@ -10,6 +10,7 @@ end
 __declencher("PLAYER_LOGIN")
 __personnage()   -- ce scenario joue un personnage : il le dit
 local B = LCM.Bourse
+local UI = LCM.UI
 local moi = LCM.Entities.Self()
 
 dire("== les devises viennent du compendium, pas d'une liste a part")
@@ -130,6 +131,22 @@ attendu("et affiche", f.lignes[1].solde:GetText(), "15")
 f.lignes[1].saisie:Click("RightButton")
 attendu("le montant garde le menu", libelles(), "Échanger,Jeter")
 menu:Hide()
+
+dire("== glisser une devise vers un joueur")
+attendu("la devise est une source de glissement", f.lignes[1]:GetScript("OnDragStart") ~= nil, true)
+f.lignes[1]:GetScript("OnDragStart")(f.lignes[1])
+attendu("le fantome porte la devise", UI.Glisser.objet and UI.Glisser.objet.devise, "ecus")
+UI.Glisser.objet = nil
+if UI.Glisser.fantome then UI.Glisser.fantome:Hide() end
+__groupe({ "Nytherah-Apertus" })
+UI.Bourse.DemanderEchange("Nytherah-Apertus", "ecus")
+attendu("le depot demande un montant", d:IsShown(), true)
+d.saisie:SetText("3")
+d.valider:Click()
+attendu("le depot propose le bon echange", LCM.Echange.courant and LCM.Echange.courant.attente.combien, 3)
+attendu("la devise attend l'acceptation", B.Solde(moi, "ecus"), 15)
+LCM.Echange.Annuler("essai", true)
+__groupe({})
 
 __groupe({ "Nytherah-Apertus" })
 f.lignes[1]:Click("RightButton")

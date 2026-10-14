@@ -671,6 +671,23 @@ local function Rafraichir(f, saisieEnCours)
     for i, case in ipairs(f.cases) do
         local l = f.lignes[i]
         local n = f.valeurs[i] or 0
+        -- Une ligne vide reste visible pour identifier le bouclier, mais ne
+        -- peut recevoir aucun dégât. Le verrouillage ne s'applique pas aux
+        -- gains : un bouclier détruit peut toujours être réparé.
+        local bloquee = f.signe == "-" and not case.sante and (tonumber(case.plafond) or 0) <= 0
+        if bloquee then
+            f.valeurs[i] = 0
+            n = 0
+        end
+        l.plus:SetEnabled(not bloquee)
+        l.moins:SetEnabled(not bloquee)
+        l.valeur:SetEnabled(not bloquee)
+        l.tout:SetEnabled(not bloquee)
+        local alpha = bloquee and 0.4 or 1
+        l.plus:SetAlpha(alpha)
+        l.moins:SetAlpha(alpha)
+        l.valeur:SetAlpha(alpha)
+        l.tout:SetAlpha(alpha)
         if i ~= saisieEnCours then l.valeur:SetText(tostring(n)) end
         l.etat:SetText(string.format("%d / %d  ->  %d", case.courant, case.max, case.courant + (f.signe == "+" and n or -n)))
     end
@@ -808,6 +825,7 @@ end
 local function Borner(f, i, voulu)
     local case = f.cases[i]
     if not case then return 0 end
+    if f.signe == "-" and not case.sante and (tonumber(case.plafond) or 0) <= 0 then return 0 end
     local place, sante, possible = Etat(f)
     local n = f.valeurs[i] or 0
     voulu = math.max(0, math.min(voulu, case.plafond, n + (f.montant - place)))

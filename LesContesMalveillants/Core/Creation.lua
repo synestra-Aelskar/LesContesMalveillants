@@ -318,10 +318,12 @@ function Creation.Total(brouillon, categorie)
         if brouillon.mode == "pnj" then
             return math.max(0, math.floor(tonumber(niveau) or 0)) * 4
         end
+        if brouillon.mode == "reedition" or brouillon.mode == "reequilibrage" then
+            return math.max(0, math.floor(tonumber(brouillon.metiersBudget) or 0))
+        end
         -- Indépendant du niveau d'aventure : tout nouveau personnage dispose
-        -- exactement de quatre niveaux de métier à répartir. Une réédition ou
-        -- une montée de niveau ne rouvre pas ce capital initial : l'XP gagnée
-        -- ensuite sur la feuille Métiers doit rester intacte.
+        -- de quatre rangs à répartir. Une réédition reprend un budget égal aux
+        -- rangs déjà acquis ; une montée de niveau ne le rouvre pas.
         return (brouillon.entite or brouillon.mode == "niveau") and 0 or 4
     end
     return 0
@@ -414,6 +416,9 @@ function Creation.Plafond(brouillon, categorie, champ)
         -- et le brider a quatre interdisait le forgeron legendaire du village
         -- (11 octobre 2026). Reste le bareme, qui s'arrete pour de bon.
         if brouillon.mode == "pnj" then
+            return (LCM.Metiers and LCM.Metiers.RangMax and LCM.Metiers.RangMax()) or 4
+        end
+        if brouillon.mode == "reedition" or brouillon.mode == "reequilibrage" then
             return (LCM.Metiers and LCM.Metiers.RangMax and LCM.Metiers.RangMax()) or 4
         end
         return 4
@@ -815,9 +820,8 @@ function Creation.Depuis(entity)
     brouillon.nom = tostring(entity.name or "")
     brouillon.race = tostring(LCM.Entities.Get_Value(entity, "race") or "")
 
-    -- Les valeurs investies, telles qu'elles ont ete saisies. On ne reprend que
-    -- ce que la creation sait depenser : le reste de la fiche (jauges, etats,
-    -- inventaire) ne la regarde pas et doit survivre a la refonte.
+    -- Les valeurs investies, telles qu'elles ont ete saisies. Le reste de la
+    -- fiche (jauges, etats, inventaire) ne regarde pas la creation et survit.
     for _, categorie in ipairs(Creation.CATEGORIES or {}) do
         if (categorie.id or categorie) ~= "metiers" then
             for _, ligne in ipairs(Creation.Lignes(categorie.id or categorie) or {}) do
@@ -836,6 +840,23 @@ function Creation.Depuis(entity)
     for _, id in ipairs(LCM.Traits.Ids and LCM.Traits.Ids(entity) or {}) do
         brouillon.traits[#brouillon.traits + 1] = id
     end
+    -- Une réédition avec jeton permet aussi de redistribuer les rangs de
+    -- métiers déjà acquis. On garde le total actuel comme budget et l'XP
+    -- partielle de chaque métier pour ne pas la perdre au passage.
+    brouillon.mode = "reedition"
+    brouillon.metiersBudget = 0
+    brouillon.metiersProgression = {}
+    for _, metier in ipairs(LCM.Metiers.list or {}) do
+        local xp = LCM.Metiers.XP(entity, metier.id)
+        local rang = LCM.Metiers.Palier(entity, metier.id).rang
+        if rang > 0 then
+            brouillon.metiers[metier.id] = rang
+            brouillon.metiersBudget = brouillon.metiersBudget + rang
+        end
+        brouillon.metiersProgression[metier.id] = math.max(0,
+            xp - LCM.Metiers.XPPourNiveau(rang))
+    end
+    brouillon.metiersBudget = math.max(4, brouillon.metiersBudget)
     return brouillon
 end
 
@@ -912,6 +933,9 @@ function Creation.DepuisNiveau(entity)
     if not brouillon then return nil, erreur end
     local courant = LCM.Experience.NiveauFiche(entity)
     local base = Creation.Nouveau(courant)
+    -- Une montée de niveau ne redistribue pas les métiers : ils restent sur
+    -- la fiche, où leur XP progresse indépendamment de la création.
+    brouillon.metiers, brouillon.metiersBudget, brouillon.metiersProgression = {}, nil, nil
     base.nom, base.race = brouillon.nom, brouillon.race
     for champ, valeur in pairs(brouillon.valeurs) do base.valeurs[champ] = valeur end
     for _, id in ipairs(brouillon.traits or {}) do base.traits[#base.traits + 1] = id end
@@ -1005,6 +1029,20 @@ function Creation.Appliquer(brouillon)
         end
         for _, id in ipairs(brouillon.traits) do
             if not LCM.Traits.Has(entity, id) then LCM.Traits.Grant(entity, id) end
+        end
+        if brouillon.mode == "reedition" or brouillon.mode == "reequilibrage" then
+            for _, metier in ipairs(LCM.Metiers.list or {}) do
+                local id = metier.id
+                local rang = math.max(0, math.floor(tonumber((brouillon.metiers or {})[id]) or 0))
+                local progression = math.max(0,
+                    math.floor(tonumber((brouillon.metiersProgression or {})[id]) or 0))
+                local xp = LCM.Metiers.XPPourNiveau(rang)
+                local prochain = LCM.Metiers.XPPourNiveau(rang + 1)
+                if prochain > xp then progression = math.min(progression, prochain - xp - 1)
+                else progression = 0 end
+                local cible = xp + progression
+                LCM.Metiers.Gagner(entity, id, cible - LCM.Metiers.XP(entity, id))
+            end
         end
         -- Le jeton se consomme ICI, pas a l'ouverture : rouvrir sa fiche pour
         -- regarder, puis renoncer, ne doit rien couter. Le MJ, lui, n'en

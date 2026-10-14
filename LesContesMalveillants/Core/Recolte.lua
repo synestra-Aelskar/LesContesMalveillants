@@ -206,12 +206,21 @@ end
 -- Le paquet d'une definition, cles courtes : il part une fois par MJ et par
 -- joueur, mais il porte tous ses points.
 function Recolte.Paquet(definition, points)
+    local ressources = {}
+    for _, ressource in ipairs(Recolte.Ressources(definition)) do
+        ressources[#ressources + 1] = {
+            entree = ressource.entree, min = ressource.min, max = ressource.max,
+            chance = ressource.chance, aleatoire = ressource.aleatoire,
+            regeneration = ressource.regeneration, minutes = ressource.minutes,
+            definition = LCM.Echange and LCM.Echange.DefinitionObjet(ressource.entree) or nil,
+        }
+    end
     return {
         i = definition.id, n = definition.label, e = definition.entree,
         a = definition.min, b = definition.max,
         m = definition.metier, d = definition.dd, r = definition.rayon,
         p = Recolte.Plier(points), l = definition.limite,
-        u = definition.ressources, v = definition.metiers,
+        u = ressources, v = definition.metiers,
         f = definition.echecConsomme and true or nil,
     }
 end
@@ -225,8 +234,12 @@ function Recolte.Lire(paquet)
     if type(paquet.u) == "table" then
         ressources = {}
         for _, r in ipairs(paquet.u) do
+            local entree = Texte(r.entree)
+            if type(r.definition) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
+                LCM.Echange.ImporterObjetPartage({ ref = entree, definition = r.definition })
+            end
             ressources[#ressources + 1] = {
-                entree = Texte(r.entree), min = tonumber(r.min) or 1,
+                entree = entree, min = tonumber(r.min) or 1,
                 max = tonumber(r.max) or tonumber(r.min) or 1,
                 chance = tonumber(r.chance) or 100,
                 aleatoire = r.aleatoire == true or r.aleatoire == "true",

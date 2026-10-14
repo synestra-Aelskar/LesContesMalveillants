@@ -91,7 +91,29 @@ function Temporaires.Poser(entity, etat)
         dot = type(etat.dot) == "table" and LCM.Copie(etat.dot) or nil,
     }
     if Temporaires.onChange then Temporaires.onChange(entity) end
+    if LCM.Entities and LCM.Entities.Changed then LCM.Entities.Changed(entity, "etatsTemporaires") end
     return liste[#liste]
+end
+
+-- Le MJ demande au personnage de poser un etat du catalogue sur sa propre
+-- fiche. Seul l'identifiant et la duree voyagent : les effets viennent du
+-- catalogue partage, jamais d'un paquet arbitraire.
+function Temporaires.Envoyer(joueur, id, rounds)
+    joueur, id = tostring(joueur or ""), tostring(id or "")
+    if joueur == "" then return false, "choisis un joueur." end
+    if not LCM.IsMaster() then return false, "seul le maître du jeu peut imposer un état." end
+    if joueur == tostring(LCM.PlayerId()) then return false, "utilise la fiche locale pour ton personnage." end
+    if not LCM.Reseau.DansLeGroupe(joueur) then return false, "ce joueur n'est pas dans le groupe." end
+    local definition = LCM.Etats and LCM.Etats.Get(id)
+    if not definition then return false, "état inconnu." end
+    if rounds ~= nil then
+        rounds = tonumber(rounds)
+        if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+            return false, "la durée doit être un nombre entier positif." end
+    end
+    local ok, raison = LCM.Reseau.Envoyer("etat_mj", { i = id, r = rounds }, "WHISPER", joueur)
+    if not ok then return false, raison or "l'état n'a pas pu être envoyé." end
+    return true
 end
 
 -- Retire par nom, ou par identifiant (celui que la dissipation designe).
@@ -108,6 +130,7 @@ function Temporaires.Retirer(entity, nom, force)
     if retire then
         Ranger(entity)
         if Temporaires.onChange then Temporaires.onChange(entity) end
+        if LCM.Entities and LCM.Entities.Changed then LCM.Entities.Changed(entity, "etatsTemporaires") end
     end
     return retire
 end
@@ -140,6 +163,7 @@ end
 -- un cumul draine sa jauge d'abord. Retourne les noms eteints.
 function Temporaires.Round(entity)
     local liste = Temporaires.Liste(entity)
+    local avaitEtat = #liste > 0
     local eteints = {}
     -- Les dots mordent AVANT que les durees ne baissent : un dot d'un round
     -- doit mordre une fois, pas zero.
@@ -180,6 +204,9 @@ function Temporaires.Round(entity)
     if #eteints > 0 then
         Ranger(entity)
         if Temporaires.onChange then Temporaires.onChange(entity) end
+    end
+    if avaitEtat and LCM.Entities and LCM.Entities.Changed then
+        LCM.Entities.Changed(entity, "etatsTemporaires")
     end
     return eteints
 end
@@ -250,6 +277,33 @@ local function Vieillir()
     end
 end
 Temporaires.Vieillir = Vieillir
+
+LCM.WhenReady(function()
+    LCM.Reseau.Ecouter("etat_mj", function(expediteur, paquet)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        local definition = LCM.Etats and LCM.Etats.Get(paquet.i)
+        if not definition then
+            LCM.Debug("état MJ ignoré : définition absente du compendium.")
+            return
+        end
+        local rounds
+        if paquet.r ~= nil and paquet.r ~= "" then
+            rounds = tonumber(paquet.r)
+            if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then return end
+        end
+        local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
+            or (LCM.Entities.Self and LCM.Entities.Self())
+        if not entity then return end
+        Temporaires.Poser(entity, {
+            nom = definition.label, icone = definition.icone,
+            description = definition.description, bonus = definition.bonus,
+            rounds = rounds, conteneur = definition.categorie,
+            debuff = definition.debuff == true, id = definition.id,
+        })
+        LCM.Info(string.format("Le MJ vous impose « %s » (%s).", definition.label,
+            rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'au retrait"))
+    end)
+end)
 
 LCM.AddCommand("etats", "les états temporaires : la liste, ou « retirer <nom> »", function(argument)
     local mot, reste = tostring(argument or ""):match("^%s*(%S*)%s*(.-)%s*$")

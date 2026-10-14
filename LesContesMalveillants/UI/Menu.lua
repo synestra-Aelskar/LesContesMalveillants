@@ -94,7 +94,6 @@ Menu.STRUCTURE = {
     -- 2026 : elle ne menait qu'a une carte, celle-ci.
     { id = "systeme_aelskar", label = "Système", icone = ICONE .. "achievement_zone_stormpeaks_03",
       mjSeulement = true },
-    { id = "deplacement", label = "Déplacement", icone = RADIAL .. "fenetres-deplacement.tga" },
 }
 
 -- Un dossier s'ouvre en eventail, et un eventail ne sait dessiner que les

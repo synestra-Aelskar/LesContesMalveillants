@@ -143,6 +143,23 @@ function LCM.Catalogue(def)
         return element
     end
 
+    -- Remplace une definition partagee sans changer sa position au catalogue.
+    function C.Remplacer(definition)
+        local element = C.Construire(definition)
+        local precedent = C.byId[element.id]
+        C.byId[element.id] = element
+        if precedent then
+            for index, courant in ipairs(C.list) do
+                if courant.id == element.id then
+                    C.list[index] = element
+                    return element
+                end
+            end
+        end
+        C.list[#C.list + 1] = element
+        return element
+    end
+
     function C.Get(id) return C.byId[tostring(id or "")] end
 
     -- Brouillons supprimes en seance uniquement (voir Traits.Retirer).

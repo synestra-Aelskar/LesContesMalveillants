@@ -161,6 +161,7 @@ Combat.etat = nil
 -- Cote MJ : l'invitation en cours. Cote joueur : celle qu'on a recue.
 Combat.invitation = nil
 Combat.invitationRecue = nil
+Combat.invitationTardive = nil
 
 function Combat.Etat() return Combat.etat end
 
@@ -341,6 +342,20 @@ end
 local function Appliquer(etat)
     local avant = Combat.etat
     Combat.etat = etat
+    local charDb = LCM.charDb
+    if charDb then
+        local participe = false
+        if etat then
+            for _, entree in ipairs(etat.entrees or {}) do
+                if not entree.pnj and entree.id == Moi() then participe = true break end
+            end
+        end
+        if participe then
+            charDb.combatSnapshot = { s = etat.s, mj = etat.mj, etat = Combat.Paquet(etat) }
+        else
+            charDb.combatSnapshot = nil
+        end
+    end
     RestaurerPADuTour(avant, etat)
     -- Figer les soldes des fiches locales avant qu'un dot du nouveau round
     -- retire des PA : cette perte doit compter dans sa tranche.
@@ -519,6 +534,62 @@ function Combat.Lancer()
     return etat
 end
 
+-- Ajoute des joueurs a un combat deja lance. Ils font leur jet comme lors de
+-- l'invitation initiale ; a chaque acceptation, l'ordre est retrie sans
+-- deplacer le combattant dont c'est actuellement le tour.
+function Combat.Integrer(joueurs)
+    if not Combat.EstMJ() then return nil, "reserve au maitre du jeu qui mene le combat." end
+    local etat = Combat.etat
+    if not etat then return nil, "aucun combat en cours." end
+    local invitation = Combat.invitationTardive
+    if not invitation then
+        invitation = { s = etat.s, cibles = {}, reponses = {} }
+        Combat.invitationTardive = invitation
+    end
+    for _, nom in ipairs(joueurs or {}) do
+        local joueur = IdJoueur(nom)
+        local dansCombat = false
+        for _, entree in ipairs(etat.entrees) do
+            if not entree.pnj and entree.id == joueur then dansCombat = true break end
+        end
+        if not dansCombat and LCM.Reseau.DansLeGroupe(joueur) then
+            invitation.cibles[joueur] = true
+            Envoyer("combat?", { s = invitation.s }, "WHISPER", joueur)
+        end
+    end
+    if not next(invitation.cibles) then
+        Combat.invitationTardive = nil
+        return nil, "aucun nouveau joueur valide a inviter."
+    end
+    if Combat.onInvitation then Combat.onInvitation(invitation) end
+    return invitation
+end
+
+local function AjouterReponseTardive(joueur, reponse)
+    local invitation, avant = Combat.invitationTardive, Combat.etat
+    if not invitation or not invitation.cibles[joueur] then return false end
+    invitation.cibles[joueur] = nil
+    invitation.reponses[joueur] = reponse
+    if reponse.ok then
+        local courant = Combat.Courant()
+        local idCourant = courant and courant.id
+        local nouveau = LCM.Copie(avant)
+        nouveau.entrees[#nouveau.entrees + 1] = {
+            id = joueur, nom = reponse.nom, v = reponse.v, icone = reponse.icone,
+            ko = reponse.ko or nil,
+        }
+        Combat.Trier(nouveau.entrees)
+        for index, entree in ipairs(nouveau.entrees) do
+            if entree.id == idCourant then nouveau.c = index break end
+        end
+        Appliquer(nouveau)
+        Envoyer("combat=", Combat.Paquet(nouveau), Combat.CanalGroupe())
+    end
+    if not next(invitation.cibles) then Combat.invitationTardive = nil end
+    if Combat.onInvitation then Combat.onInvitation(Combat.invitationTardive) end
+    return true
+end
+
 -- Tour et round avancent quand la liste fait le tour (AdvanceInitiativeSequence,
 -- tours et rounds comptes tous deux) : round suivant ; apres le dernier round,
 -- round 1 du tour suivant. A rebours, l'inverse, sans descendre sous le tour 1.
@@ -541,18 +612,31 @@ end
 function Combat.Avancer(sens)
     if not Combat.EstMJ() then return nil, "reserve au maitre du jeu qui mene le combat." end
     sens = (tonumber(sens) or 1) >= 0 and 1 or -1
-    local avant = Combat.etat
-    local etat = LCM.Copie(avant)
+    local etat = Combat.etat
     local nombre = #etat.entrees
-    etat.c = etat.c + sens
-    if etat.c > nombre then
-        etat.c = 1
-        Compteurs(etat, 1)
-    elseif etat.c < 1 then
-        etat.c = nombre
-        Compteurs(etat, -1)
+    local function PasSuivant()
+        local suivant = LCM.Copie(Combat.etat)
+        suivant.c = suivant.c + sens
+        if suivant.c > nombre then
+            suivant.c = 1
+            Compteurs(suivant, 1)
+        elseif suivant.c < 1 then
+            suivant.c = nombre
+            Compteurs(suivant, -1)
+        end
+        Appliquer(suivant)
+        return suivant
     end
-    Appliquer(etat)
+
+    -- Les etats (dont les degats periodiques) sont resolus par Appliquer
+    -- avant de verifier le KO. On saute uniquement les joueurs inconscients ;
+    -- le MJ garde la main sur les tours des PNJ. La borne evite une boucle si
+    -- tous les joueurs du combat sont KO.
+    for _ = 1, math.max(1, nombre) do
+        etat = PasSuivant()
+        local courant = etat.entrees[etat.c]
+        if not (courant and not courant.pnj and courant.ko) then break end
+    end
     Envoyer("combat~", { s = etat.s, c = etat.c, t = etat.t, r = etat.r }, Combat.CanalGroupe())
     return etat
 end
@@ -562,6 +646,8 @@ function Combat.Terminer()
     if not etat then return false, "aucun combat en cours." end
     if etat.mj ~= Moi() then return false, "seul le maitre du jeu qui mene le combat peut l'arreter." end
     Combat.etat = nil
+    Combat.invitationTardive = nil
+    if LCM.charDb then LCM.charDb.combatSnapshot = nil end
     Envoyer("combat.", { s = etat.s }, Combat.CanalGroupe())
     LCM.Info("Combat terminé.")
     Prevenir()
@@ -606,6 +692,7 @@ LCM.WhenReady(function()
     R.Ecouter("combat?", function(expediteur, d)
         if Combat.EstMJ() then return end
         if not LCM.Fiches.DansLeGroupe(expediteur) then return end
+        if Combat.etat and Combat.etat.s ~= tostring(d.s or "") then return end
         Combat.invitationRecue = { s = tostring(d.s or ""), mj = IdJoueur(expediteur) }
         if Combat.onInvitationRecue then Combat.onInvitationRecue(Combat.invitationRecue) end
     end)
@@ -614,8 +701,23 @@ LCM.WhenReady(function()
     -- quelqu'un qu'on a invite.
     R.Ecouter("combat+", function(expediteur, d)
         local invitation = Combat.invitation
-        if not invitation or tostring(d.s) ~= invitation.s then return end
         local joueur = IdJoueur(expediteur)
+        if Combat.etat and Combat.invitationTardive
+            and tostring(d.s) == Combat.invitationTardive.s
+            and Combat.invitationTardive.cibles[joueur] then
+            local reponse
+            if tostring(d.ok) == "1" then
+                reponse = { ok = true, v = tonumber(d.v) or 0,
+                    nom = Tronquer(Nettoyer(d.n) ~= "" and d.n or joueur, Combat.NOM_MAX),
+                    icone = d.ic and Tronquer(d.ic, Combat.ICONE_MAX) or nil,
+                    ko = tostring(d.k) == "1" }
+            else
+                reponse = { ok = false }
+            end
+            AjouterReponseTardive(joueur, reponse)
+            return
+        end
+        if not invitation or tostring(d.s) ~= invitation.s then return end
         if not invitation.cibles[joueur] then return end
         if tostring(d.ok) == "1" then
             invitation.reponses[joueur] = {
@@ -679,9 +781,18 @@ LCM.WhenReady(function()
 
     R.Ecouter("combat.", function(expediteur, d)
         local etat = Combat.etat
-        if not etat or Combat.EstMJ() then return end
+        if not etat or Combat.EstMJ() then
+            local snapshot = LCM.charDb and LCM.charDb.combatSnapshot
+            if snapshot and tostring(d.s) == tostring(snapshot.s) then
+                LCM.charDb.combatSnapshot = nil
+                Combat.etat = nil
+                Prevenir()
+            end
+            return
+        end
         if etat.mj ~= IdJoueur(expediteur) or etat.s ~= tostring(d.s) then return end
         Combat.etat = nil
+        if LCM.charDb then LCM.charDb.combatSnapshot = nil end
         LCM.Info("Combat terminé.")
         Prevenir()
     end)
@@ -696,21 +807,51 @@ LCM.WhenReady(function()
     end)
 
     -- Un joueur revient d'un /reload : on lui rend l'etat, s'il en est.
-    R.Ecouter("combat!", function(expediteur)
+    R.Ecouter("combat!", function(expediteur, d)
         local etat = Combat.etat
-        if not Combat.EstMJ() then return end
+        if not LCM.IsMaster() then return end
         local joueur = IdJoueur(expediteur)
+        if not LCM.Reseau.DansLeGroupe(joueur) then return end
+        if not etat then
+            Envoyer("combat.", { s = tostring(d and d.s or "") }, "WHISPER", joueur)
+            return
+        end
         for _, e in ipairs(etat.entrees) do
             if not e.pnj and e.id == joueur then
                 Envoyer("combat=", Combat.Paquet(etat), "WHISPER", joueur)
                 return
             end
         end
+        Envoyer("combat.", { s = tostring(d and d.s or etat.s) }, "WHISPER", joueur)
     end)
 
     -- Au chargement, si l'on est en groupe, on demande ou en est le combat.
-    local canal = Combat.CanalGroupe()
-    if canal then Envoyer("combat!", {}, canal) end
+    local function DemanderEtat()
+        local canal = Combat.CanalGroupe()
+        if canal then
+            local snapshot = LCM.charDb and LCM.charDb.combatSnapshot
+            Envoyer("combat!", { s = snapshot and snapshot.s or "" }, canal)
+        end
+    end
+    if LCM.charDb and LCM.charDb.combatSnapshot then
+        local snapshot = LCM.charDb.combatSnapshot
+        local sauvegarde = Combat.Depaqueter(snapshot.etat or snapshot, snapshot.mj)
+        local participe = false
+        for _, entree in ipairs(sauvegarde.entrees) do
+            if not entree.pnj and entree.id == Moi() then participe = true break end
+        end
+        if participe then Appliquer(sauvegarde) else LCM.charDb.combatSnapshot = nil end
+    end
+    DemanderEtat()
+    -- Une seule requete au login pouvait partir avant l'arrivee dans le
+    -- groupe. Quelques reprises courtes couvrent reconnexion/crash et delai
+    -- de restauration de groupe, puis GROUP_ROSTER_UPDATE reprend le relais.
+    if C_Timer and C_Timer.After then
+        for essai = 1, 5 do
+            C_Timer.After(essai * 2, DemanderEtat)
+        end
+    end
+    LCM.On("GROUP_ROSTER_UPDATE", DemanderEtat)
 
     -- Les blessures changent en dehors du pas d'initiative. On actualise le
     -- bandeau sur-le-champ, puis le proprietaire de l'etat le synchronise.

@@ -201,6 +201,49 @@ attendu("aucun accord envoye", E.Accepter(true), false)
 attendu("la seance reste ouverte", E.courant ~= nil, true)
 E.Annuler()
 
+dire("== une entree MJ inconnue arrive avec sa definition")
+local objetPartage = {
+    id = "armure_partagee_test", label = "Armure partagée", categorie = "equipement",
+    icone = "inv_chest_cloth_17", description = "Objet transmis pendant l'échange.",
+    etat = { courant = 10, max = 10 }, armure = 2, bonus = { force = 1 },
+}
+E.Proposer(AUTRE)
+recevoir("ECH_OUI", {})
+recevoir("ECH_CONTENU", { objets = { { ref = "objets/armure_partagee_test",
+    quantite = 1, nom = objetPartage.label, definition = objetPartage } }, devises = {} })
+attendu("la definition inconnue est importee", LCM.Objets.Get("armure_partagee_test") ~= nil, true)
+attendu("l'objet peut etre range", E.Place(), true)
+attendu("il reste dans le compendium local", LCM.db.objetsRecus.armure_partagee_test.label, "Armure partagée")
+recevoir("ECH_ACCORD", { ok = true })
+attendu("on accepte la reception", E.Accepter(true), true)
+attendu("l'objet est bien recu", I.Chercher(moi, "objets/armure_partagee_test") ~= nil, true)
+attendu("ses caracteristiques sont disponibles", LCM.Objets.Get("armure_partagee_test").armure, 2)
+LCM.Objets.Retirer("armure_partagee_test")
+E.ChargerObjetsRecus()
+attendu("l'objet reste connu apres rechargement", LCM.Objets.Get("armure_partagee_test").label, "Armure partagée")
+
+dire("== une definition partagee remplace la version locale perimee")
+local ancienne = {
+    id = "objet_revision_test", label = "Ancienne version", categorie = "arme",
+    icone = "inv_sword_01", etat = { courant = 10, max = 10 },
+}
+LCM.Objets.Add(ancienne)
+local nouvelle = {
+    id = "objet_revision_test", label = "Bâton forestier révisé", categorie = "arme",
+    icone = "inv_staff_01", etat = { courant = 20, max = 20 }, bonus = { force = 3 },
+}
+E.Proposer(AUTRE)
+recevoir("ECH_OUI", {})
+recevoir("ECH_CONTENU", { objets = { { ref = "objets/objet_revision_test",
+    quantite = 1, nom = nouvelle.label, definition = nouvelle } }, devises = {} })
+attendu("la version locale est remplacée", LCM.Objets.Get("objet_revision_test").label, nouvelle.label)
+attendu("la nouvelle statistique est reçue", LCM.Objets.Get("objet_revision_test").etat.max, 20)
+attendu("la révision est conservée", LCM.db.objetsRecus.objet_revision_test.label, nouvelle.label)
+LCM.Objets.Retirer("objet_revision_test")
+E.ChargerObjetsRecus()
+attendu("la révision survit au rechargement", LCM.Objets.Get("objet_revision_test").label, nouvelle.label)
+E.Annuler()
+
 -- Une tente a des cases libres, mais n'accepte aucun objet ordinaire.
 local inventaireAvant = moi.inventaire
 moi.inventaire = { ceintures = { [1] = { ceinture = true, cases = {

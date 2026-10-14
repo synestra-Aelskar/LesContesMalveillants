@@ -45,6 +45,40 @@ local function Construire()
     f.vide:SetPoint("CENTER", f.zone, "CENTER", 0, 0)
     f.vide:SetJustifyH("CENTER")
 
+    local function CommencerGlisseDevise(ligne)
+        if not ligne.deviseId and ligne.GetParent then ligne = ligne:GetParent() end
+        local entity = f.entity
+        if not (entity and not entity.distante and entity == LCM.Entities.Self()
+            and ligne.deviseId and UI.Glisser) then return end
+        local solde = Bourse.Solde(entity, ligne.deviseId)
+        if solde < 1 then return end
+        local devise = LCM.Devises.Get(ligne.deviseId)
+        UI.Glisser.Commencer({
+            devise = ligne.deviseId, combien = solde,
+            nom = (devise and devise.label or ligne.deviseId) .. "  (choisir le montant au dépôt)",
+            icone = devise and devise.icone,
+        })
+    end
+
+    -- Le depot sur un personnage demande le montant, puis propose l'echange.
+    -- Le solde est relu au moment du depot pour ne pas se fier a un glissement
+    -- ancien si la bourse a change entre-temps.
+    function Ecran.DemanderEchange(qui, deviseId)
+        local entity = LCM.Entities.Self()
+        if not entity then return false end
+        local devise = LCM.Devises.Get(deviseId)
+        if not devise then LCM.Alerte("cette devise n'existe plus.") return false end
+        local solde = Bourse.Solde(entity, deviseId)
+        if solde < 1 then LCM.Alerte("tu n'as plus de " .. devise.label .. ".") return false end
+        DemanderMontant(string.format("Donner combien de %s à %s ?", devise.label, qui), solde, function(n)
+            local echange = LCM.Echange and LCM.Echange.Ecran
+            if echange and echange.Donner then
+                echange.Donner(qui, { devise = deviseId, combien = n, nom = devise.label, icone = devise.icone })
+            end
+        end)
+        return true
+    end
+
     -- Clic droit sur une devise : Échanger (a qui, puis combien) et Jeter
     -- (combien, puis confirmation), comme un objet de sac (13 octobre 2026).
     -- Seulement dans SA bourse : on ne donne ni ne jette l'argent d'un autre.
@@ -127,6 +161,16 @@ local function Construire()
                 l:SetScript("OnClick", function(ligne, bouton)
                     if bouton == "RightButton" then self:MenuDevise(ligne) end
                 end)
+                l:RegisterForDrag("LeftButton")
+                l:SetScript("OnDragStart", CommencerGlisseDevise)
+                l:SetScript("OnDragStop", function() if UI.Glisser then UI.Glisser.Lacher() end end)
+                l:SetScript("OnEnter", function(ligne)
+                    GameTooltip:SetOwner(ligne, "ANCHOR_RIGHT")
+                    GameTooltip:SetText(tostring(ligne.nom:GetText() or ""))
+                    GameTooltip:AddLine("Glisse sur un joueur pour proposer un échange.", 0.75, 0.75, 0.75)
+                    GameTooltip:Show()
+                end)
+                l:SetScript("OnLeave", function() GameTooltip:Hide() end)
                 if UI.SurfaceLigne then UI.SurfaceLigne(l) end
                 l.icone = l:CreateTexture(nil, "ARTWORK")
                 l.icone:SetSize(24, 24)
@@ -167,9 +211,13 @@ local function Construire()
                     GameTooltip:SetOwner(bouton, "ANCHOR_RIGHT")
                     GameTooltip:SetText(tostring(l.nom:GetText() or ""))
                     GameTooltip:AddLine("Clic : saisir le solde.", 0.55, 0.55, 0.55)
+                    GameTooltip:AddLine("Glisse sur un joueur pour proposer un échange.", 0.75, 0.75, 0.75)
                     GameTooltip:Show()
                 end)
                 l.saisie:SetScript("OnLeave", function() GameTooltip:Hide() end)
+                l.saisie:RegisterForDrag("LeftButton")
+                l.saisie:SetScript("OnDragStart", CommencerGlisseDevise)
+                l.saisie:SetScript("OnDragStop", function() if UI.Glisser then UI.Glisser.Lacher() end end)
                 self.lignes[rang] = l
             end
             l.deviseId = devise.id

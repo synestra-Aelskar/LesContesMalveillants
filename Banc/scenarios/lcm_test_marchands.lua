@@ -43,6 +43,20 @@ __declencher("GROUP_ROSTER_UPDATE")
 
 local M, MJ = LCM.Marchands, LCM.MarchandsMJ
 local S = M.SUJETS
+
+dire("== un objet vendu voyage avec sa definition")
+LCM.Objets.Add({ id = "baton_vendu_test", label = "Bâton vendu", categorie = "arme",
+    icone = "inv_staff_01", etat = { courant = 18, max = 18 }, bonus = { force = 2 } })
+local paquetObjet = M.Paquet({ id = "etal_objet_test", label = "Marchand d'essai",
+    offres = { { id = "baton", entree = "objets/baton_vendu_test", label = "Bâton vendu" } }, rachats = {} }, {})
+paquetObjet = LCM.Reseau.Decoder(LCM.Reseau.Encoder(paquetObjet))
+LCM.Objets.Retirer("baton_vendu_test")
+local marchandLu = M.Lire(paquetObjet)
+attendu("l'offre transporte la definition", paquetObjet.o[1].x and paquetObjet.o[1].x.label, "Bâton vendu")
+attendu("le joueur importe l'objet du marchand", LCM.Objets.Get("baton_vendu_test").label, "Bâton vendu")
+attendu("ses statistiques sont importées", LCM.Objets.Get("baton_vendu_test").bonus.force, 2)
+attendu("l'offre reste exploitable", marchandLu.offres[1].entree, "objets/baton_vendu_test")
+
 local function Bourse() return LCM.Bourse.Solde(moi, "piece_temoin") end
 local function Combien(ref)
     local n = 0

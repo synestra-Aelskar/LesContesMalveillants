@@ -84,6 +84,10 @@ attendu("on ne peut pas appliquer sans tout placer", R.appliquer:IsEnabled(), fa
 -- Tout sur les Boucliers (vides) : impossible ; deux en tete, trois au torse.
 local boucliers
 for i, c in ipairs(R.cases) do if c.id == "armure" then boucliers = i end end
+attendu("un bouclier vide verrouille +", R.lignes[boucliers].plus:IsEnabled(), false)
+attendu("un bouclier vide verrouille -", R.lignes[boucliers].moins:IsEnabled(), false)
+attendu("un bouclier vide verrouille la saisie", R.lignes[boucliers].valeur:IsEnabled(), false)
+attendu("un bouclier vide verrouille Tout", R.lignes[boucliers].tout:IsEnabled(), false)
 R.lignes[boucliers].tout:Click()
 attendu("des boucliers vides n'absorbent rien", R.valeurs[boucliers], 0)
 

@@ -25,19 +25,21 @@ attendu("le sceau est visible", f:IsShown(), true)
 -- Offensives passe a 5 avec le Dot (9 octobre 2026) ; « influences » est la
 -- categorie des controles mentaux ajoutee par Codex.
 local attendus = { offensives = 5, supports = 4, competences = 0, controles = 6,
-                   animation = 3, influences = 5 }
-attendu("les categories du radial", #R.STRUCTURE, 6)
+                   animation = 3, influences = 5, mouvement = 0 }
+attendu("les categories du radial", #R.STRUCTURE, 7)
 for _, categorie in ipairs(R.STRUCTURE) do
     attendu("  " .. categorie.id, #(categorie.entrees or {}), attendus[categorie.id])
 end
 attendu("Animation reservee au MJ", R.Trouver("animation").mjSeulement, true)
-attendu("aucune fenetre dans les actions", R.Trouver("fiche"), nil)
+attendu("aucune fenetre de fiche dans les actions", R.Trouver("fiche"), nil)
+attendu("Déplacement n'est plus dans le radial des fenêtres", LCM.UI.Menu.Trouver("deplacement"), nil)
+attendu("Déplacement est lié au radial d'actions", R.EstLiee("mouvement"), true)
 
 dire("== le MJ voit une categorie de plus")
-attendu("avec le compagnon MJ", #R.Categories(), 6)
+attendu("avec le compagnon MJ", #R.Categories(), 7)
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
-attendu("sans le compagnon", #R.Categories(), 5)
+attendu("sans le compagnon", #R.Categories(), 6)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
@@ -46,6 +48,14 @@ f.sceau:Click("RightButton")
 __avancer(1)
 attendu("couronne des actions ouverte", A.ouvert and A.orbite:IsShown(), true)
 attendu("celle des fenetres non", F.ouvert, false)
+local mouvement
+for i = 1, A.nombreCategories do
+    if A.boutonsCategorie[i].cible.id == "mouvement" then mouvement = A.boutonsCategorie[i] end
+end
+attendu("Déplacement figure dans les actions", mouvement ~= nil, true)
+mouvement:Click("LeftButton")
+attendu("le clic ouvre la jauge de déplacement", LCM.UI.DeplacementForce.frame:IsShown(), true)
+LCM.UI.DeplacementForce.frame:Hide()
 local memeRayon = true
 for i = 1, A.nombreCategories do
     if rayon(A.boutonsCategorie[i]) ~= R.RAYON_CATEGORIE then memeRayon = false end
@@ -107,10 +117,8 @@ dire("   " .. table.concat(noms, " | "))
 -- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont
 -- pas repris. « Creation Personnage » est parti le 2 octobre 2026 : le
 -- dossier ne contenait plus que les Regles, qui ont rejoint Outils.
--- Sept depuis le 3 octobre 2026 : le hub du compendium est remonte d'un cran
--- pour liberer une branche dans « Outils », qui en avait deja huit (le maximum
--- qu'un eventail sait dessiner) et devait accueillir l'Atelier.
-attendu("six entrees de premier niveau (Compendium retire le 3 octobre)", #M.STRUCTURE, 6)
+-- Cinq fenêtres de premier niveau : Déplacement a rejoint le radial Combat.
+attendu("cinq entrees de premier niveau", #M.STRUCTURE, 5)
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 -- Neuf depuis le 10 octobre 2026 : le Campement y est range en attendant sa
@@ -127,7 +135,7 @@ attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() e
 dire("== ce qui est branche")
 -- « creation » n'est plus au menu : on cree un personnage depuis la selection.
 for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances", "montee_niveau",
-                      "equipement", "deplacement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
+                      "equipement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
                       "grimoires", "parametres", "panneau_mj", "incarner",
                       "vendeur", "ressources" }) do
     attendu("  " .. id, M.EstLiee(id), true)

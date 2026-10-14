@@ -64,11 +64,23 @@ local function Colonne(f, titre, mienne)
     if mienne and UI.Glisser then
         UI.Glisser.Cible(c.cadre, function(objet)
             if not (E.courant and E.courant.ouverte) then return false, "aucun échange en cours." end
+            if objet.devise then
+                if not LCM.Devises.Get(objet.devise) then return false, "cette devise n'existe plus." end
+                if not LCM.Bourse.Peut(LCM.Entities.Self(), objet.devise, 1) then
+                    return false, "tu n'as plus de cette devise."
+                end
+                return true
+            end
             if not objet.ref then return false, "on ne sait pas ce que c'est." end
             return true
         end, function(objet)
-            local ok, raison = E.Offrir(objet)
-            if not ok and raison then LCM.Alerte(tostring(raison)) end
+            if objet.devise then
+                local demander = UI.Bourse and UI.Bourse.DemanderEchange
+                if demander then demander(E.courant.qui, objet.devise) end
+            else
+                local ok, raison = E.Offrir(objet)
+                if not ok and raison then LCM.Alerte(tostring(raison)) end
+            end
         end)
     end
 
@@ -264,7 +276,13 @@ if UI.Glisser then
         local qui = (royaume and royaume ~= "" and (nom .. "-" .. royaume)) or nom
         -- Lache sur quelqu'un : le geste est traite, meme refuse. Rendre faux
         -- le ferait passer pour un lacher dans le vide, qui propose de jeter.
-        Ecran.Donner(qui, objet)
+        if objet.devise then
+            local demander = UI.Bourse and UI.Bourse.DemanderEchange
+            if not demander then return false end
+            demander(qui, objet.devise)
+        else
+            Ecran.Donner(qui, objet)
+        end
         return true
     end
 end

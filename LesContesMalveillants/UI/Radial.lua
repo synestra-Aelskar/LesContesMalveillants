@@ -83,6 +83,10 @@ Radial.STRUCTURE = {
             { id = "dissipation",         label = "Dissipation",            icone = ICONE .. "dissipation.tga" },
         },
     },
+    {
+        id = "mouvement", label = "Déplacement", icone = ART .. "icones\\fenetres-deplacement.tga",
+        direct = true,
+    },
     -- La seule categorie dont le contenu n'est pas ecrit ici : ce sont les
     -- sorts du personnage joue, qui changent de personnage en personnage.
     -- Dans Necronicon, la barre « Compétences » portait la meme chose

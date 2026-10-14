@@ -67,6 +67,8 @@ Metier("negociant", "Négociant", "garrison_building_tradingpost",
     "Optimise les échanges, les prix et les gains économiques.")
 Metier("diplomate", "Diplomate", "achievement_halloween_smiley_01",
     "Facilite les interactions sociales, négociations et résolutions sans combat")
+Metier("artiste", "Artiste", "inv_misc_flute_01",
+    "Interprète ou crée des œuvres artistiques : musique, danse, théâtre ou arts visuels.")
 Metier("dresseur", "Dresseur", "ability_hunter_pet_assist",
     "Permet de capturer, apprivoiser et utiliser des créatures comme montures ou aides.")
 Metier("informaticien", "Informaticien", "inv_misc_punchcards_blue",

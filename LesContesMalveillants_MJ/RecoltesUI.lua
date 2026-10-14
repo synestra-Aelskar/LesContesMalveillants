@@ -43,22 +43,30 @@ local function Entier(texte)
     return n and n == math.floor(n) and n or nil
 end
 
--- Un point de recolte ne donne QUE des ressources (famille « ressources » du
--- compendium) : ni objet, ni tente, ni accessoire de camping (13 octobre 2026).
-local FAMILLE = "ressources"
+-- Un point donne des ressources ou des objets forgés (armes, armures,
+-- accessoires). Les sacs, tentes et autres entrées restent exclus.
+local FAMILLES = { objets = "Objets", ressources = "Ressources" }
 
-local function EstRessource(ref)
-    return tostring(ref or ""):sub(1, #FAMILLE + 1) == FAMILLE .. "/"
+local function EstEntreeRecoltable(ref)
+    local famille = tostring(ref or ""):match("^([%w_]+)/")
+    return FAMILLES[famille] ~= nil
 end
 
 local function OptionsEntrees()
     local options = {}
-    local registreNom = LCM.Compendium and LCM.Compendium.FAMILLES and LCM.Compendium.FAMILLES[FAMILLE]
-    local registre = registreNom and LCM[registreNom]
-    for _, entree in ipairs((registre and registre.list) or {}) do
-        options[#options + 1] = { id = FAMILLE .. "/" .. entree.id, label = entree.label or entree.id }
+    for famille, groupe in pairs(FAMILLES) do
+        local registreNom = LCM.Compendium and LCM.Compendium.FAMILLES
+            and LCM.Compendium.FAMILLES[famille]
+        local registre = registreNom and LCM[registreNom]
+        for _, entree in ipairs((registre and registre.list) or {}) do
+            options[#options + 1] = { id = famille .. "/" .. entree.id,
+                label = entree.label or entree.id, groupe = groupe }
+        end
     end
-    table.sort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+    table.sort(options, function(a, b)
+        if a.groupe ~= b.groupe then return a.groupe < b.groupe end
+        return tostring(a.label) < tostring(b.label)
+    end)
     return options
 end
 
@@ -158,7 +166,7 @@ local function Construire()
     c:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, -34)
     c:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 0)
     f.creation = c
-    f.choixEntree = UI.Choix("recolte_entree", "Ressource donnée")
+    f.choixEntree = UI.Choix("recolte_entree", "Contenu récolté")
     f.choixMetier = UI.Choix("recolte_metier", "Métier du jet")
 
     Libelle(c, "Nom", 0, -6)
@@ -374,8 +382,8 @@ local function Construire()
             if champ:GetText() ~= valeur then champ:SetText(valeur) end
         end
         local function Accepter(objet)
-            if objet and EstRessource(objet.ref) then return true end
-            return false, "seule une ressource du compendium se récolte."
+            if objet and EstEntreeRecoltable(objet.ref) then return true end
+            return false, "seules les ressources et les armes, armures ou accessoires du compendium peuvent être récoltés."
         end
         local function Ajouter(ref)
             local items = self.travail.recolte.ressources
@@ -724,8 +732,8 @@ local function Construire()
             if (lot.entree or "") == "" or not LCM.Compendium.Resoudre(lot.entree) then
                 return nil, "choisis la ressource que le point donne.", index
             end
-            if not EstRessource(lot.entree) then
-                return nil, "un point de récolte ne donne que des ressources (catégorie Ressources).", index
+            if not EstEntreeRecoltable(lot.entree) then
+                return nil, "un point de récolte donne seulement des ressources ou des objets (armes, armures, accessoires).", index
             end
             local mini = Entier(lot.min)
             if not mini or mini < 1 then return nil, "la quantité doit être un nombre entier, au moins 1.", index end

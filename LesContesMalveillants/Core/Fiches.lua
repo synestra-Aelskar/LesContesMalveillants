@@ -20,6 +20,8 @@ local Fiches = {}
 LCM.Fiches = Fiches
 
 local recues = {}
+local abonnements = {}
+local actualisationPlanifiee = false
 
 -- UnitName peut donner « Nom » pour un membre du meme royaume alors que
 -- CHAT_MSG_ADDON annonce « Nom-Royaume ». On privilegie toujours l'identite
@@ -169,6 +171,12 @@ function Fiches.Demander(joueur)
     return LCM.Reseau.Envoyer("fiche?", {}, "WHISPER", joueur)
 end
 
+function Fiches.Arreter(joueur)
+    joueur = tostring(joueur or "")
+    if joueur == "" then return false end
+    return LCM.Reseau.Envoyer("fiche-", {}, "WHISPER", joueur)
+end
+
 -- La derniere fiche recue de ce joueur, si elle est encore fraiche.
 function Fiches.Recue(joueur)
     local entree = EntreeRecue(joueur)
@@ -207,14 +215,45 @@ LCM.WhenReady(function()
         end
         local moi = LCM.Entities.Self()
         if not moi then return end
+        abonnements[tostring(expediteur)] = true
         LCM.Reseau.Envoyer("fiche", Fiches.Paquet(moi), "WHISPER", expediteur, { etale = true })
         LCM.Info(string.format("%s a consulte ta fiche.", tostring(expediteur)))
     end)
 
     -- Une fiche arrive.
     LCM.Reseau.Ecouter("fiche", function(expediteur, donnees)
+        local actualisation = EntreeRecue(expediteur) ~= nil
         local entity = Fiches.Entite(donnees)
         recues[tostring(expediteur)] = { entity = entity, quand = Maintenant() }
-        if Fiches.onRecue then Fiches.onRecue(expediteur, entity) end
+        if Fiches.onRecue then Fiches.onRecue(expediteur, entity, actualisation) end
+    end)
+
+    LCM.Reseau.Ecouter("fiche-", function(expediteur)
+        abonnements[tostring(expediteur)] = nil
+    end)
+
+    -- La fiche reste en lecture seule cote MJ, mais suit les changements du
+    -- joueur tant que la consultation est ouverte. Regrouper les mutations
+    -- rapprochées evite d'inonder le reseau lors d'une action atomique.
+    local function PousserFichesAbonnees()
+        if actualisationPlanifiee or not next(abonnements) then return end
+        actualisationPlanifiee = true
+        local function EnvoyerMisesAJour()
+            actualisationPlanifiee = false
+            local entity = LCM.Entities.Self()
+            if not entity then return end
+            local paquet = Fiches.Paquet(entity)
+            for joueur in pairs(abonnements) do
+                if DansLeGroupe(joueur) then
+                    LCM.Reseau.Envoyer("fiche", paquet, "WHISPER", joueur, { etale = true })
+                else
+                    abonnements[joueur] = nil
+                end
+            end
+        end
+        if C_Timer and C_Timer.After then C_Timer.After(0.5, EnvoyerMisesAJour) else EnvoyerMisesAJour() end
+    end
+    LCM.Entities.Ecouter(function(entity)
+        if entity == LCM.Entities.Self() then PousserFichesAbonnees() end
     end)
 end)

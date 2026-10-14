@@ -146,14 +146,18 @@ local function SuivreFermeture(fenetre)
     fenetre.__consultationMJ = true
     fenetre:HookScript("OnHide", function(self)
         if Consultation.fenetre == self and not Consultation.enBascule then
+            if Consultation.joueur and LCM.Fiches and LCM.Fiches.Arreter then
+                LCM.Fiches.Arreter(Consultation.joueur)
+            end
             Consultation.barre:Hide()
             Consultation.fenetre = nil
             Consultation.positionAncree = nil
+            Consultation.joueur = nil
         end
     end)
 end
 
-function Consultation.Ouvrir(entity, id)
+function Consultation.Ouvrir(entity, id, joueur)
     if not entity then return nil end
     id = id or Consultation.onglet or "fiche"
     local fenetre = Fenetre(id)
@@ -171,6 +175,7 @@ function Consultation.Ouvrir(entity, id)
     Consultation.entity = entity
     Consultation.onglet = id
     Consultation.fenetre = fenetre
+    Consultation.joueur = joueur
     SuivreFermeture(fenetre)
     fenetre:Montrer(entity)
     Consultation.enBascule = false

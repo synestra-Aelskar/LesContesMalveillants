@@ -92,6 +92,11 @@ Installer Python et les dependances sur chaque ordinateur MJ, garder la cle
 Google hors des dossiers d'addon, puis installer la tache Windows depuis le
 dossier de l'addon MJ :
 
+Ne pas double-cliquer `gsheet_auto.py` : ce programme exige le mode (`watch`),
+l'identifiant du classeur et le chemin de la cle. Apres avoir installe Python
+et les dependances, lancer `Sync/Outils/installer_sync.cmd` depuis l'addon MJ ;
+il demande ces deux informations puis installe et demarre la tache Windows.
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File `
   E:\Games\Epsilon\_retail_\Interface\AddOns\LesContesMalveillants_MJ\Sync\Outils\installer_sync.ps1 `

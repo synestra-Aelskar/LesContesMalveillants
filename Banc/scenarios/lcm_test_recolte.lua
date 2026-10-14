@@ -57,6 +57,24 @@ local function Combien(ref)
     return n
 end
 
+dire("== les objets récoltables voyagent avec leur définition")
+local REF_OBJET = "objets/objet_recolte_temoin"
+local definitionObjet = { id = "objet_recolte_temoin", label = "Hache de témoin",
+    categorie = "arme", icone = "inv_axe_01", etat = { courant = 12, max = 12 },
+    bonus = { force = 2 } }
+LCM.Objets.Add(definitionObjet)
+local paquetObjet = R.Paquet({ id = "point_objet_temoin", label = "Réserve de haches",
+    entree = REF_OBJET, ressources = { { entree = REF_OBJET, min = 1, max = 1 } } }, {})
+paquetObjet = LCM.Reseau.Decoder(LCM.Reseau.Encoder(paquetObjet))
+LCM.Objets.Retirer(definitionObjet.id)
+local definitionRecue = R.Lire(paquetObjet)
+attendu("la hache est importée depuis le point", LCM.Objets.Get(definitionObjet.id).label, "Hache de témoin")
+attendu("ses statistiques sont conservées", LCM.Objets.Get(definitionObjet.id).bonus.force, 2)
+local recuObjet = R.Recevoir("point_objet_temoin", {
+    { entree = REF_OBJET, quantite = 1 } }, nil, definitionRecue.id)
+attendu("la collecte peut ranger l'objet", recuObjet, true)
+attendu("l'objet est dans l'inventaire", Combien(REF_OBJET), 1)
+
 -- Le dernier envoi d'un sujet, recolle et decode.
 local function DernierEnvoi(sujet)
     for i = #__envois, 1, -1 do
@@ -90,22 +108,25 @@ c.nom:Saisir("Miner du témoin")
 c.enregistrer:Click()
 attendu("pas de ressource", c.erreur:GetText(), "choisis la ressource que le point donne.")
 
-dire("== uniquement des ressources")
--- Un point de recolte ne donne pas d'objet ni de tente : la liste ne propose
--- que la categorie Ressources, et la case refuse le reste (13 octobre 2026).
+dire("== ressources et objets forgeables")
+-- Un point accepte les ressources et les objets, mais pas les sacs.
 c.entree:Click()
-local seulesRessources, temoinPropose, intertitre = true, false, false
+local famillesPermises, temoinPropose, objetPropose, intertitre = true, false, false, false
 for _, ligne in ipairs(f.choixEntree.lignes) do
     if ligne:IsShown() then
-        if not tostring(ligne.choix):match("^ressources/") then seulesRessources = false end
+        if not (tostring(ligne.choix):match("^ressources/") or tostring(ligne.choix):match("^objets/")) then
+            famillesPermises = false
+        end
         if ligne.choix == REF then temoinPropose = true end
+        if tostring(ligne.choix):match("^objets/") then objetPropose = true end
     end
 end
 for _, t in ipairs(f.choixEntree.intertitres) do if t:IsShown() then intertitre = true end end
 f.choixEntree:Hide()
-attendu("la liste ne propose que des ressources", seulesRessources, true)
+attendu("la liste propose ressources et objets", famillesPermises, true)
 attendu("  dont la ressource témoin", temoinPropose, true)
-attendu("  sans intertitre de famille", intertitre, false)
+attendu("  et des objets forgés", objetPropose, true)
+attendu("  sépare les familles", intertitre, true)
 LCM.UI.Glisser.Commencer({ ref = "sacs/sac_temoin", nom = "Sac témoin", categorie = "sacs" })
 c.entree.__survol = true
 __souris.LeftButton = false
@@ -180,7 +201,10 @@ attendu("chaque pose est diffusée au groupe", #__envois > avant, true)
 local envoi, paquet = DernierEnvoi(R.SUJETS.definition)
 attendu("  avec ses trois points", paquet and #R.Deplier(paquet.p), 3)
 attendu("  jamais au-delà de 255 octets", __plusGrosEnvoi() <= 255, true)
-attendu("la liste de gauche compte les points", f.lignes[1].label:GetText():find("(3)", 1, true) ~= nil, true)
+local lignePoint
+for _, ligne in ipairs(f.lignes) do if ligne.pointId == def.id then lignePoint = ligne break end end
+attendu("la liste de gauche compte les points",
+    lignePoint and lignePoint.label:GetText():find("(3)", 1, true) ~= nil, true)
 
 dire("== loin de tout point, pas de bouton")
 __position(0, 0, 0)

@@ -157,16 +157,6 @@ Vues.Add({
     },
 })
 
--- Deplacement : fenetre a part dans le template (son propre ecran chez
--- Necronicon, Deplacement.lua) ; ici, ses deux valeurs en attendant.
-Vues.Add({
-    id = "deplacement", titre = "Déplacement",
-    largeur = 330, hauteur = 240,
-    blocs = {
-        { label = "Déplacement", champs = { "depl_terrestre", "depl_nage" } },
-    },
-})
-
 -- Statistiques : le recapitulatif du template, un dossier par famille, chaque
 -- ligne montrant la valeur TOTALE (race, traits, objets, etats, repartition).
 -- « Bonus » ne montre que ce qu'apportent traits et objets.

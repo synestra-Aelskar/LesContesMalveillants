@@ -251,6 +251,24 @@ recevoir("Nytherah-Apertus", "combat>", { s = C.Etat().s })
 attendu("son tour passe", C.Etat().c ~= c2, true)
 attendu("le pas part au groupe", dernierEnvoi().message:find("combat~", 1, true) ~= nil, true)
 
+dire("== un joueur KO est saute apres les resolutions d'etats")
+local etatKO = C.Etat()
+local cSauve, tSauve, rSauve = etatKO.c, etatKO.t, etatKO.r
+etatKO.c, etatKO.t, etatKO.r = #etatKO.entrees, 1, etatKO.rm
+local cibleKO = etatKO.entrees[1]
+cibleKO.ko = true
+local vieillir = LCM.EtatsTemporaires.Vieillir
+local resolutions = 0
+LCM.EtatsTemporaires.Vieillir = function() resolutions = resolutions + 1 end
+C.Avancer(1)
+LCM.EtatsTemporaires.Vieillir = vieillir
+attendu("les etats sont resolus au changement de round", resolutions, 1)
+attendu("le joueur KO ne garde pas l'initiative", C.Courant().ko, nil)
+attendu("l'initiative revient au joueur conscient", C.Courant().id, etatKO.entrees[2].id)
+local etatApresKO = C.Etat()
+etatApresKO.entrees[1].ko = nil
+etatApresKO.c, etatApresKO.t, etatApresKO.r = cSauve, tSauve, rSauve
+
 dire("== un joueur revenu d'un /reload redemande l'etat")
 local n = #__envois
 recevoir("Nytherah-Apertus", "combat!", {})
@@ -259,6 +277,24 @@ attendu("en chuchotant", __envois[n + 1] and __envois[n + 1].cible, "Nytherah-Ap
 n = #__envois
 recevoir("Inconnu-Apertus", "combat!", {})
 attendu("pas a quelqu'un qui n'est pas au combat", #__envois, n)
+dire("== integrer un joueur apres le lancement")
+__groupe({ "Reika-Apertus", "Nytherah-Apertus", "Bram-Apertus" }, true)
+local courantAvantAjout = C.Courant().id
+local panneauCombat = LCM.UI.CombatMJ.Basculer()
+panneauCombat:Afficher()
+attendu("la colonne passe aux joueurs disponibles", panneauCombat.titreQui:GetText(), "Joueurs à intégrer")
+attendu("le bouton d'integration apparait", panneauCombat.integrer:IsShown(), true)
+attendu("le nouveau joueur est proposé", panneauCombat.lignesPNJ[1].nom:GetText(), "Bram-Apertus")
+attendu("la case selectionne le joueur", panneauCombat.lignesPNJ[1].case:IsEnabled(), true)
+panneauCombat.lignesPNJ[1].case:Click()
+panneauCombat.integrer:Click()
+local tardive = C.invitationTardive
+attendu("invitation tardive", tardive ~= nil, true)
+attendu("le nouveau joueur recoit une invitation", dernierEnvoi().cible, "Bram-Apertus")
+recevoir("Bram-Apertus", "combat+", { s = C.Etat().s, ok = 1, v = 77, n = "Bram" })
+attendu("il est ajoute sans relancer", #C.Etat().entrees, 3)
+attendu("le combattant courant ne change pas", C.Courant().id, courantAvantAjout)
+attendu("l'etat complet est rediffuse", dernierEnvoi().message:find("combat=", 1, true) ~= nil, true)
 C.Terminer()
 -- Le combat du MJ est un onglet du Panel MJ depuis le 3 octobre 2026 : on
 -- ferme le panneau, pas l'onglet.

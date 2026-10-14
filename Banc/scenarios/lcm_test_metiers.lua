@@ -1,4 +1,4 @@
--- Metiers : les 31 metiers du template, paliers incrementaux, fenetre.
+-- Metiers : les 32 metiers du template, paliers incrementaux, fenetre.
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -13,9 +13,10 @@ local M = LCM.Metiers
 local moi = LCM.Entities.Self()
 
 dire("== les metiers du template")
-attendu("31 metiers", #M.list, 31)
+attendu("32 metiers", #M.list, 32)
 attendu("le premier", M.list[1].label, "Dépeçeur")
-attendu("le dernier", M.list[31].label, "Informaticien")
+attendu("Artiste disponible", M.Get("artiste").label, "Artiste")
+attendu("le dernier", M.list[32].label, "Informaticien")
 attendu("icone", M.Get("mineur").icone, "Interface\\Icons\\inv_misc_profession_book_mining")
 
 dire("== paliers (table XP METIER, incrementale)")
@@ -59,7 +60,7 @@ attendu("entree du menu allumee", LCM.UI.Menu.EstLiee("metiers"), true)
 LCM.UI.Menu.Trouver("metiers").onClick()
 local f = LCM.UI.Metiers.frame
 attendu("ouverte", f:IsShown(), true)
-attendu("une ligne par metier", #f.lignes, 31)
+attendu("une ligne par metier", #f.lignes, 32)
 attendu("premier choisi", f.metierId, "depeceur")
 attendu("detail", f.detail.label:GetText(), "Dépeçeur")
 f.lignes[2]:Click()

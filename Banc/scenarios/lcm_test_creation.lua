@@ -234,6 +234,10 @@ attendu("ses PV max", LCM.Entities.Get_Value(entity, "pv_max"),
     LCM.Schema.Field("pv_max").formula(entity))
 
 dire("== rééditer une fiche")
+entity.metiers = {
+    depeceur = LCM.Metiers.XPPourNiveau(2) + 5,
+    mineur = LCM.Metiers.XPPourNiveau(2),
+}
 LCM.Entities.Set_Value(entity, "age", 28)
 LCM.Entities.Set_Value(entity, "portrait", "moon")
 LCM._masterCompanion = false
@@ -248,12 +252,21 @@ attendu("la même fiche sera modifiée", reprise.entite == entity, true)
 attendu("le nom est repris", reprise.nom, entity.name)
 attendu("l'âge est repris", reprise.valeurs.age, 28)
 attendu("le portrait est repris", reprise.valeurs.portrait, "moon")
+attendu("les métiers acquis sont repris", reprise.metiers.depeceur, 2)
+attendu("le total de métiers est redistribuable", C.Budget(reprise, "metiers").total, 4)
+attendu("le métier Artiste peut recevoir ces points", C.Plafond(reprise, "metiers", "artiste") >= 4, true)
+attendu("la redistribution accepte Artiste", C.Definir(reprise, "metiers", "depeceur", 0), true)
+attendu("on libère aussi le second métier", C.Definir(reprise, "metiers", "mineur", 0), true)
+attendu("on transfère les rangs vers Artiste", C.Definir(reprise, "metiers", "artiste", 4), true)
 -- Une valeur retirée doit réellement partir de la fiche, pas seulement du
 -- brouillon. C'était le piège du premier brouillon de la réédition.
 reprise.valeurs.age = nil
 local reeditee = C.Appliquer(reprise)
 attendu("la réédition conserve l'entité", reeditee == entity, true)
 attendu("la valeur retirée est effacée", entity.values.age, nil)
+attendu("les anciens métiers sont retirés", LCM.Metiers.Palier(entity, "depeceur").rang, 0)
+attendu("Artiste garde les rangs redistribués", LCM.Metiers.Palier(entity, "artiste").rang, 4)
+attendu("l'XP partielle reste préservée", LCM.Metiers.XP(entity, "depeceur"), 5)
 attendu("le jeton est consommé à la validation", C.ADesJetons(entity), false)
 attendu("une seconde réédition est refusée", (C.Appliquer(C.Depuis(entity))), nil)
 

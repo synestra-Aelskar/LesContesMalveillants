@@ -16,8 +16,31 @@ $jeu = (Resolve-Path -LiteralPath $Retail).Path
 if (-not (Test-Path -LiteralPath (Join-Path $jeu 'WTF\Account'))) {
     throw "Dossier WTF\Account absent : $jeu"
 }
-$python = (& python -c 'import sys; print(sys.executable)').Trim()
-if ($LASTEXITCODE -ne 0 -or -not $python) { throw 'Python introuvable.' }
+$python = $null
+# `python` pointe parfois vers l'alias Microsoft Store, meme si Python est
+# installe. Preferer un interpreteur reel dans PATH, puis retomber sur le
+# lanceur officiel `py`.
+$candidats = Get-Command python.exe -All -ErrorAction SilentlyContinue |
+    Where-Object { $_.Source -and $_.Source -notmatch '[\\/]WindowsApps[\\/]' }
+foreach ($candidat in $candidats) {
+    $essai = (& $candidat.Source -c 'import sys; print(sys.executable)' 2>$null).Trim()
+    if ($LASTEXITCODE -eq 0 -and $essai -and (Test-Path -LiteralPath $essai)) {
+        $python = $essai
+        break
+    }
+}
+if (-not $python) {
+    $lanceur = Get-Command py.exe -ErrorAction SilentlyContinue
+    if ($lanceur) {
+        $essai = (& $lanceur.Source -3 -c 'import sys; print(sys.executable)' 2>$null).Trim()
+        if ($LASTEXITCODE -eq 0 -and $essai -and (Test-Path -LiteralPath $essai)) { $python = $essai }
+    }
+}
+if (-not $python) { throw 'Python introuvable. Installe Python 3 puis reessaie.' }
+$modules = & $python -c 'import google.auth, requests, watchdog, psutil' 2>&1
+if ($LASTEXITCODE -ne 0) {
+    throw "Dependances Python manquantes. Execute : `"$python`" -m pip install --user google-auth requests watchdog psutil"
+}
 $pythonw = Join-Path (Split-Path $python -Parent) 'pythonw.exe'
 if (-not (Test-Path -LiteralPath $pythonw)) { throw "pythonw.exe introuvable : $pythonw" }
 

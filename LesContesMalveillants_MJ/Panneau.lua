@@ -34,6 +34,7 @@ local LIGNE = 28
 Ecran.ONGLETS = {
     { id = "joueurs", label = "Joueurs" },
     { id = "traits", label = "Traits" },
+    { id = "etats", label = "États" },
     { id = "combat",  label = "Combat" },
     { id = "pnj",     label = "PNJ" },
     { id = "contenus", label = "Contenus" },
@@ -563,7 +564,8 @@ function Pages.joueurs(page, f)
             local cible = l.joueur
             local entity = FicheJoueur(cible)
             if entity then
-                MJ.Consultation.Ouvrir(entity, "fiche")
+                MJ.Consultation.Ouvrir(entity, "fiche", not EstMoi(cible) and cible or nil)
+                if not EstMoi(cible) then LCM.Fiches.Demander(cible) end
                 return
             end
             if EstMoi(cible) then
@@ -720,6 +722,169 @@ function Pages.traits(page, f)
         self.videJoueurs:SetShown(#membres == 0)
         if not encore then self.joueurActif = membres[1] end
         self:AfficherTraits()
+    end
+end
+
+-- ===== Imposer des etats ===================================================
+
+function Pages.etats(page)
+    page.titre = Titre(page, "Imposer un état")
+    page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
+    page.aideEtats = UI.Texte(page,
+        "Fais glisser un état sur un joueur. La durée se compte en rounds de combat.", UI.C.discret)
+    UI.Police(page.aideEtats, 10)
+    page.aideEtats:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -20)
+    page.aideEtats:SetPoint("RIGHT", page, "RIGHT", -2, 0)
+    page.aideEtats:SetJustifyH("LEFT")
+
+    page.dureeLabel = UI.Texte(page, "Durée (rounds) :", UI.C.libelle)
+    page.dureeLabel:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -43)
+    page.duree = UI.Champ(page, 64, 22)
+    page.duree:SetNumeric(true)
+    page.duree:SetText("3")
+    page.duree:SetPoint("LEFT", page.dureeLabel, "RIGHT", 8, 0)
+    UI.Bulle(page.duree, "Durée de l’état",
+        "Nombre de rounds avant expiration. Laisse vide pour un état sans expiration automatique.")
+
+    page.recherche = UI.Champ(page, 210, 22, function() page:Afficher() end)
+    page.recherche:SetPoint("RIGHT", page, "RIGHT", -2, 0)
+    page.recherche:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    page.recherche:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() end)
+    page.recherche.label = UI.Texte(page, "Rechercher :", UI.C.libelle)
+    page.recherche.label:SetPoint("RIGHT", page.recherche, "LEFT", -8, 0)
+
+    page.zoneEtats = UI.Defilement(page)
+    page.zoneEtats:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -76)
+    page.zoneEtats:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
+    page.zoneEtats:SetWidth(322)
+    page.zoneJoueurs = UI.Defilement(page)
+    page.zoneJoueurs:SetPoint("TOPLEFT", page.zoneEtats, "TOPRIGHT", 12, 0)
+    page.zoneJoueurs:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+    page.lignesEtats, page.lignesJoueurs = {}, {}
+    page.videEtats = UI.Texte(page.zoneEtats.contenu, "Aucun état dans le compendium.", UI.C.discret)
+    page.videEtats:SetPoint("TOPLEFT", page.zoneEtats.contenu, "TOPLEFT", 6, -6)
+    page.videJoueursEtats = UI.Texte(page.zoneJoueurs.contenu, "Aucun joueur dans le groupe.", UI.C.discret)
+    page.videJoueursEtats:SetPoint("TOPLEFT", page.zoneJoueurs.contenu, "TOPLEFT", 6, -6)
+
+    local function BoutonLigne(parent, hauteur)
+        local ligne = CreateFrame("Button", nil, parent)
+        ligne:SetHeight(hauteur or 26)
+        if UI.SurfaceLigne then UI.SurfaceLigne(ligne) end
+        return ligne
+    end
+
+    function page:Appliquer(joueur, definition)
+        local texte = self.duree:GetText() or ""
+        local rounds = nil
+        if texte ~= "" then
+            rounds = tonumber(texte)
+            if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+                LCM.Alerte("la durée doit être un nombre entier positif, ou vide.")
+                return
+            end
+        end
+        local ok, raison
+        if EstMoi(joueur) then
+            local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
+                or LCM.Entities.Self()
+            if entity then
+                LCM.EtatsTemporaires.Poser(entity, {
+                    nom = definition.label, icone = definition.icone,
+                    description = definition.description, bonus = definition.bonus,
+                    rounds = rounds, conteneur = definition.categorie,
+                    debuff = definition.debuff == true, id = definition.id,
+                })
+                ok = true
+            else
+                raison = "aucune fiche de personnage active."
+            end
+        else
+            ok, raison = LCM.EtatsTemporaires.Envoyer(joueur, definition.id, rounds)
+        end
+        if ok then
+            LCM.Ok(string.format("« %s » imposé à %s (%s).", definition.label,
+                NomPersonnage(joueur), rounds and (rounds .. " round" .. (rounds > 1 and "s" or ""))
+                    or "jusqu'au retrait"))
+            self:Afficher()
+        elseif raison then
+            LCM.Alerte(tostring(raison))
+        end
+    end
+
+    function page:Afficher()
+        local recherche = tostring(self.recherche:GetText() or ""):lower()
+        local definitions = {}
+        for _, definition in ipairs(LCM.Etats.list or {}) do
+            if recherche == "" or tostring(definition.label):lower():find(recherche, 1, true) then
+                definitions[#definitions + 1] = definition
+            end
+        end
+        table.sort(definitions, function(a, b) return tostring(a.label):lower() < tostring(b.label):lower() end)
+        local y = 0
+        for rang, definition in ipairs(definitions) do
+            local l = self.lignesEtats[rang]
+            if not l then
+                l = BoutonLigne(self.zoneEtats.contenu, 26)
+                l.icone = l:CreateTexture(nil, "ARTWORK")
+                l.icone:SetSize(18, 18)
+                l.icone:SetPoint("LEFT", l, "LEFT", 5, 0)
+                l.nom = UI.Texte(l, "", UI.C.texte)
+                l.nom:SetPoint("LEFT", l.icone, "RIGHT", 6, 0)
+                l.nom:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+                l.nom:SetJustifyH("LEFT")
+                l.nom:SetWordWrap(false)
+                l:RegisterForDrag("LeftButton")
+                l:SetScript("OnDragStart", function(ligne)
+                    local etat = ligne.definition
+                    if etat then
+                        UI.Glisser.Commencer({ icone = LCM.Icone(etat.icone), nom = etat.label,
+                            categorie = "etats", element = etat })
+                    end
+                end)
+                self.lignesEtats[rang] = l
+            end
+            l.definition = definition
+            l.icone:SetTexture(LCM.Icone(definition.icone))
+            l.nom:SetText(definition.label)
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zoneEtats.contenu, "TOPLEFT", 2, -y)
+            l:SetPoint("RIGHT", self.zoneEtats.contenu, "RIGHT", -2, 0)
+            l:Show()
+            y = y + 28
+        end
+        for rang = #definitions + 1, #self.lignesEtats do self.lignesEtats[rang]:Hide() end
+        self.videEtats:SetShown(#definitions == 0)
+        self.zoneEtats:Regler(math.max(1, y))
+
+        local joueurs = Groupe()
+        local yJoueurs = 0
+        for rang, joueur in ipairs(joueurs) do
+            local l = self.lignesJoueurs[rang]
+            if not l then
+                l = BoutonLigne(self.zoneJoueurs.contenu, 34)
+                l.nom = UI.Texte(l, "", UI.C.texte)
+                l.nom:SetPoint("LEFT", l, "LEFT", 8, 0)
+                l.nom:SetPoint("RIGHT", l, "RIGHT", -8, 0)
+                l.nom:SetJustifyH("LEFT")
+                UI.Glisser.Cible(l, function(objet)
+                    return objet and objet.categorie == "etats" and type(objet.element) == "table",
+                        "dépose ici un état du compendium"
+                end, function(objet)
+                    page:Appliquer(l.joueur, objet.element)
+                end)
+                self.lignesJoueurs[rang] = l
+            end
+            l.joueur = joueur
+            l.nom:SetText(NomPersonnage(joueur) .. (EstMoi(joueur) and "  (vous)" or ""))
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zoneJoueurs.contenu, "TOPLEFT", 2, -yJoueurs)
+            l:SetPoint("RIGHT", self.zoneJoueurs.contenu, "RIGHT", -2, 0)
+            l:Show()
+            yJoueurs = yJoueurs + 38
+        end
+        for rang = #joueurs + 1, #self.lignesJoueurs do self.lignesJoueurs[rang]:Hide() end
+        self.videJoueursEtats:SetShown(#joueurs == 0)
+        self.zoneJoueurs:Regler(math.max(1, yJoueurs))
     end
 end
 
@@ -1226,10 +1391,18 @@ LCM.WhenReady(function()
         end)
     end
     -- Une fiche qui arrive pendant que le panneau est ouvert s'y affiche.
-    LCM.Fiches.onRecue = function(joueur, entity)
-        LCM.Info(string.format("fiche de %s reçue.", tostring(joueur)))
+    LCM.Fiches.onRecue = function(joueur, entity, actualisation)
+        if not actualisation then LCM.Info(string.format("fiche de %s reçue.", tostring(joueur))) end
         local silencieuse = PrendreDemandeXP(joueur)
         if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Afficher() end
-        if not silencieuse then MJ.Consultation.Ouvrir(entity, "fiche") end
+        if not silencieuse then
+            local consultation = MJ.Consultation
+            if consultation.fenetre and consultation.fenetre:IsShown()
+                and consultation.joueur == joueur then
+                consultation.Ouvrir(entity, consultation.onglet or "fiche", joueur)
+            elseif not consultation.joueur then
+                consultation.Ouvrir(entity, "fiche", joueur)
+            end
+        end
     end
 end)

@@ -64,11 +64,74 @@ end
 -- CONTENU : ce que je pose.          ACCORD : j'accepte, ou je retire mon
 -- accord.                            FIN : conclu, ou annule.
 
-local function Envoyer(sujet, donnees)
+local function Envoyer(sujet, donnees, options)
     local seance = Echange.courant
     if not (seance and LCM.Reseau) then return end
-    LCM.Reseau.Envoyer("ECH_" .. sujet, donnees or {}, "WHISPER", seance.qui)
+    LCM.Reseau.Envoyer("ECH_" .. sujet, donnees or {}, "WHISPER", seance.qui, options)
 end
+
+-- Une entree forgeable n'est pas forcement installee chez le joueur : la
+-- definition MJ ne voyage pas dans son addon. On envoie une copie des seuls
+-- champs d'un objet, jamais une reference seule qui serait inutilisable.
+local function DefinitionObjet(ref)
+    local famille, id = tostring(ref or ""):match("^([%w_]+)/(.+)$")
+    local objet = famille == "objets" and LCM.Objets.Get(id)
+    if not objet then return nil end
+    local avantage = {}
+    for champ, actif in pairs(objet.avantage or {}) do
+        if actif then avantage[#avantage + 1] = champ end
+    end
+    table.sort(avantage)
+    return {
+        id = objet.id, label = objet.label, categorie = objet.categorie,
+        description = objet.description, icone = objet.icone, tags = objet.tags,
+        couleurTitre = objet.couleurTitre, couleurFond = objet.couleurFond,
+        pileMax = objet.pileMax, type = objet.type, metiers = objet.metiers,
+        forge = objet.forge, etat = objet.etat, bonus = objet.bonus,
+        avantage = avantage, armure = objet.armure, taille = objet.taille,
+    }
+end
+
+local function ImporterObjetPartage(pose)
+    if type(pose) ~= "table" then return false end
+    local famille, id = tostring(pose.ref or ""):match("^([%w_]+)/(.+)$")
+    local definition = pose.definition
+    if famille ~= "objets" or type(definition) ~= "table" or tostring(definition.id or "") ~= id then
+        return false
+    end
+    -- Construire valide categorie, bonus, durabilite et champs propres avant
+    -- toute sauvegarde. Un message mal forme ne doit pas casser la reception.
+    local ok, objet = pcall(LCM.Objets.Construire, definition)
+    if not ok or not objet then return false end
+    for champ in pairs(objet.bonus or {}) do
+        if not LCM.Schema.Field(champ) then return false end
+    end
+    for champ in pairs(objet.avantage or {}) do
+        if not LCM.Schema.Field(champ) then return false end
+    end
+
+    local ajoute, resultat = pcall(LCM.Objets.Remplacer or LCM.Objets.Add, definition)
+    if not ajoute or not resultat then return false end
+    LCM.EnsureDatabase()
+    LCM.db.objetsRecus = type(LCM.db.objetsRecus) == "table" and LCM.db.objetsRecus or {}
+    -- Sauvegarder la definition normalisee. Ainsi elle ne disparait pas au
+    -- prochain /reload, meme si l'addon MJ de l'expediteur est absent.
+    LCM.db.objetsRecus[id] = DefinitionObjet("objets/" .. id)
+    return true
+end
+Echange.DefinitionObjet = DefinitionObjet
+Echange.ImporterObjetPartage = ImporterObjetPartage
+
+function Echange.ChargerObjetsRecus()
+    local db = LCM.EnsureDatabase()
+    for id, definition in pairs(type(db.objetsRecus) == "table" and db.objetsRecus or {}) do
+        if type(definition) == "table" and tostring(definition.id or "") == tostring(id) then
+            local ok, objet = pcall(LCM.Objets.Remplacer or LCM.Objets.Add, definition)
+            if not ok or not objet then LCM.Erreur("objet reçu illisible : " .. tostring(id)) end
+        end
+    end
+end
+LCM.WhenReady(Echange.ChargerObjetsRecus)
 
 local function NouvelleSeance(qui, role)
     return {
@@ -177,10 +240,11 @@ function Echange.Offrir(objet)
     seance.mien.objets[#seance.mien.objets + 1] = {
         ref = objet.ref, quantite = objet.quantite or 1,
         nom = objet.nom, icone = objet.icone,
+        definition = DefinitionObjet(objet.ref),
         rendre = objet.rendre, origine = objet.origine,
     }
     Bouge()
-    Envoyer("CONTENU", Echange.Contenu())
+    Envoyer("CONTENU", Echange.Contenu(), { etale = true })
     Prevenir()
     return true
 end
@@ -194,7 +258,7 @@ function Echange.Reprendre(rang)
     if pose.rendre then pose.rendre()
     else Inv.Deposer(Moi(), pose.ref, pose.quantite) end
     Bouge()
-    Envoyer("CONTENU", Echange.Contenu())
+    Envoyer("CONTENU", Echange.Contenu(), { etale = true })
     Prevenir()
     return true
 end
@@ -220,7 +284,7 @@ function Echange.Monnayer(deviseId, combien)
     end
     seance.mien.devises[deviseId] = combien > 0 and combien or nil
     Bouge()
-    Envoyer("CONTENU", Echange.Contenu())
+    Envoyer("CONTENU", Echange.Contenu(), { etale = true })
     Prevenir()
     return true
 end
@@ -232,7 +296,8 @@ function Echange.Contenu()
     if not seance then return { objets = {}, devises = {} } end
     local objets = {}
     for _, pose in ipairs(seance.mien.objets) do
-        objets[#objets + 1] = { ref = pose.ref, quantite = pose.quantite, nom = pose.nom }
+        objets[#objets + 1] = { ref = pose.ref, quantite = pose.quantite, nom = pose.nom,
+            definition = pose.definition }
     end
     return { objets = objets, devises = seance.mien.devises }
 end
@@ -241,6 +306,7 @@ local function SurContenu(qui, donnees)
     local seance = Echange.courant
     if not Reconnue(seance, qui) then return end
     seance.sien.objets = (type(donnees) == "table" and donnees.objets) or {}
+    for _, pose in ipairs(seance.sien.objets) do ImporterObjetPartage(pose) end
     seance.sien.devises = (type(donnees) == "table" and donnees.devises) or {}
     Bouge()
     Prevenir()

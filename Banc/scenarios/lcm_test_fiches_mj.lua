@@ -83,8 +83,21 @@ attendu("et part en chuchotement", __envois[#__envois].canal, "WHISPER")
 -- fenetre a part, ouverte par un bouton).
 local onglets = {}
 for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
--- Six : Joueurs, Combat, PNJ, Contenus, Outils, Equilibrage.
-attendu("les onglets du panneau", #p.barre.boutons, 6)
+-- Les Traits et les États ont chacun leur onglet dédié.
+attendu("les onglets du panneau", #p.barre.boutons, 8)
+onglets.etats:Click()
+local pageEtats = p.pages.etats
+attendu("l'onglet États est ouvert", p.onglet == "etats" and pageEtats:IsShown(), true)
+attendu("le panneau propose des états à glisser", #LCM.Etats.list > 0, true)
+attendu("le joueur est une cible de dépôt", pageEtats.lignesJoueurs[1].joueur, "Nytherah-Apertus")
+pageEtats.duree:SetText("2")
+local definitionEtat = pageEtats.lignesEtats[1].definition
+pageEtats.lignesJoueurs[1].glisserDepose({ categorie = "etats", element = definitionEtat })
+attendu("le glisser envoie l'état au joueur", __envois[#__envois].cible, "Nytherah-Apertus")
+attendu("l'état est envoyé en privé", __envois[#__envois].canal, "WHISPER")
+local corpsEtat = LCM.Reseau.Decoder(
+    __envois[#__envois].message:match("^%d+:%d+:%d+:etat_mj|(.*)$") or "")
+attendu("la durée choisie accompagne l'état", corpsEtat.r, "2")
 onglets.combat:Click()
 attendu("l'onglet Combat montre le combat", p.onglet == "combat" and p.pages.combat:IsShown(), true)
 attendu("et cache les joueurs", p.pages.joueurs:IsShown(), false)
@@ -116,6 +129,12 @@ attendu("le joueur consulte en est prevenu",
     end)(), true)
 attendu("la fenetre de fiche s'ouvre dessus", LCM.UI.Fiche.frame.entity.name, recue.name)
 local consultation = LCM.UI.ConsultationMJ
+attendu("la consultation garde le joueur suivi", consultation.joueur, "Nytherah-Apertus")
+LCM.Entities.Set_Value(moi, "force", 9)
+recue = F.Recue("Nytherah-Apertus")
+attendu("une modification pousse une fiche actualisee", recue.values.force, 9)
+attendu("la consultation ouverte est actualisee", consultation.entity.values.force, 9)
+attendu("la fenetre existante affiche la nouvelle copie", LCM.UI.Fiche.frame.entity, recue)
 attendu("sept onglets de consultation", #consultation.barre.boutons, 7)
 attendu("Fiche reprend l'icone du radial", consultation.barre.boutons[1].icone.__texture,
     LCM.UI.Menu.Trouver("fiche").icone)
