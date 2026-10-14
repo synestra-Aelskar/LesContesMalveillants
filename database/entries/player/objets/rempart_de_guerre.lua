@@ -14,14 +14,13 @@ return {
     couleurTitre = "4DE04D",
     description = "Un rempart qui protège bien.",
     etat = {
-        courant = 34,
-        max = 34,
+        courant = 40,
+        max = 40,
     },
     forge = "equilibrage_arme_copie/inhabituel",
     icone = "Interface\\ICONS\\inv_chest_chain_17",
     id = "rempart_de_guerre",
     label = "Rempart de guerre",
-    remplacePublie = true,
     tags = "Inhabituel",
     type = "plastron",
 }

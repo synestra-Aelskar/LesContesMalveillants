@@ -571,7 +571,7 @@ return {
             couleur = "FF8CB8",
             id = "commun",
             label = "Commun",
-            points = "6",
+            points = "40",
         },
     },
 }

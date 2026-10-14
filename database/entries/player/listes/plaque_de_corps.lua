@@ -5,7 +5,7 @@ return {
     id = "plaque_de_corps",
     label = "Plaque de corps",
     liste = "type_armures",
-    maxEquipe = 1,
+    maxEquipe = 5,
     remplacePublie = true,
     tags = "Plaque de corps",
 }
