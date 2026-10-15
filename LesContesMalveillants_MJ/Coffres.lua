@@ -160,19 +160,22 @@ function Coffres.Traiter(expediteur, req)
         MettreAJour(p); Repondre(true); return
     end
     if req.a == "forcer" then
-        if not p.verrouille or (tonumber(req.total) or -1) < 0 then Repondre(false); return end
+        local score = tonumber(req.score or req.total)
+        if not p.verrouille or not score or score < 0 then Repondre(false); return end
         local choisi
         for _, m in ipairs(d.coffre.expertises or {}) do
             if m.id == tostring(req.expertise or "") then choisi = m break end
         end
-        if not choisi or (tonumber(req.total) or -1) < choisi.dd then
+        local dd = choisi and (tonumber(choisi.dd) or 0) or nil
+        local avecClef = choisi and choisi.id == C.METHODE_CLEF
+        if not choisi or (not avecClef and score < dd) then
             Repondre(false, { msg = choisi and "échec du jet." or "expertise non autorisée." }); return
         end
         p.verrousRestants = math.max(0, (tonumber(p.verrousRestants) or d.coffre.verrous) - 1)
         p.verrousOuverts = p.verrousOuverts or {}
         p.verrousOuverts[#p.verrousOuverts + 1] = choisi.reverrouillable == true
         if p.verrousRestants == 0 then p.verrouille, p.ouvert = false, true end
-        MettreAJour(p); Repondre(true, { resultat = "réussite", expertise = choisi.id, total = req.total })
+        MettreAJour(p); Repondre(true, { resultat = "réussite", expertise = choisi.id, total = score })
         return
     end
     if not p.ouvert or p.verrouille then Repondre(false, { msg = "le coffre est verrouillé." }); return end
@@ -221,5 +224,11 @@ LCM.WhenReady(function()
         if precedent then precedent(famille, entree) end
         if famille == "points" and entree and entree.nature == "coffre" then Coffres.Renvoyer() end
     end end
+
+    -- Les placements vivent dans la sauvegarde MJ, tandis que le détecteur de
+    -- proximité appartient au module joueur. Après un /reload, sa copie locale
+    -- est volontairement vide : republier ici restaure les boutons « Ouvrir »
+    -- sans obliger le MJ à déplacer ou réenregistrer chaque coffre.
+    Coffres.Renvoyer()
 end)
 

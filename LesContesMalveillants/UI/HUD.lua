@@ -13,6 +13,7 @@ local LARGEUR, HAUTEUR = 650, 202
 local PASTILLE, ECART = 72, 9
 local ZONES_X, ZONES_Y = 190, -48
 local CIBLE_L, CIBLE_H = 82, 112
+local OR_ORBE = { 0.85, 0.67, 0.41 }
 
 local ICONES = { tete = "tete", buste = "torse", bras = "bras",
     jambe = "jambes", internes = "internes", aile = "aile", queue = "queue" }
@@ -169,7 +170,7 @@ local function OrbeTotal(parent)
     p.separateurPV = UI.Texte(p, "/", UI.C.texte)
     UI.Police(p.separateurPV, 42, "OUTLINE")
     -- Même or chaud que les reflets du cadre de l'orbe.
-    p.separateurPV:SetTextColor(0.85, 0.67, 0.41)
+    p.separateurPV:SetTextColor(OR_ORBE[1], OR_ORBE[2], OR_ORBE[3])
     p.separateurPV:SetPoint("CENTER", p, "CENTER", 0, 0)
     p.separateurPV:SetJustifyH("CENTER")
     p.maximumTexte = UI.Texte(p, "", UI.C.texte)
@@ -179,7 +180,7 @@ local function OrbeTotal(parent)
     p.pourcent = UI.Texte(p, "", UI.C.texte)
     p.pourcent:Hide()
     p.bouclier = CreateFrame("Frame", nil, p)
-    p.bouclier:SetSize(92, 92)
+    p.bouclier:SetSize(71, 71)
     p.bouclier:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 6, -8)
     p.bouclier:SetFrameLevel(p:GetFrameLevel() + 10)
     p.bouclier:EnableMouse(true)
@@ -187,25 +188,31 @@ local function OrbeTotal(parent)
         if bouton == "RightButton" then Ecran.ChoisirAffichage(true) end
     end)
     p.bouclier.icone = p.bouclier:CreateTexture(nil, "ARTWORK")
-    p.bouclier.icone:SetSize(90, 90)
+    p.bouclier.icone:SetSize(70, 70)
     p.bouclier.icone:SetPoint("CENTER", p.bouclier, "CENTER", 0, 0)
     p.bouclier.icone:SetTexture("Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\generation_bouclier.tga")
-    p.bouclier.icone:SetDesaturated(false)
-    p.bouclier.icone:SetVertexColor(1, 1, 1)
+    -- L'icone d'origine est très jaune. Désaturée puis teintée avec l'or de
+    -- l'orbe, elle garde son relief sans jurer avec son contour.
+    p.bouclier.icone:SetDesaturated(true)
+    p.bouclier.icone:SetVertexColor(OR_ORBE[1], OR_ORBE[2], OR_ORBE[3])
     p.bouclier.valeur = UI.Texte(p.bouclier, "", UI.C.texte)
-    UI.Police(p.bouclier.valeur, 24, "THICKOUTLINE")
+    UI.Police(p.bouclier.valeur, 20, "THICKOUTLINE")
     p.bouclier.valeur:SetTextColor(1, 0.92, 0.48)
-    p.bouclier.valeur:SetSize(68, 30)
-    p.bouclier.valeur:SetPoint("CENTER", p.bouclier, "CENTER", 0, 7)
+    -- La boite reste assez large pour 100–999 : seule la glyphe est réduite,
+    -- sinon WoW remplace les trois chiffres par des points de suspension.
+    p.bouclier.valeur:SetSize(60, 26)
+    -- La face utile du dessin est légèrement à droite et sous le centre de
+    -- son carré transparent : on centre donc le nombre sur la face, pas sur
+    -- les dimensions brutes de la texture.
+    p.bouclier.valeur:SetPoint("CENTER", p.bouclier.icone, "CENTER", 3, 3)
     p.bouclier.valeur:SetJustifyH("CENTER")
     p.bouclier.valeur:SetJustifyV("MIDDLE")
     p.bouclier.valeur:SetWordWrap(false)
     p.bouclier:Hide()
     UI.Bulle(p.bouclier, "Bouclier ponctuel", function(soi)
+        local courant = soi.bouclierCourant or 0
         return string.format("%d point%s de bouclier restant%s.",
-            soi.bouclierCourant or 0,
-            (soi.bouclierCourant or 0) == 1 and "" or "s",
-            (soi.bouclierCourant or 0) == 1 and "" or "s")
+            courant, courant == 1 and "" or "s", courant == 1 and "" or "s")
     end, 0.25)
     p:RegisterForClicks("RightButtonUp")
     p:SetScript("OnClick", function(_, bouton)
@@ -574,6 +581,7 @@ function Ecran.Actualiser()
     f.fatigue:Regler(fatigue.current, fatigue.max)
     local bouclier = LCM.Entities.Gauge(entity, "armure") or { current = 0, max = 0 }
     total.bouclierCourant = math.max(0, math.floor((tonumber(bouclier.current) or 0) + 0.5))
+    total.bouclier.bouclierCourant = total.bouclierCourant
     total.bouclier.valeur:SetText(tostring(total.bouclierCourant))
     total.bouclier:SetShown(total.bouclierCourant > 0)
     f.entity, f.nombreZones = entity, #etat

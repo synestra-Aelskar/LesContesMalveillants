@@ -15,6 +15,11 @@ UI.CoffresMJ = Ecran
 local LARGEUR, HAUTEUR = 760, 650
 local COLONNE, LIGNE = 210, 26
 local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.coffres) or {} end
+local function NomMethode(id)
+    if id == LCM.Coffres.METHODE_CLEF then return "Clef" end
+    local champ = LCM.Schema.Field(id)
+    return (champ and champ.label) or tostring(id or "Expertise inconnue")
+end
 
 local function Libelle(parent, texte, x, y)
     local t = UI.Texte(parent, texte, UI.C.discret, "GameFontNormalSmall")
@@ -42,14 +47,17 @@ local function OptionsExpertises(choix, exception)
             end
         end
     end
+    if not deja[LCM.Coffres.METHODE_CLEF] then
+        out[#out + 1] = { id = LCM.Coffres.METHODE_CLEF, label = "Clef" }
+    end
     table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
     return out
 end
 
-local function OptionsObjets(choix, exception)
+local function OptionsObjets(choix, exception, doublons)
     local deja = {}
     for index, objet in ipairs(choix or {}) do
-        if index ~= exception then deja[objet.entree] = true end
+        if not doublons and index ~= exception then deja[objet.entree] = true end
     end
     local out = {}
     for _, objet in ipairs((LCM.Objets and LCM.Objets.list) or {}) do
@@ -66,6 +74,14 @@ local function OptionsObjets(choix, exception)
     return out
 end
 
+local function OptionsExpertisesOutils(methodes)
+    local out = {}
+    for _, methode in ipairs(methodes or {}) do
+        out[#out + 1] = { id = methode.id, label = NomMethode(methode.id) }
+    end
+    return out
+end
+
 local function Travail(point)
     if point then
         local copie = LCM.Copie(point)
@@ -77,6 +93,10 @@ local function Travail(point)
         copie.coffre.objets = copie.coffre.objets or {}
         copie.coffre.expertises = copie.coffre.expertises or {}
         copie.coffre.outils = copie.coffre.outils or {}
+        local expertiseDefaut = copie.coffre.expertises[1] and copie.coffre.expertises[1].id
+        for _, outil in ipairs(copie.coffre.outils) do
+            if not outil.expertise or outil.expertise == "" then outil.expertise = expertiseDefaut end
+        end
         return copie
     end
     return {
@@ -158,6 +178,7 @@ local function Construire()
     f.choixObjet = UI.Choix("coffre_objet", "Objet du coffre")
     f.choixOutil = UI.Choix("coffre_outil", "Outil requis")
     f.choixExpertise = UI.Choix("coffre_expertise", "Expertise de déverrouillage")
+    f.choixExpertiseOutil = UI.Choix("coffre_expertise_outil", "Expertise associée à l’outil")
     f.confirmation = UI.Confirmer(f, "", "Confirmer")
 
     f.liste = UI.Defilement(f.contenu)
@@ -206,12 +227,13 @@ local function Construire()
     }, 126)
     Libelle(c, "Méthodes autorisées — chaque réussite ouvre un verrou", 0, -252)
     c.tableauExpertises, c.zoneExpertises = Tableau(c, -270, {
-        { "EXPERTISE", 0, 245 }, { "DD", 245, 65 }, { "PEUT REVERROUILLER", 310, 162 }, { "", 472, 26 },
+        { "EXPERTISE", 0, 150 }, { "DD", 150, 48 }, { "FATIGUE", 198, 65 },
+        { "USURE OUTILS", 263, 98 }, { "REVERROUILLER", 361, 111 }, { "", 472, 26 },
     }, 104)
     Libelle(c, "Outils requis", 0, -384)
     c.tableauOutils, c.zoneOutils = Tableau(c, -402, {
-        { "OUTIL", 0, 215 }, { "REQUIS", 215, 62 }, { "CONSOMMÉ", 277, 105 },
-        { "QTÉ CONS.", 382, 90 }, { "", 472, 26 },
+        { "OUTIL", 0, 168 }, { "EXPERTISE", 168, 114 }, { "REQUIS", 282, 55 },
+        { "CONSOMMÉ", 337, 73 }, { "QTÉ CONS.", 410, 62 }, { "", 472, 26 },
     }, 126)
     c.erreur = UI.Texte(c, "", UI.C.plein, "GameFontNormalSmall")
     c.erreur:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 0, 6)
@@ -307,15 +329,19 @@ local function Construire()
         if not self.travail or not tostring(ref or ""):match("^objets/") then return end
         local liste = self.travail.coffre[typeListe]
         if type(liste) ~= "table" then return end
-        for _, objet in ipairs(liste) do
-            if objet.entree == ref then
-                objet.quantite = (tonumber(objet.quantite) or 1) + 1
-                self:AfficherDetails()
-                return
+        if typeListe ~= "outils" then
+            for _, objet in ipairs(liste) do
+                if objet.entree == ref then
+                    objet.quantite = (tonumber(objet.quantite) or 1) + 1
+                    self:AfficherDetails()
+                    return
+                end
             end
         end
         liste[#liste + 1] = { entree = ref, quantite = 1,
-            consomme = false, consommeQuantite = 1 }
+            consomme = false, consommeQuantite = 1,
+            expertise = typeListe == "outils" and self.travail.coffre.expertises[1]
+                and self.travail.coffre.expertises[1].id or nil }
         self:AfficherDetails()
     end
 
@@ -324,9 +350,12 @@ local function Construire()
         id = id or (options[1] and options[1].id)
         if not id then return end
         self.travail.coffre.expertises[#self.travail.coffre.expertises + 1] = {
-            id = id, dd = 10, reverrouillable = true,
+            id = id, dd = 10, fatigue = 0, usureOutils = false, reverrouillable = true,
         }
-        self:AfficherExpertises()
+        for _, outil in ipairs(self.travail.coffre.outils) do
+            if not outil.expertise or outil.expertise == "" then outil.expertise = id end
+        end
+        self:AfficherDetails()
     end
 
     function f:AfficherObjets(typeListe, zone, cache, choixPopup, outils)
@@ -338,7 +367,7 @@ local function Construire()
                 ligne = CreateFrame("Frame", nil, zone.contenu)
                 ligne:SetHeight(pas)
                 FondLigne(ligne)
-                ligne.nom = BoutonTexte(ligne, outils and 203 or 298)
+                ligne.nom = BoutonTexte(ligne, outils and 123 or 298)
                 ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 37, -2)
                 ligne.icone = ligne:CreateTexture(nil, "ARTWORK")
                 ligne.icone:SetSize(18, 18)
@@ -346,7 +375,7 @@ local function Construire()
                 ligne.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
                 ligne.nom:SetScript("OnClick", function()
                     choixPopup:Proposer(ligne.nom,
-                        OptionsObjets(f.travail.coffre[typeListe], ligne.index), function(ref)
+                        OptionsObjets(f.travail.coffre[typeListe], ligne.index, outils), function(ref)
                             local courant = f.travail.coffre[typeListe][ligne.index]
                             if courant then courant.entree = ref; f:AfficherDetails() end
                         end)
@@ -360,17 +389,27 @@ local function Construire()
                     if courant then courant.quantite = texte end
                 end)
                 if outils then
-                    ligne.quantite:SetPoint("TOPLEFT", ligne, "TOPLEFT", 222, -4)
+                    ligne.expertise = BoutonTexte(ligne, 106)
+                    ligne.expertise:SetPoint("TOPLEFT", ligne, "TOPLEFT", 170, -2)
+                    ligne.expertise:SetScript("OnClick", function()
+                        f.choixExpertiseOutil:Proposer(ligne.expertise,
+                            OptionsExpertisesOutils(f.travail.coffre.expertises), function(id)
+                                local courant = f.travail.coffre.outils[ligne.index]
+                                if courant then courant.expertise = id; f:AfficherOutils() end
+                            end)
+                    end)
+                    ligne.quantite:SetWidth(42)
+                    ligne.quantite:SetPoint("TOPLEFT", ligne, "TOPLEFT", 289, -4)
                     ligne.consommer = UI.Case(ligne, "Oui", function(coche)
                         local courant = f.travail.coffre.outils[ligne.index]
                         if courant then courant.consomme = coche; f:AfficherOutils() end
                     end)
-                    ligne.consommer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 291, -6)
-                    ligne.nc = UI.Champ(ligne, 48, 20, function(texte)
+                    ligne.consommer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 347, -6)
+                    ligne.nc = UI.Champ(ligne, 42, 20, function(texte)
                         local courant = f.travail.coffre.outils[ligne.index]
                         if courant then courant.consommeQuantite = texte end
                     end)
-                    ligne.nc:SetPoint("TOPLEFT", ligne, "TOPLEFT", 403, -4)
+                    ligne.nc:SetPoint("TOPLEFT", ligne, "TOPLEFT", 420, -4)
                 else
                     ligne.quantite:SetPoint("TOPLEFT", ligne, "TOPLEFT", 372, -4)
                 end
@@ -393,6 +432,8 @@ local function Construire()
             ligne.icone:SetTexture((entree and entree.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark")
             ligne.quantite:SetText(tostring(objet.quantite or 1))
             if outils then
+                local champ = LCM.Schema.Field(objet.expertise)
+                ligne.expertise.label:SetText((champ and champ.label) or objet.expertise or "Choisir…")
                 ligne.consommer:Cocher(objet.consomme == true)
                 ligne.nc:SetText(tostring(objet.consommeQuantite or 1))
                 ligne.nc:SetShown(objet.consomme == true)
@@ -416,7 +457,7 @@ local function Construire()
             local survol = UI.Aplat(ajouter, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
             survol:SetAllPoints(ajouter)
             ajouter:SetScript("OnClick", function()
-                choixPopup:Proposer(ajouter, OptionsObjets(f.travail.coffre[typeListe]), function(ref)
+                choixPopup:Proposer(ajouter, OptionsObjets(f.travail.coffre[typeListe], nil, outils), function(ref)
                     f:Ajouter(typeListe, ref)
                 end)
             end)
@@ -447,25 +488,42 @@ local function Construire()
                 ligne = CreateFrame("Frame", nil, c.zoneExpertises.contenu)
                 ligne:SetHeight(pas)
                 FondLigne(ligne)
-                ligne.nom = BoutonTexte(ligne, 229)
+                ligne.nom = BoutonTexte(ligne, 134)
                 ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 8, -2)
                 ligne.nom:SetScript("OnClick", function()
                     f.choixExpertise:Proposer(ligne.nom,
                         OptionsExpertises(f.travail.coffre.expertises, ligne.index), function(id)
                             local courant = f.travail.coffre.expertises[ligne.index]
-                            if courant then courant.id = id; f:AfficherExpertises() end
+                            if courant then
+                                local ancien = courant.id
+                                courant.id = id
+                                for _, outil in ipairs(f.travail.coffre.outils) do
+                                    if outil.expertise == ancien then outil.expertise = id end
+                                end
+                                f:AfficherDetails()
+                            end
                         end)
                 end)
-                ligne.dd = UI.Champ(ligne, 46, 20, function(texte)
+                ligne.dd = UI.Champ(ligne, 36, 20, function(texte)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.dd = texte end
                 end)
-                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 255, -4)
+                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 156, -4)
+                ligne.fatigue = UI.Champ(ligne, 42, 20, function(texte)
+                    local courant = f.travail.coffre.expertises[ligne.index]
+                    if courant then courant.fatigue = texte end
+                end)
+                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 208, -4)
+                ligne.usureOutils = UI.Case(ligne, "Oui", function(coche)
+                    local courant = f.travail.coffre.expertises[ligne.index]
+                    if courant then courant.usureOutils = coche end
+                end)
+                ligne.usureOutils:SetPoint("TOPLEFT", ligne, "TOPLEFT", 277, -6)
                 ligne.relock = UI.Case(ligne, "Oui", function(coche)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.reverrouillable = coche end
                 end)
-                ligne.relock:SetPoint("TOPLEFT", ligne, "TOPLEFT", 342, -6)
+                ligne.relock:SetPoint("TOPLEFT", ligne, "TOPLEFT", 375, -6)
                 ligne.retirer = CreateFrame("Button", nil, ligne)
                 ligne.retirer:SetSize(24, 22)
                 ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
@@ -473,15 +531,26 @@ local function Construire()
                 ligne.retirer.label:SetAllPoints(ligne.retirer)
                 ligne.retirer.label:SetJustifyH("CENTER")
                 ligne.retirer:SetScript("OnClick", function()
-                    table.remove(f.travail.coffre.expertises, ligne.index)
-                    f:AfficherExpertises()
+                    local retiree = table.remove(f.travail.coffre.expertises, ligne.index)
+                    local remplacement = f.travail.coffre.expertises[1]
+                        and f.travail.coffre.expertises[1].id or nil
+                    for _, outil in ipairs(f.travail.coffre.outils) do
+                        if retiree and outil.expertise == retiree.id then outil.expertise = remplacement end
+                    end
+                    f:AfficherDetails()
                 end)
                 self.lignesExpertises[index] = ligne
             end
             ligne.index = index
-            local champ = LCM.Schema.Field(methode.id)
-            ligne.nom.label:SetText((champ and champ.label) or methode.id or "Expertise inconnue")
-            ligne.dd:SetText(tostring(methode.dd or 0))
+            local avecClef = methode.id == LCM.Coffres.METHODE_CLEF
+            ligne.nom.label:SetText(NomMethode(methode.id))
+            ligne.dd:SetShown(not avecClef)
+            ligne.fatigue:SetShown(not avecClef)
+            if not avecClef then
+                ligne.dd:SetText(tostring(methode.dd or 0))
+                ligne.fatigue:SetText(tostring(methode.fatigue or 0))
+            end
+            ligne.usureOutils:Cocher(methode.usureOutils == true)
             ligne.relock:Cocher(methode.reverrouillable == true)
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", c.zoneExpertises.contenu, "TOPLEFT", 0, -(index - 1) * pas)
@@ -550,23 +619,47 @@ local function Construire()
         end
         if Cases(objets) > places then return nil, "le contenu dépasse le nombre d’emplacements du coffre." end
         local expertises = {}
+        local expertisesParId = {}
+        local clefPresente = false
         for _, methode in ipairs(coffre.expertises or {}) do
             local champ, dd = LCM.Schema.Field(methode.id), Entier(methode.dd)
-            if not champ or not champ.jetExpertise then return nil, "choisis une expertise valide." end
-            if not dd or dd < 0 then return nil, "le DD doit être un entier positif ou nul." end
-            expertises[#expertises + 1] = { id = methode.id, dd = dd,
+            local fatigue = Entier(methode.fatigue or 0)
+            local avecClef = methode.id == LCM.Coffres.METHODE_CLEF
+            if not avecClef and (not champ or not champ.jetExpertise) then
+                return nil, "choisis une expertise valide."
+            end
+            if not avecClef and (not dd or dd < 0) then
+                return nil, "le DD doit être un entier positif ou nul."
+            end
+            if not avecClef and (not fatigue or fatigue < 0) then
+                return nil, "le coût en fatigue doit être un entier positif ou nul."
+            end
+            expertises[#expertises + 1] = { id = methode.id, dd = avecClef and 0 or dd,
+                fatigue = avecClef and 0 or fatigue,
+                usureOutils = methode.usureOutils == true,
                 reverrouillable = methode.reverrouillable == true }
+            expertisesParId[methode.id] = true
+            if avecClef then clefPresente = true end
         end
         local outils = {}
+        local outilPourClef = false
         for _, outil in ipairs(coffre.outils or {}) do
             local q, consomme = Entier(outil.quantite), Entier(outil.consommeQuantite)
             if not LCM.Compendium.Resoudre(outil.entree) then return nil, "choisis un outil valide." end
             if not q or q < 1 then return nil, "les quantités requises doivent être des entiers supérieurs à zéro." end
+            if not expertisesParId[outil.expertise] then
+                return nil, "associe chaque outil à une expertise autorisée."
+            end
             if outil.consomme and (not consomme or consomme < 1 or consomme > q) then
                 return nil, "la quantité consommée doit être comprise entre 1 et la quantité requise."
             end
             outils[#outils + 1] = { entree = outil.entree, quantite = q,
-                consomme = outil.consomme == true, consommeQuantite = consomme or 1 }
+                consomme = outil.consomme == true, consommeQuantite = consomme or 1,
+                expertise = outil.expertise }
+            if outil.expertise == LCM.Coffres.METHODE_CLEF then outilPourClef = true end
+        end
+        if clefPresente and not outilPourClef then
+            return nil, "la méthode Clef doit avoir au moins un objet requis associé."
         end
         if verrous > 0 and #expertises == 0 and #outils == 0 then
             return nil, "ajoute au moins une expertise ou un outil pour ouvrir ce coffre verrouillé."

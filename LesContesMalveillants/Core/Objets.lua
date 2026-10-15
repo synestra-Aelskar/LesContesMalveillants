@@ -302,9 +302,14 @@ end
 --
 -- Renvoie la variation d'usure, le verdict de destruction, et si une vie vient
 -- d'etre perdue.
-function Objets.Encaisser(entity, id, n)
+local function Encaisser(entity, id, n, depuisSac)
     local objet = Objets.Get(id)
-    if type(entity) ~= "table" or not objet or not Objets.Porte(entity, objet.id) then return 0, false end
+    local dansSac = depuisSac and LCM.Inventaire and LCM.Inventaire.Chercher
+        and LCM.Inventaire.Chercher(entity, "objets/" .. tostring(id)) ~= nil
+    if type(entity) ~= "table" or not objet
+            or (depuisSac and not dansSac) or (not depuisSac and not Objets.Porte(entity, objet.id)) then
+        return 0, false
+    end
     local maximum = Objets.EtatMax(objet)
     local avant = Objets.Usure(entity, objet.id)
     local apres = math.max(0, math.min(maximum, avant + math.floor(tonumber(n) or 0)))
@@ -333,7 +338,11 @@ function Objets.Encaisser(entity, id, n)
         entity.usureArmure[objet.id] = apres
     end
     if detruit then
-        Objets.Enlever(entity, objet.id)
+        if depuisSac then
+            LCM.Inventaire.Prendre(entity, "objets/" .. objet.id)
+        else
+            Objets.Enlever(entity, objet.id)
+        end
         if type(entity.usureArmure) == "table" then
             entity.usureArmure[objet.id] = nil
             if next(entity.usureArmure) == nil then entity.usureArmure = nil end
@@ -343,6 +352,16 @@ function Objets.Encaisser(entity, id, n)
         OublierLesVies(entity, objet.id)
     end
     return apres - avant, detruit, briseMaintenant
+end
+
+function Objets.Encaisser(entity, id, n)
+    return Encaisser(entity, id, n, false)
+end
+
+-- Un outil employe directement depuis un sac s'use lui aussi. Il n'est pas
+-- equipe pour autant et ne quitte le sac que si sa derniere vie est detruite.
+function Objets.UserInventaire(entity, id, n)
+    return Encaisser(entity, id, n, true)
 end
 
 -- Porte la jauge a `encaisse` en repartissant l'ecart sur les pieces portees :

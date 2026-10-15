@@ -161,9 +161,19 @@ attendu("relâché : retour au personnage", f.entity == moi, true)
 attendu("  avec son nom", f.nom:GetText(), tostring(moi.name or moi.id))
 
 dire("== le bouclier ponctuel apparaît sur l'orbe seulement quand il en reste")
-LCM.Entities.SetGauge(moi, "armure", 18)
+LCM.Entities.SetGauge(moi, "armure", 118)
 attendu("le marqueur de bouclier apparaît", f.total.bouclier:IsShown(), true)
-attendu("  avec la valeur actuelle", f.total.bouclier.valeur:GetText(), "18")
+attendu("  avec une valeur à trois chiffres non tronquée", f.total.bouclier.valeur:GetText(), "118")
+attendu("  avec un badge réduit de quinze pour cent", f.total.bouclier:GetWidth(), 71)
+local _, ancreBouclier, _, bx, by = f.total.bouclier.valeur:GetPoint()
+attendu("  dont le nombre est centré sur l'icone", ancreBouclier == f.total.bouclier.icone, true)
+attendu("  avec la correction du centre visuel", string.format("%d,%d", bx, by), "3,3")
+local bouclierHUD = f.total.bouclier
+bouclierHUD:GetScript("OnEnter")(bouclierHUD)
+bouclierHUD:GetScript("OnUpdate")(bouclierHUD, 0.25)
+attendu("  et dont le survol donne la valeur actuelle",
+    LCM.UI.infoBulle.lignes[1]:GetText():find("118 points") ~= nil, true)
+bouclierHUD:GetScript("OnLeave")(bouclierHUD)
 LCM.Entities.SetGauge(moi, "armure", 0)
 attendu("il disparaît à zéro", f.total.bouclier:IsShown(), false)
 

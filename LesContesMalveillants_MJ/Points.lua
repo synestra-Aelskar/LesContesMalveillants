@@ -50,20 +50,35 @@ LCM.Points = LCM.Registre({
             for _, methode in ipairs(type(c.expertises) == "table" and c.expertises or {}) do
                 local id = tostring(methode.id or "")
                 local champ = LCM.Schema.Field(id)
-                if not champ or not champ.jetExpertise then Erreur(element.id .. " : expertise de verrou inconnue (" .. id .. ")") end
+                if id ~= LCM.Coffres.METHODE_CLEF and (not champ or not champ.jetExpertise) then
+                    Erreur(element.id .. " : expertise de verrou inconnue (" .. id .. ")")
+                end
                 coffre.expertises[#coffre.expertises + 1] = { id = id,
                     dd = math.max(0, math.floor(tonumber(methode.dd) or 0)),
+                    fatigue = math.max(0, math.floor(tonumber(methode.fatigue) or 0)),
+                    usureOutils = methode.usureOutils == true,
                     reverrouillable = methode.reverrouillable == true }
             end
             for _, outil in ipairs(type(c.outils) == "table" and c.outils or {}) do
                 local ref = tostring(outil.entree or "")
+                local expertise = tostring(outil.expertise or "")
                 if not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
                     Erreur(element.id .. " : outil de verrou inconnu (" .. ref .. ")")
+                end
+                if expertise ~= "" then
+                    local connue = false
+                    for _, methode in ipairs(coffre.expertises) do
+                        if methode.id == expertise then connue = true break end
+                    end
+                    if not connue then
+                        Erreur(element.id .. " : expertise d'outil inconnue (" .. expertise .. ")")
+                    end
                 end
                 coffre.outils[#coffre.outils + 1] = { entree = ref,
                     quantite = math.max(1, math.floor(tonumber(outil.quantite) or 1)),
                     consomme = outil.consomme == true,
-                    consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)) }
+                    consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)),
+                    expertise = expertise ~= "" and expertise or nil }
             end
             if coffre.verrous > 0 and #coffre.expertises == 0 then
                 Erreur(element.id .. " : un coffre verrouillé doit définir au moins une expertise pour l'ouvrir")

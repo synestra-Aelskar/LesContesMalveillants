@@ -515,6 +515,10 @@ local function NouvelleCarte()
     p:Hide()
     return p
 end
+-- Les vues contextuelles (coffres, inventaires, etc.) peuvent ainsi réutiliser
+-- exactement le rendu d'une carte du compendium sans entrer dans la pile des
+-- cartes persistantes ouvertes avec « Voir ».
+Fenetre.NouvelleCarte = NouvelleCarte
 
 -- Ouvre une carte de plus (Necronicon en ouvre une par clic, pour comparer).
 function Fenetre.Voir(categorie, element, ancre)

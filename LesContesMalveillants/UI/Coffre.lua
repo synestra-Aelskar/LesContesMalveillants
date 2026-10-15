@@ -5,7 +5,8 @@ local UI, C = LCM.UI, LCM.Coffres
 local Ecran = {}
 UI.Coffre = Ecran
 
-local CASE, ECART, COLONNES = 58, 8, 8
+local CASE, ECART, COLONNES_MAX = 58, 8, 6
+local LARGEUR_MIN, LARGEUR_VERROUILLEE = 340, 390
 local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 local function Libelle(parent, texte, x, y)
@@ -14,7 +15,7 @@ local function Libelle(parent, texte, x, y)
     return t
 end
 
-local function InventaireTotal(entity, ref)
+local function SacTotal(entity, ref)
     local total = 0
     for _, categorie in ipairs(LCM.Inventaire.categories) do
         for i = 1, LCM.Inventaire.Capacite(categorie.id) do
@@ -26,6 +27,90 @@ local function InventaireTotal(entity, ref)
     end
     return total
 end
+Ecran.SacTotal = SacTotal
+
+local function InventaireTotal(entity, ref)
+    local total = SacTotal(entity, ref)
+    local objetId = tostring(ref or ""):match("^objets/(.+)$")
+    if objetId and LCM.Objets and LCM.Objets.Equipes then
+        for _, objet in ipairs(LCM.Objets.Equipes(entity) or {}) do
+            if tostring(objet and objet.id or "") == objetId then total = total + 1 end
+        end
+    end
+    return total
+end
+Ecran.InventaireTotal = InventaireTotal
+
+local function ConsommerOutil(entity, ref)
+    if LCM.Inventaire.Prendre(entity, ref) then return true end
+    local objetId = tostring(ref or ""):match("^objets/(.+)$")
+    if objetId and LCM.Objets and LCM.Objets.EstEquipe
+            and LCM.Objets.EstEquipe(entity, objetId) then
+        return LCM.Objets.Enlever(entity, objetId)
+    end
+    return false
+end
+Ecran.ConsommerOutil = ConsommerOutil
+
+local function UserOutil(entity, ref)
+    local objetId = tostring(ref or ""):match("^objets/(.+)$")
+    if not objetId or not LCM.Objets then return false end
+    if LCM.Objets.EstEquipe(entity, objetId) then
+        LCM.Objets.Encaisser(entity, objetId, 1)
+        return true
+    end
+    if SacTotal(entity, ref) > 0 and LCM.Objets.UserInventaire then
+        LCM.Objets.UserInventaire(entity, objetId, 1)
+        return true
+    end
+    return false
+end
+Ecran.UserOutil = UserOutil
+
+local function BonusObjet(entity, ref, expertise)
+    local element = LCM.Compendium.Resoudre(ref)
+    if not (element and element.bonus) then return 0 end
+    local montant = tonumber(element.bonus[expertise]) or 0
+    if montant ~= 0 and LCM.Objets and LCM.Objets.ApportSelonEtat then
+        montant = LCM.Objets.ApportSelonEtat(entity, element, montant)
+    end
+    return tonumber(montant) or 0
+end
+Ecran.BonusObjet = BonusObjet
+
+local function ChanceExpertise(expertise, bonus, dd, entity)
+    local champ = LCM.Schema.Field(expertise)
+    local des = champ and champ.dice or {}
+    local minimum, maximum = tonumber(des.min) or 0, tonumber(des.max) or 0
+    if maximum < minimum then minimum, maximum = maximum, minimum end
+    local reussites, total = 0, maximum - minimum + 1
+    for jet = minimum, maximum do if jet + bonus >= dd then reussites = reussites + 1 end end
+    local chance = total > 0 and reussites / total or 0
+    -- Roll.Field impose automatiquement le désavantage : il garde le plus
+    -- mauvais de deux jets, donc les deux doivent réussir.
+    if entity and LCM.Effets.Desavantage(entity, expertise) then chance = chance * chance end
+    return math.floor(100 * chance + 0.5)
+end
+Ecran.ChanceExpertise = ChanceExpertise
+
+local function NomMethode(id)
+    if id == C.METHODE_CLEF then return "Clef" end
+    local champ = LCM.Schema.Field(id)
+    return (champ and champ.label) or tostring(id or "Expertise inconnue")
+end
+
+local function OutilsPour(coffre, expertise)
+    local outils = {}
+    for _, outil in ipairs((coffre and coffre.outils) or {}) do
+        -- Les anciennes définitions sans association restent globales afin
+        -- de ne pas rendre soudainement leurs verrous plus permissifs.
+        if not outil.expertise or outil.expertise == "" or outil.expertise == expertise then
+            outils[#outils + 1] = outil
+        end
+    end
+    return outils
+end
+Ecran.OutilsPour = OutilsPour
 
 local function Occuper(objets)
     local total = 0
@@ -59,74 +144,18 @@ local function Voir(ref, ancre)
     end
 end
 
--- Une carte légère au survol : même contenu que « Voir », sans créer une
--- fenêtre persistante à chaque passage de souris.
 local function CarteSurvol()
     if Ecran.carteSurvol then return Ecran.carteSurvol end
-    local p = CreateFrame("Frame", nil, UIParent)
+    if not (UI.Compendium and UI.Compendium.NouvelleCarte) then return nil end
+    local p = UI.Compendium.NouvelleCarte()
     p:SetFrameStrata("TOOLTIP")
-    p:SetSize(360, 120)
-    p:SetClampedToScreen(true)
+    p:SetMovable(false)
     p:EnableMouse(false)
-    p.fond = UI.Aplat(p, { 0.04, 0.04, 0.05, 0.97 })
-    p.fond:SetAllPoints(p)
-    UI.BordureFine(p, 0.45)
-    p.icone = p:CreateTexture(nil, "ARTWORK")
-    p.icone:SetSize(42, 42)
-    p.icone:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -10)
-    p.icone:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    p.nom = UI.Texte(p, "", UI.C.titre)
-    p.nom:SetPoint("TOPLEFT", p.icone, "TOPRIGHT", 10, -2)
-    p.nom:SetPoint("TOPRIGHT", p, "TOPRIGHT", -10, -10)
-    p.nom:SetJustifyH("LEFT")
-    p.sousTitre = UI.Texte(p, "", UI.C.accent, "GameFontNormalSmall")
-    p.sousTitre:SetPoint("TOPLEFT", p.nom, "BOTTOMLEFT", 0, -3)
-    p.sousTitre:SetPoint("RIGHT", p, "RIGHT", -10, 0)
-    p.sousTitre:SetJustifyH("LEFT")
-    p.corps = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
-    p.corps:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -62)
-    p.corps:SetWidth(340)
-    p.corps:SetJustifyH("LEFT")
-    p.corps:SetWordWrap(true)
-
-    function p:Montrer(ref, ancre)
-        local element, categorie = LCM.Compendium.Resoudre(ref)
-        if not (element and categorie) then self:Hide(); return end
-        local d = LCM.Compendium.Carte(categorie, element)
-        local lignes = {}
-        if d.entete ~= "" then lignes[#lignes + 1] = d.entete end
-        if d.meta ~= "" then lignes[#lignes + 1] = d.meta end
-        for _, section in ipairs(d.corps or {}) do
-            local texte = section.texte or ""
-            if section.composants then
-                local composants = {}
-                for _, composant in ipairs(section.composants) do
-                    composants[#composants + 1] = composant.nom .. " x" .. tostring(composant.quantite)
-                end
-                texte = table.concat(composants, ", ")
-            end
-            if texte ~= "" then
-                lignes[#lignes + 1] = (section.titre and section.titre ~= "")
-                    and (section.titre .. " : " .. texte) or texte
-            end
-        end
-        local statistiques = {}
-        for index, stat in ipairs(d.stats or {}) do
-            if index > 9 then statistiques[#statistiques + 1] = "…"; break end
-            statistiques[#statistiques + 1] = stat.label .. " " .. tostring(stat.valeur)
-        end
-        if #statistiques > 0 then lignes[#lignes + 1] = table.concat(statistiques, "  ·  ") end
-        if d.pied ~= "" then lignes[#lignes + 1] = d.pied end
-        self.icone:SetTexture(d.icone)
-        self.nom:SetText(d.nom)
-        self.sousTitre:SetText(d.sousTitre or "")
-        self.corps:SetText(table.concat(lignes, "\n"))
-        self:SetHeight(math.min(420, math.max(72, 72 + (self.corps:GetStringHeight() or 0))))
-        self:ClearAllPoints()
-        self:SetPoint("TOPLEFT", ancre, "TOPRIGHT", 12, 0)
-        self:Show()
-    end
-
+    p:SetScript("OnMouseDown", nil)
+    p:SetScript("OnDragStart", nil)
+    p:SetScript("OnDragStop", nil)
+    if p.fermer then p.fermer:Hide() end
+    if p.poignee then p.poignee:Hide() end
     p:Hide()
     Ecran.carteSurvol = p
     return p
@@ -152,31 +181,160 @@ local function AfficherProche(point)
 end
 
 local function Construire()
-    local f = UI.Fenetre("coffre_joueur", "Coffre", 600, 470, { x = 0, y = -30 })
-    f.fermer = UI.Bouton(f.contenu, "Fermer", 100, 24, function() f:Hide() end)
-    f.fermer:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, 2)
+    local f = UI.Fenetre("coffre_joueur", "Coffre", 420, 280, { x = 0, y = -30 })
     f.verrouiller = UI.Bouton(f.contenu, "Verrouiller", 120, 24, function() C.Envoyer("verrouiller") end)
-    f.verrouiller:SetPoint("RIGHT", f.fermer, "LEFT", -8, 0)
+    f.verrouiller:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 0)
     f.verrousBrises = UI.Texte(f.contenu, "", UI.C.plein, "GameFontNormalSmall")
     f.verrousBrises:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
     f.statut = UI.Texte(f.contenu, "", UI.C.discret, "GameFontNormalSmall")
     f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.choixExpertise = UI.Bouton(f.contenu, "Choisir une expertise", 250, 24, function()
+    f.choixExpertise = UI.Bouton(f.contenu, "Choisir une expertise", 320, 24, function()
         local d = C.definitions[(C.points[C.courant] or {}).def]
         local options = {}
         for _, m in ipairs((d and d.coffre and d.coffre.expertises) or {}) do
-            local champ = LCM.Schema.Field(m.id)
-            options[#options + 1] = { id = m.id,
-                label = (champ and champ.label or m.id) .. " — DD " .. tostring(m.dd) }
+            local label = m.id == C.METHODE_CLEF
+                and "Clef — objet requis, aucun jet"
+                or (NomMethode(m.id) .. " — DD " .. tostring(m.dd)
+                    .. " · " .. tostring(tonumber(m.fatigue) or 0) .. " PF")
+            options[#options + 1] = { id = m.id, label = label }
         end
         UI.Choix("coffre_expertise_ouverture", "Expertise pour ouvrir")
             :Proposer(f.choixExpertise, options, function(id)
                 f.expertise = id
                 for _, o in ipairs(options) do if o.id == id then f.choixExpertise.label:SetText(o.label) end end
+                f:MettreAJourTentative()
             end)
     end)
     f.choixExpertise:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -42)
-    f.forcer = UI.Bouton(f.contenu, "Forcer un verrou", 150, 24, function()
+
+    f.aidesTitre = UI.Texte(f.contenu,
+        "Objets pour s’aider — glisse jusqu’à 6 objets depuis ton inventaire.",
+        UI.C.discret, "GameFontNormalSmall")
+    f.aidesTitre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -76)
+    f.aides, f.aideCases = {}, {}
+    for index = 1, 6 do
+        local b = CreateFrame("Button", nil, f.contenu)
+        b:SetSize(46, 46)
+        b:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", (index - 1) * 54, -96)
+        b:RegisterForClicks("RightButtonUp")
+        b.fond = UI.Aplat(b, { 0, 0, 0, 0.24 }); b.fond:SetAllPoints(b)
+        UI.BordureFine(b, 0.30)
+        b.icone = b:CreateTexture(nil, "ARTWORK")
+        b.icone:SetPoint("TOPLEFT", b, "TOPLEFT", 4, -4)
+        b.icone:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 4)
+        b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        b.bonus = UI.Texte(b, "", { 0.45, 1, 0.45 }, "GameFontNormalSmall")
+        b.bonus:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -3, 2)
+        b.bonus:SetJustifyH("RIGHT")
+        b:SetScript("OnClick", function(self, bouton)
+            if bouton == "RightButton" and f.aides[self.index] then
+                f.aides[self.index] = nil
+                f:MettreAJourTentative()
+            end
+        end)
+        b:SetScript("OnEnter", function(self)
+            local aide = f.aides[self.index]
+            local element, categorie = aide and LCM.Compendium.Resoudre(aide.ref)
+            local carte = element and categorie and CarteSurvol()
+            if carte then carte.placee = nil; carte:Montrer(categorie, element, self); carte:SetFrameStrata("TOOLTIP") end
+        end)
+        b:SetScript("OnLeave", function() if Ecran.carteSurvol then Ecran.carteSurvol:Hide() end end)
+        UI.Glisser.Cible(b, function(objet)
+            if not (f.etatRecu and f.etatRecu.f) then return false, "le coffre n’est pas verrouillé." end
+            if not (objet.origine and objet.origine.case) then
+                return false, "glisse un objet depuis une case de ton inventaire."
+            end
+            if not tostring(objet.ref or ""):match("^objets/") then
+                return false, "seuls les objets peuvent aider cette tentative."
+            end
+            local deja = 0
+            for i, aide in pairs(f.aides) do
+                if i ~= b.index and aide.ref == objet.ref then deja = deja + 1 end
+            end
+            if deja >= SacTotal(LCM.Entities.Self(), objet.ref) then
+                return false, "tu n’en possèdes pas assez pour remplir une autre case."
+            end
+            return true
+        end, function(objet)
+            f.aides[b.index] = { ref = objet.ref, element = objet.element }
+            f:MettreAJourTentative()
+        end)
+        b.index = index
+        f.aideCases[index] = b
+    end
+    f.bonusTentative = UI.Texte(f.contenu, "", UI.C.texte, "GameFontNormal")
+    f.bonusTentative:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -153)
+    f.ddTentative = UI.Texte(f.contenu, "", UI.C.texte, "GameFontNormalSmall")
+    f.ddTentative:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -178)
+
+    function f:MethodeCourante()
+        local d = C.definitions[(C.points[C.courant] or {}).def]
+        for _, methode in ipairs((d and d.coffre and d.coffre.expertises) or {}) do
+            if methode.id == self.expertise then return methode end
+        end
+    end
+
+    function f:BonusAides(methode)
+        if not methode then return 0 end
+        local total, entity = 0, LCM.Entities.Self()
+        for _, aide in pairs(self.aides) do total = total + BonusObjet(entity, aide.ref, methode.id) end
+        return total
+    end
+
+    function f:MettreAJourTentative()
+        local methode, entity = self:MethodeCourante(), LCM.Entities.Self()
+        local avecClef = methode and methode.id == C.METHODE_CLEF
+        if self.etatRecu and self.etatRecu.f then
+            local p = C.points[C.courant or ""]
+            local d = p and C.definitions[p.def]
+            local verbe = avecClef and "Ouvrir avec la clef" or "Forcer le verrou"
+            local restants = tonumber(self.etatRecu.v) or 0
+            self.forcer.label:SetText(string.format("%s (%d verrou%s restant%s / %d)",
+                verbe, restants, restants > 1 and "s" or "", restants > 1 and "s" or "",
+                tonumber(d and d.coffre and d.coffre.verrous) or 0))
+        end
+        self.aidesTitre:SetShown(self.etatRecu and self.etatRecu.f and not avecClef)
+        local retenus = {}
+        for index = 1, 6 do
+            local aide = self.aides[index]
+            if aide then
+                retenus[aide.ref] = (retenus[aide.ref] or 0) + 1
+                if retenus[aide.ref] > SacTotal(entity, aide.ref) then
+                    self.aides[index], aide = nil, nil
+                end
+            end
+            local case = self.aideCases[index]
+            case:SetShown(self.etatRecu and self.etatRecu.f and not avecClef)
+            local element = aide and (aide.element or LCM.Compendium.Resoudre(aide.ref))
+            local bonus = aide and methode and BonusObjet(entity, aide.ref, methode.id) or 0
+            case.icone:SetTexture(element and LCM.Icone(element.icone) or VIDE)
+            case.icone:SetAlpha(element and 1 or 0.16)
+            case.bonus:SetText(element and string.format("%+d", bonus) or "")
+        end
+        if not methode then
+            self.bonusTentative:SetText("|cff70dc70Bonus total : —|r")
+            self.ddTentative:SetText("DD d’expertise à vaincre : —")
+            return
+        end
+        if avecClef then
+            self.bonusTentative:SetText("|cff70dc70Ouverture automatique avec l’objet requis.|r")
+            self.ddTentative:SetText("Aucun jet d’expertise ni DD à vaincre.")
+            return
+        end
+        local expertise = LCM.Formules.Expertise(entity, methode.id)
+        local objets = self:BonusAides(methode)
+        local total, dd = expertise + objets, tonumber(methode.dd) or 0
+        local chance = ChanceExpertise(methode.id, total, dd, entity)
+        local couleur = chance < 30 and "ff5959" or (chance < 60 and "ff9f40"
+            or (chance < 80 and "ffd34e" or "70dc70"))
+        self.bonusTentative:SetText(string.format(
+            "|cff70dc70Bonus total : %d|r  (|cffffd34eExpertise : %d|r + |cffffd34eObjets : %d|r)",
+            total, expertise, objets))
+        self.ddTentative:SetText(string.format(
+            "DD d’expertise à vaincre : %d  (|cff%s%d %% de chance de réussir|r)", dd, couleur, chance))
+    end
+
+    f.forcer = UI.Bouton(f.contenu, "Forcer un verrou", 135, 24, function()
         local d = C.definitions[(C.points[C.courant] or {}).def]
         local m
         for _, method in ipairs((d and d.coffre and d.coffre.expertises) or {}) do
@@ -184,22 +342,74 @@ local function Construire()
         end
         if not m then LCM.Alerte("choisis une expertise autorisée."); return end
         local entity = LCM.Entities.Self()
-        for _, tool in ipairs(d.coffre.outils or {}) do
+        local outils = OutilsPour(d.coffre, m.id)
+        local avecClef = m.id == C.METHODE_CLEF
+        if avecClef and #outils == 0 then
+            LCM.Alerte("aucune clef n’est configurée pour ce verrou."); return
+        end
+        for _, tool in ipairs(outils) do
             if InventaireTotal(entity, tool.entree) < tool.quantite then
                 LCM.Alerte("outil requis absent : " .. tostring((LCM.Compendium.Resoudre(tool.entree) or {}).label or tool.entree)); return
             end
         end
-        local resultat, raison = LCM.Roll.Field(entity, m.id)
+        if avecClef then
+            if m.usureOutils then
+                for _, outil in ipairs(outils) do
+                    for _ = 1, tonumber(outil.quantite) or 1 do UserOutil(entity, outil.entree) end
+                end
+            end
+            LCM.Actions.Annoncer("Clef : ouverture du verrou sans jet d’expertise.")
+            f.outilsEnAttente = LCM.Copie(outils)
+            C.Envoyer("forcer", { expertise = m.id, score = 0, total = 0, clef = true })
+            return
+        end
+        local coutFatigue = math.max(0, math.floor(tonumber(m.fatigue) or 0))
+        local fatigue = LCM.Entities.Gauge(entity, "fatigue")
+        if coutFatigue > 0 and (not fatigue or (tonumber(fatigue.current) or 0) < coutFatigue) then
+            LCM.Alerte("fatigue insuffisante : cette tentative coûte " .. coutFatigue .. " PF.")
+            return
+        end
+        f:MettreAJourTentative()
+        local compteAides = {}
+        for _, aide in pairs(f.aides) do
+            compteAides[aide.ref] = (compteAides[aide.ref] or 0) + 1
+            if compteAides[aide.ref] > SacTotal(entity, aide.ref) then
+                LCM.Alerte("un objet d’aide n’est plus dans ton inventaire."); return
+            end
+        end
+        local bonusAides = f:BonusAides(m)
+        local resultat, raison = LCM.Roll.Field(entity, m.id, { modificateur = bonusAides })
         if not resultat then LCM.Alerte(tostring(raison or "jet impossible.")); return end
+        if coutFatigue > 0 then
+            local ok, erreur = LCM.Entities.SetGauge(entity, "fatigue",
+                (tonumber(fatigue.current) or 0) - coutFatigue)
+            if not ok then LCM.Alerte(tostring(erreur or "impossible de dépenser la fatigue.")); return end
+            LCM.Info("Tentative de verrou : -" .. coutFatigue .. " PF.")
+        end
+        if m.usureOutils then
+            for _, outil in ipairs(outils) do
+                for _ = 1, tonumber(outil.quantite) or 1 do UserOutil(entity, outil.entree) end
+            end
+        end
+        for _, aide in pairs(f.aides) do
+            local objetId = tostring(aide.ref or ""):match("^objets/(.+)$")
+            if objetId and LCM.Objets and LCM.Objets.UserInventaire then
+                LCM.Objets.UserInventaire(entity, objetId, 1)
+            end
+        end
+        f:MettreAJourTentative()
+        local score, dd = tonumber(resultat.total) or 0, tonumber(m.dd) or 0
         LCM.Actions.Annoncer(LCM.Roll.Describe(resultat) .. " contre DD " .. m.dd)
-        f.outilsEnAttente = resultat.total >= m.dd and LCM.Copie(d.coffre.outils or {}) or nil
-        C.Envoyer("forcer", { expertise = m.id, total = resultat.total })
+        f.outilsEnAttente = score >= dd and LCM.Copie(outils) or nil
+        C.Envoyer("forcer", { expertise = m.id, score = score, total = score, dd = dd })
     end)
-    f.forcer:SetPoint("LEFT", f.choixExpertise, "RIGHT", 8, 0)
+    f.forcer:SetSize(300, 26)
+    f.forcer:ClearAllPoints()
+    f.forcer:SetPoint("TOP", f.contenu, "TOP", 0, -210)
     f.forcer:Hide()
     f.grille = UI.Defilement(f.contenu)
-    f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -78)
-    f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -48)
+    f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 36)
     f.cases = {}
 
     function f:PeutPrendre(ref, quantite)
@@ -253,7 +463,6 @@ local function Construire()
         b:RegisterForDrag("LeftButton")
         b.fond = UI.Aplat(b, { 0, 0, 0, 0.28 })
         b.fond:SetAllPoints(b)
-        UI.BordureFine(b, 0.32)
         b.icone = b:CreateTexture(nil, "ARTWORK")
         b.icone:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -5)
         b.icone:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 5)
@@ -293,7 +502,14 @@ local function Construire()
             })
         end)
         b:SetScript("OnEnter", function(self)
-            if self.pile then CarteSurvol():Montrer(self.pile.ref, self) end
+            if not self.pile then return end
+            local element, categorie = LCM.Compendium.Resoudre(self.pile.ref)
+            local carte = element and categorie and CarteSurvol()
+            if carte then
+                carte.placee = nil
+                carte:Montrer(categorie, element, self)
+                carte:SetFrameStrata("TOOLTIP")
+            end
         end)
         b:SetScript("OnLeave", function()
             if Ecran.carteSurvol then Ecran.carteSurvol:Hide() end
@@ -311,6 +527,9 @@ end
 function Ecran.Ouvrir(id)
     local f = Ecran.frame or Construire()
     f.pointId = id
+    f.aides = {}
+    f.expertise = nil
+    f.choixExpertise.label:SetText("Choisir une expertise")
     f:Show(); f:Afficher(); f:Raise()
 end
 
@@ -327,7 +546,12 @@ function Ecran.MettreAJour()
         f.statut:ClearAllPoints()
         f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
         f.statut:SetText("Chargement du coffre…")
+        f.grille:Hide()
+        f.choixExpertise:Hide(); f.aidesTitre:Hide(); f.bonusTentative:Hide()
+        f.ddTentative:Hide(); f.forcer:Hide()
+        for _, case in ipairs(f.aideCases) do case:Hide() end
         for _, b in ipairs(f.cases) do b:Hide() end
+        f:SetSize(LARGEUR_VERROUILLEE, f.insetHaut + 90 + f.insetBas)
         return
     end
     f.etatRecu = e
@@ -347,24 +571,59 @@ function Ecran.MettreAJour()
     local reverrouillable = not (d and d.coffre and d.coffre.reset) and #verrousOuverts > 0
     for _, autorise in ipairs(verrousOuverts) do if not autorise then reverrouillable = false; break end end
     f.verrouiller:SetShown(f.ouvert and reverrouillable)
-    f.choixExpertise:SetShown(e.f == true)
-    f.forcer:SetShown(e.f == true)
+    local verrouille = e.f == true
+    f.choixExpertise:SetShown(verrouille)
+    f.aidesTitre:SetShown(verrouille)
+    f.bonusTentative:SetShown(verrouille)
+    f.ddTentative:SetShown(verrouille)
+    f.forcer:SetShown(verrouille)
+    for _, case in ipairs(f.aideCases) do case:SetShown(verrouille) end
+    if verrouille then
+        local methode = f:MethodeCourante()
+        local verbe = methode and methode.id == C.METHODE_CLEF and "Ouvrir avec la clef" or "Forcer le verrou"
+        f.forcer.label:SetText(string.format("%s (%d verrou%s restant%s / %d)", verbe,
+            tonumber(e.v) or 0, (tonumber(e.v) or 0) > 1 and "s" or "",
+            (tonumber(e.v) or 0) > 1 and "s" or "", tonumber(d.coffre.verrous) or 0))
+        f:MettreAJourTentative()
+    end
     local piles = f.ouvert and Piles(e.o) or {}
-    for index = 1, places do
-        local b = f.cases[index] or f:NouvelleCase(index)
-        b.pile = piles[index]
-        b.icone:SetTexture(b.pile and b.pile.element and LCM.Icone(b.pile.element.icone) or VIDE)
-        b.icone:SetAlpha(b.pile and 1 or 0.24)
-        b.nombre:SetText(b.pile and b.pile.quantite > 1 and tostring(b.pile.quantite) or "")
-        local colonne = (index - 1) % COLONNES
-        local ligne = math.floor((index - 1) / COLONNES)
-        b:ClearAllPoints()
-        b:SetPoint("TOPLEFT", f.grille.contenu, "TOPLEFT",
-            colonne * (CASE + ECART), -ligne * (CASE + ECART))
-        b:Show()
+    local colonnes = math.max(1, math.min(COLONNES_MAX, places))
+    local lignes = math.max(1, math.ceil(places / colonnes))
+    if f.ouvert then
+        f.grille:ClearAllPoints()
+        f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -48)
+        f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0,
+            reverrouillable and 36 or 0)
+        f.grille:Show()
+        for index = 1, places do
+            local b = f.cases[index] or f:NouvelleCase(index)
+            b.pile = piles[index]
+            b.icone:SetTexture(b.pile and b.pile.element and LCM.Icone(b.pile.element.icone) or VIDE)
+            b.icone:SetAlpha(b.pile and 1 or 0.18)
+            b.fond:SetColorTexture(0, 0, 0, b.pile and 0.24 or 0.10)
+            b.nombre:SetText(b.pile and b.pile.quantite > 1 and tostring(b.pile.quantite) or "")
+            local colonne = (index - 1) % colonnes
+            local ligne = math.floor((index - 1) / colonnes)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", f.grille.contenu, "TOPLEFT",
+                colonne * (CASE + ECART), -ligne * (CASE + ECART))
+            b:Show()
+        end
+    else
+        f.grille:Hide()
+        for _, b in ipairs(f.cases) do b:Hide() end
     end
     for index = places + 1, #f.cases do f.cases[index]:Hide() end
-    f.grille:Regler(math.max(CASE, math.ceil(places / COLONNES) * (CASE + ECART) - ECART))
+    local hauteurGrille = lignes * (CASE + ECART) - ECART
+    f.grille:Regler(hauteurGrille)
+    if e.f then
+        f:SetSize(500, f.insetHaut + 250 + f.insetBas)
+    else
+        local largeurGrille = colonnes * (CASE + ECART) - ECART
+        local largeur = math.max(LARGEUR_MIN, largeurGrille + f.insetCote * 2)
+        local margeBas = reverrouillable and 44 or 12
+        f:SetSize(largeur, f.insetHaut + 48 + hauteurGrille + margeBas + f.insetBas)
+    end
 end
 
 function Ecran.Proche(point) AfficherProche(point) end
@@ -405,7 +664,9 @@ function Ecran.Repondre(expediteur, data)
     elseif data.action == "forcer" and data.ok and f.outilsEnAttente then
         for _, outil in ipairs(f.outilsEnAttente) do
             if outil.consomme then
-                for _ = 1, outil.consommeQuantite do LCM.Inventaire.Prendre(LCM.Entities.Self(), outil.entree) end
+                for _ = 1, outil.consommeQuantite do
+                    ConsommerOutil(LCM.Entities.Self(), outil.entree)
+                end
             end
         end
         f.outilsEnAttente = nil

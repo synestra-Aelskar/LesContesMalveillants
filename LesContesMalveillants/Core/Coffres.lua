@@ -5,6 +5,7 @@
 local _, LCM = ...
 local Coffres = { definitions = {}, points = {}, courant = nil, etat = nil }
 LCM.Coffres = Coffres
+Coffres.METHODE_CLEF = "clef"
 
 Coffres.SUJETS = { definition = "cof", retrait = "cof-", demande = "cof?",
     action = "cof!", etat = "cof+" }
@@ -29,7 +30,7 @@ function Coffres.Paquet(definition, points)
     local outils = {}
     for _, o in ipairs(c.outils or {}) do
         outils[#outils + 1] = { e = o.entree, q = o.quantite, c = o.consomme,
-            n = o.consommeQuantite,
+            n = o.consommeQuantite, x = o.expertise,
             d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
     end
     return { i = definition.id, n = definition.label, p = LCM.Recolte.Plier(points),
@@ -59,6 +60,8 @@ function Coffres.Lire(paquet)
     for _, x in ipairs(type(raw.x) == "table" and raw.x or {}) do
         coffre.expertises[#coffre.expertises + 1] = { id = Texte(x.id),
             dd = math.max(0, math.floor(tonumber(x.dd) or 0)),
+            fatigue = math.max(0, math.floor(tonumber(x.fatigue) or 0)),
+            usureOutils = x.usureOutils == true or x.usureOutils == "true",
             reverrouillable = x.reverrouillable == true or x.reverrouillable == "true" }
     end
     for _, o in ipairs(type(raw.u) == "table" and raw.u or {}) do
@@ -67,7 +70,8 @@ function Coffres.Lire(paquet)
         if ref ~= "" then coffre.outils[#coffre.outils + 1] = { entree = ref,
             quantite = math.max(1, math.floor(tonumber(o.q) or 1)),
             consomme = o.c == true or o.c == "true",
-            consommeQuantite = math.max(1, math.floor(tonumber(o.n) or 1)) } end
+            consommeQuantite = math.max(1, math.floor(tonumber(o.n) or 1)),
+            expertise = Texte(o.x) ~= "" and Texte(o.x) or nil } end
     end
     return { id = id, label = Texte(paquet.n) ~= "" and Texte(paquet.n) or "Coffre",
         coffre = coffre }, LCM.Recolte.Deplier(paquet.p)
