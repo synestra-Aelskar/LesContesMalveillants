@@ -160,7 +160,6 @@ local function Construire()
     f.boutonCreation:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, 0)
     f.boutonPlacement = UI.Bouton(f.droite, "Placement", 120, 24, function() f:Onglet("placement") end)
     f.boutonPlacement:SetPoint("LEFT", f.boutonCreation, "RIGHT", 6, 0)
-
     -- ----- CREATION -------------------------------------------------------
     local c = CreateFrame("Frame", nil, f.droite)
     c:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, -34)

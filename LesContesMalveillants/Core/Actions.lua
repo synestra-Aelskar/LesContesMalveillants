@@ -1370,6 +1370,11 @@ end
 function Pas.compute(etape, ctx, suite)
     local valeur, erreur = Actions.Calculer(etape, ctx)
     if valeur == nil then return Arreter(ctx, erreur or "calcul impossible.") end
+    -- Les points de bouclier sont entiers, y compris pour les anciennes
+    -- actions du compendium qui n'ont pas encore le drapeau `arrondir`.
+    if etape.arrondir == true or Cle(etape.label) == Cle("Bouclier généré") then
+        valeur = math.max(0, math.floor((tonumber(valeur) or 0) + 0.5))
+    end
     if Trim(etape.out) ~= "" then ctx.vars[Trim(etape.out)] = valeur end
     Journal(ctx, string.format("%s = %s", Trim(etape.label) ~= "" and etape.label or "Calcul", tostring(valeur)))
     return suite()

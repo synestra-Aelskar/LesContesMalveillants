@@ -32,7 +32,7 @@ for _, categorie in ipairs(R.STRUCTURE) do
 end
 attendu("Animation reservee au MJ", R.Trouver("animation").mjSeulement, true)
 attendu("aucune fenetre de fiche dans les actions", R.Trouver("fiche"), nil)
-attendu("Déplacement n'est plus dans le radial des fenêtres", LCM.UI.Menu.Trouver("deplacement"), nil)
+attendu("Déplacement est aussi dans le radial des fenêtres", LCM.UI.Menu.EstLiee("deplacement"), true)
 attendu("Déplacement est lié au radial d'actions", R.EstLiee("mouvement"), true)
 
 dire("== le MJ voit une categorie de plus")
@@ -117,18 +117,22 @@ dire("   " .. table.concat(noms, " | "))
 -- Le template en a neuf : « Combats » (masque) et « Grimoire test » ne sont
 -- pas repris. « Creation Personnage » est parti le 2 octobre 2026 : le
 -- dossier ne contenait plus que les Regles, qui ont rejoint Outils.
--- Cinq fenêtres de premier niveau : Déplacement a rejoint le radial Combat.
-attendu("cinq entrees de premier niveau", #M.STRUCTURE, 5)
+-- Six fenêtres de premier niveau : Déplacement est accessible depuis les
+-- fenêtres et depuis le radial Combat.
+attendu("six entrees de premier niveau", #M.STRUCTURE, 6)
+attendu("ordre du radial des fenêtres", table.concat(noms, ","),
+    "Personnage,Objets,Grimoires,Système,Outils,Déplacement")
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
 -- Neuf depuis le 10 octobre 2026 : le Campement y est range en attendant sa
 -- place, puis les Lieux. Huit etait le plafond parce qu'il n'existait que huit
 -- bandeaux d'eventail ; un neuvieme a ete dessine pour cette entree, et le
 -- compte se lit maintenant chez celui qui le sait.
-attendu("Outils : neuf fenetres (Regles ... Campement, Lieux)",
-    #M.Trouver("outils").enfants, 9)
-attendu("et c'est le plafond de l'eventail", #M.Trouver("outils").enfants,
-    LCM.UI.Radial.MAX_ENTREES)
+attendu("Système : six entrees", #M.Trouver("systeme").enfants, 6)
+attendu("Outils : cinq entrees", #M.Trouver("outils").enfants, 5)
+attendu("les deux dossiers tiennent dans l'eventail",
+    #M.Trouver("outils").enfants <= LCM.UI.Radial.MAX_ENTREES
+        and #M.Trouver("systeme").enfants <= LCM.UI.Radial.MAX_ENTREES, true)
 attendu("un dossier ne se lie pas", M.Lier("objets", function() end), false)
 attendu("une entree inconnue non plus", M.Lier("inventaire_secret", function() end), false)
 
@@ -136,8 +140,8 @@ dire("== ce qui est branche")
 -- « creation » n'est plus au menu : on cree un personnage depuis la selection.
 for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances", "montee_niveau",
                       "equipement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
-                      "grimoires", "parametres", "panneau_mj", "incarner",
-                      "vendeur", "ressources" }) do
+                      "grimoires", "deplacement", "parametres", "panneau_mj", "incarner",
+                      "vendeur", "ressources", "coffres" }) do
     attendu("  " .. id, M.EstLiee(id), true)
 end
 
@@ -225,11 +229,13 @@ for _, n in ipairs(outils) do ids[#ids + 1] = n.id end
 -- Vendeur et Ressources sont passes au MJ le 3 octobre 2026 : ils s'ouvrent
 -- quand le MJ met un point en jeu, pas quand un joueur veut faire ses courses.
 -- Le Campement (10 octobre 2026) est aux joueurs : ce sont eux qui le lancent.
-attendu("outils du joueur", table.concat(ids, ","), "regles,parametres,campement")
+attendu("outils du joueur", table.concat(ids, ","), "campement,parametres")
 attendu("Systeme d'Aelskar reserve au MJ", M.Trouver("systeme_aelskar").mjSeulement, true)
+local systemeJoueur = M.Visibles(M.Trouver("systeme").enfants)
+attendu("Système du joueur", systemeJoueur[1] and systemeJoueur[1].id, "regles")
 f.sceau:Click("LeftButton")
 __avancer(1)
-attendu("la couronne du joueur n'a pas Systeme d'Aelskar", categorie(F, "systeme_aelskar"), nil)
+attendu("la couronne du joueur garde Système", categorie(F, "systeme") ~= nil, true)
 f.sceau:Click("LeftButton")
 __avancer(1)
 LCM._masterCompanion = true

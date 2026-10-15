@@ -263,12 +263,15 @@ end)
 
 -- De quoi la regarder sans se faire pousser, et verifier qu'elle va bien.
 LCM.WhenReady(function()
-    -- L'entree « Deplacement » du radial Combat ouvre la jauge : c'est elle
-    -- qui montre l'allocation de la fiche ET la decompte pendant qu'on marche.
-    UI.Radial.Lier("mouvement", function()
+    -- Les deux raccourcis ouvrent la même jauge : le menu principal permet de
+    -- la consulter à tout moment, et le radial Combat la garde sous la main
+    -- pendant un tour.
+    local function Basculer()
         local f = Ecran.Fenetre()
         if f:IsShown() then f:Hide() else f:Montrer() end
-    end)
+    end
+    UI.Menu.Lier("deplacement", Basculer)
+    UI.Radial.Lier("mouvement", Basculer)
 end)
 
 LCM.AddCommand("deplacer", "ouvre la jauge de deplacement", function()

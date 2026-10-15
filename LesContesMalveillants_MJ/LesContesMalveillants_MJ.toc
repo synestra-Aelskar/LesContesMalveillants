@@ -17,6 +17,8 @@ Recoltes.lua
 RecoltesUI.lua
 Marchands.lua
 MarchandsUI.lua
+Coffres.lua
+CoffresUI.lua
 Genere\Compendium_PNJ.lua
 Genere\Compendium_Resolutions_MJ.lua
 Genere\Atelier_MJ.lua

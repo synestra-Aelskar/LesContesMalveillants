@@ -160,4 +160,19 @@ LCM.Incarnation.Relacher()
 attendu("relâché : retour au personnage", f.entity == moi, true)
 attendu("  avec son nom", f.nom:GetText(), tostring(moi.name or moi.id))
 
+dire("== le bouclier ponctuel apparaît sur l'orbe seulement quand il en reste")
+LCM.Entities.SetGauge(moi, "armure", 18)
+attendu("le marqueur de bouclier apparaît", f.total.bouclier:IsShown(), true)
+attendu("  avec la valeur actuelle", f.total.bouclier.valeur:GetText(), "18")
+LCM.Entities.SetGauge(moi, "armure", 0)
+attendu("il disparaît à zéro", f.total.bouclier:IsShown(), false)
+
+dire("== la generation d'un bouclier arrondit les points")
+local calculerAvant = LCM.Actions.Calculer
+LCM.Actions.Calculer = function() return 46.41 end
+local ctxBouclier = { vars = {}, journal = {} }
+LCM.Actions.Pas.compute({ label = "Bouclier généré", out = "bTot" }, ctxBouclier, function() end)
+attendu("46,41 points deviennent 46", ctxBouclier.vars.bTot, 46)
+LCM.Actions.Calculer = calculerAvant
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

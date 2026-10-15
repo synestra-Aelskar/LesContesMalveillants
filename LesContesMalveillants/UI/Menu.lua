@@ -54,7 +54,6 @@ Menu.STRUCTURE = {
           { id = "statistiques",  label = "Statistiques",              icone = RADIAL .. "fenetres-statistiques.tga" },
           { id = "apprentissage", label = "Apprentissage",             icone = RADIAL .. "fenetres-apprentissage.tga" },
       } },
-    { id = "grimoires", label = "Grimoires", icone = RADIAL .. "fenetres-grimoires.tga" },
     { id = "objets", label = "Objets", icone = RADIAL .. "fenetres-objets.tga",
       enfants = {
           { id = "equipement",  label = "Équipements", icone = RADIAL .. "fenetres-equipement.tga" },
@@ -63,37 +62,40 @@ Menu.STRUCTURE = {
           { id = "bourse",      label = "Bourse",      icone = RADIAL .. "fenetres-bourse.tga" },
           { id = "metiers",     label = "Métiers",     icone = RADIAL .. "fenetres-metiers.tga" },
       } },
+    { id = "grimoires", label = "Grimoires", icone = RADIAL .. "fenetres-grimoires.tga" },
+    { id = "systeme", label = "Système", icone = RADIAL .. "fenetres-compendium.tga",
+      enfants = {
+          { id = "systeme_aelskar", label = "Compendium", icone = ICONE .. "achievement_zone_stormpeaks_03", mjSeulement = true },
+          { id = "lieux", label = "Lieux", icone = ICONE .. "inv_misc_map_01", mjSeulement = true },
+          { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga", mjSeulement = true },
+          { id = "vendeur", label = "Vendeurs", icone = RADIAL .. "fenetres-vendeur.tga", mjSeulement = true },
+          { id = "coffres", label = "Coffres", icone = RADIAL .. "fenetres-objets.tga", mjSeulement = true },
+          { id = "regles", label = "Règles", icone = RADIAL .. "fenetres-regles.tga" },
+      } },
     { id = "outils", label = "Outils", icone = RADIAL .. "fenetres-outils.tga",
       enfants = {
-          { id = "regles",     label = "Règles",     icone = RADIAL .. "fenetres-regles.tga" },
-          { id = "parametres", label = "Paramètres", icone = RADIAL .. "fenetres-parametres.tga" },
+          { id = "campement",  label = "Campement",  icone = ICONE .. "spell_fire_fire" },
+          { id = "incarner",   label = "Incarner",   icone = RADIAL .. "fenetres-incarner.tga", mjSeulement = true },
+          { id = "atelier",    label = "Atelier",    icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
           { id = "panneau_mj", label = "Panel MJ",   icone = RADIAL .. "fenetres-panneau_mj.tga", mjSeulement = true },
+          { id = "parametres", label = "Paramètres", icone = RADIAL .. "fenetres-parametres.tga" },
           -- L'atelier etait enfoui dans le Panel MJ, a trois clics : c'est
           -- l'outil qu'on ouvre le plus en seance, il est ici (3 octobre 2026).
-          { id = "atelier",    label = "Atelier",    icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
           -- Reserves au MJ depuis le 3 octobre 2026 : un vendeur et un filon
           -- s'ouvrent quand le MJ les met en jeu, pas quand un joueur decide
           -- d'aller faire ses courses.
-          { id = "vendeur",    label = "Vendeur",    icone = RADIAL .. "fenetres-vendeur.tga", mjSeulement = true },
-          { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga", mjSeulement = true },
-          { id = "incarner",   label = "Incarner",   icone = RADIAL .. "fenetres-incarner.tga", mjSeulement = true },
           -- Ajout de l'addon (10 octobre 2026), absent du template : rangee ici
           -- en attendant de lui trouver sa place. Pas encore d'icone noire et
           -- doree : celle du jeu en attendant.
-          { id = "campement",  label = "Campement",  icone = ICONE .. "spell_fire_fire" },
           -- Ajout du 10 octobre 2026. Le dossier etait plein a huit : c'est
           -- pour cette entree qu'un neuvieme bandeau d'eventail a ete
           -- fabrique (UI/Radial.lua, MAX_ENTREES). Pas encore d'icone noire et
           -- doree : celle du jeu en attendant.
-          { id = "lieux",      label = "Lieux",      icone = ICONE .. "inv_misc_map_01", mjSeulement = true },
       } },
-    -- Reserve au MJ depuis le 1er octobre 2026 : le compendium porte les PNJ,
-    -- les resolutions et les actions MJ, et un joueur n'a rien a y lire. Sa
-    -- race, il la choisit a la creation, pas ici.
-    -- L'entree « Compendium » (le hub « Compendiums ») est retiree le 3 octobre
-    -- 2026 : elle ne menait qu'a une carte, celle-ci.
-    { id = "systeme_aelskar", label = "Système", icone = ICONE .. "achievement_zone_stormpeaks_03",
-      mjSeulement = true },
+    -- Accessible ici pour consulter sa jauge hors combat, et conserve aussi
+    -- dans le radial des actions afin de rester immédiatement disponible en
+    -- combat.
+    { id = "deplacement", label = "Déplacement", icone = RADIAL .. "fenetres-deplacement.tga" },
 }
 
 -- Un dossier s'ouvre en eventail, et un eventail ne sait dessiner que les

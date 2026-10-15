@@ -19,7 +19,7 @@ LCM.Points = LCM.Registre({
     nom = "point", prefixe = "Points",
     construire = function(definition, element, Erreur)
         local nature = tostring(definition.nature or "ressource")
-        if nature ~= "vendeur" and nature ~= "ressource" then
+        if nature ~= "vendeur" and nature ~= "ressource" and nature ~= "coffre" then
             Erreur(element.id .. " : nature inconnue (" .. nature .. ")")
         end
         element.nature = nature
@@ -27,6 +27,49 @@ LCM.Points = LCM.Registre({
         element.icone = definition.icone and tostring(definition.icone):match("%S")
             and LCM.Icone(definition.icone) or nil
         element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
+        if nature == "coffre" then
+            local c = type(definition.coffre) == "table" and definition.coffre or {}
+            local rayonDefaut = tonumber(LCM.Equilibrage and LCM.Equilibrage.coffres
+                and LCM.Equilibrage.coffres.rayon) or 4
+            local coffre = { places = math.max(1, math.floor(tonumber(c.places) or 1)),
+                rayon = tonumber(c.rayon) and math.max(0.1, tonumber(c.rayon)) or rayonDefaut,
+                objets = {}, verrous = math.max(0, math.floor(tonumber(c.verrous) or 0)),
+                reset = c.reset == true, expertises = {}, outils = {} }
+            local presents = {}
+            for _, objet in ipairs(type(c.objets) == "table" and c.objets or {}) do
+                local ref = tostring(objet.entree or "")
+                local famille = ref:match("^([%w_]+)/")
+                local quantite = math.max(1, math.floor(tonumber(objet.quantite) or 1))
+                if famille ~= "objets" or not LCM.Compendium.Resoudre(ref) then
+                    Erreur(element.id .. " : objet de coffre inconnu (" .. ref .. ")")
+                end
+                if presents[ref] then Erreur(element.id .. " : objet de coffre répété (" .. ref .. ")") end
+                presents[ref] = true
+                coffre.objets[#coffre.objets + 1] = { entree = ref, quantite = quantite }
+            end
+            for _, methode in ipairs(type(c.expertises) == "table" and c.expertises or {}) do
+                local id = tostring(methode.id or "")
+                local champ = LCM.Schema.Field(id)
+                if not champ or not champ.jetExpertise then Erreur(element.id .. " : expertise de verrou inconnue (" .. id .. ")") end
+                coffre.expertises[#coffre.expertises + 1] = { id = id,
+                    dd = math.max(0, math.floor(tonumber(methode.dd) or 0)),
+                    reverrouillable = methode.reverrouillable == true }
+            end
+            for _, outil in ipairs(type(c.outils) == "table" and c.outils or {}) do
+                local ref = tostring(outil.entree or "")
+                if not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
+                    Erreur(element.id .. " : outil de verrou inconnu (" .. ref .. ")")
+                end
+                coffre.outils[#coffre.outils + 1] = { entree = ref,
+                    quantite = math.max(1, math.floor(tonumber(outil.quantite) or 1)),
+                    consomme = outil.consomme == true,
+                    consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)) }
+            end
+            if coffre.verrous > 0 and #coffre.expertises == 0 then
+                Erreur(element.id .. " : un coffre verrouillé doit définir au moins une expertise pour l'ouvrir")
+            end
+            element.coffre = coffre
+        end
         -- Les anciennes definitions ont une seule entree ; les nouvelles
         -- portent une liste de ressources, chacune avec ses propres regles.
         if nature == "ressource" and type(definition.recolte) == "table" then

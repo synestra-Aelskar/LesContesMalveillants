@@ -289,6 +289,14 @@ E.marchands = {
     rayon = 4,
 }
 
+-- ===== Coffres ============================================================
+-- Chaque modèle de coffre peut définir son propre rayon d'interaction. Ces
+-- valeurs servent de défaut et de borne dans le constructeur MJ.
+E.coffres = {
+    rayon = 4,
+    rayonMax = 30,
+}
+
 -- ===== Conteneurs ========================================================
 -- Combien d'elements chaque conteneur de fiche accueille (template) : pas de
 -- place precise, un emplacement accueille n'importe quel element de sa

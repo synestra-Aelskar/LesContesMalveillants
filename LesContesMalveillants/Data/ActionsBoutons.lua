@@ -648,6 +648,7 @@ Definir("generation_bouclier", {
                         },
                     },
                     label = "Bouclier généré",
+                    arrondir = true,
                     message = "",
                     nature = "",
                     note = "",

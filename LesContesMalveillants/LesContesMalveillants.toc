@@ -60,6 +60,7 @@ Core\Campement.lua
 Core\Lieux.lua
 Core\Recolte.lua
 Core\Marchands.lua
+Core\Coffres.lua
 Core\Bannieres.lua
 Core\Defenses.lua
 Core\Expertises.lua
@@ -116,6 +117,7 @@ UI\NuitCampement.lua
 UI\Banniere.lua
 UI\Recolte.lua
 UI\Marchand.lua
+UI\Coffre.lua
 UI\Compendium.lua
 UI\DeplacementForce.lua
 UI\Combat.lua

@@ -1,0 +1,761 @@
+-- La fenêtre « Coffres » du MJ : créer les modèles, puis les placer dans le
+-- monde. Elle reprend volontairement la structure de Ressources : définitions
+-- à gauche, onglets Création / Placement à droite et tableaux éditables.
+
+local _, MJ = ...
+local LCM = _G.LCM
+if not LCM then return end
+local UI = LCM.UI
+local Points = LCM.Points
+local Coffres = LCM.CoffresMJ
+
+local Ecran = {}
+UI.CoffresMJ = Ecran
+
+local LARGEUR, HAUTEUR = 760, 650
+local COLONNE, LIGNE = 210, 26
+local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.coffres) or {} end
+
+local function Libelle(parent, texte, x, y)
+    local t = UI.Texte(parent, texte, UI.C.discret, "GameFontNormalSmall")
+    t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    return t
+end
+
+local function Entier(valeur)
+    local n = tonumber(valeur)
+    return n and n == math.floor(n) and n or nil
+end
+
+local function OptionsExpertises(choix, exception)
+    local deja = {}
+    for index, methode in ipairs(choix or {}) do
+        if index ~= exception then deja[methode.id] = true end
+    end
+    local out = {}
+    for _, tab in ipairs(LCM.Schema.Tabs()) do
+        for _, section in ipairs(tab.sections) do
+            for _, field in ipairs(section.fields) do
+                if field.jetExpertise and not deja[field.id] then
+                    out[#out + 1] = { id = field.id, label = field.label }
+                end
+            end
+        end
+    end
+    table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+    return out
+end
+
+local function OptionsObjets(choix, exception)
+    local deja = {}
+    for index, objet in ipairs(choix or {}) do
+        if index ~= exception then deja[objet.entree] = true end
+    end
+    local out = {}
+    for _, objet in ipairs((LCM.Objets and LCM.Objets.list) or {}) do
+        local ref = "objets/" .. tostring(objet.id)
+        if not deja[ref] then
+            out[#out + 1] = { id = ref, label = objet.label or objet.id,
+                groupe = objet.categorie or "Objets" }
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.groupe ~= b.groupe then return tostring(a.groupe) < tostring(b.groupe) end
+        return tostring(a.label) < tostring(b.label)
+    end)
+    return out
+end
+
+local function Travail(point)
+    if point then
+        local copie = LCM.Copie(point)
+        copie.brouillon, copie.remplacePublie = nil, nil
+        copie.coffre = copie.coffre or {}
+        copie.coffre.places = copie.coffre.places or 10
+        copie.coffre.rayon = copie.coffre.rayon or Eq().rayon or 4
+        copie.coffre.verrous = copie.coffre.verrous or 0
+        copie.coffre.objets = copie.coffre.objets or {}
+        copie.coffre.expertises = copie.coffre.expertises or {}
+        copie.coffre.outils = copie.coffre.outils or {}
+        return copie
+    end
+    return {
+        id = LCM.Brouillons.NouvelIdentifiant(), nature = "coffre",
+        label = "", description = "", coffre = {
+            places = 10, rayon = Eq().rayon or 4, verrous = 0, reset = false,
+            objets = {}, expertises = {}, outils = {},
+        },
+    }
+end
+
+local function Cases(objets)
+    local total = 0
+    for _, objet in ipairs(objets or {}) do
+        local entree = LCM.Compendium.Resoudre(objet.entree)
+        local pile = math.max(1, tonumber(entree and entree.pileMax) or 1)
+        total = total + math.ceil((tonumber(objet.quantite) or 0) / pile)
+    end
+    return total
+end
+
+local function Resume(point)
+    local c = point and point.coffre
+    if not c then return "Pas encore configuré : passe par l’onglet Création." end
+    return string.format("%d emplacement(s) — %d objet(s) — %d verrou(s) — rayon %s yards",
+        tonumber(c.places) or 0, #(c.objets or {}), tonumber(c.verrous) or 0,
+        tostring(c.rayon or Eq().rayon or 4))
+end
+
+local function Tableau(parent, y, colonnes, hauteur)
+    local cadre = CreateFrame("Frame", nil, parent)
+    cadre:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, y)
+    cadre:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -8, y)
+    cadre:SetHeight(hauteur)
+    UI.BordureFine(cadre, 0.18)
+    local entete = CreateFrame("Frame", nil, cadre)
+    entete:SetPoint("TOPLEFT", cadre, "TOPLEFT", 1, -1)
+    entete:SetPoint("TOPRIGHT", cadre, "TOPRIGHT", -1, -1)
+    entete:SetHeight(23)
+    local fond = UI.Aplat(entete, { 0.07, 0.07, 0.07, 0.30 })
+    fond:SetAllPoints(entete)
+    for index, colonne in ipairs(colonnes) do
+        local titre = Libelle(entete, colonne[1], colonne[2], -6)
+        titre:SetWidth(colonne[3])
+        titre:SetJustifyH("CENTER")
+        if index > 1 then
+            local trait = UI.Filet(entete, false, true)
+            trait:SetPoint("TOPLEFT", entete, "TOPLEFT", colonne[2], 0)
+            trait:SetPoint("BOTTOMLEFT", entete, "BOTTOMLEFT", colonne[2], 0)
+        end
+    end
+    local zone = UI.Defilement(cadre)
+    zone:SetPoint("TOPLEFT", cadre, "TOPLEFT", 1, -24)
+    zone:SetPoint("BOTTOMRIGHT", cadre, "BOTTOMRIGHT", -1, 1)
+    return cadre, zone
+end
+
+local function FondLigne(ligne)
+    local fond = UI.Aplat(ligne, { 0.07, 0.07, 0.07, 0.10 })
+    fond:SetAllPoints(ligne)
+    UI.BordureFine(ligne, 0.14)
+end
+
+local function BoutonTexte(parent, largeur)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(largeur, 24)
+    b.label = UI.Texte(b, "", UI.C.texte, "GameFontNormalSmall")
+    b.label:SetAllPoints(b)
+    b.label:SetJustifyH("LEFT")
+    local survol = UI.Aplat(b, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
+    survol:SetAllPoints(b)
+    return b
+end
+
+local function Construire()
+    local f = UI.Fenetre("coffres_mj", "Coffres", LARGEUR, HAUTEUR, { x = 100, y = -40 })
+    f.onglet = "creation"
+    f.lignes, f.lignesObjets, f.lignesExpertises, f.lignesOutils, f.placements = {}, {}, {}, {}, {}
+    f.choixObjet = UI.Choix("coffre_objet", "Objet du coffre")
+    f.choixOutil = UI.Choix("coffre_outil", "Outil requis")
+    f.choixExpertise = UI.Choix("coffre_expertise", "Expertise de déverrouillage")
+    f.confirmation = UI.Confirmer(f, "", "Confirmer")
+
+    f.liste = UI.Defilement(f.contenu)
+    f.liste:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 34)
+    f.liste:SetWidth(COLONNE)
+    f.nouveau = UI.Bouton(f.contenu, "+ Nouveau", 100, 24, function() f:Nouveau() end)
+    f.nouveau:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    f.supprimer = UI.Bouton(f.contenu, "Supprimer", 100, 24, function() f:Supprimer() end)
+    f.supprimer:SetPoint("LEFT", f.nouveau, "RIGHT", 6, 0)
+
+    f.droite = CreateFrame("Frame", nil, f.contenu)
+    f.droite:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", COLONNE + 16, 0)
+    f.droite:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.boutonCreation = UI.Bouton(f.droite, "Création", 120, 24, function() f:Onglet("creation") end)
+    f.boutonCreation:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, 0)
+    f.boutonPlacement = UI.Bouton(f.droite, "Placement", 120, 24, function() f:Onglet("placement") end)
+    f.boutonPlacement:SetPoint("LEFT", f.boutonCreation, "RIGHT", 6, 0)
+
+    local c = CreateFrame("Frame", nil, f.droite)
+    c:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, -34)
+    c:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 0)
+    f.creation = c
+    Libelle(c, "Nom", 0, -6)
+    c.nom = UI.Champ(c, 300, 22, function(texte) if f.travail then f.travail.label = texte end end)
+    c.nom:SetMaxLetters(80)
+    c.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 110, 0)
+    Libelle(c, "Emplacements", 0, -38)
+    c.places = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.places = texte end end)
+    c.places:SetPoint("TOPLEFT", c, "TOPLEFT", 110, -32)
+    Libelle(c, "Nombre de verrous", 190, -38)
+    c.verrous = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.verrous = texte end end)
+    c.verrous:SetPoint("TOPLEFT", c, "TOPLEFT", 320, -32)
+    Libelle(c, "Rayon (yards)", 382, -38)
+    c.rayon = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.rayon = texte end end)
+    c.rayon:SetPoint("TOPLEFT", c, "TOPLEFT", 470, -32)
+    c.reset = UI.Case(c, "Réinitialiser à la fermeture", function(coche)
+        if f.travail then f.travail.coffre.reset = coche end
+    end)
+    c.reset:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -64)
+    local aideRayon = Libelle(c, "Distance à laquelle le bouton « Ouvrir » apparaît.", 210, -66)
+    aideRayon:SetWidth(310)
+    Libelle(c, "Objets contenus", 0, -98)
+    c.tableauObjets, c.zoneObjets = Tableau(c, -116, {
+        { "I", 0, 31 }, { "OBJET", 31, 309 }, { "QUANTITÉ", 340, 110 }, { "", 450, 48 },
+    }, 126)
+    Libelle(c, "Méthodes autorisées — chaque réussite ouvre un verrou", 0, -252)
+    c.tableauExpertises, c.zoneExpertises = Tableau(c, -270, {
+        { "EXPERTISE", 0, 245 }, { "DD", 245, 65 }, { "PEUT REVERROUILLER", 310, 162 }, { "", 472, 26 },
+    }, 104)
+    Libelle(c, "Outils requis", 0, -384)
+    c.tableauOutils, c.zoneOutils = Tableau(c, -402, {
+        { "OUTIL", 0, 215 }, { "REQUIS", 215, 62 }, { "CONSOMMÉ", 277, 105 },
+        { "QTÉ CONS.", 382, 90 }, { "", 472, 26 },
+    }, 126)
+    c.erreur = UI.Texte(c, "", UI.C.plein, "GameFontNormalSmall")
+    c.erreur:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 0, 6)
+    c.erreur:SetPoint("RIGHT", c, "RIGHT", -150, 0)
+    c.erreur:SetJustifyH("LEFT")
+    c.enregistrer = UI.Bouton(c, "Enregistrer", 140, 26, function() f:Enregistrer() end)
+    c.enregistrer:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", 0, 0)
+
+    f.nom, f.places, f.verrous, f.rayon, f.reset, f.enregistrer =
+        c.nom, c.places, c.verrous, c.rayon, c.reset, c.enregistrer
+    f.zoneObjets, f.zoneExpertises, f.zoneOutils = c.zoneObjets, c.zoneExpertises, c.zoneOutils
+
+    local p = CreateFrame("Frame", nil, f.droite)
+    p:SetPoint("TOPLEFT", f.droite, "TOPLEFT", 0, -34)
+    p:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 0)
+    f.placement = p
+    p.titre = UI.Texte(p, "", UI.C.titre)
+    UI.Police(p.titre, 14)
+    p.titre:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -2)
+    p.resume = UI.Texte(p, "", UI.C.discret, "GameFontNormalSmall")
+    p.resume:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -22)
+    p.resume:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    p.resume:SetJustifyH("LEFT")
+    p.position = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
+    p.position:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -44)
+    p.position:SetPoint("RIGHT", p, "RIGHT", 0, 0)
+    p.position:SetJustifyH("LEFT")
+    p.poser = UI.Bouton(p, "Placer un coffre", 220, 34, function() f:Poser() end)
+    p.poser:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -66)
+    p.compte = UI.Texte(p, "", UI.C.accent, "GameFontNormalSmall")
+    p.compte:SetPoint("LEFT", p.poser, "RIGHT", 12, 0)
+    p.toutRetirer = UI.Bouton(p, "Tout retirer", 110, 22, function() f:ToutRetirer() end)
+    p.toutRetirer:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -72)
+    p.retirer = UI.Bouton(p, "Retirer la sélection", 150, 22, function()
+        if f.pointPose then Coffres.Retirer(f.pointPose); f.pointPose = nil; f:Afficher() end
+    end)
+    p.retirer:SetPoint("RIGHT", p.toutRetirer, "LEFT", -8, 0)
+    f.poser, f.retirer = p.poser, p.retirer
+    p.zone = UI.Defilement(p)
+    p.zone:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -110)
+    p.zone:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -10, 0)
+    p.vide = UI.Texte(p,
+        "Aucun coffre placé. Marche jusqu’à l’endroit voulu et clique sur « Placer un coffre ».",
+        UI.C.discret, "GameFontNormalSmall")
+    p.vide:SetPoint("TOP", p.zone, "TOP", 0, -20)
+    p.vide:SetWidth(380)
+    p.vide:SetJustifyH("CENTER")
+    p.vide:SetWordWrap(true)
+    p.attente = 0
+    p:SetScript("OnUpdate", function(self, dt)
+        self.attente = self.attente + (dt or 0)
+        if self.attente < 0.5 then return end
+        self.attente = 0
+        f:Position()
+    end)
+
+    function f:Point()
+        return self.pointId and Points.Get(self.pointId) or nil
+    end
+
+    function f:Onglet(onglet)
+        self.onglet = onglet
+        self.boutonCreation:Selectionner(onglet == "creation")
+        self.boutonPlacement:Selectionner(onglet == "placement")
+        self.creation:SetShown(onglet == "creation")
+        self.placement:SetShown(onglet == "placement")
+        self:Afficher()
+    end
+
+    function f:Choisir(id)
+        self.pointId = id
+        local point = self:Point()
+        self.creationNeuve = point == nil
+        self.travail = Travail(point)
+        self.remplacePublie = point and LCM.Brouillons.EstPublie("points", point.id) or false
+        self.pointPose = nil
+        c.erreur:SetText("")
+        self:Remplir()
+        self:Afficher()
+    end
+
+    function f:Nouveau()
+        self:Choisir(nil)
+        self:Onglet("creation")
+    end
+
+    local function AccepterObjet(objet)
+        if objet and tostring(objet.ref or ""):match("^objets/") then return true end
+        return false, "choisis un objet du compendium."
+    end
+
+    function f:Ajouter(typeListe, ref)
+        if not self.travail or not tostring(ref or ""):match("^objets/") then return end
+        local liste = self.travail.coffre[typeListe]
+        if type(liste) ~= "table" then return end
+        for _, objet in ipairs(liste) do
+            if objet.entree == ref then
+                objet.quantite = (tonumber(objet.quantite) or 1) + 1
+                self:AfficherDetails()
+                return
+            end
+        end
+        liste[#liste + 1] = { entree = ref, quantite = 1,
+            consomme = false, consommeQuantite = 1 }
+        self:AfficherDetails()
+    end
+
+    function f:AjouterExpertise(id)
+        local options = OptionsExpertises(self.travail.coffre.expertises)
+        id = id or (options[1] and options[1].id)
+        if not id then return end
+        self.travail.coffre.expertises[#self.travail.coffre.expertises + 1] = {
+            id = id, dd = 10, reverrouillable = true,
+        }
+        self:AfficherExpertises()
+    end
+
+    function f:AfficherObjets(typeListe, zone, cache, choixPopup, outils)
+        local liste = self.travail and self.travail.coffre[typeListe] or {}
+        local pas = 28
+        for index, objet in ipairs(liste) do
+            local ligne = cache[index]
+            if not ligne then
+                ligne = CreateFrame("Frame", nil, zone.contenu)
+                ligne:SetHeight(pas)
+                FondLigne(ligne)
+                ligne.nom = BoutonTexte(ligne, outils and 203 or 298)
+                ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 37, -2)
+                ligne.icone = ligne:CreateTexture(nil, "ARTWORK")
+                ligne.icone:SetSize(18, 18)
+                ligne.icone:SetPoint("TOPLEFT", ligne, "TOPLEFT", 7, -5)
+                ligne.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                ligne.nom:SetScript("OnClick", function()
+                    choixPopup:Proposer(ligne.nom,
+                        OptionsObjets(f.travail.coffre[typeListe], ligne.index), function(ref)
+                            local courant = f.travail.coffre[typeListe][ligne.index]
+                            if courant then courant.entree = ref; f:AfficherDetails() end
+                        end)
+                end)
+                UI.Glisser.Cible(ligne.nom, AccepterObjet, function(donnees)
+                    local courant = f.travail.coffre[typeListe][ligne.index]
+                    if courant then courant.entree = donnees.ref; f:AfficherDetails() end
+                end)
+                ligne.quantite = UI.Champ(ligne, 48, 20, function(texte)
+                    local courant = f.travail.coffre[typeListe][ligne.index]
+                    if courant then courant.quantite = texte end
+                end)
+                if outils then
+                    ligne.quantite:SetPoint("TOPLEFT", ligne, "TOPLEFT", 222, -4)
+                    ligne.consommer = UI.Case(ligne, "Oui", function(coche)
+                        local courant = f.travail.coffre.outils[ligne.index]
+                        if courant then courant.consomme = coche; f:AfficherOutils() end
+                    end)
+                    ligne.consommer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 291, -6)
+                    ligne.nc = UI.Champ(ligne, 48, 20, function(texte)
+                        local courant = f.travail.coffre.outils[ligne.index]
+                        if courant then courant.consommeQuantite = texte end
+                    end)
+                    ligne.nc:SetPoint("TOPLEFT", ligne, "TOPLEFT", 403, -4)
+                else
+                    ligne.quantite:SetPoint("TOPLEFT", ligne, "TOPLEFT", 372, -4)
+                end
+                ligne.retirer = CreateFrame("Button", nil, ligne)
+                ligne.retirer:SetSize(24, 22)
+                ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
+                ligne.retirer.label = UI.Texte(ligne.retirer, "×", UI.C.discret, "GameFontNormalSmall")
+                ligne.retirer.label:SetAllPoints(ligne.retirer)
+                ligne.retirer.label:SetJustifyH("CENTER")
+                ligne.retirer:SetScript("OnClick", function()
+                    table.remove(f.travail.coffre[typeListe], ligne.index)
+                    f:AfficherDetails()
+                end)
+                cache[index] = ligne
+            end
+            ligne.index = index
+            ligne.item = objet
+            local entree = LCM.Compendium.Resoudre(objet.entree)
+            ligne.nom.label:SetText((entree and entree.label) or objet.entree or "Objet inconnu")
+            ligne.icone:SetTexture((entree and entree.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark")
+            ligne.quantite:SetText(tostring(objet.quantite or 1))
+            if outils then
+                ligne.consommer:Cocher(objet.consomme == true)
+                ligne.nc:SetText(tostring(objet.consommeQuantite or 1))
+                ligne.nc:SetShown(objet.consomme == true)
+            end
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", zone.contenu, "TOPLEFT", 0, -(index - 1) * pas)
+            ligne:SetPoint("TOPRIGHT", zone.contenu, "TOPRIGHT", 0, -(index - 1) * pas)
+            ligne:Show()
+        end
+        for index = #liste + 1, #cache do cache[index]:Hide() end
+        local cle = outils and "ajouterOutil" or "ajouterObjet"
+        if not c[cle] then
+            local ajouter = CreateFrame("Button", nil, zone.contenu)
+            ajouter:SetHeight(pas)
+            FondLigne(ajouter)
+            ajouter.label = UI.Texte(ajouter,
+                outils and "Ajoutez un outil +" or "Ajoutez un objet +",
+                UI.C.discret, "GameFontNormalSmall")
+            ajouter.label:SetAllPoints(ajouter)
+            ajouter.label:SetJustifyH("CENTER")
+            local survol = UI.Aplat(ajouter, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
+            survol:SetAllPoints(ajouter)
+            ajouter:SetScript("OnClick", function()
+                choixPopup:Proposer(ajouter, OptionsObjets(f.travail.coffre[typeListe]), function(ref)
+                    f:Ajouter(typeListe, ref)
+                end)
+            end)
+            UI.Glisser.Cible(ajouter, AccepterObjet, function(objet) f:Ajouter(typeListe, objet.ref) end)
+            c[cle] = ajouter
+            if outils then f.depotOutils = ajouter else f.depotObjets = ajouter end
+        end
+        c[cle]:ClearAllPoints()
+        c[cle]:SetPoint("TOPLEFT", zone.contenu, "TOPLEFT", 0, -#liste * pas)
+        c[cle]:SetPoint("TOPRIGHT", zone.contenu, "TOPRIGHT", 0, -#liste * pas)
+        zone:Regler((#liste + 1) * pas)
+    end
+
+    function f:AfficherContenu()
+        self:AfficherObjets("objets", c.zoneObjets, self.lignesObjets, self.choixObjet, false)
+    end
+
+    function f:AfficherOutils()
+        self:AfficherObjets("outils", c.zoneOutils, self.lignesOutils, self.choixOutil, true)
+    end
+
+    function f:AfficherExpertises()
+        local liste = self.travail and self.travail.coffre.expertises or {}
+        local pas = 28
+        for index, methode in ipairs(liste) do
+            local ligne = self.lignesExpertises[index]
+            if not ligne then
+                ligne = CreateFrame("Frame", nil, c.zoneExpertises.contenu)
+                ligne:SetHeight(pas)
+                FondLigne(ligne)
+                ligne.nom = BoutonTexte(ligne, 229)
+                ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 8, -2)
+                ligne.nom:SetScript("OnClick", function()
+                    f.choixExpertise:Proposer(ligne.nom,
+                        OptionsExpertises(f.travail.coffre.expertises, ligne.index), function(id)
+                            local courant = f.travail.coffre.expertises[ligne.index]
+                            if courant then courant.id = id; f:AfficherExpertises() end
+                        end)
+                end)
+                ligne.dd = UI.Champ(ligne, 46, 20, function(texte)
+                    local courant = f.travail.coffre.expertises[ligne.index]
+                    if courant then courant.dd = texte end
+                end)
+                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 255, -4)
+                ligne.relock = UI.Case(ligne, "Oui", function(coche)
+                    local courant = f.travail.coffre.expertises[ligne.index]
+                    if courant then courant.reverrouillable = coche end
+                end)
+                ligne.relock:SetPoint("TOPLEFT", ligne, "TOPLEFT", 342, -6)
+                ligne.retirer = CreateFrame("Button", nil, ligne)
+                ligne.retirer:SetSize(24, 22)
+                ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
+                ligne.retirer.label = UI.Texte(ligne.retirer, "×", UI.C.discret, "GameFontNormalSmall")
+                ligne.retirer.label:SetAllPoints(ligne.retirer)
+                ligne.retirer.label:SetJustifyH("CENTER")
+                ligne.retirer:SetScript("OnClick", function()
+                    table.remove(f.travail.coffre.expertises, ligne.index)
+                    f:AfficherExpertises()
+                end)
+                self.lignesExpertises[index] = ligne
+            end
+            ligne.index = index
+            local champ = LCM.Schema.Field(methode.id)
+            ligne.nom.label:SetText((champ and champ.label) or methode.id or "Expertise inconnue")
+            ligne.dd:SetText(tostring(methode.dd or 0))
+            ligne.relock:Cocher(methode.reverrouillable == true)
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", c.zoneExpertises.contenu, "TOPLEFT", 0, -(index - 1) * pas)
+            ligne:SetPoint("TOPRIGHT", c.zoneExpertises.contenu, "TOPRIGHT", 0, -(index - 1) * pas)
+            ligne:Show()
+        end
+        for index = #liste + 1, #self.lignesExpertises do self.lignesExpertises[index]:Hide() end
+        if not c.ajouterExpertise then
+            c.ajouterExpertise = CreateFrame("Button", nil, c.zoneExpertises.contenu)
+            c.ajouterExpertise:SetHeight(pas)
+            FondLigne(c.ajouterExpertise)
+            c.ajouterExpertise.label = UI.Texte(c.ajouterExpertise,
+                "Ajoutez une expertise +", UI.C.discret, "GameFontNormalSmall")
+            c.ajouterExpertise.label:SetAllPoints(c.ajouterExpertise)
+            c.ajouterExpertise.label:SetJustifyH("CENTER")
+            local survol = UI.Aplat(c.ajouterExpertise, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
+            survol:SetAllPoints(c.ajouterExpertise)
+            c.ajouterExpertise:SetScript("OnClick", function()
+                f.choixExpertise:Proposer(c.ajouterExpertise,
+                    OptionsExpertises(f.travail.coffre.expertises), function(id)
+                        f:AjouterExpertise(id)
+                    end)
+            end)
+            f.ajouterExpertise = c.ajouterExpertise
+        end
+        c.ajouterExpertise:ClearAllPoints()
+        c.ajouterExpertise:SetPoint("TOPLEFT", c.zoneExpertises.contenu, "TOPLEFT", 0, -#liste * pas)
+        c.ajouterExpertise:SetPoint("TOPRIGHT", c.zoneExpertises.contenu, "TOPRIGHT", 0, -#liste * pas)
+        c.zoneExpertises:Regler((#liste + 1) * pas)
+    end
+
+    function f:AfficherDetails()
+        self:AfficherContenu()
+        self:AfficherExpertises()
+        self:AfficherOutils()
+    end
+
+    function f:Remplir()
+        if not self.travail then return end
+        local coffre = self.travail.coffre
+        c.nom:SetText(self.travail.label or "")
+        c.places:SetText(tostring(coffre.places or 10))
+        c.verrous:SetText(tostring(coffre.verrous or 0))
+        c.rayon:SetText(tostring(coffre.rayon or Eq().rayon or 4))
+        c.reset:Cocher(coffre.reset == true)
+        self:AfficherDetails()
+    end
+
+    function f:Valider()
+        local t, coffre = self.travail, self.travail and self.travail.coffre
+        if not t or not tostring(t.label or ""):match("%S") then return nil, "donne un nom au coffre." end
+        local places = Entier(coffre.places)
+        if not places or places < 1 then return nil, "le nombre d’emplacements doit être un entier supérieur à zéro." end
+        local verrous = Entier(coffre.verrous)
+        if not verrous or verrous < 0 then return nil, "le nombre de verrous doit être un entier positif ou nul." end
+        local rayon, rayonMax = tonumber(coffre.rayon), tonumber(Eq().rayonMax) or 30
+        if not rayon or rayon <= 0 or rayon > rayonMax then
+            return nil, string.format("le rayon doit être entre 0 et %d yards.", rayonMax)
+        end
+        local objets = {}
+        for _, objet in ipairs(coffre.objets or {}) do
+            local q = Entier(objet.quantite)
+            if not LCM.Compendium.Resoudre(objet.entree) then return nil, "choisis un objet valide pour le contenu." end
+            if not q or q < 1 then return nil, "les quantités du contenu doivent être des entiers supérieurs à zéro." end
+            objets[#objets + 1] = { entree = objet.entree, quantite = q }
+        end
+        if Cases(objets) > places then return nil, "le contenu dépasse le nombre d’emplacements du coffre." end
+        local expertises = {}
+        for _, methode in ipairs(coffre.expertises or {}) do
+            local champ, dd = LCM.Schema.Field(methode.id), Entier(methode.dd)
+            if not champ or not champ.jetExpertise then return nil, "choisis une expertise valide." end
+            if not dd or dd < 0 then return nil, "le DD doit être un entier positif ou nul." end
+            expertises[#expertises + 1] = { id = methode.id, dd = dd,
+                reverrouillable = methode.reverrouillable == true }
+        end
+        local outils = {}
+        for _, outil in ipairs(coffre.outils or {}) do
+            local q, consomme = Entier(outil.quantite), Entier(outil.consommeQuantite)
+            if not LCM.Compendium.Resoudre(outil.entree) then return nil, "choisis un outil valide." end
+            if not q or q < 1 then return nil, "les quantités requises doivent être des entiers supérieurs à zéro." end
+            if outil.consomme and (not consomme or consomme < 1 or consomme > q) then
+                return nil, "la quantité consommée doit être comprise entre 1 et la quantité requise."
+            end
+            outils[#outils + 1] = { entree = outil.entree, quantite = q,
+                consomme = outil.consomme == true, consommeQuantite = consomme or 1 }
+        end
+        if verrous > 0 and #expertises == 0 and #outils == 0 then
+            return nil, "ajoute au moins une expertise ou un outil pour ouvrir ce coffre verrouillé."
+        end
+        return { places = places, rayon = rayon, verrous = verrous, reset = coffre.reset == true,
+            objets = objets, expertises = expertises, outils = outils }
+    end
+
+    function f:Enregistrer()
+        local coffre, raison = self:Valider()
+        if not coffre then c.erreur:SetText(raison); LCM.Alerte(raison); return end
+        c.erreur:SetText("")
+        self.travail.coffre = coffre
+        local ok, erreur = LCM.Brouillons.Enregistrer("points", self.travail,
+            self.creationNeuve, self.remplacePublie)
+        if not ok then LCM.Alerte(tostring(erreur)); return end
+        if Coffres.Renvoyer then Coffres.Renvoyer() end
+        LCM.Ok(string.format("Coffre « %s » enregistré.", self.travail.label))
+        self:Choisir(self.travail.id)
+    end
+
+    function f:Supprimer()
+        local point = self:Point()
+        if not point then return end
+        local poses = Coffres.Points(point.id)
+        local texte = #poses > 0
+            and string.format("Supprimer « %s » et ses %d coffre(s) placé(s) ?", point.label, #poses)
+            or string.format("Supprimer « %s » ?", point.label)
+        self.confirmation:Demander(texte, function()
+            local ok, raison
+            if point.brouillon == true then ok = LCM.Brouillons.Supprimer("points", point.id)
+            else ok, raison = LCM.Brouillons.Masquer("points", point.id) end
+            if not ok then LCM.Alerte(tostring(raison or "suppression impossible")); return end
+            for _, pose in ipairs(poses) do Coffres.Retirer(pose.id) end
+            local premier = Points.Nature("coffre")[1]
+            self:Choisir(premier and premier.id)
+        end)
+    end
+
+    function f:Position()
+        local x, y, source = LCM.Recolte.Position()
+        if x then
+            local carte = LCM.Recolte.Carte()
+            p.position:SetText(string.format("Tu es en %.1f, %.1f  (%s%s)", x, y, tostring(source),
+                carte and (", carte " .. carte) or ""))
+        else
+            p.position:SetText("Position inconnue ici : le clic demandera « .gps ».")
+        end
+        return x, y, source
+    end
+
+    function f:Poser()
+        local point = self:Point()
+        if not point then LCM.Alerte("choisis d’abord un coffre."); return end
+        local id, raison = Coffres.Placer(point.id)
+        if not id then LCM.Alerte(tostring(raison)); return end
+        self.pointPose = id
+        self:Afficher()
+    end
+
+    function f:ToutRetirer()
+        local point = self:Point()
+        if not point then return end
+        local poses = Coffres.Points(point.id)
+        if #poses == 0 then return end
+        self.confirmation:Demander(string.format("Retirer les %d coffre(s) placé(s) de « %s » ?", #poses, point.label),
+            function()
+                for _, pose in ipairs(poses) do Coffres.Retirer(pose.id) end
+                self.pointPose = nil
+                self:Afficher()
+            end)
+    end
+
+    function f:AfficherPlacements()
+        local point = self:Point()
+        local poses = point and Coffres.Points(point.id) or {}
+        local x, y, source = self:Position()
+        local carte = LCM.Recolte.Carte()
+        for index, pose in ipairs(poses) do
+            local ligne = self.placements[index]
+            if not ligne then
+                ligne = UI.Bouton(p.zone.contenu, "", 490, LIGNE - 2, function(bouton)
+                    self.pointPose = bouton.pointPose
+                    self:AfficherPlacements()
+                end)
+                ligne.label:ClearAllPoints()
+                ligne.label:SetPoint("LEFT", ligne, "LEFT", 8, 0)
+                ligne.label:SetPoint("RIGHT", ligne, "RIGHT", -38, 0)
+                ligne.label:SetJustifyH("LEFT")
+                ligne.retirer = UI.Bouton(ligne, "×", 24, 20, function(bouton)
+                    Coffres.Retirer(bouton:GetParent().pointPose)
+                    if self.pointPose == bouton:GetParent().pointPose then self.pointPose = nil end
+                    self:Afficher()
+                end)
+                ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
+                self.placements[index] = ligne
+            end
+            ligne.pointPose = pose.id
+            local distance = ""
+            if x and pose.source == source and pose.carte == carte then
+                distance = string.format(" — à %.0f yards", math.sqrt((x - pose.x) ^ 2 + (y - pose.y) ^ 2))
+            elseif pose.carte ~= carte then distance = " — autre carte" end
+            ligne.label:SetText(string.format("#%d   %.1f, %.1f (%s%s)%s", #poses - index + 1,
+                tonumber(pose.x) or 0, tonumber(pose.y) or 0, tostring(pose.source),
+                pose.carte and (", carte " .. pose.carte) or "", distance))
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, -(index - 1) * LIGNE)
+            ligne:SetPoint("TOPRIGHT", p.zone.contenu, "TOPRIGHT", 0, -(index - 1) * LIGNE)
+            ligne:Selectionner(self.pointPose == pose.id)
+            ligne:Show()
+        end
+        for index = #poses + 1, #self.placements do self.placements[index]:Hide() end
+        p.zone:Regler(#poses * LIGNE)
+        p.vide:SetShown(point ~= nil and #poses == 0)
+        p.compte:SetText(point and string.format("%d coffre(s) placé(s)", #poses) or "")
+        p.toutRetirer:SetEnabled(#poses > 0)
+        p.retirer:SetShown(self.pointPose ~= nil)
+    end
+
+    function f:Afficher()
+        local definitions = Points.Nature("coffre")
+        for index, point in ipairs(definitions) do
+            local bouton = self.lignes[index]
+            if not bouton then
+                bouton = UI.Bouton(self.liste.contenu, "", COLONNE - 10, LIGNE - 2, function(b)
+                    self:Choisir(b.pointId)
+                end)
+                bouton.label:ClearAllPoints()
+                bouton.label:SetPoint("LEFT", bouton, "LEFT", 6, 0)
+                bouton.label:SetPoint("RIGHT", bouton, "RIGHT", -6, 0)
+                bouton.label:SetJustifyH("LEFT")
+                self.lignes[index] = bouton
+            end
+            bouton.pointId = point.id
+            local n = #Coffres.Points(point.id)
+            bouton.label:SetText(n > 0 and string.format("%s  |cff9d9d9d(%d)|r", point.label, n) or point.label)
+            bouton:ClearAllPoints()
+            bouton:SetPoint("TOPLEFT", self.liste.contenu, "TOPLEFT", 0, -(index - 1) * LIGNE)
+            bouton:Selectionner(point.id == self.pointId)
+            bouton:Show()
+        end
+        for index = #definitions + 1, #self.lignes do self.lignes[index]:Hide() end
+        self.liste:Regler(#definitions * LIGNE)
+        self.supprimer:SetEnabled(self:Point() ~= nil)
+        local point = self:Point()
+        p.titre:SetText(point and point.label or "Choisis un coffre à gauche")
+        p.resume:SetText(point and Resume(point) or "")
+        p.poser:SetEnabled(point ~= nil and point.coffre ~= nil)
+        self:AfficherPlacements()
+    end
+
+    function f:Montrer()
+        local premier = Points.Nature("coffre")[1]
+        if not self.travail then self:Choisir(premier and premier.id) end
+        self:Onglet(self.onglet or "creation")
+        self:Show()
+        self:Raise()
+    end
+
+    f:Hide()
+    return f
+end
+
+function Ecran.Fenetre()
+    if not LCM.IsMaster() then
+        LCM.Alerte("cet outil est réservé au maître du jeu.")
+        return nil
+    end
+    Ecran.frame = Ecran.frame or Construire()
+    return Ecran.frame
+end
+
+function Ecran.Basculer()
+    local f = Ecran.Fenetre()
+    if not f then return nil end
+    if f:IsShown() then f:Hide() else f:Montrer() end
+    return f
+end
+
+LCM.AddCommand("coffres", "ouvre le constructeur et le placement des coffres", function() Ecran.Basculer() end, true)
+LCM.AddCommand("coffre", "ouvre le constructeur et le placement des coffres", function() Ecran.Basculer() end, true)
+
+LCM.WhenReady(function()
+    if UI.Menu then UI.Menu.Lier("coffres", Ecran.Basculer) end
+    local precedent = LCM.Brouillons.onSynchro
+    LCM.Brouillons.onSynchro = function(famille, entree)
+        if precedent then precedent(famille, entree) end
+        if famille ~= "points" then return end
+        local f = Ecran.frame
+        if f and f:IsShown() then f:Afficher() end
+    end
+end)
