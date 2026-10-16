@@ -23,9 +23,9 @@ local Recoltes = LCM.Recoltes
 local Ecran = {}
 UI.Recoltes = Ecran
 
-local LARGEUR, HAUTEUR = 760, 560
+local LARGEUR, HAUTEUR = 820, 640
 local COLONNE = 210
-local LIGNE = 26
+local LIGNE = 36
 
 local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.recolte) or {} end
 
@@ -33,7 +33,7 @@ local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.recolte) or {} e
 local function Court(nom) return (tostring(nom or ""):match("^([^%-]+)")) or "" end
 
 local function Libelle(parent, texte, x, y)
-    local t = UI.Texte(parent, texte, UI.C.discret, "GameFontNormalSmall")
+    local t = UI.Texte(parent, texte, UI.C.texte, "GameFontNormalSmall")
     t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
     return t
 end
@@ -90,7 +90,6 @@ end
 local function Travail(point)
     if point then
         local copie = LCM.Copie(point)
-        copie.brouillon, copie.remplacePublie = nil, nil
         copie.recolte = copie.recolte or {}
         if not copie.recolte.ressources then
             copie.recolte.ressources = { { entree = copie.recolte.entree or "",
@@ -137,19 +136,21 @@ end
 -- ===== La fenetre ==========================================================
 
 local function Construire()
-    local f = UI.Fenetre("recoltes", "Ressources", LARGEUR, HAUTEUR, { x = 100, y = -40 })
+    local f = UI.Fenetre("recoltes", "Ressources", LARGEUR, HAUTEUR, { x = 0, y = -20 }, { enTeteSimple = true, sobre = true })
     f.onglet = "creation"
 
     -- ----- les points de recolte, a gauche --------------------------------
     f.liste = UI.Defilement(f.contenu)
     f.liste:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 34)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 64)
     f.liste:SetWidth(COLONNE)
     f.lignes = {}
     f.nouveau = UI.Bouton(f.contenu, "+ Nouveau", 100, 24, function() f:Nouveau() end)
     f.nouveau:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     f.supprimer = UI.Bouton(f.contenu, "Supprimer", 100, 24, function() f:Supprimer() end)
     f.supprimer:SetPoint("LEFT", f.nouveau, "RIGHT", 6, 0)
+    f.dupliquer = UI.Bouton(f.contenu, "Dupliquer", 206, 24, function() f:Dupliquer() end)
+    f.dupliquer:SetPoint("BOTTOMLEFT", f.nouveau, "TOPLEFT", 0, 6)
     f.confirmation = UI.Confirmer(f, "", "Confirmer")
 
     f.droite = CreateFrame("Frame", nil, f.contenu)
@@ -173,10 +174,11 @@ local function Construire()
     c.nom:SetMaxLetters(80)
     c.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 110, 0)
 
-    Libelle(c, "Ressources", 0, -40)
-    c.tableau = CreateFrame("Frame", nil, c)
-    c.tableau:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -62)
-    c.tableau:SetPoint("TOPRIGHT", c, "TOPRIGHT", -8, -62)
+    c.pages = UI.PagesFormulaire(c, { "Contenu récolté", "Conditions de récolte" })
+    Libelle(c.pages[1], "Ressources et objets — clique sur une ligne pour la régler", 0, -2)
+    c.tableau = CreateFrame("Frame", nil, c.pages[1])
+    c.tableau:SetPoint("TOPLEFT", c.pages[1], "TOPLEFT", 0, -28)
+    c.tableau:SetPoint("TOPRIGHT", c.pages[1], "TOPRIGHT", -8, -28)
     c.tableau:SetHeight(54)
     UI.BordureFine(c.tableau, 0.18)
     c.entete = CreateFrame("Frame", nil, c.tableau)
@@ -207,9 +209,9 @@ local function Construire()
     c.zoneRessources:SetHeight(30)
     c.lignesRessources = {}
 
-    c.communs = CreateFrame("Frame", nil, c)
-    c.communs:SetPoint("TOPLEFT", c.tableau, "BOTTOMLEFT", 0, -14)
-    c.communs:SetPoint("TOPRIGHT", c.tableau, "BOTTOMRIGHT", 0, -14)
+    c.communs = CreateFrame("Frame", nil, c.pages[2])
+    c.communs:SetPoint("TOPLEFT", c.pages[2], "TOPLEFT", 0, 0)
+    c.communs:SetPoint("TOPRIGHT", c.pages[2], "TOPRIGHT", 0, 0)
     c.communs:SetHeight(201)
     local g = c.communs
     Libelle(g, "Récoltes / point", 0, -7)
@@ -362,7 +364,6 @@ local function Construire()
         self.travail = Travail(point)
         self.ressourceIndex = 1
         self.ressourceOuverte = nil
-        self.remplacePublie = point and LCM.Brouillons.EstPublie("points", point.id) or false
         self.creation.erreur:SetText("")
         self:Remplir()
         self:Afficher()
@@ -370,6 +371,22 @@ local function Construire()
 
     function f:Nouveau()
         self:Choisir(nil)
+        self:Onglet("creation")
+        c.pages:Choisir(1)
+    end
+
+    -- La copie s'ouvre comme une creation neuve, pas encore enregistree : elle
+    -- ne part dans la base qu'une fois renommee et validee par « Enregistrer ».
+    function f:Dupliquer()
+        local point = self:Point()
+        if not point then LCM.Alerte("choisis d'abord le point de récolte à dupliquer.") return end
+        self.pointId = nil
+        self.creationNeuve = true
+        self.travail = Travail(Points.Dupliquer(point))
+        self.ressourceIndex = 1
+        self.ressourceOuverte = nil
+        self.creation.erreur:SetText("")
+        self:Remplir()
         self:Onglet("creation")
     end
 
@@ -570,7 +587,7 @@ local function Construire()
             c.ajouter.fond = UI.Aplat(c.ajouter, { 0.07, 0.07, 0.07, 0.10 })
             c.ajouter.fond:SetAllPoints(c.ajouter)
             UI.BordureFine(c.ajouter, 0.14)
-            c.ajouter.label = UI.Texte(c.ajouter, "Ajoutez un élément +", UI.C.discret, "GameFontNormalSmall")
+            c.ajouter.label = UI.Texte(c.ajouter, "+ Ajouter une ressource", UI.C.discret, "GameFontNormalSmall")
             c.ajouter.label:SetAllPoints(c.ajouter)
             c.ajouter.label:SetJustifyH("CENTER")
             local survolAjout = UI.Aplat(c.ajouter, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
@@ -585,7 +602,7 @@ local function Construire()
         c.ajouter:SetPoint("TOPRIGHT", c.zoneRessources.contenu, "TOPRIGHT", 0, -y)
         if #ressources == 0 then c.entree = c.ajouter end
         local hauteur = y + PAS
-        local visible = math.min(hauteur, 201)
+        local visible = math.min(hauteur, 280)
         c.zoneRessources:SetHeight(visible)
         c.zoneRessources:Regler(hauteur)
         c.tableau:SetHeight(24 + visible)
@@ -676,7 +693,7 @@ local function Construire()
             fond:SetAllPoints(c.ajouterMetier)
             UI.BordureFine(c.ajouterMetier, 0.14)
             c.ajouterMetier.label = UI.Texte(c.ajouterMetier,
-                "Ajoutez un métier +", UI.C.discret, "GameFontNormalSmall")
+                "+ Autoriser un métier", UI.C.discret, "GameFontNormalSmall")
             c.ajouterMetier.label:SetAllPoints(c.ajouterMetier)
             c.ajouterMetier.label:SetJustifyH("CENTER")
             local survol = UI.Aplat(c.ajouterMetier, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
@@ -701,7 +718,7 @@ local function Construire()
         c.zoneMetiers:Regler(hauteur)
         c.tableauMetiers:SetHeight(24 + visible)
         c.communs:SetHeight(201 + visible)
-        self:SetHeight(458 + c.zoneRessources:GetHeight() + visible)
+        -- Hauteur stable : les deux pages defilent dans leurs tableaux.
     end
     function f:Remplir()
         local t = self.travail
@@ -783,6 +800,7 @@ local function Construire()
     function f:Enregistrer()
         local recolte, raison, index = self:Valider()
         if not recolte then
+            c.pages:Choisir(index and 1 or 2)
             if index then
                 self.ressourceIndex = index
                 self.ressourceOuverte = index
@@ -795,7 +813,7 @@ local function Construire()
         c.erreur:SetText("")
         self.travail.recolte = recolte
         local ok, erreur = LCM.Brouillons.Enregistrer("points", self.travail,
-            self.creationNeuve, self.remplacePublie)
+            self.creationNeuve)
         if not ok then LCM.Alerte(tostring(erreur)) return end
         local id = self.travail.id
         -- Les points deja poses changent de regle tout de suite, chez tous.
@@ -812,9 +830,7 @@ local function Construire()
         local texte = n > 0 and string.format("Supprimer « %s » et ses %d point(s) posé(s) ?", point.label, n)
             or string.format("Supprimer « %s » ?", point.label)
         self.confirmation:Demander(texte, function()
-            local ok, raison
-            if point.brouillon == true then ok = LCM.Brouillons.Supprimer("points", point.id)
-            else ok, raison = LCM.Brouillons.Masquer("points", point.id) end
+            local ok, raison = LCM.Brouillons.Supprimer("points", point.id)
             if not ok then LCM.Alerte(tostring(raison or "suppression impossible")) return end
             Recoltes.RetirerTout(point.id)
             local premier = Points.Nature("ressource")[1]
@@ -923,13 +939,13 @@ local function Construire()
     end
 
     function f:Afficher()
-        local definitions = Points.Nature("ressource")
+        local definitions = self:FiltrerDefinitions(Points.Nature("ressource"))
         local y = 0
         for rang, point in ipairs(definitions) do
             local b = self.lignes[rang]
             if not b then
                 b = UI.Bouton(self.liste.contenu, "", COLONNE - 10, LIGNE - 2, function(bouton)
-                    self:Choisir(bouton.pointId)
+                    self:ChangerModele(function() self:Choisir(bouton.pointId) end)
                 end)
                 b.label:ClearAllPoints()
                 b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
@@ -965,6 +981,7 @@ local function Construire()
     end
 
     UI.SuivrePersonnage(f, function(self) self:Afficher() end)
+    UI.AtelierInteractions(f, "ressource")
     f:Hide()
     return f
 end

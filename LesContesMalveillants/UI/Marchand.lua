@@ -12,36 +12,15 @@ local M = LCM.Marchands
 local Ecran = { lignes = {} }
 UI.Marchand = Ecran
 
-local LIGNE = 30
+-- Deux lignes de texte : le nom, et dessous le prix, qui peut proposer
+-- plusieurs facons de payer (« 600 Essence  ou  400 Essence + 3 Gaufre »).
+local LIGNE = 40
 
 -- ===== Le bouton ===========================================================
 
 local function Bouton()
     if Ecran.bouton then return Ecran.bouton end
-    local b = CreateFrame("Button", "LCM_BoutonMarchand", UIParent)
-    b:SetSize(260, 44)
-    -- Au-dessus de celui de la recolte : un etal pose pres d'un filon ne doit
-    -- pas cacher l'un par l'autre.
-    b:SetPoint("CENTER", UIParent, "CENTER", 0, -120)
-    b:SetFrameStrata("HIGH")
-    b.fond = UI.Aplat(b, UI.C.fond, "BACKGROUND")
-    b.fond:SetAllPoints(b)
-    UI.Bordure(b)
-    b.icone = b:CreateTexture(nil, "ARTWORK")
-    b.icone:SetSize(34, 34)
-    b.icone:SetPoint("LEFT", b, "LEFT", 5, 0)
-    b.icone:SetTexture("Interface\\Icons\\INV_Misc_Coin_02")
-    b.titre = UI.Texte(b, "Commercer", UI.C.titre)
-    UI.Police(b.titre, 13)
-    b.titre:SetPoint("TOPLEFT", b.icone, "TOPRIGHT", 8, -2)
-    b.nom = UI.Texte(b, "", UI.C.texte)
-    UI.Police(b.nom, 11)
-    b.nom:SetPoint("BOTTOMLEFT", b.icone, "BOTTOMRIGHT", 8, 2)
-    b.nom:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-    b.nom:SetJustifyH("LEFT")
-    b.nom:SetWordWrap(false)
-    b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
-    b.survol:SetAllPoints(b)
+    local b = UI.Interaction("LCM_BoutonMarchand", "Commercer", "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-vendeurs.tga")
     b:SetScript("OnClick", function(self) Ecran.Ouvrir(self.defId) end)
     b:Hide()
     Ecran.bouton = b
@@ -79,21 +58,37 @@ local function Ligne(index)
     l.icone:SetPoint("LEFT", l, "LEFT", 4, 0)
     l.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     l.nom = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
-    l.nom:SetPoint("LEFT", l.icone, "RIGHT", 6, 0)
-    l.nom:SetPoint("RIGHT", l, "RIGHT", -170, 0)
+    l.nom:SetPoint("TOPLEFT", l.icone, "TOPRIGHT", 6, 6)
+    l.nom:SetPoint("RIGHT", l, "RIGHT", -150, 0)
     l.nom:SetJustifyH("LEFT")
     l.nom:SetWordWrap(false)
-    l.prix = UI.Texte(l, "", UI.C.accent, "GameFontNormalSmall")
-    l.prix:SetPoint("RIGHT", l, "RIGHT", -96, 0)
     l.stock = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
-    l.stock:SetPoint("RIGHT", l.prix, "LEFT", -8, 0)
+    l.stock:SetPoint("RIGHT", l, "RIGHT", -96, 0)
+    l.prix = UI.Texte(l, "", UI.C.accent, "GameFontNormalSmall")
+    l.prix:SetPoint("TOPLEFT", l.nom, "BOTTOMLEFT", 0, -3)
+    l.prix:SetPoint("RIGHT", l, "RIGHT", -96, 0)
+    l.prix:SetJustifyH("LEFT")
+    l.prix:SetWordWrap(false)
     l.action = UI.Bouton(l, "", 84, 20, function(b)
         local ligne = b:GetParent()
-        local ok, raison
-        if Ecran.frame.mode == "revendre" then ok, raison = M.Revendre(Ecran.defId, ligne.offreId)
-        else ok, raison = M.Acheter(Ecran.defId, ligne.offreId) end
-        if not ok and raison then LCM.Alerte(tostring(raison)) end
-        Ecran.Afficher()
+        local revendre = Ecran.frame.mode == "revendre"
+        local function Faire(choix)
+            local ok, raison
+            if revendre then ok, raison = M.Revendre(Ecran.defId, ligne.offreId, choix)
+            else ok, raison = M.Acheter(Ecran.defId, ligne.offreId, choix) end
+            if not ok and raison then LCM.Alerte(tostring(raison)) end
+            Ecran.Afficher()
+        end
+        -- Plusieurs facons de payer : le joueur choisit la sienne.
+        local facons = LCM.Prix.DeLOffre(ligne.offre)
+        if #facons <= 1 then return Faire(nil) end
+        local options = {}
+        for rang, facon in ipairs(facons) do
+            options[#options + 1] = { id = rang, label = LCM.Prix.TexteFacon(facon) }
+        end
+        Ecran.choix = Ecran.choix or UI.Choix("marchand_facon", "Comment payer ?")
+        Ecran.choix.titre:SetText(revendre and "Être payé comment ?" or "Payer comment ?")
+        Ecran.choix:Proposer(b, options, Faire)
     end)
     l.action:SetPoint("RIGHT", l, "RIGHT", -4, 0)
     Ecran.lignes[index] = l
@@ -101,9 +96,7 @@ local function Ligne(index)
 end
 
 local function Prix(offre)
-    if not (offre.prix and offre.devise) then return "" end
-    local devise = LCM.Devises.Get(offre.devise)
-    return string.format("%s %s", tostring(offre.prix), (devise and devise.label) or offre.devise)
+    return LCM.Prix.Texte(LCM.Prix.DeLOffre(offre))
 end
 
 function Ecran.Afficher()
@@ -118,7 +111,7 @@ function Ecran.Afficher()
     local h = 0
     for index, offre in ipairs(liste) do
         local l = Ligne(index)
-        l.offreId = offre.id
+        l.offreId, l.offre = offre.id, offre
         local entree = LCM.Compendium.Resoudre(offre.entree)
         l.icone:SetTexture((entree and entree.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark")
         local nom = M.Libelle(offre)

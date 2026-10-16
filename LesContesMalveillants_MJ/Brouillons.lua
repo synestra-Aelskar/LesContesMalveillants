@@ -1,17 +1,22 @@
--- Brouillons du maitre du jeu.
+-- Ce que le maitre du jeu ecrit en seance : traits, races, objets, coffres...
 --
--- En seance, le MJ cree des traits, des races, des objets. Ces creations vivent
--- d'abord ICI, dans la sauvegarde du compagnon MJ — elles sont utilisables tout
--- de suite, mais ne sont encore le contenu de personne.
+-- Une entree ENREGISTREE existe. Elle est jouable tout de suite, part chez
+-- l'autre MJ dans l'instant, et entre dans la base commune au prochain /reload
+-- (le service de synchro lit la sauvegarde, publie, et regenere les fichiers
+-- de l'addon). Il n'y a pas d'etat intermediaire : une entree n'est pas « en
+-- attente d'export », « publiee » ou « a reporter ». Elle est, ou elle n'est
+-- pas (15 octobre 2026).
 --
--- Entre deux seances, l'outil « Exporter les brouillons » les transforme en
--- fichiers Lua propres (Data/Genere/), qui partent dans le depot. Tout le monde
--- met a jour, et le contenu devient officiel et identique pour tous.
+-- Ce qui n'est pas enregistre — un formulaire ouvert — n'existe pas, et ne
+-- laisse rien derriere lui.
 --
--- Pourquoi ce detour plutot qu'ecrire directement dans la sauvegarde de chacun :
--- le contenu reste du CODE, versionne, relu, et la sauvegarde ne contient que
--- ce que les joueurs ont saisi. C'est la regle de l'addon, et elle ne souffre
--- pas d'exception.
+-- La sauvegarde n'est qu'une FILE D'ENVOI vers la base : `LCM_MJ_DB.brouillons`
+-- (le nom reste, le service le lit) tient ce qui a ete enregistre depuis le
+-- dernier passage du service, et `LCM_MJ_DB.masques` ce qui a ete supprime.
+-- Le service vide la premiere une fois la base a jour ; la seconde se vide ici,
+-- au chargement, quand le fichier genere ne porte plus l'entree. La structure
+-- vit donc dans la base, jamais durablement dans la sauvegarde — c'est la
+-- regle de l'addon.
 
 local _, MJ = ...
 local LCM = _G.LCM
@@ -21,19 +26,25 @@ local Brouillons = {}
 MJ.Brouillons = Brouillons
 LCM.Brouillons = Brouillons
 
--- Les familles exportables. En ajouter une ici ET dans l'outil d'export.
---
--- L'outil les connait toutes (6 octobre 2026) et les range en DEUX fichiers :
--- ce qui part chez les joueurs (Data/Genere/Atelier.lua) et ce qui reste chez
--- les MJ (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua) — les PNJ, les jeux
--- d'equilibrage, et les resolutions de categorie « mj ».
+-- Les familles que la base connait. En ajouter une ici ET dans l'outil de
+-- synchro, qui les range en DEUX fichiers : ce qui part chez les joueurs
+-- (Data/Genere/Atelier.lua) et ce qui reste chez les MJ
+-- (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua).
 Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
     "jeux", "points", "tentes", "accessoires_camping" }
 
-local function Store(famille)
+-- Version du modele de la sauvegarde. 2 : plus de brouillons dormants ni de
+-- masques « a reporter » (15 octobre 2026), voir la migration plus bas.
+local VERSION = 2
+
+local function Base()
     _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
-    local db = _G.LCM_MJ_DB
+    return _G.LCM_MJ_DB
+end
+
+local function Store(famille)
+    local db = Base()
     db.brouillons = type(db.brouillons) == "table" and db.brouillons or {}
     if famille then
         db.brouillons[famille] = type(db.brouillons[famille]) == "table" and db.brouillons[famille] or {}
@@ -49,7 +60,8 @@ local function FamilleValide(famille)
     return false
 end
 
--- Ajoute ou remplace un brouillon. `entree` doit porter un `id`.
+-- Pose une entree dans la file d'envoi, sans verification. Les scenarios du
+-- banc s'en servent pour preparer du contenu temoin avant la connexion.
 function Brouillons.Set(famille, entree)
     famille = tostring(famille or "")
     if not FamilleValide(famille) then
@@ -57,7 +69,7 @@ function Brouillons.Set(famille, entree)
         return false
     end
     if type(entree) ~= "table" or tostring(entree.id or "") == "" then
-        LCM.Erreur("brouillon sans identifiant")
+        LCM.Erreur("entrée sans identifiant")
         return false
     end
     Store(famille)[tostring(entree.id)] = entree
@@ -85,64 +97,26 @@ function Brouillons.List(famille)
     return out
 end
 
-function Brouillons.Count()
-    local total = 0
-    for _, famille in ipairs(Brouillons.FAMILLES) do
-        for _ in pairs(Store(famille)) do total = total + 1 end
-    end
-    return total
-end
-
--- Un brouillon deja publie (present dans les fichiers generes) n'a plus lieu
--- d'etre : on le signale pour que le MJ puisse faire le menage apres un export.
--- Attention : un brouillon se declare lui-meme au chargement ; on ne compare
--- donc pas sa simple presence, mais l'ORIGINE de ce qui porte son identifiant.
-local function DejaEnDur(registre, id)
-    local existant = registre.Get(id)
-    return existant ~= nil and existant.brouillon ~= true
-end
-
--- Compare la forme construite du brouillon avec l'entree publiee. Les valeurs
--- brutes peuvent differer sans que le contenu differe ("3" contre 3, chemin
--- d'icone normalise, champs vides retires) : il faut donc comparer APRES le
--- passage par le registre. `brouillon` est un marqueur de provenance, pas du
--- contenu.
+-- Compare la forme construite d'une entree de la file avec celle du fichier
+-- genere. Les valeurs brutes peuvent differer sans que le contenu differe
+-- ("3" contre 3, chemin d'icone normalise, champs vides retires) : il faut donc
+-- comparer APRES le passage par le registre.
 local function MemeValeur(gauche, droite)
     if type(gauche) ~= type(droite) then return false end
     if type(gauche) ~= "table" then return gauche == droite end
     for cle, valeur in pairs(gauche) do
-        if cle ~= "brouillon" and not MemeValeur(valeur, droite[cle]) then return false end
+        if not MemeValeur(valeur, droite[cle]) then return false end
     end
     for cle, valeur in pairs(droite) do
-        if cle ~= "brouillon" and not MemeValeur(valeur, gauche[cle]) then return false end
+        if not MemeValeur(valeur, gauche[cle]) then return false end
     end
     return true
 end
 
-local function PublieIdentique(registre, entree)
-    local existant = registre and registre.Get(entree.id)
-    if not existant or existant.brouillon == true then return false end
-    local ok, construit = pcall(registre.Construire, entree)
-    return ok and MemeValeur(construit, existant)
-end
-
-function Brouillons.Published()
-    local out = {}
-    for _, famille in ipairs(Brouillons.FAMILLES) do
-        local registre = Brouillons.Registre(famille)
-        for _, entree in ipairs(Brouillons.List(famille)) do
-            if registre and DejaEnDur(registre, entree.id) then
-                out[#out + 1] = famille .. "/" .. tostring(entree.id)
-            end
-        end
-    end
-    return out
-end
-
 -- ===== Saisie en seance ====================================================
 -- Ce que l'atelier appelle. La saisie passe par les MEMES regles que le
--- chargement d'un fichier genere (`Construire` du registre) : un brouillon
--- refuse ici l'aurait ete a l'export, autant le dire tout de suite.
+-- chargement d'un fichier genere (`Construire` du registre) : une entree
+-- refusee ici l'aurait ete au chargement, autant le dire tout de suite.
 
 -- Normalise un texte en identifiant lisible. Les anciennes entrees et les
 -- sous-identifiants (par exemple une rarete) s'en servent encore. Les NOUVELLES
@@ -223,161 +197,14 @@ local function Raison(message)
     return (tostring(message or ""):gsub("^LCM/%a+ : ", ""))
 end
 
--- Vrai si l'identifiant appartient a du contenu publie (un fichier genere).
--- Ce qu'un brouillon a recouvert : l'entree publiee, telle qu'elle etait. Elle
--- vit en memoire vive — au prochain chargement, le fichier la redonne de toute
--- facon, et c'est lui qui fait foi.
-local originaux = {}
-
-function Brouillons.Original(famille, id)
-    local parFamille = originaux[tostring(famille or "")]
-    return parFamille and parFamille[tostring(id or "")] or nil
-end
-
--- Tous les originaux d'une famille. L'atelier en a besoin pour continuer a
--- montrer un contenu publie que son brouillon a recouvert : il a quitte le
--- registre, mais pas la memoire.
-function Brouillons.Originaux(famille)
-    return originaux[tostring(famille or "")] or {}
-end
-
--- Garde l'entree publiee AVANT qu'un brouillon ne l'ecrase. Sans cette copie,
--- supprimer le brouillon ensuite emporterait le contenu publie avec lui. Deux
--- chemins y passent — l'enregistrement en seance et l'application au
--- chargement — et ils doivent garder la meme chose.
-local function RetenirOriginal(famille, existant)
-    if type(existant) ~= "table" or existant.brouillon == true then return end
-    if Brouillons.Original(famille, existant.id) then return end
-    local copie = {}
-    for cle, valeur in pairs(existant) do copie[cle] = valeur end
-    originaux[famille] = originaux[famille] or {}
-    originaux[famille][tostring(existant.id)] = copie
-end
-
--- Pose un brouillon SUR une entree deja presente, en place : les ecrans
--- ouverts tiennent la table elle-meme, les entites ne connaissent que son
--- identifiant.
-local function Recouvrir(famille, registre, existant, neuf)
-    RetenirOriginal(famille, existant)
-    for cle in pairs(existant) do existant[cle] = nil end
-    for cle, valeur in pairs(neuf) do existant[cle] = valeur end
-    existant.brouillon = true
-    if type(registre.ActualiserRegles) == "function" then
-        registre.ActualiserRegles(existant)
-    end
-    return existant
-end
-
-function Brouillons.EstPublie(famille, id)
-    local registre = Registre(famille)
-    local existant = registre and registre.Get(id)
-    return existant ~= nil and existant.brouillon ~= true
-end
-
--- Vrai si cet identifiant appartient a du contenu PUBLIE, que le brouillon
--- l'ait deja recouvert ou non. `EstPublie` ne regarde que le registre, et
--- depuis qu'un brouillon y prend la place du publie (9 octobre 2026) elle
--- repond non une fois le recouvrement fait. Trois sources, dans l'ordre : le
--- registre, l'original mis de cote au recouvrement, et le marqueur pose par
--- l'enregistrement.
-function Brouillons.RecouvrePublie(famille, id)
-    if Brouillons.EstPublie(famille, id) then return true end
-    if Brouillons.Original(famille, id) then return true end
-    local entree = Brouillons.Get(famille, id)
-    return type(entree) == "table" and entree.remplacePublie == true
-end
-
--- Enregistre un brouillon et le rend jouable aussitot. `creation` : le MJ
--- pense creer une entree neuve, donc un identifiant deja pris est une
--- collision, pas une modification. Renvoie true, ou false et la raison.
---
--- `remplacer` : le MJ modifie SCIEMMENT du contenu publie. Le refus pur et
--- simple rendait l'atelier inutilisable en seance — on ouvrait une entree, on
--- corrigeait une faute, et aucun bouton ne permettait d'enregistrer. Le
--- brouillon prend alors le pas sur le fichier jusqu'a ce qu'on l'y reporte,
--- et il est marque pour qu'on sache qu'il reste a reporter.
-function Brouillons.Enregistrer(famille, entree, creation, remplacer)
-    famille = tostring(famille or "")
-    if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
-    local registre = Registre(famille)
-    if not (registre and registre.Construire) then
-        return false, "le format des " .. famille .. " n'est pas encore defini"
-    end
-
-    local ok, neuf = pcall(registre.Construire, entree)
-    if not ok then return false, Raison(neuf) end
-
-    if Brouillons.EstPublie(famille, neuf.id) and not remplacer then
-        return false, string.format("« %s » est deja du contenu publie : le fichier fait foi", neuf.id)
-    end
-    if creation and Brouillons.Get(famille, neuf.id) then
-        return false, string.format("un brouillon porte deja l'identifiant « %s »", neuf.id)
-    end
-    -- Le bareme de la forge BLOQUE (decision du 3 octobre 2026). Ici, et pas
-    -- dans chaque fenetre : l'atelier, l'editeur et la modification groupee
-    -- passent tous par cette porte.
-    -- Les points de vente/recolte assemblent du contenu deja forge : ils
-    -- n'ont ni cout ni jeu d'equilibrage propre a verifier.
-    if famille ~= "points" then
-        local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
-        if not dansLeBareme then return false, horsBareme end
-    end
-
-    -- Retenu DANS le brouillon : l'export doit savoir qu'il ecrase un publie,
-    -- et l'atelier doit pouvoir le dire a chaque ouverture.
-    if remplacer then entree.remplacePublie = true end
-    Brouillons.Set(famille, entree)
-    -- Et chez l'autre maitre du jeu, tout de suite.
-    Brouillons.Diffuser(famille, entree, remplacer)
-
-    -- Modifie SUR PLACE : les entites designent le trait par son identifiant,
-    -- mais les ecrans ouverts tiennent la table elle-meme.
-    local existant = registre.Get(neuf.id)
-    if existant then
-        Recouvrir(famille, registre, existant, neuf)
-    else
-        registre.Add(entree).brouillon = true
-    end
-    return true
-end
-
--- Supprime un brouillon, et le retire du jeu s'il n'etait qu'un brouillon.
--- Les entites qui le portaient gardent son identifiant : on n'efface pas les
--- donnees d'un joueur parce que le contenu a disparu.
-function Brouillons.Supprimer(famille, id)
-    famille = tostring(famille or "")
-    if not Brouillons.Remove(famille, id) then return false end
-    Brouillons.DiffuserSuppression(famille, id)
-    local registre = Registre(famille)
-    local existant = registre and registre.Get(id)
-    local original = Brouillons.Original(famille, id)
-    if existant and original then
-        -- Le brouillon recouvrait du publie : on REND l'original, on ne retire
-        -- pas l'entree. Sinon supprimer son brouillon effacait du contenu qu'on
-        -- n'avait jamais cree.
-        for cle in pairs(existant) do existant[cle] = nil end
-        for cle, valeur in pairs(original) do existant[cle] = valeur end
-        existant.brouillon = nil
-        originaux[tostring(famille)][tostring(id)] = nil
-    elseif existant and existant.brouillon == true then
-        registre.Retirer(id)
-    end
-    return true
-end
-
--- ===== Retirer une entree publiee =========================================
--- Le contenu publie vient d'un fichier genere, et ce fichier fait foi : on ne
--- peut pas l'effacer depuis le jeu. Mais s'en servir en seance alors qu'on veut
--- s'en debarrasser n'avait aucune issue — « 0 supprimée(s). Refus : Automate
--- danseuse » et rien d'autre a faire (5 octobre 2026).
---
--- On pose donc un MASQUE : l'entree disparait du jeu tout de suite et reste
--- masquee d'une session a l'autre. Elle n'est PAS effacee du fichier — c'est
--- l'export qui le rappellera, et le retrait definitif se fait a la source.
+-- ===== Suppressions =========================================================
+-- Supprimer une entree, c'est la retirer du jeu tout de suite et le noter ici,
+-- pour que le service l'efface de la base au prochain /reload. Les personnages
+-- qui la portaient gardent son identifiant : on n'efface pas les donnees d'un
+-- joueur parce que le contenu a disparu.
 
 local function Masques(famille)
-    _G.LCM_MJ_DB = type(_G.LCM_MJ_DB) == "table" and _G.LCM_MJ_DB or {}
-    local db = _G.LCM_MJ_DB
+    local db = Base()
     db.masques = type(db.masques) == "table" and db.masques or {}
     if famille then
         db.masques[famille] = type(db.masques[famille]) == "table" and db.masques[famille] or {}
@@ -391,46 +218,118 @@ function Brouillons.EstMasquee(famille, id)
     return Masques(tostring(famille or ""))[tostring(id or "")] == true
 end
 
--- Retire l'entree du registre, donc du jeu. Les personnages qui la portaient
--- gardent son identifiant : on n'efface pas les donnees d'un joueur parce que
--- le contenu a disparu.
-function Brouillons.Masquer(famille, id)
+-- Remplace le contenu d'une entree en place : les ecrans ouverts tiennent la
+-- table elle-meme, les entites ne connaissent que son identifiant.
+local function Remplacer(registre, existant, neuf)
+    for cle in pairs(existant) do existant[cle] = nil end
+    for cle, valeur in pairs(neuf) do existant[cle] = valeur end
+    if type(registre.ActualiserRegles) == "function" then
+        registre.ActualiserRegles(existant)
+    end
+    return existant
+end
+
+-- Un POINT (vendeur, ressource, coffre) qui change doit changer partout ou il
+-- est pose, sans qu'on le retire et le repose (le MJ, 16 octobre 2026) :
+-- changer la monnaie d'un marchand deja pose ne passait pas aux joueurs. Le
+-- renvoi n'existait que dans certaines fenetres ; il passe ici, seul endroit
+-- ou une entree s'ecrit ou s'efface — en seance comme a la reception de
+-- l'autre MJ. Chaque module (MJ/Marchands.lua, Recoltes.lua, Coffres.lua)
+-- s'y inscrit et renvoie ce qu'IL a pose.
+local suiveursPoints = {}
+function Brouillons.SurPoint(fonction)
+    suiveursPoints[#suiveursPoints + 1] = fonction
+end
+local function PointChange(famille, id)
+    if famille ~= "points" then return end
+    for _, fonction in ipairs(suiveursPoints) do
+        local ok, erreur = pcall(fonction, tostring(id))
+        if not ok then LCM.Erreur("mise à jour des points posés : " .. tostring(erreur)) end
+    end
+end
+
+-- Enregistre une entree et la rend jouable aussitot. `creation` : le MJ pense
+-- creer une entree neuve, donc un identifiant deja pris est une collision, pas
+-- une modification. Sinon, enregistrer une entree qui existe la MODIFIE, d'ou
+-- qu'elle vienne. Renvoie true, ou false et la raison.
+function Brouillons.Enregistrer(famille, entree, creation)
+    famille = tostring(famille or "")
+    if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
+    local registre = Registre(famille)
+    if not (registre and registre.Construire) then
+        return false, "le format des " .. famille .. " n'est pas encore defini"
+    end
+
+    local ok, neuf = pcall(registre.Construire, entree)
+    if not ok then return false, Raison(neuf) end
+
+    if creation and (Brouillons.Get(famille, neuf.id) or registre.Get(neuf.id)) then
+        return false, string.format("l'identifiant « %s » est déjà pris", neuf.id)
+    end
+    -- Le bareme de la forge BLOQUE (decision du 3 octobre 2026). Ici, et pas
+    -- dans chaque fenetre : l'atelier, l'editeur et la modification groupee
+    -- passent tous par cette porte.
+    -- Les points de vente/recolte assemblent du contenu deja forge : ils
+    -- n'ont ni cout ni jeu d'equilibrage propre a verifier.
+    if famille ~= "points" then
+        local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
+        if not dansLeBareme then return false, horsBareme end
+    end
+
+    -- Restes de l'ancien modele, qui ne veulent plus rien dire.
+    entree.brouillon, entree.remplacePublie = nil, nil
+    Brouillons.Set(famille, entree)
+    -- Ecrire une entree qu'on avait supprimee la fait revenir.
+    Masques(famille)[tostring(neuf.id)] = nil
+    -- Et chez l'autre maitre du jeu, tout de suite.
+    Brouillons.Diffuser(famille, entree)
+
+    local existant = registre.Get(neuf.id)
+    if existant then
+        Remplacer(registre, existant, neuf)
+    else
+        registre.Add(entree)
+    end
+    PointChange(famille, neuf.id)
+    return true
+end
+
+-- Supprime une entree, d'ou qu'elle vienne. Renvoie true, ou false et la
+-- raison.
+function Brouillons.Supprimer(famille, id)
     famille, id = tostring(famille or ""), tostring(id or "")
     if not FamilleValide(famille) then return false, "famille inconnue : " .. famille end
     local registre = Registre(famille)
     local existant = registre and registre.Get(id)
-    if not existant then return false, "entrée inconnue : " .. id end
-    if existant.brouillon == true then
-        return false, "c'est un brouillon : il se supprime, il n'a pas besoin d'être masqué"
-    end
+    local enFile = Brouillons.Remove(famille, id)
+    if not existant and not enFile then return false, "entrée inconnue : " .. id end
+    -- Noter la suppression meme pour une entree enregistree dans la seance :
+    -- le service a pu la publier entre-temps (un /reload suffit), et une
+    -- suppression d'une entree absente de la base ne coute rien.
     Masques(famille)[id] = true
-    if registre.Retirer then registre.Retirer(id) end
-    Brouillons.DiffuserMasque(famille, id, true)
+    if existant and registre.Retirer then registre.Retirer(id) end
+    Brouillons.DiffuserSuppression(famille, id)
+    PointChange(famille, id)
     return true
 end
 
--- Le rend au jeu. Au prochain chargement il revient de son fichier ; ici on ne
--- peut que lever le masque, l'entree elle-meme n'est plus en memoire.
+-- L'ancien nom de la suppression d'une entree « publiee ». Il n'y a plus
+-- qu'une suppression.
+Brouillons.Masquer = Brouillons.Supprimer
+
+-- Annule une suppression pas encore passee dans la base. L'entree revient au
+-- prochain chargement, de son fichier : en memoire, elle n'est plus la.
 function Brouillons.Demasquer(famille, id)
     famille, id = tostring(famille or ""), tostring(id or "")
     if not Brouillons.EstMasquee(famille, id) then return false end
     Masques(famille)[id] = nil
-    Brouillons.DiffuserMasque(famille, id, false)
     return true
 end
 
-function Brouillons.CompteMasques()
-    local total = 0
-    for _, parFamille in pairs(Masques()) do
-        for _ in pairs(parFamille) do total = total + 1 end
-    end
-    return total
-end
-
 -- ===== La synchro entre maitres du jeu =====================================
--- On est deux a ecrire du contenu en seance. Sans rien, chacun garde le sien
--- dans sa SavedVariables jusqu'au prochain export : l'autre ne voit pas l'etat
--- qu'on vient de creer, et une action qui s'y refere tombe dans le vide.
+-- On est deux a ecrire du contenu en seance. La base ne se met a jour qu'au
+-- /reload : sans rien, l'autre ne voit pas l'etat qu'on vient de creer, et une
+-- action qui s'y refere tombe dans le vide.
 --
 -- Ce qu'on ecrit part donc TOUT DE SUITE chez l'autre, et s'applique chez lui
 -- sans rien demander (choix du 5 octobre 2026). Le detour par « veux-tu
@@ -440,11 +339,14 @@ end
 -- Le canal de presence plutot que le groupe : on n'est pas toujours groupes, et
 -- ce canal-la, tout le monde l'a rejoint.
 --
+-- Les sujets reseau gardent leurs anciens noms (« brouillon », « brouillon- »,
+-- « masque ») : un MJ qui n'a pas encore mis a jour doit continuer a recevoir.
+--
 -- Deux garde-fous :
 --   * ce qui ARRIVE ne repart pas (sinon deux ateliers se renvoient la meme
 --     entree indefiniment) ;
 --   * seul un maitre du jeu emet, et seul un maitre du jeu applique. Un joueur
---     n'a pas de brouillons, et n'a pas a en recevoir.
+--     n'a pas d'atelier, et n'a rien a recevoir.
 
 local enReception = false
 local mjConnus, attentes, recus = {}, {}, {}
@@ -503,7 +405,7 @@ local function NoterMJ(nom)
     nom = tostring(nom or "")
     if nom == "" or nom == tostring(LCM.PlayerId()) then return end
     mjConnus[nom] = true
-    -- Un brouillon diffuse avant la decouverte du binome bascule aussitot en
+    -- Une entree diffusee avant la decouverte du binome bascule aussitot en
     -- chuchotement fiable, sans attendre la prochaine modification.
     for cle, a in pairs(attentes) do
         if not a.cible then
@@ -554,14 +456,15 @@ function Brouillons.SynchronisationsEnAttente()
     return n
 end
 
-function Brouillons.Diffuser(famille, entree, remplace)
+function Brouillons.Diffuser(famille, entree)
     if enReception or not LCM.IsMaster() then return false end
     if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
     BattreLaMesure()
     AnnoncerMJ()
     local identifiant = IdentifiantSync()
-    local donnees = { f = tostring(famille), r = remplace and 1 or nil,
-        e = entree, s = identifiant }
+    -- `r = 1` : un MJ pas encore a jour refuserait sans lui de modifier une
+    -- entree qu'il croit « publiee ».
+    local donnees = { f = tostring(famille), r = 1, e = entree, s = identifiant }
     local trouve = false
     for nom in pairs(mjConnus) do
         trouve = true
@@ -583,17 +486,12 @@ function Brouillons.DiffuserSuppression(famille, id)
     if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
     local canal, cible = Canal()
     if not canal then return false end
-    return LCM.Reseau.Envoyer("brouillon-", { f = tostring(famille), id = tostring(id) },
+    -- Les deux sujets : « brouillon- » retirait une entree de seance, « masque »
+    -- une entree publiee. Un MJ pas encore a jour ne comprend que l'un ou
+    -- l'autre selon l'entree ; chez un MJ a jour, le second ne trouve plus rien.
+    LCM.Reseau.Envoyer("brouillon-", { f = tostring(famille), id = tostring(id) }, canal, cible)
+    return LCM.Reseau.Envoyer("masque", { f = tostring(famille), id = tostring(id), p = 1 },
         canal, cible)
-end
-
-function Brouillons.DiffuserMasque(famille, id, pose)
-    if enReception or not LCM.IsMaster() then return false end
-    if not (LCM.Reseau and LCM.Reseau.Envoyer) then return false end
-    local canal, cible = Canal()
-    if not canal then return false end
-    return LCM.Reseau.Envoyer("masque", { f = tostring(famille), id = tostring(id),
-        p = pose and 1 or nil }, canal, cible)
 end
 
 LCM.WhenReady(function()
@@ -620,21 +518,26 @@ LCM.WhenReady(function()
         attentes[identifiant] = nil
     end)
 
-    LCM.Reseau.Ecouter("masque", function(expediteur, donnees)
+    local function Retirer(expediteur, donnees)
         if not LCM.IsMaster() then return end
         if expediteur == LCM.PlayerId() then return end
         local famille, id = tostring(donnees.f or ""), tostring(donnees.id or "")
         if not FamilleValide(famille) then return end
         enReception = true
-        if donnees.p ~= nil then
-            if Brouillons.Masquer(famille, id) then
-                LCM.Info(string.format("%s a retiré « %s » (%s).", tostring(expediteur), id, famille))
-            end
-        else
-            Brouillons.Demasquer(famille, id)
-        end
+        local retire = Brouillons.Supprimer(famille, id)
         enReception = false
+        if retire then
+            LCM.Info(string.format("%s a supprimé « %s » (%s).", tostring(expediteur), id, famille))
+            if Brouillons.onSynchro then Brouillons.onSynchro(famille, nil) end
+        end
+    end
+
+    -- Un MJ pas encore a jour envoie aussi « masque » sans `p` pour annuler une
+    -- suppression : il n'y a rien a defaire ici, l'entree reviendra de la base.
+    LCM.Reseau.Ecouter("masque", function(expediteur, donnees)
+        if donnees.p ~= nil then Retirer(expediteur, donnees) end
     end)
+    LCM.Reseau.Ecouter("brouillon-", Retirer)
 
     LCM.Reseau.Ecouter("brouillon", function(expediteur, donnees)
         -- Un joueur ne doit rien faire de ca : il n'a pas d'atelier.
@@ -650,7 +553,7 @@ LCM.WhenReady(function()
             return
         end
         enReception = true
-        local ok, raison = Brouillons.Enregistrer(famille, entree, false, donnees.r ~= nil)
+        local ok, raison = Brouillons.Enregistrer(famille, entree, false)
         enReception = false
         if ok then
             MarquerRecu(cleReception)
@@ -666,26 +569,11 @@ LCM.WhenReady(function()
         end
     end)
 
-    LCM.Reseau.Ecouter("brouillon-", function(expediteur, donnees)
-        if not LCM.IsMaster() then return end
-        if expediteur == LCM.PlayerId() then return end
-        local famille, id = tostring(donnees.f or ""), tostring(donnees.id or "")
-        if not FamilleValide(famille) then return end
-        enReception = true
-        local retire = Brouillons.Supprimer(famille, id)
-        enReception = false
-        if retire then
-            LCM.Info(string.format("%s a supprimé « %s » (%s).",
-                tostring(expediteur), id, famille))
-            if Brouillons.onSynchro then Brouillons.onSynchro(famille, nil) end
-        end
-    end)
-
     AnnoncerMJ()
 end)
 
 -- Le canal prive apparait quelques instants apres la connexion. Une annonce
--- ici permet aussi aux brouillons restes en attente de trouver leur cible.
+-- ici permet aussi aux entrees restees en attente de trouver leur cible.
 LCM.On("CHAT_MSG_CHANNEL_NOTICE", function(notice, _, _, _, _, _, _, _, nomCanal)
     if (notice == "YOU_JOINED" or notice == "YOU_CHANGED")
         and LCM.Presence and tostring(nomCanal or "") == tostring(LCM.Presence.CANAL) then
@@ -693,119 +581,75 @@ LCM.On("CHAT_MSG_CHANNEL_NOTICE", function(notice, _, _, _, _, _, _, _, nomCanal
     end
 end)
 
--- ===== Prise en compte immediate ===========================================
--- Les brouillons sont declares comme le reste, pour etre jouables des la
--- seance. S'ils existent deja en dur, on n'ecrase pas : le fichier fait foi.
+-- ===== Au chargement ========================================================
+-- Les fichiers generes sont charges ; on y pose ce que la file d'envoi tient
+-- encore — ce qui a ete ecrit depuis le dernier passage du service, ou ce que
+-- le service n'a pas pu envoyer. Ce n'est pas un etat a part : c'est le
+-- contenu, simplement plus recent que le fichier.
 
-LCM.WhenReady(function()
-    -- Les masques d'abord : une entree publiee qu'on a retiree ne doit pas
-    -- reapparaitre a chaque connexion. Le fichier la redonne, le masque la
-    -- reprend.
-    for famille, parFamille in pairs(Brouillons.Masques()) do
-        local registre = Registre(famille)
-        if registre and registre.Retirer then
-            for id in pairs(parFamille) do
-                if registre.Get(id) then registre.Retirer(id) end
+-- Migration vers le modele 2 (15 octobre 2026). Les anciens masques cachaient
+-- du contenu en seance sans jamais l'effacer de la base, et le service ne les
+-- avait pas publies. Le MJ a choisi de GARDER ces entrees : on oublie les
+-- masques, et elles reviennent. (Les 19 du compte AKRX sont mises de cote dans
+-- Sauvegardes/entrees_masquees_2026-10-15/ du depot.)
+local function Migrer()
+    local db = Base()
+    if (tonumber(db.version) or 1) >= VERSION then return end
+    db.masques = nil
+    for _, parFamille in pairs(Store()) do
+        for _, entree in pairs(parFamille) do
+            if type(entree) == "table" then
+                entree.brouillon, entree.remplacePublie = nil, nil
             end
         end
     end
+    db.version = VERSION
+end
 
-    -- On marque ce qui vient d'un brouillon : c'est ce qui permet ensuite de
-    -- reperer un brouillon devenu redondant avec un fichier genere.
-    local retiresCarPublies, recouverts = 0, 0
+LCM.WhenReady(function()
+    Migrer()
+
+    -- Les suppressions d'abord. Si le fichier porte encore l'entree, la base
+    -- n'a pas encore suivi : on la retire du jeu. S'il ne la porte plus, la
+    -- suppression est faite, et la note n'a plus de raison d'etre.
+    for famille, parFamille in pairs(Masques()) do
+        local registre = Registre(famille)
+        for id in pairs(parFamille) do
+            if registre and registre.Get(id) then
+                if registre.Retirer then registre.Retirer(id) end
+            else
+                parFamille[id] = nil
+            end
+        end
+        if next(parFamille) == nil then Masques()[famille] = nil end
+    end
+
     for _, famille in ipairs(Brouillons.FAMILLES) do
         local registre = Registre(famille)
         for _, entree in ipairs(Brouillons.List(famille)) do
-            if not registre.Get(entree.id) then
-                local ok, cree = pcall(registre.Add, entree)
-                if ok and type(cree) == "table" then
-                    cree.brouillon = true
-                    if famille == "points" and registre.ActualiserRegles then
-                        registre.ActualiserRegles(cree)
-                    end
-                elseif not ok then
-                    LCM.Erreur(string.format("brouillon refuse (%s) : %s", famille, Raison(cree)))
-                end
-            elseif PublieIdentique(registre, entree) then
-                -- L'outil d'export ne touche volontairement jamais au WTF.
-                -- Quand la mise a jour revient, c'est donc l'addon qui retire
-                -- la copie devenue strictement redondante. Une version locale
-                -- differente reste intacte et continue d'etre signalee.
-                if Brouillons.Remove(famille, entree.id) then
-                    retiresCarPublies = retiresCarPublies + 1
-                end
+            local existant = registre.Get(entree.id)
+            local ok, neuf = pcall(registre.Construire, entree)
+            if not ok then
+                -- Refusee : on le dit, et elle reste dans la file pour que le
+                -- MJ la corrige depuis l'atelier.
+                LCM.Erreur(string.format("entrée refusée (%s / %s) : %s",
+                    famille, tostring(entree.id), Raison(neuf)))
+            elseif existant and MemeValeur(neuf, existant) then
+                -- Le fichier la porte deja telle quelle : la base a suivi.
+                Brouillons.Remove(famille, entree.id)
+            elseif existant then
+                Remplacer(registre, existant, neuf)
             else
-                -- Le brouillon RECOUVRE une entree publiee, et il en differe :
-                -- on l'applique.
-                --
-                -- Ce cas manquait (9 octobre 2026). Modifier une entree publiee
-                -- tenait le temps de la seance — l'enregistrement la changeait
-                -- bien en memoire — puis le rechargement rechargeait le fichier
-                -- et ignorait le brouillon : la correction disparaissait sans un
-                -- mot, alors qu'elle etait toujours dans la sauvegarde.
-                local ok, neuf = pcall(registre.Construire, entree)
-                if ok and type(neuf) == "table" then
-                    Recouvrir(famille, registre, registre.Get(entree.id), neuf)
-                    recouverts = recouverts + 1
-                else
-                    LCM.Erreur(string.format("brouillon refuse (%s / %s) : %s",
-                        famille, tostring(entree.id), Raison(neuf)))
+                -- Protege lui aussi : une entree qui echoue ne doit pas
+                -- emporter celles qui la suivent dans la file.
+                local ajoute, cree = pcall(registre.Add, entree)
+                if not ajoute then
+                    LCM.Erreur(string.format("entrée refusée (%s / %s) : %s",
+                        famille, tostring(entree.id), Raison(cree)))
+                elseif famille == "points" and registre.ActualiserRegles then
+                    registre.ActualiserRegles(cree)
                 end
             end
         end
-    end
-    if retiresCarPublies > 0 then
-        LCM.Info(string.format("%d brouillon(s) retire(s) : ils sont maintenant publies.",
-            retiresCarPublies))
-    end
-    if recouverts > 0 then
-        LCM.Info(string.format("%d entrée(s) publiée(s) modifiée(s) en séance : "
-            .. "ta version est appliquée, elle reste à exporter.", recouverts))
-    end
-    local nombre = Brouillons.Count()
-    if nombre > 0 then
-        LCM.Info(string.format("%d brouillon(s) en attente d'export.", nombre))
-    end
-    local masques = Brouillons.CompteMasques()
-    if masques > 0 then
-        LCM.Info(string.format("%d entrée(s) publiée(s) masquée(s) : retire-les du fichier "
-            .. "à la prochaine passe (/lcm brouillons).", masques))
     end
 end)
-
-LCM.AddCommand("brouillons", "liste ce qui attend d'etre exporte", function()
-    -- Les masques AUSSI : une entree publiee retiree en seance disparait du
-    -- jeu, mais reste dans son fichier. Si personne ne le rappelle, elle y
-    -- restera pour toujours et reviendra chez qui n'a pas le masque.
-    local masques = {}
-    for famille, parFamille in pairs(Brouillons.Masques()) do
-        for id in pairs(parFamille) do
-            masques[#masques + 1] = string.format("%s / %s", famille, id)
-        end
-    end
-    table.sort(masques)
-    if #masques > 0 then
-        LCM.Info(string.format("%d entrée(s) publiée(s) masquée(s) — à RETIRER du fichier :", #masques))
-        for _, ligne in ipairs(masques) do LCM.Info("   " .. ligne) end
-    end
-
-    local total = Brouillons.Count()
-    if total == 0 then
-        if #masques == 0 then LCM.Info("aucun brouillon.") end
-        return
-    end
-    for _, famille in ipairs(Brouillons.FAMILLES) do
-        local liste = Brouillons.List(famille)
-        if #liste > 0 then
-            LCM.Info(string.format("%s (%d) :", famille, #liste))
-            for _, entree in ipairs(liste) do
-                LCM.Info("   " .. tostring(entree.label or entree.id))
-            end
-        end
-    end
-    local publies = Brouillons.Published()
-    if #publies > 0 then
-        LCM.Alerte(string.format("%d brouillon(s) deja publie(s), a supprimer : %s",
-            #publies, table.concat(publies, ", ")))
-    end
-end, true)

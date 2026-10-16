@@ -1088,7 +1088,7 @@ function Fenetre.Comportement(f)
         local noms = {}
         for _, e in ipairs(elements) do noms[#noms + 1] = e.label end
         self.confirmation:Demander(
-            string.format("Supprimer %s ?\nSeuls les brouillons se suppriment en jeu : le contenu publié vient d'un fichier.",
+            string.format("Supprimer %s ?\nRetiré du jeu tout de suite, et de la base au prochain /reload.",
                 #noms == 1 and ("« " .. noms[1] .. " »") or (#noms .. " entrées")),
             function()
                 local faits, refus = ed.Supprimer(self:Categorie(), elements)

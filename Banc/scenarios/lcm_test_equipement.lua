@@ -115,7 +115,13 @@ for _, ligne in ipairs(conteneur.emplacements) do
     if ligne:IsShown() and not ligne.elementId then vide = ligne end
 end
 attendu("une place libre a remplir", vide ~= nil, true)
-vide.action:Click()
+-- 16 octobre 2026 : toute la CASE se clique, pas seulement le fondu au bout ;
+-- et son survol allume le fondu.
+vide.__scripts.OnEnter(vide)
+attendu("le survol de la case allume le fondu", vide.action.eclat:IsShown(), true)
+vide.__scripts.OnLeave(vide)
+attendu("  et s'eteint en partant", vide.action.eclat:IsShown(), false)
+vide:Click("LeftButton")
 local choix = LCM.UI.Fiche.choixConteneur
 local proposes = {}
 for _, b in ipairs(choix.lignes) do if b:IsShown() then proposes[#proposes + 1] = b.choix end end
@@ -166,8 +172,8 @@ attendu("le joueur voit Retirer", porteeLigne.action:IsShown(), true)
 -- Une place pour la dague.
 I.Vider(moi, "sacs", 1, 12)
 I.Vider(moi, "sacs", 1, 11)
-porteeLigne.action:Click()
-attendu("le joueur la retire", O.Porte(moi, "dague_d_essai"), false)
+porteeLigne:Click("LeftButton")
+attendu("le joueur la retire (clic sur la case)", O.Porte(moi, "dague_d_essai"), false)
 attendu("elle est au sac", O.Possede(moi, "dague_d_essai"), true)
 LCM.db.settings.modeJoueur = nil
 

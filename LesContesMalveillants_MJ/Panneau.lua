@@ -10,7 +10,7 @@
 --             niveau et PV quand la fiche est arrivee, consulter, donner l'XP ;
 --   Combat    ce qui etait la fenetre de combat a part (Combat.lua) ;
 --   PNJ       les PNJ en scene, leur incarnation et le renvoi de la scene ;
---   Contenus  le systeme et les brouillons en attente d'export ;
+--   Contenus  le systeme ;
 --   Outils    annonces, compteurs, barres et notes partages avec les joueurs
 --             (Core/Outils.lua ; les Outils de Necronicon).
 -- Les onglets Général et Permissions de Necronicon ne sont pas repris : il n'y
@@ -989,38 +989,10 @@ function Pages.contenus(page, f)
         y = y + 30
     end
 
-    page.titreBrouillons = Titre(page, "Brouillons")
-    page.titreBrouillons:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -(y + 8))
-    page.zoneBrouillons = UI.Defilement(page)
-    page.zoneBrouillons:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -(y + 34))
-    page.zoneBrouillons:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    page.lignesBrouillons = {}
-
-    function page:Afficher()
-        local B = LCM.Brouillons
-        local lignes = {}
-        if B then
-            for _, famille in ipairs(B.FAMILLES) do
-                for _, entree in ipairs(B.List(famille)) do
-                    lignes[#lignes + 1] = { icone = entree.icone,
-                        nom = string.format("%s  (%s)", tostring(entree.label or entree.id), famille) }
-                end
-            end
-        end
-        local y3 = 0
-        for rang, ligne in ipairs(lignes) do
-            local l = LigneIcone(self.lignesBrouillons, self.zoneBrouillons, rang)
-            l.icone:SetTexture(LCM.Icone(ligne.icone))
-            l.nom:SetText(ligne.nom)
-            Poser(l, self.zoneBrouillons.contenu, y3)
-            y3 = y3 + 24
-        end
-        for rang = #lignes + 1, #self.lignesBrouillons do self.lignesBrouillons[rang]:Hide() end
-        self.zoneBrouillons:Regler(y3)
-        self.nombreBrouillons = #lignes
-        self.titreBrouillons:SetText(#lignes > 0
-            and string.format("Brouillons (%d, en attente d'export)", #lignes) or "Brouillons (aucun)")
-    end
+    -- La liste « Brouillons (en attente d'export) » vivait ici. Une entree
+    -- enregistree existe, elle n'attend rien (15 octobre 2026) : la liste n'a
+    -- plus d'objet.
+    function page:Afficher() end
 end
 
 -- ===== Outils partages =====================================================

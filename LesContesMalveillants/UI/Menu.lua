@@ -22,7 +22,7 @@ local RADIAL = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\ic
 
 -- ===== La structure, figee =================================================
 -- Categories et sous-menus partagent les icones noires et dorees du radial.
--- Seul Aelskar conserve son icone du template.
+-- Systeme utilise lui aussi des pictogrammes noirs et dores.
 
 Menu.STRUCTURE = {
     -- « Création » a quitte le menu le 1er octobre 2026 : on cree un personnage
@@ -65,11 +65,14 @@ Menu.STRUCTURE = {
     { id = "grimoires", label = "Grimoires", icone = RADIAL .. "fenetres-grimoires.tga" },
     { id = "systeme", label = "Système", icone = RADIAL .. "fenetres-compendium.tga",
       enfants = {
-          { id = "systeme_aelskar", label = "Compendium", icone = ICONE .. "achievement_zone_stormpeaks_03", mjSeulement = true },
-          { id = "lieux", label = "Lieux", icone = ICONE .. "inv_misc_map_01", mjSeulement = true },
-          { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-ressources.tga", mjSeulement = true },
-          { id = "vendeur", label = "Vendeurs", icone = RADIAL .. "fenetres-vendeur.tga", mjSeulement = true },
-          { id = "coffres", label = "Coffres", icone = RADIAL .. "fenetres-objets.tga", mjSeulement = true },
+          { id = "systeme_aelskar", label = "Compendium", icone = RADIAL .. "fenetres-compendium.tga", mjSeulement = true },
+          { id = "lieux", label = "Lieux", icone = RADIAL .. "fenetres-lieux.tga", mjSeulement = true },
+          { id = "interactions", label = "Interactions", icone = RADIAL .. "fenetres-interactions.tga", mjSeulement = true,
+            enfants = {
+                { id = "coffres", label = "Coffres", icone = RADIAL .. "fenetres-coffres.tga", mjSeulement = true },
+                { id = "vendeur", label = "Vendeurs", icone = RADIAL .. "fenetres-vendeurs.tga", mjSeulement = true },
+                { id = "ressources", label = "Ressources", icone = RADIAL .. "fenetres-recoltes.tga", mjSeulement = true },
+            } },
           { id = "regles", label = "Règles", icone = RADIAL .. "fenetres-regles.tga" },
       } },
     { id = "outils", label = "Outils", icone = RADIAL .. "fenetres-outils.tga",
@@ -103,12 +106,19 @@ Menu.STRUCTURE = {
 -- (UI/Radial.lua, MAX_ENTREES) plutot que de se recopier ici : repete, il
 -- aurait fallu penser a le changer aux deux endroits.
 local PLAFOND = (UI.Radial and UI.Radial.MAX_ENTREES) or 8
-for _, noeud in ipairs(Menu.STRUCTURE) do
-    if noeud.enfants and #noeud.enfants > PLAFOND then
-        error(string.format("menu : le dossier %s a %d fenetres (maximum %d)",
-            noeud.id, #noeud.enfants, PLAFOND))
+local function VerifierDossiers(noeuds, profondeur)
+    for _, noeud in ipairs(noeuds) do
+        if noeud.enfants then
+            local maximum = PLAFOND
+            if #noeud.enfants > maximum then
+                error(string.format("menu : le dossier %s a %d fenetres (maximum %d)",
+                    noeud.id, #noeud.enfants, maximum))
+            end
+            VerifierDossiers(noeud.enfants, profondeur + 1)
+        end
     end
 end
+VerifierDossiers(Menu.STRUCTURE, 0)
 
 -- ===== Liaisons ============================================================
 

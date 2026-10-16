@@ -41,7 +41,10 @@ local CARTE_H_GRILLE, CARTE_H_LISTE, ECART, COLONNE = 112, 60, 8, 180
 -- La colonne des six emplacements, a gauche.
 local COLONNE_SACS, LIGNE_CONTENU = 168, 26
 local CASE, ECART_CASE = 46, 8
-local VIDE = 135956   -- l'icone d'emplacement vide de Necronicon (DEFAULT_EMPTY_ICON)
+-- Un emplacement vide, comme sur la fiche, au coffre et a la creation. C'etait
+-- l'icone par defaut de Necronicon (135956), un tas de cranes dores qu'on
+-- prenait pour un objet (16 octobre 2026).
+local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
 local function Action(parent, texte, largeur, hauteur)
     return UI.Bouton(parent, texte, largeur or math.max(18, #tostring(texte) * 7 + 10), hauteur or 18)
@@ -114,9 +117,9 @@ local confirmation
 local function Jeter(objet)
     local o = type(objet) == "table" and objet.origine
     if not (o and (o.case or o.emplacement)) then return false end
-    confirmation = confirmation or UI.Confirmer(UIParent, "", "Jeter")
+    confirmation = confirmation or UI.Confirmer(UIParent, "", "Détruire")
     local q = tonumber(objet.quantite) or 1
-    confirmation:Demander(string.format("Jeter « %s »%s ?\nIl est détruit : on ne le récupère pas.",
+    confirmation:Demander(string.format("Détruire « %s »%s ?\nOn ne le récupère pas.",
         tostring(objet.nom), q > 1 and (" x" .. q) or ""), function()
         local ici = Inv.Emplacement(Entite(), o.onglet, o.index)
         if o.emplacement then
@@ -124,7 +127,7 @@ local function Jeter(objet)
             -- meme, et toujours vide la ou il faut — Retirer le reverifie.
             local contenant = Inv.Contenant(ici)
             if not (contenant and contenant.ref == objet.ref) then
-                Refuser("l'objet n'est plus à sa place : rien n'a été jeté.")
+                Refuser("l'objet n'est plus à sa place : rien n'a été détruit.")
                 return
             end
             local ok, raison = Inv.Retirer(Entite(), o.onglet, o.index)
@@ -133,12 +136,12 @@ local function Jeter(objet)
         else
             local c = ici and Inv.Case(ici, o.case)
             if not (c and c.ref == objet.ref) then
-                Refuser("l'objet n'est plus à sa place : rien n'a été jeté.")
+                Refuser("l'objet n'est plus à sa place : rien n'a été détruit.")
                 return
             end
             Inv.Vider(Entite(), o.onglet, o.index, o.case)
         end
-        LCM.Info(string.format("%s jeté.", tostring(objet.nom)))
+        LCM.Info(string.format("%s détruit.", tostring(objet.nom)))
         Ecran.Actualiser()
     end)
     return true
@@ -191,13 +194,100 @@ local function OptionEchanger(objet, bloque)
     end }
 end
 
+-- Scinder une pile (le MJ, 16 octobre 2026) : un petit panneau demande
+-- combien en sortir, et le nouveau tas va dans `vers` (une case designee par
+-- un Maj + glisser) ou dans la premiere case libre (le clic droit). Au
+-- « Scinder », on reverifie que la pile est toujours la : entre la question et
+-- la reponse, elle a pu partir.
+local function Scinder(objet, vers)
+    local o = objet.origine
+    local ref = objet.scinder and objet.scinder.ref or objet.ref
+    local total = tonumber(objet.quantite) or 1
+    local d = UI.Demande()
+    Ecran.demandeScinder = d
+    d:Demander(string.format("Scinder en combien ? « %s » x%d", tostring(objet.nom), total),
+        math.floor(total / 2), function(texte)
+            local ici = Inv.Emplacement(Entite(), o.onglet, o.index)
+            local c = ici and Inv.Case(ici, o.case)
+            if not (c and c.ref == ref) then return false, "la pile n'est plus à sa place." end
+            local ok, raison = Inv.Scinder(Entite(), o.onglet, o.index, o.case, texte, vers)
+            if ok then Ecran.Actualiser() end
+            return ok, raison
+        end, "Scinder")
+    return true
+end
+Ecran.Scinder = Scinder
+
+-- Maj + glisser une pile : on la SCINDE vers la case ou on la lache. Le
+-- glissement ne porte ni reference ni `retirer` : aucune autre cible (un
+-- emplacement, la fiche, un coffre, quelqu'un) ne le prend pour un objet a
+-- deplacer — seules les cases de sac lisent `scinder`.
+local function GlisserPile(objet)
+    if not (objet and IsShiftKeyDown and IsShiftKeyDown()) then return objet end
+    if (tonumber(objet.quantite) or 1) < 2 then return objet end
+    objet.scinder = { ref = objet.ref }
+    objet.nom = objet.nom .. " — scinder"
+    objet.ref, objet.element, objet.retirer, objet.rendre = nil, nil, nil, nil
+    return objet
+end
+
+-- Ce que dit une case de sac a une pile qu'on scinde (Maj + glisser), et ce
+-- qu'elle en fait. `ici` : l'emplacement de la case, `vers` : la case.
+local function AccepteScission(objet, ici, vers)
+    local o = objet.origine
+    if o.onglet == vers.onglet and o.index == vers.index and o.case == vers.case then return true end
+    if not Inv.Contenant(ici) then return false, "aucun sac ici." end
+    local deja = Inv.Case(ici, vers.case)
+    if deja then
+        -- Sur une pile du meme objet : on y ajoute, s'il reste de la place.
+        if deja.ref ~= objet.scinder.ref then return false, "cette case est déjà occupée." end
+        local n, raison = Inv.PeutEmpiler(Entite(), o.onglet, o.index, o.case, vers.onglet, vers.index, vers.case)
+        if not n then return false, raison end
+        return true
+    end
+    return Inv.Accepte(ici, vers.case, objet.scinder.ref)
+end
+local function DeposerScission(objet, vers)
+    local o = objet.origine
+    if o.onglet == vers.onglet and o.index == vers.index and o.case == vers.case then return end
+    Scinder(objet, vers)
+end
+
+-- Une pile lachee sur une pile du MEME objet se reempile (le MJ, 16 octobre
+-- 2026) : jusqu'a la pile maximale, le reste demeure dans la case de depart.
+-- Elle disait « cette case est déjà occupée ». Nil si ce n'est pas le cas :
+-- la case juge alors comme d'habitude.
+local function Empilable(objet, ici, vers)
+    local o = objet.origine
+    if not (o and o.case and objet.ref) then return nil end
+    local deja = Inv.Case(ici, vers.case)
+    if not (deja and deja.ref == objet.ref) then return nil end
+    if o.onglet == vers.onglet and o.index == vers.index and o.case == vers.case then return nil end
+    return true
+end
+local function AccepteEmpiler(objet, vers)
+    local o = objet.origine
+    local n, raison = Inv.PeutEmpiler(Entite(), o.onglet, o.index, o.case, vers.onglet, vers.index, vers.case)
+    if not n then return false, raison end
+    return true
+end
+local function Empiler(objet, vers)
+    local o = objet.origine
+    local ok, raison = Inv.Empiler(Entite(), o.onglet, o.index, o.case, vers.onglet, vers.index, vers.case)
+    if not ok then Refuser(raison) end
+    Ecran.Actualiser()
+end
+
 local function MenuObjet(ancre, onglet, index, place, extras)
     local objet = ObjetDeCase(onglet, index, place)
     if not objet then return end
     local options = { { label = "Voir", action = function() Voir(objet.ref, ancre) end } }
     options[#options + 1] = OptionEchanger(objet)
     for _, extra in ipairs(extras or {}) do options[#options + 1] = extra end
-    options[#options + 1] = { label = "Jeter", action = function() Jeter(objet) end }
+    if (tonumber(objet.quantite) or 1) > 1 then
+        options[#options + 1] = { label = "Scinder", action = function() Scinder(objet) end }
+    end
+    options[#options + 1] = { label = "Détruire", action = function() Jeter(objet) end }
     UI.MenuContexte():Ouvrir(ancre, options)
 end
 
@@ -226,13 +316,44 @@ end
 -- Lache dans le vide — sur le monde, ni sur une fenetre ni sur quelqu'un :
 -- on propose de jeter. Seul un objet de SAC se jette ainsi ; une entree du
 -- compendium n'est a personne, et ce qu'on porte se retire d'abord.
+-- Un SAC porte (la carte d'un emplacement) lache dans le vide se pose AU SOL,
+-- avec tout son contenu, et devient un coffre que n'importe qui peut ouvrir ou
+-- ramasser (Core/SacsAuSol.lua ; le MJ, 16 octobre 2026). On le demande.
+local confirmationSol
+local function PoserAuSol(objet)
+    local o = objet.origine
+    confirmationSol = confirmationSol or UI.Confirmer(UIParent, "", "Poser au sol")
+    Ecran.confirmationSol = confirmationSol
+    confirmationSol:Demander(string.format("Poser « %s » au sol ?\nSon contenu reste dedans : "
+        .. "n'importe qui pourra l'ouvrir, y prendre, ou le ramasser.", tostring(objet.nom)), function()
+        local ok, raison = LCM.SacsAuSol.Lacher(o.onglet, o.index)
+        if not ok then Refuser(raison) return end
+        Ecran.FermerSac(o.onglet, o.index)
+        Ecran.Actualiser()
+    end)
+    return true
+end
+Ecran.PoserAuSol = PoserAuSol
+
 if UI.Glisser then
     UI.Glisser.DansLeVide = function(objet)
-        if Creation(objet) or not objet.origine.case then return false end
+        if Creation(objet) or not objet.origine then return false end
+        -- Une pile qu'on scinde, lachee hors d'une case : on n'en fait rien.
+        if objet.scinder then return false end
         local foci = (GetMouseFoci and GetMouseFoci())
             or (GetMouseFocus and { GetMouseFocus() }) or {}
         local focus = foci[1]
         if focus and focus ~= WorldFrame then return false end
+        if objet.origine.emplacement and LCM.SacsAuSol then return PoserAuSol(objet) end
+        if not objet.origine.case then return false end
+        -- Un objet lache hors de l'inventaire TOMBE : il se ramasse (le MJ,
+        -- 16 octobre 2026). Le detruire, c'est le clic droit, « Détruire ».
+        if LCM.SacsAuSol then
+            local ok, raison = LCM.SacsAuSol.LacherObjet(objet)
+            if not ok then Refuser(raison) end
+            Ecran.Actualiser()
+            return true
+        end
         return Jeter(objet)
     end
 end
@@ -252,10 +373,61 @@ local function Carte(f)
     c.description:SetWordWrap(true)
     c.survol = UI.Aplat(c, UI.C.survol, "HIGHLIGHT")
     c.survol:SetAllPoints(c)
+    -- Un emplacement glisse sur un autre : on reorganise. Il s'y deplace, ou
+    -- les deux echangent leur place, chacun avec son contenu (Inv.Deplacer).
+    local function Reorganise(objet)
+        return objet.origine and objet.origine.emplacement
+    end
+    local function MemeEmplacement(objet)
+        return objet.origine.onglet == c.onglet and objet.origine.index == c.index
+    end
+    -- Un objet (d'une case, ou du compendium) lache sur un emplacement qui
+    -- porte deja un sac : il se transvase dedans.
+    local function Transvase(objet)
+        if Reorganise(objet) or not objet.ref then return false end
+        -- La ceinture n'est jamais vide (ses cases de base) : un objet
+        -- « ceinture » lache dessus s'y EQUIPE, il n'entre pas dans ses cases.
+        local categorie = Inv.Get(c.onglet)
+        if categorie and categorie.ceinture and tostring(objet.ref):match("^sacs/")
+            and LCM.Sacs.EstCeinture(tostring(objet.ref):match("^sacs/(.+)$")) then
+            return false
+        end
+        return Inv.Contenant(Inv.Emplacement(Entite(), c.onglet, c.index)) ~= nil
+    end
+    -- Il vient deja de ce sac : rien a faire.
+    local function MemeSac(objet)
+        local o = objet.origine
+        return o and o.case and o.onglet == c.onglet and o.index == c.index
+    end
+
     -- On y depose un sac (ou une devise) glisse depuis le compendium.
     UI.Glisser.Cible(c, function(objet)
+        if Reorganise(objet) then
+            if MemeEmplacement(objet) then return true end
+            local depart, arrivee = Inv.Get(objet.origine.onglet), Inv.Get(c.onglet)
+            if not (depart and arrivee) then return false, "onglet inconnu." end
+            if depart.ceinture or arrivee.ceinture then
+                return false, "la ceinture ne change pas d'emplacement."
+            end
+            if depart.contient ~= arrivee.contient then
+                return false, string.format("l'onglet %s n'accepte pas ça.", arrivee.label)
+            end
+            -- Chacun sa place : ce qui arrive, et ce qui repart en echange.
+            local entite = Entite()
+            local ok, raison = Inv.PeutPorter(c.onglet,
+                Inv.Emplacement(entite, objet.origine.onglet, objet.origine.index))
+            if not ok then return false, raison end
+            return Inv.PeutPorter(objet.origine.onglet, Inv.Emplacement(entite, c.onglet, c.index))
+        end
         if Creation(objet) and not LCM.IsMaster() then
             return false, "sortir un objet du compendium est un geste du maître du jeu."
+        end
+        -- Un emplacement qui porte deja un sac : ce qu'on y lache passe DEDANS
+        -- (on transvase), on ne l'equipe pas (le MJ, 16 octobre 2026).
+        if Transvase(objet) then
+            if MemeSac(objet) then return true end
+            -- A blanc, sur une copie : tient-il entier dans ce sac ?
+            return Inv.Transvaser(LCM.Copie(Entite()), c.onglet, c.index, objet.ref, objet.quantite or 1)
         end
         local categorie = Inv.Get(c.onglet or Inv.categories[1].id)
         local voulu = categorie.contient == "sac" and "sacs" or "devises"
@@ -276,8 +448,34 @@ local function Carte(f)
         end
         if ceinture then return false, "une ceinture se porte sur l'emplacement Ceinture." end
         if Inv.Emplacement(Entite(), c.onglet, c.index) then return false, "cet emplacement est déjà occupé." end
+        -- Un sac dans Sacs, une sacoche dans Saccoches (Inv.PeutPorter).
+        if sac then return Inv.PeutPorter(c.onglet, { sac = sac.id }) end
         return true
     end, function(objet)
+        if Reorganise(objet) then
+            if MemeEmplacement(objet) then return end
+            local o = objet.origine
+            local ok, raison = Inv.Deplacer(Entite(), o.onglet, o.index, c.onglet, c.index)
+            if not ok then Refuser(raison) return end
+            -- Les fenetres de sac ouvertes montraient l'ancienne place.
+            Ecran.FermerSac(o.onglet, o.index)
+            Ecran.FermerSac(c.onglet, c.index)
+            Ecran.Actualiser()
+            return
+        end
+        if Transvase(objet) then
+            if MemeSac(objet) then return end
+            -- Il quitte sa place, puis entre dans ce sac ; s'il n'y tient pas,
+            -- il y retourne.
+            if objet.retirer then objet.retirer() end
+            local ok, raison = Inv.Transvaser(Entite(), c.onglet, c.index, objet.ref, objet.quantite or 1)
+            if not ok then
+                if objet.rendre then objet.rendre() end
+                Refuser(raison)
+            end
+            Ecran.Actualiser()
+            return
+        end
         local tente = tostring(objet.ref or ""):match("^tentes/")
         -- Un sac pris dans une CASE demenage : il quitte sa case, puis se pose.
         -- Il etait pose sans quitter la case — on se retrouvait avec deux sacs
@@ -290,6 +488,22 @@ local function Carte(f)
         end
         Ecran.Actualiser()
     end)
+    -- ... et une SOURCE : on prend un sac porte pour le poser sur un autre
+    -- emplacement. Un sac PLEIN ne peut que changer d'emplacement : son contenu
+    -- ne se jette pas, ne se donne pas, ne se range pas dans une case avec lui.
+    -- Sans reference ni `retirer`, aucune autre cible ne l'accepte — sinon il
+    -- serait pose ailleurs sans quitter sa place, donc double.
+    c:RegisterForDrag("LeftButton")
+    c:SetScript("OnDragStart", function(self)
+        if not self.onglet then return end
+        local objet = ObjetDEmplacement(self.onglet, self.index)
+        if not objet then return end
+        if not Inv.PeutRetirer(Entite(), self.onglet, self.index) then
+            objet.ref, objet.element, objet.retirer, objet.rendre = nil, nil, nil, nil
+        end
+        UI.Glisser.Commencer(objet)
+    end)
+    c:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
     c:SetScript("OnClick", function(self, bouton) f:CliquerEmplacement(self, bouton) end)
     c:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -422,11 +636,25 @@ local function Construire()
                         return false, "sortir un objet du compendium est un geste du maître du jeu."
                     end
                     local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
+                    if objet.scinder then
+                        if not l.place then return false, "aucun sac ici." end
+                        return AccepteScission(objet, ici,
+                            { onglet = l.place.onglet, index = l.place.index, case = l.case })
+                    end
                     if not Inv.Contenant(ici) then return false, "aucun sac ici." end
                     if MemeCase(objet) then return true end
+                    local vers = { onglet = l.place.onglet, index = l.place.index, case = l.case }
+                    if Empilable(objet, ici, vers) then return AccepteEmpiler(objet, vers) end
                     if Inv.Case(ici, l.case) then return false, "cette case est déjà occupée." end
                     return Inv.Accepte(ici, l.case, objet.ref)
                 end, function(objet)
+                    local vers = { onglet = l.place.onglet, index = l.place.index, case = l.case }
+                    if objet.scinder then
+                        DeposerScission(objet, vers)
+                        return
+                    end
+                    local ici = Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
+                    if Empilable(objet, ici, vers) then Empiler(objet, vers) return end
                     if MemeCase(objet) then return end
                     local entite = Entite()
                     -- Un objet qui vient d'ailleurs demenage : il quitte sa
@@ -460,7 +688,7 @@ local function Construire()
                     -- (12 octobre 2026). C'est la DESTINATION qui dit ce
                     -- qu'elle autorise, pas la main qui prend.
                     if not self.place then return end
-                    local objet = ObjetDeCase(self.place.onglet, self.place.index, self.case)
+                    local objet = GlisserPile(ObjetDeCase(self.place.onglet, self.place.index, self.case))
                     if objet then UI.Glisser.Commencer(objet) end
                 end)
                 l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
@@ -634,10 +862,13 @@ local function Construire()
                 end
                 -- La ceinture reste a sa place : elle n'a qu'un emplacement.
                 if contenant and not contenant.ceinture then
-                    -- Deplacer > : vers un emplacement de sac libre (Sacs ou Saccoches).
+                    -- Deplacer > : vers un emplacement libre de SA nature — un
+                    -- sac dans Sacs, une sacoche dans Saccoches (Inv.PeutPorter).
                     local cibles = {}
+                    local porte = Inv.Emplacement(entity, onglet, index)
                     for _, autre in ipairs(Inv.categories) do
-                        if autre.contient == "sac" then
+                        if autre.contient == "sac" and not autre.ceinture
+                            and Inv.PeutPorter(autre.id, porte) then
                             for i = 1, Inv.Capacite(autre.id) do
                                 if not Inv.Emplacement(entity, autre.id, i) then
                                     local cibleOnglet, cibleIndex = autre.id, i
@@ -662,7 +893,7 @@ local function Construire()
             if objet then
                 local ok, raison = Inv.PeutRetirer(entity, onglet, index)
                 options[#options + 1] = OptionEchanger(objet, not ok and raison or nil)
-                options[#options + 1] = { label = "Jeter", action = function()
+                options[#options + 1] = { label = "Détruire", action = function()
                     if not ok then Refuser(raison) return end
                     Jeter(objet)
                 end }
@@ -713,15 +944,26 @@ local function NouvelleCase(s, n)
             return false, "sortir un objet du compendium est un geste du maître du jeu."
         end
         local e = s:Emplacement()
+        if objet.scinder then
+            return AccepteScission(objet, e, { onglet = s.onglet, index = s.index, case = b.index })
+        end
         -- Reposer un objet sur sa propre case n'est pas une erreur : c'est un
         -- glissement qu'on annule. On accepte, et le depot ne fera rien.
         if objet.origine and objet.origine.onglet == s.onglet
             and objet.origine.index == s.index and objet.origine.case == b.index then
             return true
         end
+        local vers = { onglet = s.onglet, index = s.index, case = b.index }
+        if Empilable(objet, e, vers) then return AccepteEmpiler(objet, vers) end
         if Inv.Case(e, b.index) then return false, "cette case est déjà occupée." end
         return Inv.Accepte(e, b.index, objet.ref)
     end, function(objet)
+        local vers = { onglet = s.onglet, index = s.index, case = b.index }
+        if objet.scinder then
+            DeposerScission(objet, vers)
+            return
+        end
+        if Empilable(objet, s:Emplacement(), vers) then Empiler(objet, vers) return end
         local entite = Entite()
         if objet.origine and objet.origine.onglet == s.onglet
             and objet.origine.index == s.index and objet.origine.case == b.index then
@@ -748,7 +990,7 @@ local function NouvelleCase(s, n)
     b:SetScript("OnDragStart", function(self)
         -- Son propre sac : on y prend ce qu'on veut. C'est la destination qui
         -- juge (12 octobre 2026).
-        local objet = ObjetDeCase(s.onglet, s.index, self.index)
+        local objet = GlisserPile(ObjetDeCase(s.onglet, s.index, self.index))
         if objet then UI.Glisser.Commencer(objet) end
     end)
     -- Pas d'OnUpdate ici : c'est le fantome du kit qui bat la mesure, suit la

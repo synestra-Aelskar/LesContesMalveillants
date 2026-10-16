@@ -182,7 +182,7 @@ end
 
 -- Une surcharge devenue identique au fichier n'a plus de raison d'etre : on la
 -- retire, sinon elle resterait « a exporter » pour toujours. Meme regle que les
--- brouillons du compendium.
+-- entrees du compendium, que le chargement retire de la file d'envoi.
 function Reglages.OublierLesRedondantes()
     local magasin = Magasin(false)
     if not magasin then return 0 end

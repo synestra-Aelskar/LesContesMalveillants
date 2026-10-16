@@ -19,7 +19,11 @@ local function enfants(id)
     return table.concat(out, ",")
 end
 
-attendu("onglet Système", enfants("systeme"), "systeme_aelskar,lieux,ressources,vendeur,coffres,regles")
+-- 16 octobre 2026 : Ressources, Vendeurs et Coffres sont regroupes sous
+-- « Interactions », un sous-menu (second eventail). Le dossier Systeme passe
+-- de six entrees a quatre ; les trois fenetres restent la, un cran plus loin.
+attendu("onglet Système", enfants("systeme"), "systeme_aelskar,lieux,interactions,regles")
+attendu("sous-menu Interactions", enfants("interactions"), "coffres,vendeur,ressources")
 attendu("onglet Outils", enfants("outils"), "campement,incarner,atelier,panneau_mj,parametres")
 attendu("coffres relié au radial", M.EstLiee("coffres"), true)
 SlashCmdList.LCM("coffres")

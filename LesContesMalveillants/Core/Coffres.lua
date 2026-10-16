@@ -33,9 +33,11 @@ function Coffres.Paquet(definition, points)
             n = o.consommeQuantite, x = o.expertise,
             d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
     end
+    -- `b` / `t` : le sac ou la tente que ce coffre EST (un sac lache au sol,
+    -- Core/SacsAuSol.lua) ; c'est ce qui permet de le ramasser en entier.
     return { i = definition.id, n = definition.label, p = LCM.Recolte.Plier(points),
         c = { s = c.places, v = c.verrous, r = c.reset, y = c.rayon, o = objets,
-            x = c.expertises, u = outils } }
+            x = c.expertises, u = outils, b = c.sac, t = c.tente, j = c.objet and 1 or nil } }
 end
 
 function Coffres.Lire(paquet)
@@ -50,7 +52,11 @@ function Coffres.Lire(paquet)
     local coffre = { places = math.max(1, math.floor(tonumber(raw.s) or 1)),
         rayon = math.max(0.1, tonumber(raw.y) or RayonDefaut()),
         verrous = math.max(0, math.floor(tonumber(raw.v) or 0)), reset = raw.r == true or raw.r == "true",
-        objets = {}, expertises = {}, outils = {} }
+        objets = {}, expertises = {}, outils = {},
+        sac = Texte(raw.b) ~= "" and Texte(raw.b) or nil,
+        tente = Texte(raw.t) ~= "" and Texte(raw.t) or nil,
+        -- Un objet pose seul au sol : il se ramasse, il ne s'ouvre pas.
+        objet = raw.j ~= nil and raw.j ~= false or nil }
     for _, o in ipairs(type(raw.o) == "table" and raw.o or {}) do
         local ref = Texte(o.e)
         importer(ref, o.d)
@@ -81,7 +87,9 @@ function Coffres.Sauver()
     if not LCM.EnsureDatabase then return end
     LCM.EnsureDatabase()
     local defs, points = {}, {}
-    for id, d in pairs(Coffres.definitions) do if d.auteur ~= Moi() then defs[id] = d end end
+    -- Un sac au sol (`sol`) a sa propre sauvegarde, et sa propre garde
+    -- (Core/SacsAuSol.lua) : il ne revient pas d'ici apres sa disparition.
+    for id, d in pairs(Coffres.definitions) do if d.auteur ~= Moi() and not d.sol then defs[id] = d end end
     for id, p in pairs(Coffres.points) do if defs[p.def] then points[id] = p end end
     LCM.db.coffres = next(defs) and { definitions = defs, points = points } or nil
 end
@@ -140,6 +148,11 @@ function Coffres.Envoyer(action, donnees)
     local d = p and Coffres.definitions[p.def]
     if not d or not d.auteur then return false, "propriétaire du coffre indisponible." end
     donnees = donnees or {}; donnees.i = p.id; donnees.a = action
+    -- Un sac au sol dont on est le gardien : on s'arbitre soi-meme.
+    if d.sol and d.auteur == Moi() and LCM.SacsAuSol then
+        LCM.SacsAuSol.Traiter(Moi(), donnees)
+        return true
+    end
     if d.auteur == Moi() and LCM.IsMaster() and LCM.CoffresMJ then
         local ok, raison = LCM.CoffresMJ.Traiter(Moi(), donnees)
         if ok == nil then return true end
@@ -192,6 +205,14 @@ LCM.WhenReady(function()
         if expediteur == Moi() or not LCM.Reseau.DansLeGroupe(expediteur) then return end
         local def, points = Coffres.Lire(data)
         if def then Coffres.Connaitre(def, points, expediteur) end
+    end)
+    -- UN SEUL ecouteur par sujet (Reseau.Ecouter remplace) : la demande va au
+    -- gardien d'un sac au sol si c'est le notre, sinon au MJ des coffres. Le
+    -- compagnon MJ l'ecoutait lui-meme et aurait ecrase un joueur gardien.
+    LCM.Reseau.Ecouter(S.action, function(expediteur, data)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if LCM.SacsAuSol and LCM.SacsAuSol.Traiter(expediteur, data) then return end
+        if LCM.CoffresMJ then LCM.CoffresMJ.Traiter(expediteur, data) end
     end)
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, data)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end

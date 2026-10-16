@@ -307,7 +307,10 @@ contient("palier", f.compteur.palier:GetText(), "Rareté Rare")
 f.creer:Click()
 contient("creee", f.statut:GetText(), "Lame d'essai")
 local cree = LCM.Objets.Get(idLame)
-attendu("brouillon jouable", cree and cree.brouillon, true)
+-- 15 octobre 2026 : plus d'etat « brouillon ». Une entree enregistree existe ;
+-- elle reste dans la file d'envoi (LCM_MJ_DB.brouillons) jusqu'au /reload.
+attendu("jouable", cree ~= nil, true)
+attendu("  et dans la file d'envoi", B.Get("objets", idLame) ~= nil, true)
 attendu("son jeu", cree and cree.forge, "creation_arme/rare")
 attendu("force a sa base", cree and cree.bonus.force, 1)
 attendu("ouie a sa base", cree and cree.bonus.ouie, 2)
@@ -362,7 +365,9 @@ local q = FU.equilibrage
 attendu("equilibrage ouvert", q:IsShown(), true)
 attendu("sur ce jeu", q.selection, "creation_arme")
 attendu("titre du jeu", q.titre:GetText(), "CRÉATION D'ARME")
-attendu("pas marque modifie", q.etat:GetText(), "Brouillon.")
+-- Un jeu enregistre et pas modifie n'a plus d'etat a afficher : « Brouillon. »
+-- disait qu'il attendait un export (fin le 15 octobre 2026).
+attendu("pas marque modifie", q.etat:GetText(), "")
 attendu("l'editeur a champs reste ferme", Ed.frame ~= nil and Ed.frame:IsShown(), false)
 
 -- Modification groupee : refusee, et dit.
@@ -497,7 +502,10 @@ attendu("tout replier masque les champs", visibles, 0)
 q.enregistrer:Click()
 contient("enregistre", q.statut:GetText(), "Jeu enregistré")
 local armure = F.Get(idArmure)
-attendu("jeu en brouillon", armure and armure.brouillon, true)
+-- 15 octobre 2026 : plus d'etat « brouillon ». Une entree enregistree existe ;
+-- elle reste dans la file d'envoi (LCM_MJ_DB.brouillons) jusqu'au /reload.
+attendu("jeu enregistre", armure ~= nil, true)
+attendu("  et dans la file d'envoi", B.Get("jeux", idArmure) ~= nil, true)
 attendu("six raretes", armure and #armure.raretes, 6)
 attendu("pool lu en nombre", armure and armure.raretes[1].points, 8)
 attendu("max par rarete", F.Limites(armure, "adresse", "rare").max, 4)
@@ -529,7 +537,7 @@ cf:ChoisirCategorie("jeux_equilibrage")
 for _, r in ipairs(cf.rangees) do if r.element and r.element.id == "creation_arme" then rJeu = r end end
 rJeu.reglages:Click()
 q.pageJeu.lignes[1].points:Saisir("5")
-attendu("marque modifie", q.etat:GetText(), "Brouillon, modifications non enregistrées.")
+attendu("marque modifie", q.etat:GetText(), "Modifications non enregistrées.")
 q.enregistrer:Click()
 attendu("pool modifie", F.Get("creation_arme").raretes[1].points, 5)
 attendu("la meme table, modifiee sur place", F.Get("creation_arme") == jeu, true)
@@ -539,7 +547,7 @@ ok = Ed.Dupliquer(cj, F.Get(idArmure))
 attendu("dupliquer un jeu", ok, true)
 local copieArmure
 for _, element in ipairs(F.list) do
-    if element.brouillon and element.label == "Création d'armure (copie)" then copieArmure = element end
+    if element.label == "Création d'armure (copie)" then copieArmure = element end
 end
 attendu("la copie existe", copieArmure ~= nil, true)
 local faits = Ed.Supprimer(cj, { F.Get(idArmure), copieArmure })

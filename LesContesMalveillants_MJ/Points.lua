@@ -15,6 +15,15 @@ local _, MJ = ...
 local LCM = _G.LCM
 if not LCM then return end
 
+-- L'icone choisie pour une offre, ou nil : vide, ou le point d'interrogation
+-- par defaut, c'est « pas d'icone ».
+local function IconePropre(valeur)
+    if not (valeur and tostring(valeur):match("%S")) then return nil end
+    local icone = LCM.Icone(valeur)
+    if tostring(icone):lower():find("inv_misc_questionmark", 1, true) then return nil end
+    return icone
+end
+
 LCM.Points = LCM.Registre({
     nom = "point", prefixe = "Points",
     construire = function(definition, element, Erreur)
@@ -23,7 +32,6 @@ LCM.Points = LCM.Registre({
             Erreur(element.id .. " : nature inconnue (" .. nature .. ")")
         end
         element.nature = nature
-        element.arcId = definition.arcId and tostring(definition.arcId) or nil
         element.icone = definition.icone and tostring(definition.icone):match("%S")
             and LCM.Icone(definition.icone) or nil
         element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
@@ -35,12 +43,22 @@ LCM.Points = LCM.Registre({
                 rayon = tonumber(c.rayon) and math.max(0.1, tonumber(c.rayon)) or rayonDefaut,
                 objets = {}, verrous = math.max(0, math.floor(tonumber(c.verrous) or 0)),
                 reset = c.reset == true, expertises = {}, outils = {} }
+            -- Un coffre qui EST un sac lache au sol (Core/SacsAuSol.lua) dit
+            -- lequel : on peut alors le ramasser en entier. Il contient ce
+            -- qu'un sac contient, pas seulement des objets.
+            coffre.sac = c.sac and tostring(c.sac) ~= "" and tostring(c.sac) or nil
+            coffre.tente = c.tente and tostring(c.tente) ~= "" and tostring(c.tente) or nil
+            -- Un objet pose seul au sol : il se ramasse d'un coup, sans s'ouvrir.
+            coffre.objet = c.objet == true or nil
+            local familles = (coffre.sac or coffre.tente or coffre.objet)
+                and { objets = true, ressources = true, accessoires_camping = true, sacs = true, devises = true }
+                or { objets = true }
             local presents = {}
             for _, objet in ipairs(type(c.objets) == "table" and c.objets or {}) do
                 local ref = tostring(objet.entree or "")
                 local famille = ref:match("^([%w_]+)/")
                 local quantite = math.max(1, math.floor(tonumber(objet.quantite) or 1))
-                if famille ~= "objets" or not LCM.Compendium.Resoudre(ref) then
+                if not familles[famille or ""] or not LCM.Compendium.Resoudre(ref) then
                     Erreur(element.id .. " : objet de coffre inconnu (" .. ref .. ")")
                 end
                 if presents[ref] then Erreur(element.id .. " : objet de coffre répété (" .. ref .. ")") end
@@ -143,10 +161,16 @@ LCM.Points = LCM.Registre({
                 id = id,
                 entree = tostring(offre.entree or ""),
                 label = tostring(offre.label or ""),
-                icone = LCM.Icone(offre.icone),
+                -- nil sans icone propre : `Points.Icone` prend alors celle de
+                -- l'entree vendue, choisie au compendium. LCM.Icone(nil) rendait
+                -- le point d'interrogation, qui passait pour une icone choisie —
+                -- et le constructeur l'a ensuite ENREGISTRE dans des vendeurs de
+                -- la base : on le lit donc comme « pas d'icone » (16 octobre 2026).
+                icone = IconePropre(offre.icone),
                 quantite = math.max(1, math.floor(tonumber(offre.quantite) or 1)),
-                prix = tonumber(offre.prix),
-                devise = offre.devise and tostring(offre.devise) or nil,
+                -- Les facons de payer, au choix (Core/Prix.lua). Un point de
+                -- recolte n'en a pas.
+                formules = {},
                 -- La cle du stock porte le point ET l'offre : deux vendeurs qui
                 -- proposent la meme herbe n'ont pas le meme filon.
                 cle = element.id .. "/" .. id,
@@ -159,11 +183,15 @@ LCM.Points = LCM.Registre({
             if construite.entree == "" and construite.label == "" then
                 Erreur(element.id .. " : offre " .. rang .. " sans entree ni libelle")
             end
-            if nature == "vendeur" and construite.prix == nil then
-                Erreur(element.id .. " : « " .. id .. " » est a vendre sans prix")
-            end
-            if nature == "vendeur" and not construite.devise then
-                construite.devise = element.deviseDefaut
+            if nature == "vendeur" then
+                -- `formules` : une offre deja construite qu'on reenregistre.
+                local facons, raison = LCM.Prix.Lire(offre.prix or offre.formules,
+                    offre.devise, element.deviseDefaut)
+                if not facons then Erreur(element.id .. " : « " .. id .. " » : " .. raison) end
+                if #facons == 0 then
+                    Erreur(element.id .. " : « " .. id .. " » est a vendre sans prix")
+                end
+                construite.formules = facons
             end
             return construite
         end
@@ -217,6 +245,26 @@ function Points.Nature(nature)
     return out
 end
 
+-- Un preset (coffre, ressource, vendeur) recopie sous un nouvel identifiant.
+-- Seul le modele est copie : ses exemplaires poses dans le monde restent a
+-- l'original. Le stock suit l'identifiant du point (cle « point/offre ») : un
+-- nouvel identifiant lui donne donc un stock neuf, et l'on efface les restants
+-- recopies pour qu'aucun ne survive a la copie.
+function Points.Dupliquer(point)
+    local copie = LCM.Copie(point)
+    copie.id = LCM.Brouillons.NouvelIdentifiant()
+    copie.label = string.format("%s (copie)", tostring(point.label or ""))
+    copie.arcId = nil
+    local function Nettoyer(offres)
+        for _, offre in ipairs(offres or {}) do offre.cle, offre.restant = nil, nil end
+    end
+    Nettoyer(copie.offres)
+    for _, collection in ipairs({ copie.onglets or {}, copie.rachats or {} }) do
+        for _, onglet in ipairs(collection) do Nettoyer(onglet.offres) end
+    end
+    return copie
+end
+
 -- `entree` est une REFERENCE de compendium, « famille/identifiant » : la meme
 -- que celle que range l'inventaire (objets/..., ressources/..., sacs/...).
 -- Ce qu'une offre donne a voir : son libelle propre, sinon celui de l'entree.
@@ -227,9 +275,10 @@ function Points.Libelle(offre)
 end
 
 function Points.Icone(offre)
-    if offre.icone then return offre.icone end
+    local propre = IconePropre(offre.icone)
+    if propre then return propre end
     local entree = LCM.Compendium.Resoudre(offre.entree)
-    return (entree and entree.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark"
+    return (entree and entree.icone and LCM.Icone(entree.icone)) or "Interface\\ICONS\\INV_Misc_QuestionMark"
 end
 
 function Points.Offre(pointId, offreId)
@@ -261,9 +310,13 @@ function Points.ActualiserRegles(point)
         if offre.stock and offre.stock.limite > 0 then
             LCM.Stock.Declarer(offre.cle, offre.stock)
         end
-        if offre.prix and offre.devise and not LCM.Devises.Get(offre.devise) then
-            LCM.Erreur(string.format("%s : « %s » se paie en « %s », qui n'existe pas.",
-                point.label, Points.Libelle(offre), offre.devise))
+        for _, facon in ipairs(offre.formules or {}) do
+            for _, m in ipairs(facon) do
+                if not LCM.Compendium.Resoudre(m.ref) then
+                    LCM.Erreur(string.format("%s : « %s » se paie en « %s », qui n'existe pas.",
+                        point.label, Points.Libelle(offre), m.ref))
+                end
+            end
         end
     end
 end
@@ -276,18 +329,21 @@ end
 -- entame le stock. Un filon entame pour un achat qui echoue est une ressource
 -- perdue pour tout le monde.
 
-function Points.Prendre(entity, pointId, offreId)
+-- `choix` : le rang de la facon de payer, chez un vendeur qui en propose
+-- plusieurs (Core/Prix.lua).
+function Points.Prendre(entity, pointId, offreId, choix)
     if not LCM.IsMaster() then return false, "reserve au maitre du jeu." end
     local offre, point = Points.Offre(pointId, offreId)
     if not offre then return false, "offre inconnue." end
     if type(entity) ~= "table" then return false, "aucun personnage." end
 
-    if offre.prix and offre.devise then
-        if not LCM.Bourse.Peut(entity, offre.devise, offre.prix) then
-            local devise = LCM.Devises.Get(offre.devise)
-            return false, string.format("il te faut %d %s.", offre.prix,
-                (devise and devise.label) or offre.devise)
-        end
+    local facon
+    if #offre.formules > 0 then
+        local raison
+        facon, raison = LCM.Prix.Choisir(offre.formules, choix)
+        if not facon then return false, raison end
+        local peut, manque = LCM.Prix.Peut(entity, facon)
+        if not peut then return false, manque end
     end
 
     local limite = LCM.Stock.Limite(offre.cle)
@@ -310,25 +366,29 @@ function Points.Prendre(entity, pointId, offreId)
 
     -- Le paiement vient en dernier : a ce stade, plus rien ne peut echouer, et
     -- le joueur a bien ce pour quoi il paie.
-    if offre.prix and offre.devise then
-        LCM.Bourse.Debiter(entity, offre.devise, offre.prix)
-    end
+    if facon then LCM.Prix.Payer(entity, facon) end
     return true, offre
 end
 
 -- Le versant « Achats » du constructeur : le vendeur reprend une entree du
 -- sac et verse son prix. Le retrait precede le credit, de sorte qu'un objet
 -- absent ne puisse jamais produire de monnaie.
-function Points.Racheter(entity, pointId, offreId)
+-- Le vendeur peut payer de plusieurs facons : le joueur choisit (`choix`).
+-- Si le paiement ne tient pas dans les sacs, l'objet revendu est rendu.
+function Points.Racheter(entity, pointId, offreId, choix)
     if not LCM.IsMaster() then return false, "reserve au maitre du jeu." end
     local offre = Points.OffreRachat(pointId, offreId)
     if not offre then return false, "offre de rachat inconnue." end
     if type(entity) ~= "table" then return false, "aucun personnage." end
     if offre.entree == "" then return false, "cette offre ne designe aucun objet." end
+    local facon, pourquoi = LCM.Prix.Choisir(offre.formules, choix)
+    if not facon then return false, pourquoi end
     local retire, raison = LCM.Inventaire.Prendre(entity, offre.entree)
     if not retire then return false, raison or "objet absent des sacs." end
-    if offre.prix and offre.prix > 0 and offre.devise then
-        LCM.Bourse.Crediter(entity, offre.devise, offre.prix)
+    local verse, refus = LCM.Prix.Verser(entity, facon)
+    if not verse then
+        LCM.Inventaire.Deposer(entity, offre.entree, 1)
+        return false, refus
     end
     return true, offre
 end

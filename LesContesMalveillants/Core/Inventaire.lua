@@ -184,6 +184,29 @@ local function Verifier(entity, categorieId, index)
     return categorie, index
 end
 
+-- Ce qu'un emplacement de sac accepte : un SAC dans Sacs, une SACOCHE dans
+-- Saccoches, une ceinture sur la Ceinture, une tente dans Saccoches. Chacun a
+-- sa place, et seulement la sienne (le MJ, 16 octobre 2026 ; une sacoche
+-- allait jusque-la dans les deux). `contenu` : ce que tient un emplacement
+-- ({ sac = id } ou { tente = id }). true, ou false et la raison.
+local PLACE_DE = { sac = "sacs", sacoche = "saccoches", ceinture = "ceintures" }
+local NOM_PLACE = { sacs = "Sacs", saccoches = "Saccoches", ceintures = "Ceinture" }
+function Inventaire.PeutPorter(categorieId, contenu)
+    if type(contenu) ~= "table" then return true end
+    local voulu
+    if contenu.tente then
+        voulu = "saccoches"
+    elseif contenu.sac then
+        voulu = PLACE_DE[LCM.Sacs.Nature(contenu.sac)]
+    else
+        return true
+    end
+    if voulu == categorieId then return true end
+    local quoi = contenu.tente and "une tente" or ({ sac = "un sac", sacoche = "une sacoche",
+        ceinture = "une ceinture" })[LCM.Sacs.Nature(contenu.sac)]
+    return false, string.format("%s se porte dans un emplacement %s.", quoi, NOM_PLACE[voulu] or voulu)
+end
+
 -- Pose un sac (ou une devise, selon l'onglet) dans un emplacement libre.
 -- `forcer` : poser sans verifier la nature. Reserve a la MIGRATION — un sac
 -- deja porte avant que la regle existe reste porte. La regle vaut pour ce qu'on
@@ -221,10 +244,11 @@ function Inventaire.Poser(entity, categorieId, index, id, forcer)
         if LCM.Sacs.EstCeinture(sac) then
             return false, "une ceinture se porte sur l'emplacement Ceinture."
         end
-        -- Un SAC se porte dans un emplacement de sac ; une SACOCHE va dans les
-        -- deux. On ne met pas un sac de voyage dans une poche de ceinture.
-        if not forcer and categorieId == "saccoches" and not LCM.Sacs.EstSacoche(sac) then
-            return false, "un sac ne se porte que dans un emplacement de sac."
+        -- Chacun sa place (Inventaire.PeutPorter). `forcer` : la migration,
+        -- qui laisse porte ce qui l'etait avant que la regle existe.
+        if not forcer then
+            local ok, raison = Inventaire.PeutPorter(categorieId, { sac = sac.id })
+            if not ok then return false, raison end
         end
         RangeePourEcrire(entity, categorieId)[i] = { sac = sac.id }
     else
@@ -286,9 +310,11 @@ function Inventaire.Retirer(entity, categorieId, index)
     return true
 end
 
--- Deplace ce que tient un emplacement vers un emplacement libre, contenu
--- compris : un sac garde ses cases. L'arrivee doit accepter la meme chose que
--- le depart (un sac ne part pas dans l'onglet des devises).
+-- Deplace ce que tient un emplacement vers un autre, contenu compris : un sac
+-- garde ses cases. L'arrivee doit accepter la meme chose que le depart (un sac
+-- ne part pas dans l'onglet des devises). Si l'arrivee est OCCUPEE, les deux
+-- echangent leur place : c'est ainsi qu'on reorganise ses sacs (16 octobre
+-- 2026 ; c'etait refuse, et il fallait passer par un emplacement libre).
 function Inventaire.Deplacer(entity, categorieId, index, versCategorieId, versIndex)
     local depart, i = Verifier(entity, categorieId, index)
     if not depart then return false, i end
@@ -300,18 +326,158 @@ function Inventaire.Deplacer(entity, categorieId, index, versCategorieId, versIn
     local e = Inventaire.Emplacement(entity, categorieId, i)
     if not e then return false, "cet emplacement est vide." end
     if depart.id == arrivee.id and i == j then return false, "c'est déjà là." end
-    if Inventaire.Emplacement(entity, versCategorieId, j) then
-        return false, "l'emplacement d'arrivée est déjà occupé."
-    end
     if arrivee.contient ~= depart.contient then
         return false, string.format("l'onglet %s n'accepte pas ça.", arrivee.label)
     end
-    if e.tente and arrivee.id ~= "saccoches" then
-        return false, "une tente se porte dans un emplacement de sacoche."
-    end
+    -- Chacun sa place : ce qui part, et ce qui revient en echange.
+    local ok, raison = Inventaire.PeutPorter(arrivee.id, e)
+    if not ok then return false, raison end
+    local occupant = Inventaire.Emplacement(entity, versCategorieId, j)
+    ok, raison = Inventaire.PeutPorter(depart.id, occupant)
+    if not ok then return false, raison end
     RangeePourEcrire(entity, arrivee.id)[j] = e
-    entity.inventaire[depart.id][i] = nil
+    RangeePourEcrire(entity, depart.id)[i] = occupant
     Nettoyer(entity, depart.id)
+    return true
+end
+
+-- ===== Lacher un sac, et le ramasser (Core/SacsAuSol.lua) =================
+
+-- Sort un sac (ou une tente) de son emplacement AVEC tout ce qu'il contient,
+-- pour le poser au sol. Rend l'emplacement tel quel (pour le reposer si le
+-- lacher n'aboutit pas) et ce qu'il contient, regroupe par entree : { sac =
+-- id, tente = id, objets = { { entree, quantite } } }. La ceinture ne se lache
+-- pas : ses cases de base restent. nil et la raison sinon.
+function Inventaire.Lacher(entity, categorieId, index)
+    local categorie, i = Verifier(entity, categorieId, index)
+    if not categorie then return nil, i end
+    if categorie.ceinture then return nil, "la ceinture ne se lâche pas : ses cases de base restent." end
+    local e = Inventaire.Emplacement(entity, categorieId, i)
+    if not (e and (e.sac or e.tente)) then return nil, "rien à lâcher ici." end
+    local objets, rang = {}, {}
+    local cases = {}
+    for case in pairs(type(e.cases) == "table" and e.cases or VIDE) do cases[#cases + 1] = case end
+    table.sort(cases, function(a, b) return (tonumber(a) or 0) < (tonumber(b) or 0) end)
+    for _, case in ipairs(cases) do
+        local c = e.cases[case]
+        if type(c) == "table" and c.ref then
+            local q = math.max(1, math.floor(tonumber(c.quantite) or 1))
+            if rang[c.ref] then
+                objets[rang[c.ref]].quantite = objets[rang[c.ref]].quantite + q
+            else
+                objets[#objets + 1] = { entree = c.ref, quantite = q }
+                rang[c.ref] = #objets
+            end
+        end
+    end
+    entity.inventaire[categorieId][i] = nil
+    Nettoyer(entity, categorieId)
+    return e, { sac = e.sac, tente = e.tente, objets = objets }
+end
+
+-- Repose un emplacement tel que Lacher l'a rendu : le lacher n'a pas abouti.
+-- L'emplacement a pu etre occupe entre-temps : on le dit, sans ecraser.
+function Inventaire.Reposer(entity, categorieId, index, emplacement)
+    if Inventaire.Emplacement(entity, categorieId, index) then
+        return false, "l'emplacement a été repris entre-temps."
+    end
+    RangeePourEcrire(entity, categorieId)[index] = emplacement
+    return true
+end
+
+-- Un emplacement libre ou porter ce sac ou cette tente (`contenu` : { sac =
+-- id } ou { tente = id }), selon sa nature (Inventaire.PeutPorter). nil sinon.
+function Inventaire.PlacePour(entity, contenu)
+    for _, categorie in ipairs(Inventaire.categories) do
+        if categorie.contient == "sac" and not categorie.ceinture
+            and Inventaire.PeutPorter(categorie.id, contenu) then
+            for index = 1, Inventaire.Capacite(categorie.id) do
+                if not Inventaire.Emplacement(entity, categorie.id, index) then
+                    return categorie.id, index
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- Range une liste { { entree, quantite } } dans les cases d'UN sac porte, en
+-- piles bornees par la pile maximale de chaque entree. Rend ce qui n'a pas
+-- trouve de case, dans la meme forme (vide si tout tient).
+function Inventaire.RemplirSac(entity, categorieId, index, objets)
+    local reste = {}
+    local e = Inventaire.Emplacement(entity, categorieId, index)
+    local total = e and Inventaire.Cases(e) or 0
+    local case = 1
+    for _, o in ipairs(objets or VIDE) do
+        local element = LCM.Compendium.Resoudre(o.entree)
+        local pile = math.max(1, math.floor(tonumber(element and element.pileMax) or 0))
+        if not (element and element.pileMax) then pile = math.huge end
+        local a = math.max(0, math.floor(tonumber(o.quantite) or 0))
+        while a > 0 do
+            while case <= total and (Inventaire.Case(e, case) or not Inventaire.Accepte(e, case, o.entree)) do
+                case = case + 1
+            end
+            if case > total then break end
+            local n = math.min(a, pile)
+            Inventaire.Ranger(entity, categorieId, index, case, o.entree, n)
+            a, case = a - n, case + 1
+        end
+        if a > 0 then reste[#reste + 1] = { entree = o.entree, quantite = a } end
+        case = 1
+    end
+    return reste
+end
+
+-- Transvaser : ranger `quantite` d'une entree dans UN sac porte precis — celui
+-- sur lequel on l'a lachee (le MJ, 16 octobre 2026 : glisser un objet sur
+-- l'emplacement d'un autre sac le fait passer dedans, il ne s'equipe pas).
+-- Les piles deja la sont completees d'abord, puis les cases libres qui
+-- l'acceptent. Tout ou rien : si tout ne tient pas, rien ne bouge. true, ou
+-- false et la raison.
+function Inventaire.Transvaser(entity, categorieId, index, ref, quantite)
+    local e = Inventaire.Emplacement(entity, categorieId, index)
+    local contenant = Inventaire.Contenant(e)
+    if not contenant then return false, "aucun sac dans cet emplacement." end
+    quantite = math.floor(tonumber(quantite) or 1)
+    if quantite < 1 then return false, "rien à transvaser." end
+    local element = LCM.Compendium.Resoudre(ref)
+    if not element then return false, "entrée inconnue du compendium." end
+    local pile = tonumber(element.pileMax) and math.max(1, math.floor(element.pileMax)) or math.huge
+    local total, reste, plan, raison = Inventaire.Cases(e), quantite, {}, nil
+    -- Les piles de la meme entree, d'abord.
+    for case = 1, total do
+        local c = Inventaire.Case(e, case)
+        if reste > 0 and c and c.ref == ref then
+            local place = pile - (tonumber(c.quantite) or 1)
+            if place > 0 then
+                local n = math.min(place, reste)
+                plan[#plan + 1] = { case = case, pile = c, quantite = (tonumber(c.quantite) or 1) + n }
+                reste = reste - n
+            end
+        end
+    end
+    -- Puis les cases libres qui l'acceptent.
+    for case = 1, total do
+        if reste > 0 and not Inventaire.Case(e, case) then
+            local ok, pourquoi = Inventaire.Accepte(e, case, ref)
+            if ok then
+                local n = math.min(pile, reste)
+                plan[#plan + 1] = { case = case, quantite = n }
+                reste = reste - n
+            else
+                raison = raison or pourquoi
+            end
+        end
+    end
+    if reste > 0 then
+        return false, raison or string.format("pas assez de place dans %s.",
+            tostring(contenant.element and contenant.element.label or "ce sac"))
+    end
+    for _, etape in ipairs(plan) do
+        if etape.pile then etape.pile.quantite = etape.quantite
+        else Inventaire.Ranger(entity, categorieId, index, etape.case, ref, etape.quantite) end
+    end
     return true
 end
 
@@ -347,7 +513,7 @@ function Inventaire.Accepte(emplacement, index, ref)
     if Inventaire.EstCaseDevise(emplacement, index) then
         if famille ~= "devises" then return false, "une case de devise n'accepte qu'une devise." end
     elseif not RANGEABLES[famille] then
-        return false, "un sac accepte des objets, des ressources, des accessoires de camping ou des sacs."
+        return false, "un sac accepte des objets, des ressources, des accessoires de camping ou des sacoches."
     end
     -- Un contenant dans un contenant : seul un SAC en accepte, et il faut que
     -- le nouveau venu tienne — il occupe sa case plus toutes les siennes.
@@ -361,6 +527,11 @@ function Inventaire.Accepte(emplacement, index, ref)
             return false, "une sacoche ne contient ni sac ni sacoche."
         end
         local range = LCM.Compendium.Resoudre(ref)
+        -- Un sac contient des SACOCHES, pas d'autres sacs (le MJ, 16 octobre
+        -- 2026). Une ceinture, elle, se transporte : ce n'est pas un sac.
+        if LCM.Sacs.Nature(range and range.id) == "sac" then
+            return false, "un sac contient des sacoches, pas d'autres sacs."
+        end
         local encombrement = LCM.Sacs.Encombrement(range and range.id)
         local libres = Inventaire.CasesLibres(emplacement)
         if encombrement > libres then
@@ -425,6 +596,114 @@ function Inventaire.Quantite(entity, categorieId, index, case, quantite)
         return false, string.format("%s s'empile par %d au plus.", element.label, element.pileMax)
     end
     c.quantite = n
+    return true
+end
+
+-- La premiere case libre qui accepte `ref` : dans le meme sac d'abord — on
+-- scinde pour ranger a cote —, puis dans les autres. Nil s'il n'y en a pas.
+function Inventaire.CaseLibrePour(entity, ref, categorieId, index)
+    local function Dans(cat, i)
+        local e = Inventaire.Emplacement(entity, cat, i)
+        if not Inventaire.Contenant(e) then return nil end
+        for n = 1, Inventaire.Cases(e) do
+            if not Inventaire.Case(e, n) and Inventaire.Accepte(e, n, ref) then return n end
+        end
+    end
+    if categorieId then
+        local n = Dans(categorieId, index)
+        if n then return categorieId, index, n end
+    end
+    for _, categorie in ipairs(Inventaire.categories) do
+        for i = 1, Inventaire.Capacite(categorie.id) do
+            if not (categorie.id == categorieId and i == tonumber(index)) then
+                local n = Dans(categorie.id, i)
+                if n then return categorie.id, i, n end
+            end
+        end
+    end
+end
+
+-- Combien une case peut encore recevoir de `ref` : sa pile maximale moins ce
+-- qu'elle tient. Sans pileMax, rien ne borne (math.huge). Nil et la raison si
+-- la case tient autre chose.
+local function Place(element, c, ref)
+    if c.ref ~= ref then return nil, "cette case est déjà occupée." end
+    local max = element and tonumber(element.pileMax)
+    if not max then return math.huge end
+    local reste = max - (tonumber(c.quantite) or 1)
+    if reste <= 0 then
+        return nil, string.format("la pile est déjà pleine (%d).", max)
+    end
+    return reste
+end
+
+-- Ce qu'Empiler ferait, sans rien deplacer : combien passeraient. Nil et la
+-- raison sinon.
+function Inventaire.PeutEmpiler(entity, categorieId, index, case, versCategorieId, versIndex, versCase)
+    local source = Inventaire.Case(Inventaire.Emplacement(entity, categorieId, index), case)
+    local cible = Inventaire.Case(Inventaire.Emplacement(entity, versCategorieId, versIndex), versCase)
+    if not source then return nil, "case vide." end
+    if not cible then return nil, "rien sur quoi empiler." end
+    if source == cible then return nil, "c'est la même pile." end
+    local place, raison = Place(LCM.Compendium.Resoudre(source.ref), cible, source.ref)
+    if not place then return nil, raison end
+    return math.min(place, tonumber(source.quantite) or 1)
+end
+
+-- Reempile une pile sur une autre du meme objet (le MJ, 16 octobre 2026) :
+-- la cible se remplit jusqu'a sa pile maximale, et ce qui n'y tient pas RESTE
+-- dans la case de depart — 10 lachees sur 18 d'une pile de 20 en donnent 2,
+-- et 8 demeurent. true et le nombre passe, ou false et la raison.
+function Inventaire.Empiler(entity, categorieId, index, case, versCategorieId, versIndex, versCase)
+    local n, raison = Inventaire.PeutEmpiler(entity, categorieId, index, case, versCategorieId, versIndex, versCase)
+    if not n then return false, raison end
+    local source = Inventaire.Case(Inventaire.Emplacement(entity, categorieId, index), case)
+    local cible = Inventaire.Case(Inventaire.Emplacement(entity, versCategorieId, versIndex), versCase)
+    cible.quantite = (tonumber(cible.quantite) or 1) + n
+    local reste = (tonumber(source.quantite) or 1) - n
+    if reste > 0 then
+        source.quantite = reste
+    else
+        Inventaire.Vider(entity, categorieId, index, case)
+    end
+    return true, n
+end
+
+-- Scinde une pile : `n` unites quittent la case pour une case VIDE, celle
+-- qu'on designe (`vers` = { onglet, index, case }) ou, sans elle, la premiere
+-- libre qui l'accepte (le MJ, 16 octobre 2026). Le nouveau tas est range
+-- AVANT que l'ancien diminue : si le rangement est refuse, rien n'a bouge.
+-- true, ou false et la raison.
+function Inventaire.Scinder(entity, categorieId, index, case, n, vers)
+    local e = Inventaire.Emplacement(entity, categorieId, index)
+    local c = Inventaire.Case(e, case)
+    if not c then return false, "case vide." end
+    local total = tonumber(c.quantite) or 1
+    if total < 2 then return false, "une pile d'un seul ne se scinde pas." end
+    n = tonumber(n)
+    if not n or n ~= math.floor(n) or n < 1 or n >= total then
+        return false, string.format("entre 1 et %d : il doit en rester au moins un dans la pile.", total - 1)
+    end
+    local cat, i, place
+    if type(vers) == "table" then
+        cat, i, place = vers.onglet, vers.index, vers.case
+    else
+        cat, i, place = Inventaire.CaseLibrePour(entity, c.ref, categorieId, index)
+        if not cat then return false, "aucune case libre pour poser l'autre moitié." end
+    end
+    -- Scinder SUR une pile du meme objet l'y ajoute, si elle a la place.
+    local deja = Inventaire.Case(Inventaire.Emplacement(entity, cat, i), place)
+    if deja then
+        if deja == c then return false, "c'est la même pile." end
+        local libre, plein = Place(LCM.Compendium.Resoudre(c.ref), deja, c.ref)
+        if not libre then return false, plein end
+        if n > libre then return false, string.format("cette pile n'a de place que pour %d.", libre) end
+        deja.quantite = (tonumber(deja.quantite) or 1) + n
+    else
+        local ok, raison = Inventaire.Ranger(entity, cat, i, place, c.ref, n)
+        if not ok then return false, raison end
+    end
+    c.quantite = total - n
     return true
 end
 
@@ -555,11 +834,11 @@ end
 -- aller (13 octobre 2026). Rend le plan et combien restent a ranger en case.
 local function PrevoirEmplacements(entity, sac, quantite)
     local nature = LCM.Sacs.Nature(sac)
-    -- Ou chaque nature se porte, dans l'ordre de preference : une sacoche
-    -- prefere sa place de sacoche, et garde les emplacements de sac pour les
-    -- sacs.
+    -- Ou chaque nature se porte : chacune a sa place, et seulement la sienne
+    -- (Inventaire.PeutPorter). Une sacoche allait aussi dans Sacs a defaut de
+    -- place ; plus depuis le 16 octobre 2026.
     local rangees = nature == "ceinture" and { "ceintures" }
-        or nature == "sacoche" and { "saccoches", "sacs" }
+        or nature == "sacoche" and { "saccoches" }
         or { "sacs" }
     local plan, reste = {}, quantite
     for _, categorieId in ipairs(rangees) do
@@ -623,7 +902,7 @@ function Inventaire.Deposer(entity, ref, quantite)
         if sac then
             local nature = LCM.Sacs.Nature(sac)
             local ou = nature == "ceinture" and "l'emplacement Ceinture est déjà pris"
-                or nature == "sacoche" and "aucun emplacement de sacoche ou de sac libre"
+                or nature == "sacoche" and "aucun emplacement de sacoche libre"
                 or "aucun emplacement de sac libre"
             return false, ou .. ", et aucun sac ne peut le contenir."
         end

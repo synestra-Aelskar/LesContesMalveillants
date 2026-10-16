@@ -806,8 +806,8 @@ function Fiche.Carte(parent, onRetirer, largeur)
             self.nom:SetText("? " .. tostring(id))
             self.nom:SetTextColor(UI.C.plein[1], UI.C.plein[2], UI.C.plein[3])
             self.cout:SetText("")
-            description = "N'existe pas dans cette version de l'addon (brouillon supprimé, "
-                .. "ou contenu pas encore publié). Ne donne rien tant qu'il n'existe pas."
+            description = "N'existe pas dans cette version de l'addon (entrée supprimée, "
+                .. "ou pas encore reçue). Ne donne rien tant qu'il n'existe pas."
             effets = ""
         end
         self.retirer:SetShown(mj)
@@ -849,9 +849,11 @@ function Lignes.traits(parent, field, c)
     UI.Police(l.resume, c.police * 0.85)
     l.resume:SetPoint("LEFT", l.entete, "LEFT", c.plage, 0)
 
-    l.ajouter = UI.Bouton(l.entete, "+  Ajouter", c.actionLargeur, c.boutonH, function() l:ProposerAjout() end)
-    l.ajouter:SetPoint("LEFT", l.entete, "LEFT", c.action, 0)
-    UI.Police(l.ajouter.label, c.police * 0.85)
+    -- Le meme bouton carre que l'equipement : « + Ajouter » ne tenait pas
+    -- dans la colonne d'action (16 octobre 2026).
+    l.ajouter = UI.BoutonSigne(l.entete, c.boutonH, function() l:ProposerAjout() end)
+    l.ajouter:Signe("+", "Ajouter un trait", "Choisir un trait à donner à ce personnage.")
+    l.ajouter:SetPoint("RIGHT", l.entete, "LEFT", c.action + c.actionLargeur, 0)
     l.choix = UI.Choix("fiche_traits", "Ajouter un trait")
     l:SetScript("OnHide", function() l.choix:Hide() end)
 
@@ -934,7 +936,7 @@ function Lignes.traits(parent, field, c)
             carte:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             carte:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
             local trait = LCM.Traits.Get(id)
-            -- Exception : un trait qui n'existe plus (brouillon supprime) reste
+            -- Exception : un trait qui n'existe plus (entree supprimee) reste
             -- retirable, meme sur sa propre fiche. Sinon il y resterait colle,
             -- sans rien donner, sans moyen de s'en defaire.
             local cout = trait and LCM.Traits.Cout(trait)
@@ -1034,7 +1036,7 @@ local function CarteSurvol()
     p.icone:SetTexCoord(0.09, 0.91, 0.09, 0.91)
     p.nom = UI.Texte(p, "", UI.C.titre)
     p.nom:SetPoint("TOPLEFT", p.icone, "TOPRIGHT", 10, -2)
-    p.nom:SetPoint("TOPRIGHT", p, "TOPRIGHT", -10, -10)
+    p.nom:SetPoint("TOPRIGHT", p, "TOPRIGHT", -26, -10)
     p.nom:SetJustifyH("LEFT")
     p.nom:SetWordWrap(true)
     p.description = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
@@ -1108,6 +1110,12 @@ local function CarteSurvol()
         self:Show()
     end
 
+    -- Rester sur la ligne la charge, puis l'epingle : on la lit, et la croix
+    -- la ferme.
+    p.fermer = UI.Bouton(p, "x", 16, 16, function() p:Hide() end)
+    p.fermer:SetPoint("TOPRIGHT", p, "TOPRIGHT", -6, -6)
+    p.fermer:Hide()
+    UI.SurvolAccrochable(p)
     Fiche.carteSurvol = p
     return p
 end
@@ -1211,11 +1219,23 @@ local function Emplacement(conteneur, c)
     l.effets = UI.Texte(l, "", UI.C.accent)
     l.effets:Hide()
 
-    l.action = UI.Bouton(l, "", c.actionLargeur, c.boutonH, function()
-        if l.elementId then conteneur:Retirer(l.elementId) else conteneur:Proposer(l.action) end
-    end)
-    l.action:SetPoint("LEFT", l, "LEFT", c.action, 0)
-    UI.Police(l.action.label, c.police * 0.8)
+    -- Le bout droit de la ligne EST le bouton (UI.BoutonDegrade, dessin du MJ
+    -- du 16 octobre 2026) : « + » pour equiper, « × » pour retirer, sur toute
+    -- la hauteur. Deux largeurs de colonne d'action, dont le signe occupe la
+    -- seconde : le nom, qui s'arrete avant elle, ne passe jamais dessous.
+    -- « + Ajouter » ne tenait pas dans la colonne et se coupait en « + Aj… ».
+    --
+    -- C'est TOUTE la case qui se clique (le MJ, 16 octobre 2026) : il fallait
+    -- viser le fondu. Le bouton ne capte donc plus la souris ; la ligne recoit
+    -- le clic et allume le fondu a son survol.
+    function l:Agir()
+        if self.elementId then conteneur:Retirer(self.elementId) else conteneur:Proposer(self.action) end
+    end
+    l.action = UI.BoutonDegrade(l, function() l:Agir() end)
+    l.action:EnableMouse(false)
+    l.action:SetPoint("TOPRIGHT", l, "TOPRIGHT", -1, -1)
+    l.action:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT", -1, 1)
+    l.action:SetPoint("LEFT", l, "LEFT", c.action - c.actionLargeur, 0)
 
     -- Cible de glissement : on y depose un objet venu d'un sac, s'il va dans
     -- cette categorie. Equiper demandait d'ouvrir le menu « + Ajouter » et de
@@ -1307,18 +1327,23 @@ local function Emplacement(conteneur, c)
     end
 
     -- Clic droit : la fiche de l'objet porte. Il manquait — on voyait l'objet
-    -- sur soi sans pouvoir le lire.
-    l:RegisterForClicks("RightButtonUp")
+    -- sur soi sans pouvoir le lire. Clic gauche, n'importe ou sur la case :
+    -- equiper ou retirer, quand le bouton est offert.
+    l:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     l:SetScript("OnClick", function(self, bouton)
-        if bouton == "RightButton" then VoirElement(conteneur, self.elementId, self) end
+        if bouton == "RightButton" then VoirElement(conteneur, self.elementId, self)
+        elseif self.action:IsShown() then self:Agir() end
     end)
 
     -- Survol : la carte de l'objet quand il y en a un, l'infobulle sinon (une
-    -- case vide n'a pas de carte a montrer).
+    -- case vide n'a pas de carte a montrer). Et le fondu s'allume.
     l:EnableMouse(true)
     l:SetScript("OnEnter", function(self)
+        if self.action:IsShown() then self.action:Eclairer(true) end
         if self.survol then
-            CarteSurvol():Montrer(self.survol.element, self.survol.groupes, self)
+            local carte, survol = CarteSurvol(), self.survol
+            local ligne = self
+            carte:SuivreSurvol(self, function() carte:Montrer(survol.element, survol.groupes, ligne) end)
         elseif self.bulle and GameTooltip then
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self.bulle.titre)
@@ -1326,8 +1351,9 @@ local function Emplacement(conteneur, c)
             GameTooltip:Show()
         end
     end)
-    l:SetScript("OnLeave", function()
-        if Fiche.carteSurvol then Fiche.carteSurvol:Hide() end
+    l:SetScript("OnLeave", function(self)
+        self.action:Eclairer(false)
+        if Fiche.carteSurvol then Fiche.carteSurvol:QuitterSurvol() end
         if GameTooltip then GameTooltip:Hide() end
     end)
 
@@ -1344,8 +1370,9 @@ local function Emplacement(conteneur, c)
             self.description:SetText("")
             self.effets:SetText("")
             self.survol = nil
-            self.bulle = { titre = "Emplacement", texte = "Emplacement disponible." }
-            self.action.label:SetText("+  Ajouter")
+            self.bulle = { titre = "Emplacement", texte = mj and "Emplacement disponible. Clic : équiper."
+                or "Emplacement disponible." }
+            self.action:Signe("+", "Équiper", "Choisir ce qu'on porte ici. On peut aussi y glisser un objet d'un sac.")
         elseif element then
             self.icone:SetTexture(element.icone)
             -- L'etat DEVANT le nom : « (8/12) Rempart de guerre ». Il n'etait
@@ -1385,7 +1412,7 @@ local function Emplacement(conteneur, c)
             -- La carte au survol remplace l'infobulle : elle montre l'objet.
             self.survol = { element = element, groupes = Fiche.EffetsGroupes(element) }
             self.bulle = nil
-            self.action.label:SetText("Retirer")
+            self.action:Signe("×", "Retirer", "Ne plus porter cet objet.")
         else
             -- Disparu : il occupe toujours sa case, et redevient actif s'il
             -- revient.
@@ -1402,7 +1429,7 @@ local function Emplacement(conteneur, c)
             self.survol = nil
             self.bulle = { titre = tostring(id),
                            texte = "N'existe pas dans cette version de l'addon : ne donne rien." }
-            self.action.label:SetText("Retirer")
+            self.action:Signe("×", "Retirer", "Il ne donne rien : le retirer libère la place.")
         end
         self.action:SetShown(mj)
     end

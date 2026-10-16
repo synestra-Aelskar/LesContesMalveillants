@@ -101,8 +101,8 @@ LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 f:Rafraichir()
 carteCeinture:Click("RightButton")
-attendu("le menu du joueur", libelles(), "Ouvrir,Voir,Échanger,Jeter")
-cliquer("Jeter")
+attendu("le menu du joueur", libelles(), "Ouvrir,Voir,Échanger,Détruire")
+cliquer("Détruire")
 local d
 for _, cadre in ipairs({ UIParent:GetChildren() }) do
     if cadre.oui and cadre.non and cadre:IsShown() then d = cadre end
@@ -121,8 +121,8 @@ menu:Hide()
 dire("== un sac plein ne s'echange ni ne se jette : on dit pourquoi")
 I.Ranger(moi, "sacs", 1, 1, "ressources/eau", 1)
 f.cartes[1]:Click("RightButton")
-attendu("le menu d'un sac", libelles(), "Ouvrir,Voir,Échanger,Jeter")
-cliquer("Jeter")
+attendu("le menu d'un sac", libelles(), "Ouvrir,Voir,Échanger,Détruire")
+cliquer("Détruire")
 local dit = false
 for _, sortie in ipairs(__sorties) do
     if __sansCouleur(sortie):find("pas vide", 1, true) then dit = true end

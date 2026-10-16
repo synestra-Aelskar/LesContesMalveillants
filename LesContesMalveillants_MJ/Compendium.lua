@@ -9,13 +9,13 @@
 -- —, Textes longs, Tables, Jauges, Listes, Liens compendium), « Etendre » et
 -- « Minimiser », OK et Annuler.
 --
--- Ce qui change : ce qu'on enregistre est un BROUILLON (MJ/Brouillons.lua),
--- verifie par le registre de la famille ; un refus s'affiche avec sa raison,
--- rien n'est corrige en douce. Le contenu publie (un fichier genere) s'ouvre
--- en lecture : c'est le fichier qui fait foi, on le corrige en le dupliquant.
+-- Ce qui change : ce qu'on enregistre est une entree (MJ/Brouillons.lua),
+-- verifiee par le registre de la famille ; un refus s'affiche avec sa raison,
+-- rien n'est corrige en douce. Toute entree se modifie ici, d'ou qu'elle
+-- vienne : enregistree, elle entre dans la base au /reload.
 -- Pas d'onglet « Actions » (jet, macro, Arcanum) : aucune entree du template
 -- ne s'en sert et l'addon n'a pas encore de moteur d'actions. Pas
--- d'« Exporter (code) » : l'echange passe par l'export des brouillons.
+-- d'« Exporter (code) » : l'echange passe par la base commune.
 
 local _, MJ = ...
 local LCM = _G.LCM
@@ -118,10 +118,6 @@ local function PageUnique(categorie)
     return categorie.type == "list" or categorie.type == "list_multiple"
 end
 
-local function TypeEquipement(categorie)
-    return categorie and (categorie.id == "type_armures"
-        or categorie.id == "type_accessoires" or categorie.id == "liste_armes")
-end
 
 -- ===== La copie de travail =================================================
 -- Rien n'est ecrit tant que le MJ ne valide pas, et la copie ne partage
@@ -129,7 +125,6 @@ end
 
 local function Travail(categorie, element)
     local e = LCM.Copie(element or {})
-    e.brouillon = nil
     -- L'avantage est un ensemble dans un element, une liste dans une definition.
     if type(e.avantage) == "table" and e.avantage[1] == nil then
         local liste = {}
@@ -142,12 +137,10 @@ local function Travail(categorie, element)
         e.label = "Nouvelle entree"
         e.id = Brouillons.NouvelIdentifiant()
     end
-    local famille = categorie.famille
     return {
         categorie = categorie,
         e = e,
         creation = element == nil,
-        publie = element ~= nil and famille ~= nil and Brouillons.EstPublie(famille, element.id),
     }
 end
 
@@ -385,9 +378,8 @@ local function Construire(parent)
     UI.Bulle(ic.apercuBouton, "Icône", "Clic : choisir dans la liste.")
     ic.selecteur = UI.SelecteurIcone("compendium_entree")
     ic.apercuBouton:SetScript("OnClick", function(self)
-        -- En lecture seule (contenu publie), on ne propose rien : l'entree se
-        -- duplique d'abord.
-        if f.lecture then LCM.Alerte("contenu publié : duplique-le pour le modifier.") return end
+        -- Une categorie en lecture seule ne propose rien.
+        if f.lecture then return end
         ic.selecteur:Proposer(self, function(chemin)
             f.travail.e.icone = Texte(chemin) ~= "" and chemin or nil
             ic.chemin:SetText(chemin or "")
@@ -574,7 +566,7 @@ function Editeur.Comportement(f)
         if not t then return end
         local categorie = t.categorie
         local id, ic = self.identite, self.panneauIcone
-        self.lecture = (t.publie and not TypeEquipement(categorie)) or not C.Editable(categorie)
+        self.lecture = not C.Editable(categorie)
         self.titre:SetText("Configuration entree" .. (self.lecture and "  |cff99907f(lecture seule)|r" or ""))
 
         local unique = PageUnique(categorie)
@@ -677,13 +669,8 @@ function Editeur.Comportement(f)
 
         self.ok:SetShown(not self.lecture)
         self.annuler.label:SetText(self.lecture and "Fermer" or "Annuler")
-        if self.lecture and not self.messageFixe then
-            if t.publie then
-                self:Message("Contenu publié : le fichier généré fait foi, il ne se modifie pas ici. "
-                    .. "« Dup » en fait un brouillon modifiable.")
-            elseif categorie.lectureSeule then
-                self:Message("Lecture seule : " .. categorie.lectureSeule)
-            end
+        if self.lecture and not self.messageFixe and categorie.lectureSeule then
+            self:Message("Lecture seule : " .. categorie.lectureSeule)
         end
     end
 
@@ -733,13 +720,12 @@ function Editeur.Comportement(f)
             self:Message("Refusé : " .. raison, UI.C.plein)
             return
         end
-        local ok, refus = Brouillons.Enregistrer(t.categorie.famille, def, t.creation,
-            t.publie and TypeEquipement(t.categorie))
+        local ok, refus = Brouillons.Enregistrer(t.categorie.famille, def, t.creation)
         if not ok then
             self:Message("Refusé : " .. tostring(refus), UI.C.plein)
             return
         end
-        LCM.Ok(string.format("brouillon enregistre : %s (%s)", def.label, t.categorie.label))
+        LCM.Ok(string.format("enregistré : %s (%s)", def.label, t.categorie.label))
         self:Hide()
         UI.Compendium.Actualiser()
     end
@@ -1363,7 +1349,7 @@ end
 -- Le bouton engrenage d'un PNJ ouvre sa vraie fiche. On travaille sur une
 -- entite locale (donc editable par les controles ordinaires de la fiche),
 -- puis chaque modification de contenu est reconvertie en definition de PNJ
--- et rangee dans les brouillons du compendium.
+-- et enregistree comme toute entree.
 local function DefinitionPNJDepuisEntite(entity, original)
     local niveaux = {}
     for _, metier in ipairs(LCM.Metiers.list or {}) do
@@ -1388,7 +1374,6 @@ local function OuvrirFichePNJ(element)
         return false, "consultation de fiche indisponible."
     end
     local original = LCM.Copie(element)
-    local remplacePublie = Brouillons.EstPublie("pnj", element.id)
     local entity = {
         id = "edition-pnj:" .. tostring(element.id),
         modele = element.id,
@@ -1405,7 +1390,7 @@ local function OuvrirFichePNJ(element)
     }
     entity.__sauverPNJ = function(courant)
         local definition = DefinitionPNJDepuisEntite(courant, original)
-        local ok, raison = Brouillons.Enregistrer("pnj", definition, false, remplacePublie)
+        local ok, raison = Brouillons.Enregistrer("pnj", definition, false)
         if ok and UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
         return ok, raison
     end
@@ -1426,7 +1411,6 @@ local function RouvrirCreationPNJ(element)
     local brouillon, erreur = LCM.Creation.DepuisPNJ(element)
     if not brouillon then return false, erreur end
     local original = LCM.Copie(element)
-    local remplacePublie = Brouillons.EstPublie("pnj", element.id)
     if Editeur.frame then Editeur.frame:Hide() end
     local fenetre, raison = UI.Creation.OuvrirPNJ(function(courant)
         -- Le MEME identifiant : on reprend ce PNJ, on n'en ajoute pas un autre.
@@ -1440,7 +1424,7 @@ local function RouvrirCreationPNJ(element)
         definition.equipement = LCM.Copie(original.equipement or {})
         definition.etats = LCM.Copie(original.etats or {})
         definition.apprentissages = LCM.Copie(original.apprentissages or {})
-        local ok, refus = Brouillons.Enregistrer("pnj", definition, false, remplacePublie)
+        local ok, refus = Brouillons.Enregistrer("pnj", definition, false)
         if not ok then return false, refus end
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
         return true, definition.label
@@ -1452,7 +1436,7 @@ end
 function Editeur.Ouvrir(categorie, element, mode)
     -- Un nouveau PNJ est une fiche, pas une collection de champs bruts. Le
     -- compagnon confie donc sa creation au parcours complet de personnage puis
-    -- enregistre le resultat dans les brouillons du compendium MJ.
+    -- enregistre le resultat comme toute entree.
     if not element and categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
         if Editeur.frame then Editeur.frame:Hide() end
         if not (UI.Creation and UI.Creation.OuvrirPNJ and LCM.Creation and LCM.Creation.DefinitionPNJ) then
@@ -1500,8 +1484,7 @@ function Editeur.Ouvrir(categorie, element, mode)
     Fenetre():Ouvrir(categorie, element)
 end
 
--- Duplique en brouillon (« Nom (copie) ») : c'est aussi la voie pour
--- corriger un contenu publie.
+-- Duplique une entree (« Nom (copie) »), enregistree tout de suite.
 function Editeur.Dupliquer(categorie, element)
     if not C.Editable(categorie) then return false, categorie.lectureSeule or "categorie en lecture seule" end
     local t = Travail(categorie, element)
@@ -1515,36 +1498,21 @@ function Editeur.Dupliquer(categorie, element)
     return true, def.label
 end
 
--- Supprime ce qui est brouillon ; le contenu publie est refuse, et dit.
+-- Supprime les entrees choisies : retirees du jeu tout de suite, et de la
+-- base au /reload.
 function Editeur.Supprimer(categorie, elements)
-    local faits, masques, refus = 0, {}, {}
+    local faits, refus = 0, {}
     for _, element in ipairs(elements) do
-        if element.brouillon == true then
-            if Brouillons.Supprimer(categorie.famille, element.id) then faits = faits + 1 end
-        else
-            -- Publie : on ne peut pas toucher au fichier depuis le jeu, mais on
-            -- peut le MASQUER — l'entree disparait tout de suite et reste
-            -- masquee d'une session a l'autre. Refuser net ne laissait aucune
-            -- issue (5 octobre 2026).
-            local ok = Brouillons.Masquer(categorie.famille, element.id)
-            if ok then masques[#masques + 1] = element.label
-            else refus[#refus + 1] = element.label end
-        end
+        local ok, raison = Brouillons.Supprimer(categorie.famille, element.id)
+        if ok then faits = faits + 1
+        else refus[#refus + 1] = string.format("%s : %s", tostring(element.label), tostring(raison)) end
     end
     UI.Compendium.Actualiser()
-    local notes = {}
-    if #masques > 0 then
-        notes[#notes + 1] = string.format("%s masqué(s) : retiré(s) du jeu, à retirer du fichier "
-            .. "à la prochaine passe", table.concat(masques, ", "))
-    end
-    if #refus > 0 then
-        notes[#notes + 1] = table.concat(refus, ", ") .. " (refusé)"
-    end
-    return faits + #masques, #notes > 0 and table.concat(notes, " ; ") or nil
+    return faits, #refus > 0 and ("Refus : " .. table.concat(refus, " ; ")) or nil
 end
 
--- Modification groupee : un champ, une valeur, appliques a chaque brouillon
--- selectionne. Le contenu publie est ignore, et compte.
+-- Modification groupee : un champ, une valeur, appliques a chaque entree
+-- selectionnee.
 function Editeur.ModifGroupee(categorie, elements)
     -- Les champs d'une categorie a editeur propre sont des resumes calcules :
     -- les ecrire n'aurait aucun sens.
@@ -1605,16 +1573,12 @@ function Editeur.Groupe(categorie, elements, champ)
         end
         local faits, refus = 0, {}
         for _, element in ipairs(elements) do
-            if element.brouillon ~= true then
-                refus[#refus + 1] = element.label .. " (publié)"
-            else
-                local t = Travail(categorie, element)
-                Ecrire(t, champ, valeur)
-                local def, raison = Definition(t)
-                local ok, pourquoi = def ~= nil, raison
-                if def then ok, pourquoi = Brouillons.Enregistrer(categorie.famille, def, false) end
-                if ok then faits = faits + 1 else refus[#refus + 1] = element.label .. " : " .. tostring(pourquoi) end
-            end
+            local t = Travail(categorie, element)
+            Ecrire(t, champ, valeur)
+            local def, raison = Definition(t)
+            local ok, pourquoi = def ~= nil, raison
+            if def then ok, pourquoi = Brouillons.Enregistrer(categorie.famille, def, false) end
+            if ok then faits = faits + 1 else refus[#refus + 1] = element.label .. " : " .. tostring(pourquoi) end
         end
         UI.Compendium.Actualiser()
         if #refus > 0 then

@@ -75,7 +75,7 @@ local function Publique(point)
             local limite = LCM.Stock.Limite(offre.cle)
             definition.offres[#definition.offres + 1] = {
                 id = offre.id, entree = offre.entree, label = offre.label,
-                quantite = offre.quantite, prix = offre.prix, devise = offre.devise,
+                quantite = offre.quantite, formules = offre.formules,
                 onglet = onglet.label, limite = limite,
                 restant = limite > 0 and LCM.Stock.Restant(offre.cle) or 0,
             }
@@ -85,7 +85,7 @@ local function Publique(point)
         for _, offre in ipairs(onglet.offres or {}) do
             definition.rachats[#definition.rachats + 1] = {
                 id = offre.id, entree = offre.entree, label = offre.label,
-                prix = offre.prix, devise = offre.devise, onglet = onglet.label,
+                formules = offre.formules, onglet = onglet.label,
             }
         end
     end
@@ -285,6 +285,21 @@ end)
 LCM.On("UNIT_CONNECTION", function()
     if LCM.ready and LCM.IsMaster() then Marchands.Accueillir() end
 end)
+
+-- Un vendeur modifie (ou supprime) : ce que J'AI pose se met a jour chez
+-- tous, sans le reposer (MJ/Brouillons.lua, SurPoint).
+if LCM.Brouillons and LCM.Brouillons.SurPoint then
+    LCM.Brouillons.SurPoint(function(defId)
+        if Marchands.Compte(defId) == 0 then return end
+        Rafraichir(defId)
+        if Marchands.Definition(defId) then
+            Marchands.Diffuser(defId)
+        else
+            local canal = Canal()
+            if canal then LCM.Reseau.Envoyer(S.retrait, { d = defId }, canal) end
+        end
+    end)
+end
 
 local precedent = LCM.Brouillons and LCM.Brouillons.onSynchro
 if LCM.Brouillons then

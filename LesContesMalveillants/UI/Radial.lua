@@ -48,9 +48,49 @@ Radial.LIVRE_LARGEUR = 76
 Radial.VIGNETTE = 46
 Radial.CATEGORIE = Radial.VIGNETTE
 Radial.ACTION = Radial.VIGNETTE
-Radial.RAYON_CATEGORIE = 94
-Radial.RAYON_ACTION = 172
 Radial.FOND = 436
+-- Couronne principale : filets de background.tga mesures a 146 et 272 px
+-- du centre (texture 1024). Meme marge de chaque cote du cercle visible.
+Radial.COURONNE_INTERIEURE = 146 / 1024
+Radial.COURONNE_EXTERIEURE = 272 / 1024
+Radial.RAYON_CATEGORIE = Radial.FOND * (Radial.COURONNE_INTERIEURE + Radial.COURONNE_EXTERIEURE) / 2
+-- Ou le cuir d'un bandeau commence et finit, en fraction du cote de sa
+-- texture. Mesure sur l'alpha de grimoire-fan-3 (le meme pour les neuf
+-- longueurs) : 309 et 470 sur 1024.
+Radial.BANDE_INTERIEURE = 309 / 1024
+Radial.BANDE_EXTERIEURE = 470 / 1024
+-- Centre du cercle sur la ligne mediane du cuir, pour TOUTES les couronnes
+-- et tous leurs sous-menus. L'ancien rayon fixe (172) poussait les vignettes
+-- de 6,2 unites vers le bord externe. Les neuf textures ont le meme rayon.
+Radial.RAYON_ACTION = Radial.FOND * (Radial.BANDE_INTERIEURE + Radial.BANDE_EXTERIEURE) / 2
+
+-- Le second eventail (un sous-menu, comme Systeme > Interactions) est le MEME
+-- eventail que le premier, meme taille, DECALE vers l'exterieur dans la
+-- direction de son bouton parent, avec un espace entre les deux.
+--
+-- Garde le meme centre, un second anneau ne peut s'ecarter du premier qu'en
+-- grandissant : pose a 278 il flottait mais etait enorme, agrandi moins il
+-- collait ou passait dessous (16 octobre 2026, quatre essais). Decale, il
+-- garde la taille et la courbure du premier. Deux arcs de meme courbure se
+-- rapprochent vers leurs bouts : le decalage est calcule pour laisser
+-- ECART_SOUS_MENU au milieu et au moins ECART_BORDS aux extremites.
+Radial.ECART_SOUS_MENU = 16
+Radial.ECART_BORDS = 6
+-- La distance entre les deux centres pour qu'un eventail de `nombre`
+-- branches respecte ces deux ecarts.
+function Radial.DecalageSousMenu(nombre)
+    local interieur = Radial.FOND * Radial.BANDE_INTERIEURE
+    local exterieur = Radial.FOND * Radial.BANDE_EXTERIEURE
+    -- Le decalage d qui met le bord interieur du second, a l'angle `theta`
+    -- de son milieu, a la distance `bord` du centre du premier.
+    local function Decalage(theta, bord)
+        local c = math.cos(theta)
+        return -interieur * c + math.sqrt(interieur * interieur * (c * c - 1) + bord * bord)
+    end
+    local demiEmpan = (math.max(1, nombre) / 2) * math.pi / 8.75
+    return math.max(Decalage(0, exterieur + Radial.ECART_SOUS_MENU),
+        Decalage(demiEmpan, exterieur + Radial.ECART_BORDS))
+end
 -- Le plafond, c'est le nombre de BANDEAUX dessines dans
 -- ressources/radial (grimoire-fan-1..9) : au-dela, l'eventail n'a plus de
 -- fond a poser derriere ses branches. Le neuvieme a ete fabrique le
@@ -639,10 +679,102 @@ local function Etat(f)
     end
 end
 
+-- Poussiere entre deux niveaux : petits grains carres, trajectoires souples,
+-- emission continue. Un cadre reutilise par lien, sous les deux bandeaux.
+local function LienPourpre(c, proprietaire, x1, y1, x2, y2, nombre, angleCentre)
+    local lien = proprietaire.lienPourpre
+    if not lien then
+        lien = CreateFrame("Frame", nil, c.orbite)
+        lien:SetAllPoints(c.orbite)
+        lien:SetFrameLevel(c.fond:GetFrameLevel())
+        lien:EnableMouse(false)
+        lien.grains = {}
+        for i = 1, Radial.MAX_ENTREES * 12 do
+            local grain = lien:CreateTexture(nil, "ARTWORK")
+            grain:SetColorTexture(0.72 + (i % 3) * 0.08, 0.12, 1, 1)
+            grain:SetBlendMode("ADD")
+            local taille = 0.8 + (i % 4) * 0.45
+            grain:SetSize(taille, taille)
+            local halo = lien:CreateTexture(nil, "BACKGROUND")
+            halo:SetTexture(ART .. "glow.tga")
+            halo:SetBlendMode("ADD")
+            halo:SetVertexColor(0.55, 0.08, 0.95)
+            halo:SetSize(taille * 5, taille * 5)
+            halo:SetPoint("CENTER", grain, "CENTER")
+            lien.grains[i] = { texture = grain, halo = halo, phase = ((i - 1) * 0.61803398875) % 1,
+                duree = 1.1 + (i % 5) * 0.17, graine = i * 2.399963 }
+        end
+        lien:SetScript("OnHide", function(self) self:SetScript("OnUpdate", nil) end)
+        proprietaire.lienPourpre = lien
+    end
+    local dx, dy = x2 - x1, y2 - y1
+    local distance = math.sqrt(dx * dx + dy * dy)
+    if distance < 1 then lien:Hide(); return end
+    lien.departX, lien.departY, lien.arriveeX, lien.arriveeY = x1, y1, x2, y2
+    nombre = math.max(1, math.min(Radial.MAX_ENTREES, nombre or 1))
+    lien.nombreCibles = nombre
+    lien.nombreGrains = nombre * 12
+    lien.cibles = {}
+    local ox = x2 - math.cos(angleCentre) * Radial.RAYON_ACTION
+    local oy = y2 - math.sin(angleCentre) * Radial.RAYON_ACTION
+    -- Une destination par icone, avec le meme pas angulaire que l'eventail.
+    -- Les douze grains par branche gardent une densite stable de 1 a 9 icones.
+    for i = 1, nombre do
+        local angle = angleCentre + (i - (nombre + 1) / 2) * math.pi / 8.75
+        lien.cibles[i] = { x = ox + math.cos(angle) * Radial.RAYON_ACTION,
+            y = oy + math.sin(angle) * Radial.RAYON_ACTION }
+    end
+    for i, p in ipairs(lien.grains) do
+        local actif = i <= lien.nombreGrains
+        p.texture:SetShown(actif); p.halo:SetShown(actif)
+        if actif then
+            local cible = lien.cibles[1 + (i - 1) % nombre]
+            p.dx, p.dy = cible.x - x1, cible.y - y1
+            local longueur = math.max(1, math.sqrt(p.dx * p.dx + p.dy * p.dy))
+            p.nx, p.ny = -p.dy / longueur, p.dx / longueur
+        end
+    end
+    -- Le depart est cache sous le cercle du parent ; l'arrivee sous le cuir.
+    -- Le jet s'evase et ondule sans tracer une ligne droite opaque.
+    lien.temps = lien:IsShown() and (lien.temps or 0) or 0
+    local function Actualiser(self, dt)
+        self.temps = self.temps + dt
+        for i = 1, self.nombreGrains do
+            local p = self.grains[i]
+            p.phase = (p.phase + dt / p.duree) % 1
+            local t = p.phase
+            local largeur = 1.5 + t * 6
+            local derive = math.sin(p.graine + t * 5 + self.temps * 1.3) * largeur
+            local x = x1 + p.dx * t + p.nx * derive
+            local y = y1 + p.dy * t + p.ny * derive
+            p.texture:SetPoint("CENTER", self, "CENTER", x, y)
+            local alpha = math.sin(math.pi * t) * (0.45 + 0.35 * math.sin(p.graine + self.temps * 3)^2)
+            alpha = alpha * math.min(1, self.temps / 0.3)
+            p.texture:SetAlpha(alpha)
+            p.halo:SetAlpha(alpha * 0.22)
+        end
+    end
+    lien:SetScript("OnUpdate", Actualiser)
+    Actualiser(lien, 0)
+    lien:Show()
+end
+
 local Dessiner
+
+local function MasquerSousMenu(c)
+    local s = c.sousMenu
+    if not s then return end
+    if s.lienPourpre then s.lienPourpre:Hide() end
+    Arreter(s.secteur)
+    for _, b in ipairs(s.boutonsEntree) do Arreter(b) b:Hide() end
+    s.orbite:Hide()
+    s.nombreEntrees = 0
+end
 
 -- Replie les entrees vers leur categorie, puis appelle `apres`.
 local function ReplierEntrees(f, c, apres)
+    if c.lienPourpre then c.lienPourpre:Hide() end
+    MasquerSousMenu(c)
     local une = false
     for i, b in ipairs(c.boutonsEntree) do
         if b:IsShown() then
@@ -661,12 +793,15 @@ local function ReplierEntrees(f, c, apres)
 end
 
 local function Fermer(f, c, anime)
+    if c.lienPourpre then c.lienPourpre:Hide() end
     Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
     for _, liste in ipairs({ c.boutonsCategorie, c.boutonsEntree }) do
         for _, b in ipairs(liste) do Arreter(b) end
     end
     local choisiX, choisiY = c.choisiX, c.choisiY
     c.ouvert, c.choisi, c.replie = false, nil, nil
+    c.sousChoisi = nil
+    MasquerSousMenu(c)
     Etat(f)
     if not anime or not c.orbite:IsShown() then
         c.orbite:Hide()
@@ -717,6 +852,7 @@ local function Basculer(f, c)
         if autre ~= c and autre.ouvert then Fermer(f, autre, true) end
     end
     c.ouvert, c.choisi = true, nil
+    c.sousChoisi = nil
     Etat(f)
     Dessiner(f, c, true, false)
 end
@@ -747,7 +883,70 @@ local function Lancer(f, c, cible)
     LCM.Alerte(string.format("%s : pas encore disponible.", tostring(cible.label)))
 end
 
-Dessiner = function(f, c, animeCategories, animeEntrees)
+-- Un anneau exterieur concentrique, centre sur la direction du bouton parent.
+local function DessinerSousMenu(f, c, parent, anime)
+    local s = c.sousMenu
+    if not s then
+        s = { boutonsEntree = {} }
+        c.sousMenu = s
+        s.orbite = CreateFrame("Frame", nil, c.orbite)
+        s.orbite:SetSize(Radial.SCEAU, Radial.SCEAU)
+        s.secteur = CreateFrame("Frame", nil, s.orbite)
+        -- Sous le bandeau du premier eventail : il en depasse, il ne le couvre pas.
+        s.secteur:SetFrameLevel(c.niveauBoutons - 2)
+        s.secteur:SetAllPoints(s.orbite)
+        s.secteur:EnableMouse(false)
+        s.secteur.surface = Surface(s.secteur, "grimoire-fan-3", Radial.FOND)
+    end
+    local rayon = Radial.RAYON_ACTION
+    local entrees = c.def.Entrees(parent.cible)
+    local angleCentre = parent.angle
+    -- Le meme eventail que le premier, decale vers l'exterieur dans la
+    -- direction du bouton parent : un espace les separe, sans rien agrandir.
+    local decalage = Radial.DecalageSousMenu(#entrees)
+    local ox, oy = math.cos(angleCentre) * decalage, math.sin(angleCentre) * decalage
+    s.orbite:ClearAllPoints()
+    s.orbite:SetPoint("CENTER", c.orbite, "CENTER", ox, oy)
+    s.orbite:Show()
+    Eventail(s, angleCentre, #entrees)
+    LienPourpre(c, s, parent.rx, parent.ry,
+        ox + math.cos(angleCentre) * Radial.RAYON_ACTION,
+        oy + math.sin(angleCentre) * Radial.RAYON_ACTION, #entrees, angleCentre)
+    s.secteur:SetAlpha(1)
+    if anime then
+        Mouvement(s.secteur, 0.24, 0, function(t) s.secteur:SetAlpha(t) end)
+    end
+    for i, entree in ipairs(entrees) do
+        local b = s.boutonsEntree[i]
+        if not b then
+            b = Vignette(s.orbite, Radial.ACTION, true, true, c.niveauBoutons)
+            s.boutonsEntree[i] = b
+        end
+        -- Lecture de gauche a droite, sur l'arc inferieur.
+        local angle = angleCentre + (i - (#entrees + 1) / 2) * math.pi / 8.75
+        b.rx, b.ry = math.cos(angle) * rayon, math.sin(angle) * rayon
+        b.cible = entree
+        b:ClearAllPoints()
+        b:SetPoint("CENTER", s.orbite, "CENTER", b.rx, b.ry)
+        b:SetAlpha(1)
+        b.icone:SetTexture(entree.icone)
+        b.legende:SetText(entree.label)
+        b.disponible = type(entree.onClick) == "function"
+        local teinte = b.disponible and 1 or 0.42
+        b.icone:SetVertexColor(teinte, teinte, teinte)
+        ActualiserBadge(b, entree)
+        Bulle(b, entree.label, b.disponible and "Clic : ouvrir." or "Pas encore disponible.")
+        b:RegisterForClicks("LeftButtonUp")
+        b:SetScript("OnClick", function(bouton) Lancer(f, c, bouton.cible) end)
+        b:Show()
+        -- Les boutons partent du parent, exprime dans le repere decale.
+        if anime then Deployer(b, s.orbite, b.rx, b.ry, parent.rx - ox, parent.ry - oy, (i - 1) * 0.025) end
+    end
+    s.nombreEntrees = #entrees
+end
+
+Dessiner = function(f, c, animeCategories, animeEntrees, animeSousMenu)
+    MasquerSousMenu(c)
     Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
     c.orbite:SetAlpha(1)
     for _, b in ipairs(c.boutonsCategorie) do Arreter(b) b:SetAlpha(1) b:Hide() end
@@ -802,7 +1001,9 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
                 Lancer(f, c, cat)
                 return
             end
-            c.choisi = (c.choisi ~= cat.id) and cat.id or nil
+            local dansSousMenu = c.sousChoisi ~= nil
+            c.choisi = (c.choisi ~= cat.id or dansSousMenu) and cat.id or nil
+            c.sousChoisi = nil
             -- Un clic pendant le repli : le choix est memorise, le dessin qui
             -- suit la fin du repli l'utilisera.
             if c.replie then return end
@@ -816,14 +1017,19 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
     c.nombreCategories = #categories
 
     if not choisie then
+        if c.lienPourpre then c.lienPourpre:Hide() end
         c.choisiX, c.choisiY = nil, nil
         c.nombreEntrees = 0
         return
     end
 
     local entrees = c.def.Entrees(choisie)
+    local parentSousMenu
     c.choisiX = math.cos(angleChoisi) * Radial.RAYON_CATEGORIE
     c.choisiY = math.sin(angleChoisi) * Radial.RAYON_CATEGORIE
+    LienPourpre(c, c, c.choisiX, c.choisiY,
+        math.cos(angleChoisi) * Radial.RAYON_ACTION,
+        math.sin(angleChoisi) * Radial.RAYON_ACTION, #entrees, angleChoisi)
     if animeEntrees then
         Mouvement(c.secteur, 0.4, 0, function(t)
             Eventail(c, angleChoisi - (1 - t) * TOURNIS, #entrees, t)
@@ -844,6 +1050,7 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         -- comme on lit (Fiche ... Apprentissage).
         local angle = angleChoisi - (i - (#entrees + 1) / 2) * math.pi / 8.75
         b.rx, b.ry = math.cos(angle) * Radial.RAYON_ACTION, math.sin(angle) * Radial.RAYON_ACTION
+        b.angle = angle
         b.cible = entree
         b:ClearAllPoints()
         b:SetPoint("CENTER", c.orbite, "CENTER", b.rx, b.ry)
@@ -853,7 +1060,8 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
         ActualiserBadge(b, entree)
         -- Une entree sans fenetre derriere elle reste visible mais eteinte : le
         -- menu ne ment pas sur ce qui existe.
-        local prete = type(entree.onClick) == "function"
+        local sousMenu = entree.enfants and #c.def.Entrees(entree) > 0
+        local prete = sousMenu or type(entree.onClick) == "function"
         b.disponible = prete
         local teinte = prete and 1 or 0.42
         if inconscient then
@@ -862,9 +1070,22 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
             b.icone:SetVertexColor(teinte, teinte, teinte)
         end
         Bulle(b, entree.label, inconscient and "Vous êtes KO !"
+            or (sousMenu and (c.sousChoisi == entree.id and "Clic : replier le sous-menu." or "Clic : déployer le sous-menu."))
             or (prete and "Clic : ouvrir." or "Pas encore disponible."))
         b:RegisterForClicks("LeftButtonUp")
-        b:SetScript("OnClick", function(bouton) Lancer(f, c, bouton.cible) end)
+        b:SetScript("OnClick", function(bouton)
+            local cible = bouton.cible
+            if cible.enfants then
+                if c.replie then return end
+                c.sousChoisi = c.sousChoisi ~= cible.id and cible.id or nil
+                Dessiner(f, c, false, false, true)
+            else
+                Lancer(f, c, cible)
+            end
+        end)
+        b.choisi = sousMenu and c.sousChoisi == entree.id
+        Eclairer(b, b.choisi, false)
+        if b.choisi then parentSousMenu = b end
         b:Show()
         if animeEntrees then
             Deployer(b, c.orbite, b.rx, b.ry, c.choisiX, c.choisiY, (i - 1) * 0.018)
@@ -872,6 +1093,11 @@ Dessiner = function(f, c, animeCategories, animeEntrees)
     end
     for i = #entrees + 1, #c.boutonsEntree do c.boutonsEntree[i]:Hide() end
     c.nombreEntrees = #entrees
+    if parentSousMenu then
+        DessinerSousMenu(f, c, parentSousMenu, animeSousMenu)
+    else
+        c.sousChoisi = nil
+    end
 end
 
 -- Une notification peut changer pendant que la couronne est ouverte (gain
@@ -912,8 +1138,9 @@ local function ConstruireCouronne(f, def)
     c.fond:EnableMouse(false)
     c.fond.surface = Surface(c.fond, "background", Radial.FOND)
 
+    -- base + 2 : le bandeau d'un sous-menu (base + 1) glisse DESSOUS celui-ci.
     c.secteur = CreateFrame("Frame", nil, c.orbite)
-    c.secteur:SetFrameLevel(base + 1)
+    c.secteur:SetFrameLevel(base + 2)
     c.secteur:SetAllPoints()
     c.secteur:EnableMouse(false)
     c.secteur.surface = Surface(c.secteur, "grimoire-fan-1", Radial.FOND)
@@ -923,6 +1150,9 @@ local function ConstruireCouronne(f, def)
     -- Echap referme la couronne (UISpecialFrames).
     if UISpecialFrames then UISpecialFrames[#UISpecialFrames + 1] = def.nom end
     c.orbite:SetScript("OnHide", function()
+        if c.lienPourpre then c.lienPourpre:Hide() end
+        MasquerSousMenu(c)
+        c.sousChoisi = nil
         Arreter(c.orbite) Arreter(c.fond) Arreter(c.secteur)
         for _, liste in ipairs({ c.boutonsCategorie, c.boutonsEntree }) do
             for _, b in ipairs(liste) do Arreter(b) end

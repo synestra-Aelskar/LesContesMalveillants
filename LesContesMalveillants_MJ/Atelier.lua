@@ -1,16 +1,16 @@
 -- Atelier du maitre du jeu.
 --
--- Le formulaire qui fabrique les brouillons : un trait, une race, un objet,
--- en seance, sans toucher au code. Ce qu'il produit est exactement ce qu'un fichier genere
--- declarerait (`Traits.Add({...})`), range dans la sauvegarde du compagnon en
--- attendant l'export.
+-- Le formulaire qui ecrit le contenu : un trait, une race, un objet, en
+-- seance, sans toucher au code. Ce qu'il produit est exactement ce qu'un
+-- fichier genere declarerait (`Traits.Add({...})`). Enregistre, c'est une
+-- entree comme une autre : jouable tout de suite, dans la base au /reload
+-- (MJ/Brouillons.lua).
 --
 -- L'atelier ne connait AUCUNE regle de contenu : il demande au registre
 -- (`Construire`) si la saisie passe, et affiche son refus tel quel. Une regle
 -- ajoutee dans Core/Traits.lua vaut donc ici sans une ligne de plus.
 --
--- Le contenu publie s'affiche en lecture seule : il vient d'un fichier genere,
--- et c'est ce fichier qui fait foi.
+-- Toute entree s'ouvre et se modifie de la meme facon, d'ou qu'elle vienne.
 
 local _, MJ = ...
 local LCM = _G.LCM
@@ -204,7 +204,7 @@ end
 
 -- ===== L'edition en cours ==================================================
 -- Une COPIE de travail : rien n'est ecrit tant que le MJ n'a pas enregistre, et
--- la copie ne partage aucune table avec le brouillon sauvegarde.
+-- la copie ne partage aucune table avec l'entree enregistree.
 
 local function Vierge(famille)
     return {
@@ -219,8 +219,8 @@ local function Vierge(famille)
     }
 end
 
--- `avantage` est une liste dans un brouillon, un ensemble dans un trait
--- enregistre ; on accepte les deux.
+-- `avantage` est une liste dans une definition, un ensemble dans un trait
+-- construit ; on accepte les deux.
 local function ListeAvantage(valeur)
     local out = {}
     if type(valeur) ~= "table" then return out end
@@ -233,10 +233,9 @@ local function ListeAvantage(valeur)
     return out
 end
 
-local function Charger(famille, source, publie)
+local function Charger(famille, source)
     local e = Vierge(famille)
     e.creation = false
-    e.publie = publie
     e.id = tostring(source.id)
     e.label = tostring(source.label or source.id)
     e.description = tostring(source.description or "")
@@ -838,11 +837,7 @@ local function Construire()
     f.droite:SetPoint("TOPLEFT", f.liste, "TOPRIGHT", 12, 0)
     f.droite:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
-    -- Reprendre un contenu publie : il s'ouvrait en lecture seule, sans aucun
-    -- moyen de corriger une faute en pleine seance. On en fait un brouillon
-    -- qui prend le pas sur le fichier, a reporter entre deux seances.
-    f.reprendre = UI.Bouton(f.droite, "Modifier (brouillon)", 180, 24, function() f:Reprendre() end)
-    f.enregistrer = UI.Bouton(f.droite, "Enregistrer le brouillon", 180, 24, function() f:Enregistrer() end)
+    f.enregistrer = UI.Bouton(f.droite, "Enregistrer", 180, 24, function() f:Enregistrer() end)
     f.enregistrer:SetPoint("BOTTOMLEFT", f.droite, "BOTTOMLEFT", 0, 0)
     f.supprimer = UI.Bouton(f.droite, "Supprimer", 110, 24, function() f:Supprimer() end)
     f.supprimer:SetPoint("LEFT", f.enregistrer, "RIGHT", 8, 0)
@@ -901,54 +896,32 @@ local function Construire()
         end
     end
 
-    -- Ce qu'on montre dans la liste : les brouillons (jouables ou refuses au
-    -- chargement), puis le contenu publie. Un brouillon qui reprend
-    -- l'identifiant d'un contenu publie donne DEUX lignes : chacune ouvre sa
-    -- source, sinon le publie devient invisible derriere son doublon.
+    -- Ce qu'on montre dans la liste : les entrees, toutes egales, et en tete
+    -- celles que le chargement a REFUSEES. Une entree refusee n'est pas dans
+    -- le jeu, mais elle reste dans la file d'envoi : sans cette ligne, on ne
+    -- pourrait plus la corriger.
     function f:Entrees()
         local registre = Brouillons.Registre(self.famille)
-        local brouillons, publies = {}, {}
+        local refusees, entrees = {}, {}
         for _, entree in ipairs(Brouillons.List(self.famille)) do
             local id = tostring(entree.id)
-            local statut = "refuse"
-            -- `RecouvrePublie` : une fois le recouvrement fait, le registre ne
-            -- porte plus que le brouillon et `EstPublie` repond non — la
-            -- mention « remplace le publie » disparaissait (12 octobre 2026).
-            if Brouillons.RecouvrePublie(self.famille, id) then
-                statut = "doublon"
-            elseif registre and registre.Get(id) then
-                statut = "brouillon"
+            if not (registre and registre.Get(id)) then
+                refusees[#refusees + 1] = { id = id, label = tostring(entree.label or id), statut = "refuse" }
             end
-            brouillons[#brouillons + 1] = { id = id, label = tostring(entree.label or id), statut = statut }
         end
         for _, element in ipairs(registre and registre.list or {}) do
-            if element.brouillon ~= true then
-                publies[#publies + 1] = { id = element.id, label = element.label, statut = "publie" }
-            end
-        end
-        -- Ce qu'un brouillon a RECOUVERT a quitte le registre : sans cette
-        -- seconde source, la ligne du fichier disparaissait de la liste et
-        -- l'on ne pouvait plus ni le relire ni le reprendre.
-        for id, original in pairs(Brouillons.Originaux(self.famille)) do
-            local present = registre and registre.Get(id)
-            if not (present and present.brouillon ~= true) then
-                publies[#publies + 1] = { id = id, label = tostring(original.label or id), statut = "publie" }
-            end
+            entrees[#entrees + 1] = { id = element.id, label = element.label, statut = "entree" }
         end
         local parNom = function(a, b) return a.label:lower() < b.label:lower() end
-        table.sort(brouillons, parNom)
-        table.sort(publies, parNom)
-        for _, element in ipairs(publies) do brouillons[#brouillons + 1] = element end
-        return brouillons
+        table.sort(refusees, parNom)
+        table.sort(entrees, parNom)
+        for _, element in ipairs(entrees) do refusees[#refusees + 1] = element end
+        return refusees
     end
 
     local STATUTS = {
-        brouillon = { suffixe = "",                    couleur = UI.C.accent },
-        publie    = { suffixe = "  · publié",          couleur = UI.C.discret },
-        refuse    = { suffixe = "  · refusé",          couleur = UI.C.plein },
-        -- Il ne double plus : il REMPLACE. La couleur reste vive, parce que
-        -- c'est un etat a reporter dans le fichier, pas un etat normal.
-        doublon   = { suffixe = "  · remplace le publié", couleur = UI.C.plein },
+        entree = { suffixe = "",           couleur = UI.C.texte },
+        refuse = { suffixe = "  · refusé", couleur = UI.C.plein },
     }
 
     function f:RemplirListe()
@@ -958,7 +931,7 @@ local function Construire()
             local b = self.liste.lignes[index]
             if not b then
                 b = UI.Bouton(zone.contenu, "", 10, 20, function(bouton)
-                    f:Ouvrir(bouton.entreeId, bouton.publie)
+                    f:Ouvrir(bouton.entreeId)
                 end)
                 b.label:ClearAllPoints()
                 b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
@@ -966,13 +939,11 @@ local function Construire()
                 self.liste.lignes[index] = b
             end
             b.entreeId = entree.id
-            b.publie = entree.statut == "publie"
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", zone.contenu, "TOPLEFT", 0, -(index - 1) * 22)
             b:SetPoint("TOPRIGHT", zone.contenu, "TOPRIGHT", 0, -(index - 1) * 22)
             local statut = STATUTS[entree.statut]
             local choisi = (not self.edition.creation) and self.edition.id == entree.id
-                and (self.edition.publie == true) == b.publie
             b.label:SetText((choisi and "> " or "") .. entree.label .. statut.suffixe)
             local couleur = choisi and UI.C.titre or statut.couleur
             b.label:SetTextColor(couleur[1], couleur[2], couleur[3])
@@ -990,27 +961,10 @@ local function Construire()
         p:Remplir()
         self:MajIdentifiant()
 
-        local aRegistre = Brouillons.Registre(self.famille) ~= nil
-        local editable = aRegistre and not e.publie
-        -- Un brouillon qui double un contenu publie se garde : il le REMPLACE,
-        -- c'est ce qu'on vient demander en le modifiant.
-        -- `RecouvrePublie` et non `EstPublie` : une fois le recouvrement fait,
-        -- le registre ne porte plus que le brouillon et l'avertissement
-        -- disparaissait (12 octobre 2026).
-        local remplace = editable and not e.creation and Brouillons.RecouvrePublie(self.famille, e.id)
+        local editable = Brouillons.Registre(self.famille) ~= nil
         self.enregistrer:SetShown(editable)
-        self.reprendre:SetShown(aRegistre and e.publie == true)
         self.supprimer:SetShown(editable and not e.creation)
-        if e.publie then
-            self:Message("Contenu publié : il vient d'un fichier généré. « Modifier (brouillon) » "
-                .. "en fait une version jouable tout de suite, à reporter dans le fichier ensuite.")
-        elseif remplace or e.remplace then
-            self:Message("Ce brouillon REMPLACE un contenu publié : c'est lui qui s'applique en jeu. "
-                .. "Reporte-le dans le fichier entre deux séances, sinon il restera à part.",
-                UI.C.accent)
-        elseif e.creation then
-            self:Message("")
-        end
+        if e.creation then self:Message("") end
         self:RemplirListe()
     end
 
@@ -1020,22 +974,15 @@ local function Construire()
         self:Afficher()
     end
 
-    -- `publie` : ouvrir le contenu publie plutot que le brouillon du meme nom.
-    function f:Ouvrir(id, publie)
+    -- La definition telle qu'enregistree si la file d'envoi la tient encore
+    -- (c'est la seule source d'une entree refusee au chargement), sinon
+    -- l'entree du jeu.
+    function f:Ouvrir(id)
         self.choix:Hide()
-        local brouillon = not publie and Brouillons.Get(self.famille, id)
-        if brouillon then
-            self.edition = Charger(self.famille, brouillon, false)
-        else
-            local registre = Brouillons.Registre(self.famille)
-            local element = registre and registre.Get(id)
-            -- Le registre porte peut-etre le BROUILLON qui l'a recouvert :
-            -- quand on demande le publie, c'est l'original qu'on ouvre.
-            if element and element.brouillon == true then element = nil end
-            element = element or Brouillons.Original(self.famille, id)
-            if not element then return end
-            self.edition = Charger(self.famille, element, true)
-        end
+        local registre = Brouillons.Registre(self.famille)
+        local source = Brouillons.Get(self.famille, id) or (registre and registre.Get(id))
+        if not source then return end
+        self.edition = Charger(self.famille, source)
         self:Message("")
         self:Afficher()
     end
@@ -1045,17 +992,6 @@ local function Construire()
         self:Nouveau()
     end
 
-    function f:Reprendre()
-        local e = self.edition
-        if not e.publie then return end
-        e.publie = false
-        e.creation = false
-        e.remplace = true
-        self:Afficher()
-        self:Message("Repris en brouillon : enregistre, il prendra le pas sur le fichier publié. "
-            .. "Pense à le reporter dans le fichier entre deux séances.", UI.C.accent)
-    end
-
     function f:Enregistrer()
         local e = self.edition
         local definition, raison = Definition(e)
@@ -1063,30 +999,30 @@ local function Construire()
             self:Message("Refusé : " .. raison, UI.C.plein)
             return
         end
-        local ok, refus = Brouillons.Enregistrer(self.famille, definition, e.creation, e.remplace)
+        local ok, refus = Brouillons.Enregistrer(self.famille, definition, e.creation)
         if not ok then
             self:Message("Refusé : " .. tostring(refus), UI.C.plein)
             return
         end
         e.creation = false
         e.id = definition.id
-        self:Message("Brouillon enregistré : jouable dès maintenant, à exporter entre deux séances.",
-            UI.C.accent)
-        LCM.Ok(string.format("brouillon enregistre : %s (%s)", definition.label, self.famille))
+        self:Message("Enregistré.", UI.C.accent)
+        LCM.Ok(string.format("enregistré : %s (%s)", definition.label, self.famille))
         self:Afficher()
     end
 
     -- Irreversible : on confirme, avec le nom dans la question.
     function f:Supprimer()
         local e = self.edition
-        if e.creation or e.publie then return end
+        if e.creation then return end
         local famille, id, nom = self.famille, e.id, e.label
         self.confirmation:Demander(
-            string.format("Supprimer le brouillon « %s » ?\nLes personnages qui le portent gardent "
+            string.format("Supprimer « %s » ?\nLes personnages qui le portent gardent "
                 .. "son identifiant, mais il ne s'applique plus.", tostring(nom)),
             function()
-                Brouillons.Supprimer(famille, id)
-                LCM.Ok(string.format("brouillon supprime : %s", tostring(nom)))
+                local ok, raison = Brouillons.Supprimer(famille, id)
+                if not ok then f:Message("Refusé : " .. tostring(raison), UI.C.plein) return end
+                LCM.Ok(string.format("supprimé : %s", tostring(nom)))
                 f:Nouveau()
                 f:Message(string.format("« %s » supprimé.", tostring(nom)))
             end)
@@ -1116,7 +1052,7 @@ end
 
 -- Le menu (« Compendium », « Systeme d'Aelskar ») ouvre le compendium
 -- (UI/Compendium.lua), dont l'editeur MJ (Compendium.lua du compagnon) cree et
--- modifie les memes brouillons.
+-- modifie les memes entrees.
 --
 -- L'atelier, lui, a sa propre entree dans « Outils » depuis le 3 octobre 2026 :
 -- il etait enfoui dans le Panel MJ, a trois clics, alors que c'est l'outil

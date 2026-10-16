@@ -30,6 +30,7 @@ Core\Apprentissages.lua
 Core\Sacs.lua
 Core\Inventaire.lua
 Core\Bourse.lua
+Core\Prix.lua
 Core\Metiers.lua
 Core\Formules.lua
 Core\Roll.lua
@@ -61,6 +62,7 @@ Core\Lieux.lua
 Core\Recolte.lua
 Core\Marchands.lua
 Core\Coffres.lua
+Core\SacsAuSol.lua
 Core\Bannieres.lua
 Core\Defenses.lua
 Core\Expertises.lua

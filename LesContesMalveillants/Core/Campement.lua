@@ -111,7 +111,7 @@ LCM.Tentes = LCM.Registre({
 })
 
 -- Les accessoires inclus visent des entrees qui peuvent etre declarees plus
--- loin (fichiers generes, brouillons) : verifies a la connexion, sans rien
+-- loin (fichiers generes, entrees du MJ) : verifies a la connexion, sans rien
 -- refuser — une reference perdue s'affiche marquee « ? » dans le compendium.
 LCM.WhenReady(function()
     for _, tente in ipairs(LCM.Tentes.list) do

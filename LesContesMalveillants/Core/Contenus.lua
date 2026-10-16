@@ -10,7 +10,7 @@
 -- Ce fichier pose aussi les familles que l'addon n'avait pas encore :
 -- informations, listes, devises, ressources, connaissances, resolutions
 -- d'action, calculateurs, PNJ. Chacune est un registre (Construire / Add / Get
--- / Retirer), rempli par les fichiers generes et par les brouillons du MJ.
+-- / Retirer), rempli par les fichiers generes et par ce que le MJ enregistre.
 
 local _, LCM = ...
 
@@ -84,7 +84,7 @@ function LCM.ChampsCommuns(definition, element, Erreur)
     element.metiers = ListeIds(id, "metiers", definition.metiers, Erreur)
     -- Le jeu d'equilibrage et la rarete d'une entree forgee (« jeu/rarete »,
     -- Core/Forge.lua). Garde tel quel : c'est la forge qui juge, a
-    -- l'enregistrement d'un brouillon, pas le chargement.
+    -- l'enregistrement d'une entree, pas le chargement.
     local forge = Texte(definition.forge)
     element.forge = forge ~= "" and forge or nil
     -- La jauge « Etat » (durabilite d'un objet...). Un courant au-dessus du
@@ -107,8 +107,8 @@ end
 
 -- ===== Registre simple =====================================================
 -- Le meme contrat que Traits ou les catalogues : `Construire` verifie et met
--- en forme sans enregistrer (c'est la porte des brouillons), `Add` enregistre,
--- `Retirer` ne sert qu'aux brouillons supprimes en seance.
+-- en forme sans enregistrer (c'est la porte de l'atelier), `Add` enregistre,
+-- `Retirer` ne sert qu'aux entrees supprimees en seance.
 --
 --   LCM.Registre({ nom = "devise", prefixe = "Devises",
 --                  construire = function(definition, element, Erreur) ... end })
@@ -156,7 +156,7 @@ end
 -- meme identifiant que sa version precedente. `Add` doit continuer a refuser
 -- les vrais doublons ; seule cette porte explicite remplace une version deja
 -- publiee, sur place, afin de ne pas casser les references tenues par l'UI.
-function LCM.Publier(registre, definition)
+local function Publier(registre, definition)
     if type(registre) ~= "table" or type(registre.Construire) ~= "function"
         or type(registre.Add) ~= "function" or type(registre.Get) ~= "function" then
         error("LCM/Publication : registre invalide", 0)
@@ -176,20 +176,34 @@ function LCM.Publier(registre, definition)
     return existant
 end
 
+-- Une entree refusee est ECARTEE, avec sa raison, et le fichier continue. Le
+-- refus remontait jusqu'au fichier genere et l'arretait net : un coffre qui
+-- citait un objet absent de la base faisait disparaitre toutes les entrees
+-- ecrites apres lui (15 octobre 2026). Une base commune se nourrit de
+-- plusieurs MJ ; une entree fautive ne doit couter qu'elle-meme.
+function LCM.Publier(registre, definition)
+    local ok, resultat = pcall(Publier, registre, definition)
+    if ok then return resultat end
+    LCM.Erreur(string.format("entrée écartée (%s) : %s",
+        tostring(type(definition) == "table" and definition.id or "?"), tostring(resultat)))
+    return nil
+end
+
 -- Les definitions du fichier public genere servent aussi de source aux MJ
 -- pour la synchronisation entre addons. Aucune entree du compagnon MJ ne passe
 -- par cette porte.
 LCM.SourcePublique = {}
 function LCM.PublierPublique(registre, famille, definition, revision)
     local element = LCM.Publier(registre, definition)
-    local cle = tostring(famille) .. "/" .. tostring(definition.id)
+    if not element then return nil end
+    local cle =tostring(famille) .. "/" .. tostring(definition.id)
     LCM.SourcePublique[cle] = {
         famille = famille, definition = LCM.Copie(definition), revision = revision,
     }
     return element
 end
 
--- Une copie profonde : un brouillon ou un fichier genere ne doit partager
+-- Une copie profonde : une entree du MJ ou un fichier genere ne doit partager
 -- aucune table avec ce qu'on enregistre.
 local function Copie(v)
     if type(v) ~= "table" then return v end

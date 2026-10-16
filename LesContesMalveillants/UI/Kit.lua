@@ -521,7 +521,16 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
 
     -- Le cadre ouvrage, s'il est charge. Sans lui, une simple bordure : la
     -- fenetre doit rester lisible meme si l'habillage manque.
-    if UI.Cadre then
+    if options.sobre then
+        f.fond:SetColorTexture(0.035, 0.039, 0.045, 0.98)
+        UI.Bordure(f, { 0.48, 0.39, 0.23, 1 })
+        f.titre:ClearAllPoints()
+        f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -14)
+        f.titre:SetJustifyH("LEFT")
+        UI.Police(f.titre, 16)
+        f.fermer:ClearAllPoints()
+        f.fermer:SetPoint("TOPRIGHT", f, "TOPRIGHT", -10, -8)
+    elseif UI.Cadre then
         UI.Cadre(f)
     else
         UI.Bordure(f)
@@ -546,6 +555,239 @@ function UI.ReplacerFenetres()
         nombre = nombre + 1
     end
     return nombre
+end
+
+-- Le meme fondu que les emplacements d'inventaire : transparent a gauche,
+-- or a droite. Texture plutot que SetGradient pour le client Epsilon.
+function UI.DegradeOr(parent, couche, alpha)
+    local t = parent:CreateTexture(nil, couche or "BACKGROUND")
+    t:SetTexture("Interface\\AddOns\\LesContesMalveillants\\ressources\\bannieres\\Gradient.tga")
+    t:SetTexCoord(0, 0.5, 0, 1)
+    t:SetVertexColor(0.83, 0.68, 0.33, alpha or 0.2)
+    return t
+end
+
+-- Le chargement au curseur : un ANNEAU qui suit la souris et s'allume, du haut
+-- et dans le sens des aiguilles d'une montre, pendant qu'on attend une carte
+-- de survol (une barre au depart ; le MJ l'a voulu en cercle, 16 octobre
+-- 2026). Fait de segments en aplats tournes : aucune texture a livrer, et pas
+-- de cadre Cooldown, que le client Epsilon ne rend pas toujours. Un seul pour
+-- tout l'addon.
+local SEGMENTS, RAYON = 20, 10
+function UI.ChargementCurseur()
+    if UI.chargementCurseur then return UI.chargementCurseur end
+    local c = CreateFrame("Frame", nil, UIParent)
+    c:SetFrameStrata("TOOLTIP")
+    c:SetSize(2 * RAYON + 8, 2 * RAYON + 8)
+    c:EnableMouse(false)
+    c.segments = {}
+    for i = 1, SEGMENTS do
+        -- L'angle part du haut et tourne vers la droite ; SetRotation compte
+        -- en sens inverse, d'ou le signe.
+        local angle = (i - 0.5) / SEGMENTS * 2 * math.pi
+        local x, y = math.sin(angle) * RAYON, math.cos(angle) * RAYON
+        -- Une ombre sous chaque segment : l'anneau se lit sur un sol clair.
+        local ombre = c:CreateTexture(nil, "BACKGROUND")
+        ombre:SetColorTexture(0, 0, 0, 0.75)
+        ombre:SetSize(4, 7)
+        ombre:SetPoint("CENTER", c, "CENTER", x, y)
+        ombre:SetRotation(-angle)
+        local t = c:CreateTexture(nil, "ARTWORK")
+        t:SetSize(2, 5)
+        t:SetPoint("CENTER", c, "CENTER", x, y)
+        t:SetRotation(-angle)
+        c.segments[i] = t
+    end
+    -- `fraction` : 0 a 1. L'anneau se pose en bas a droite de la pointe.
+    function c:Regler(fraction)
+        self.fraction = fraction
+        local allumes = math.floor(math.min(1, fraction) * SEGMENTS + 0.5)
+        for i, t in ipairs(self.segments) do
+            if i <= allumes then
+                t:SetColorTexture(0.98, 0.80, 0.40, 1)
+            else
+                t:SetColorTexture(0.45, 0.36, 0.20, 0.55)
+            end
+        end
+        local x, y = GetCursorPosition()
+        local echelle = UIParent:GetEffectiveScale() or 1
+        self:ClearAllPoints()
+        self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / echelle + 22, y / echelle - 24)
+        self:Show()
+    end
+    c:Hide()
+    UI.chargementCurseur = c
+    return c
+end
+
+-- Une carte de survol qu'on peut CONSULTER (le MJ, 16 octobre 2026). Elle
+-- s'ouvrait au survol et se fermait des qu'on quittait la case : impossible
+-- d'aller deplier ses « Statistiques ». Desormais, rester sur la case fait
+-- monter un chargement au curseur ; la carte n'apparait qu'a son terme, et
+-- alors elle est EPINGLEE : au-dessus de tout, elle prend la souris et reste
+-- jusqu'a sa croix. Partir avant la fin annule, sans rien ouvrir.
+--
+-- Une carte epinglee capte la souris : on ne survole pas, a travers elle, les
+-- cases qu'elle recouvre — et tant que la souris est dessus, aucun autre
+-- chargement ne demarre. Sinon, la consulter en ouvrirait d'autres.
+--   carte:SuivreSurvol(ancre, montrer)  dans le OnEnter de la case ;
+--                                       `montrer()` remplit et place la carte
+--   carte:QuitterSurvol()               dans son OnLeave
+function UI.SurvolAccrochable(carte, delai)
+    delai = delai or 0.6
+    local ancre, montrer, temps, attache = nil, nil, 0, nil
+    carte.epinglee = false
+    local function Annuler(veille)
+        veille:Hide()
+        ancre, montrer = nil, nil
+        if UI.chargementCurseur then UI.chargementCurseur:Hide() end
+    end
+    -- La veille est un cadre a part : la carte garde ses propres scripts.
+    local veille = CreateFrame("Frame", nil, UIParent)
+    veille:Hide()
+    veille:SetScript("OnUpdate", function(self, dt)
+        if not (ancre and ancre:IsVisible() and ancre:IsMouseOver()) then Annuler(self) return end
+        temps = temps + dt
+        UI.ChargementCurseur():Regler(temps / delai)
+        if temps < delai then return end
+        local quoi, ou = montrer, ancre
+        Annuler(self)
+        quoi()
+        attache = ou
+        carte.epinglee = true
+        carte:EnableMouse(true)
+        carte:SetFrameStrata("TOOLTIP")
+        if carte.SetToplevel then carte:SetToplevel(true) end
+        carte:Raise()
+        if carte.fermer then carte.fermer:Show() end
+    end)
+    -- Epinglee, elle suit la fenetre de sa case : celle-ci fermee, elle part.
+    local garde = CreateFrame("Frame", nil, UIParent)
+    garde:SetScript("OnUpdate", function()
+        if carte.epinglee and carte:IsShown() and attache and not attache:IsVisible() then carte:Hide() end
+    end)
+    carte:HookScript("OnHide", function(self)
+        self.epinglee = false
+        self:EnableMouse(false)
+        attache = nil
+        if self.fermer then self.fermer:Hide() end
+    end)
+    function carte:SuivreSurvol(a, f)
+        if self.epinglee and self:IsShown() and self:IsMouseOver() then return end
+        ancre, montrer, temps = a, f, 0
+        veille:Show()
+    end
+    function carte:QuitterSurvol()
+        Annuler(veille)
+    end
+    return carte
+end
+
+-- Survol progressif, interrompu des que la cible est atteinte.
+-- ⚠ Sur une TEXTURE, SetAlpha remplace l'alpha de SetVertexColor : celui que
+-- DegradeOr recoit ne compte plus, `repos` et `actif` font foi. Pour garder
+-- une texture douce, on fond le cadre qui la porte (voir UI.Interaction).
+function UI.FonduSurvol(b, texture, repos, actif)
+    local valeur = repos
+    texture:SetAlpha(repos)
+    local function Vers(cible)
+        b:SetScript("OnUpdate", function(self, dt)
+            local pas = dt * 6
+            valeur = valeur < cible and math.min(cible, valeur + pas) or math.max(cible, valeur - pas)
+            texture:SetAlpha(valeur)
+            if valeur == cible then self:SetScript("OnUpdate", nil) end
+        end)
+    end
+    b:HookScript("OnEnter", function() Vers(actif) end)
+    b:HookScript("OnLeave", function() Vers(repos) end)
+    b:HookScript("OnHide", function(self)
+        self:SetScript("OnUpdate", nil); valeur = repos; texture:SetAlpha(repos)
+    end)
+end
+
+-- Cartouches de proximite : une pile commune, dans le tiers bas de l'ecran.
+local interactions = {}
+local function PlacerInteractions()
+    local y = math.max(100, UIParent:GetHeight() * 0.18)
+    for _, b in ipairs(interactions) do
+        if b:IsShown() then
+            b:ClearAllPoints()
+            b:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, y)
+            y = y + b:GetHeight() + 10
+        end
+    end
+end
+
+function UI.Interaction(nom, action, icone)
+    local b = CreateFrame("Button", nom, UIParent)
+    b:SetSize(350, 66)
+    b:SetFrameStrata("HIGH")
+    b.fond = UI.Aplat(b, { 0.045, 0.035, 0.025, 0.97 })
+    b.fond:SetAllPoints(b)
+    b.traits = UI.Bordure(b, { 0.62, 0.46, 0.23, 0.85 })
+    if UI.AelCadre then UI.AelCadre(b, "onglet") end
+    -- Un reflet, pas un aplat (le MJ, 16 octobre 2026) : le survol virait au
+    -- bandeau d'or epais. Deux causes. Le fondu de survol posait SetAlpha(1)
+    -- sur la TEXTURE, ce qui ecrase l'alpha de SetVertexColor : le degrade
+    -- montait a pleine opacite quel que soit son reglage. On fond donc un
+    -- CADRE qui porte les textures. Et une rampe lineaire est deja forte au
+    -- milieu : deux couches la courbent — un voile leger sur toute la largeur,
+    -- et l'or franc qui ne part qu'apres le milieu. Les deux tiers gauches
+    -- restent doux.
+    b.lueur = CreateFrame("Frame", nil, b)
+    b.lueur:SetPoint("TOPLEFT", 60, -3)
+    b.lueur:SetPoint("BOTTOMRIGHT", -3, 3)
+    b.lueur:EnableMouse(false)
+    local voile = UI.DegradeOr(b.lueur, "ARTWORK")
+    voile:SetAllPoints(b.lueur)
+    voile:SetAlpha(0.10)
+    local reflet = UI.DegradeOr(b.lueur, "ARTWORK")
+    reflet:SetPoint("TOPLEFT", b.lueur, "TOPLEFT", 140, 0)
+    reflet:SetPoint("BOTTOMRIGHT", b.lueur, "BOTTOMRIGHT", 0, 0)
+    reflet:SetAlpha(0.32)
+    b.lueur:SetAlpha(0.25)
+    local medaillon = CreateFrame("Frame", nil, b)
+    medaillon:SetSize(44, 44)
+    medaillon:SetPoint("LEFT", 10, 0)
+    UI.Bordure(medaillon, UI.C.accent)
+    if UI.AelCadre then UI.AelCadre(medaillon, "icone") end
+    b.icone = medaillon:CreateTexture(nil, "ARTWORK")
+    b.icone:SetPoint("TOPLEFT", 3, -3)
+    b.icone:SetPoint("BOTTOMRIGHT", -3, 3)
+    b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    b.icone:SetTexture(icone)
+    b.titre = UI.Texte(b, action, UI.C.titre)
+    UI.Police(b.titre, 14)
+    b.titre:SetPoint("TOPLEFT", 66, -13)
+    b.titre:SetPoint("RIGHT", -36, 0)
+    b.titre:SetWordWrap(false)
+    b.nom = UI.Texte(b, "", UI.C.texte)
+    UI.Police(b.nom, 12)
+    b.nom:SetPoint("TOPLEFT", 66, -35)
+    b.nom:SetPoint("RIGHT", -36, 0)
+    b.nom:SetWordWrap(false)
+    b.label = b.nom
+    b.fleche = UI.Texte(b, "›", UI.C.accent)
+    UI.Police(b.fleche, 26)
+    b.fleche:SetPoint("RIGHT", -14, 0)
+    local function Etat(self, survol, appui)
+        self.fond:SetColorTexture(0.045, 0.035, 0.025, appui and 1 or 0.97)
+        self.fleche:SetTextColor(1, survol and 0.91 or 0.68, survol and 0.65 or 0.33)
+        for _, t in ipairs(self.traits) do
+            t:SetColorTexture(0.95, 0.76, 0.40, survol and 1 or 0.5)
+        end
+        self.icone:SetAlpha(appui and 0.65 or 1)
+    end
+    b:SetScript("OnEnter", function(self) self.survole = true; Etat(self, true) end)
+    b:SetScript("OnLeave", function(self) self.survole = nil; Etat(self, false) end)
+    b:SetScript("OnMouseDown", function(self) Etat(self, true, true) end)
+    b:SetScript("OnMouseUp", function(self) Etat(self, self.survole) end)
+    b:SetScript("OnShow", PlacerInteractions)
+    b:SetScript("OnHide", function(self) self.survole = nil; Etat(self, false); PlacerInteractions() end)
+    UI.FonduSurvol(b, b.lueur, 0.25, 1)
+    b:Hide()
+    interactions[#interactions + 1] = b
+    return b
 end
 
 function UI.Bouton(parent, texte, largeur, hauteur, onClick)
@@ -814,6 +1056,203 @@ function UI.Barre(parent, couleur, largeur, hauteur)
 end
 
 -- Champ de saisie. `onChange(texte)` est appele a chaque frappe.
+-- Pages d'un formulaire : le nom et les actions restent fixes, seul le corps change.
+local function OngletTravail(b)
+    local fond = UI.Aplat(b, { 0.60, 0.44, 0.17, 0.22 })
+    fond:SetAllPoints(b)
+    local trait = UI.Aplat(b, { 0.90, 0.70, 0.32, 1 }, "OVERLAY")
+    trait:SetHeight(2)
+    trait:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 1, 0)
+    trait:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 0)
+    local selectionner = b.Selectionner
+    function b:Selectionner(actif)
+        selectionner(self, actif)
+        fond:SetShown(actif)
+        trait:SetShown(actif)
+    end
+    b:Selectionner(false)
+end
+
+function UI.PagesFormulaire(parent, labels)
+    local pages = { boutons = {} }
+    function pages:Choisir(index)
+        self.active = index
+        for i, page in ipairs(self) do
+            page:SetShown(i == index)
+            self.boutons[i]:Selectionner(i == index)
+        end
+    end
+    for i, label in ipairs(labels) do
+        local page = CreateFrame("Frame", nil, parent)
+        page:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -86)
+        page:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", 0, 48)
+        pages[i] = page
+        local b = UI.Bouton(parent, label, 190, 30, function() pages:Choisir(i) end)
+        OngletTravail(b)
+        b:SetPoint("TOPLEFT", parent, "TOPLEFT", (i - 1) * 198, -40)
+        pages.boutons[i] = b
+    end
+    pages:Choisir(1)
+    return pages
+end
+
+-- Cadre commun aux ateliers de points : bibliotheque, recherche, actions et terrain.
+function UI.AtelierInteractions(f, nature)
+    local function Egales(a, b)
+        if type(a) ~= type(b) then return false end
+        if type(a) ~= "table" then return a == b end
+        for k, v in pairs(a) do if not Egales(v, b[k]) then return false end end
+        for k in pairs(b) do if a[k] == nil then return false end end
+        return true
+    end
+    function f:Modifie()
+        return self.travail and self.referenceTravail and not Egales(self.travail, self.referenceTravail)
+    end
+    function f:ChangerModele(action)
+        if self:Modifie() then
+            self.confirmation:Demander("Abandonner les modifications non enregistrées de ce modèle ?", action)
+        else action() end
+    end
+    if f.travail == nil and nature ~= "vendeur" then
+        local choisir = f.Choisir
+        function f:Choisir(id)
+            choisir(self, id)
+            self.referenceTravail = LCM.Copie(self.travail)
+        end
+    end
+    for _, bouton in ipairs({ f.nouveau, f.dupliquer }) do
+        local action = bouton:GetScript("OnClick")
+        bouton:SetScript("OnClick", function(self)
+            f:ChangerModele(function() action(self) end)
+        end)
+    end
+    local function Placer(objet, parent, point, relatif, x, y)
+        objet:ClearAllPoints()
+        objet:SetPoint(point, parent, relatif, x, y)
+    end
+    local titre = UI.Texte(f.contenu, "BIBLIOTHÈQUE", UI.C.titre)
+    titre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -8)
+    UI.Police(titre, 12)
+    f.compteModeles = UI.Texte(f.contenu, "", UI.C.discret, "GameFontNormalSmall")
+    f.compteModeles:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -30)
+    f.recherche = UI.Champ(f.contenu, 196, 28, function(texte)
+        f.filtre = texte
+        f.liste:Aller(0)
+        f:Afficher()
+    end)
+    f.recherche:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -52)
+    UI.Bulle(f.recherche, "Rechercher", "Filtrer les modèles par leur nom.", 0.2)
+    local indication = UI.Texte(f.recherche, "Rechercher…", UI.C.discret, "GameFontNormalSmall")
+    indication:SetPoint("LEFT", f.recherche, "LEFT", 8, 0)
+    f.recherche:HookScript("OnTextChanged", function(self) indication:SetShown(self:GetText() == "") end)
+    Placer(f.nouveau, f.contenu, "TOPLEFT", "TOPLEFT", 8, -90)
+    f.nouveau:SetSize(196, 30)
+    f.nouveau.label:SetText("+ Créer un modèle")
+    Placer(f.liste, f.contenu, "TOPLEFT", "TOPLEFT", 8, -132)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 8, 76)
+    f.liste:SetWidth(196)
+    Placer(f.dupliquer, f.contenu, "BOTTOMLEFT", "BOTTOMLEFT", 8, 38)
+    f.dupliquer:SetSize(196, 28)
+    if f.supprimer then
+        Placer(f.supprimer, f.contenu, "BOTTOMLEFT", "BOTTOMLEFT", 8, 4)
+        f.supprimer:SetSize(196, 26)
+        f.supprimer.label:SetTextColor(0.85, 0.48, 0.42)
+    end
+    local separation = UI.Aplat(f.contenu, { 0.45, 0.37, 0.22, 0.45 })
+    separation:SetWidth(1)
+    separation:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 220, 0)
+    separation:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 220, 0)
+    Placer(f.droite, f.contenu, "TOPLEFT", "TOPLEFT", 238, -4)
+    f.droite:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", -8, 4)
+    f.boutonCreation:SetSize(182, 32)
+    f.boutonCreation.label:SetText(nature == "vendeur" and "Catalogue" or "Configuration")
+    f.boutonPlacement:SetSize(182, 32)
+    f.boutonPlacement.label:SetText("Placer dans le monde")
+    OngletTravail(f.boutonCreation)
+    OngletTravail(f.boutonPlacement)
+    for _, page in ipairs({ f.creation, f.placement }) do
+        Placer(page, f.droite, "TOPLEFT", "TOPLEFT", 0, -50)
+        page:SetPoint("BOTTOMRIGHT", f.droite, "BOTTOMRIGHT", 0, 0)
+    end
+    local c, p = f.creation, f.placement
+    if c.nom then c.nom:SetHeight(28) c.nom:SetWidth(360) end
+    if c.enregistrer then
+        c.enregistrer:SetSize(164, 32)
+        c.enregistrer.label:SetText("Enregistrer le modèle")
+        local fond = UI.Aplat(c.enregistrer, { 0.55, 0.39, 0.12, 0.25 })
+        fond:SetAllPoints(c.enregistrer)
+        c.erreur:SetWidth(330)
+        c.erreur:SetWordWrap(true)
+        UI.Bulle(c.enregistrer, "Enregistrer", "Applique aussi les réglages aux points déjà placés.")
+    end
+    -- Actions de placement separees des actions destructives et du compteur.
+    Placer(p.titre, p, "TOPLEFT", "TOPLEFT", 0, -4)
+    if p.resume then
+        Placer(p.resume, p, "TOPLEFT", "TOPLEFT", 0, -32)
+        p.resume:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -32)
+        p.resume:SetHeight(40)
+        p.resume:SetWordWrap(true)
+    end
+    Placer(p.position, p, "TOPLEFT", "TOPLEFT", 0, -80)
+    p.position:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -80)
+    p.position:SetHeight(32)
+    p.position:SetWordWrap(true)
+    Placer(p.poser, p, "TOPLEFT", "TOPLEFT", 0, -120)
+    p.poser:SetSize(260, 36)
+    p.etatEdition = UI.Texte(p, "", UI.C.titre, "GameFontNormalSmall")
+    p.etatEdition:SetPoint("TOPLEFT", p.poser, "BOTTOMLEFT", 0, -6)
+    p.etatEdition:SetWidth(510)
+    Placer(p.compte, p, "TOPLEFT", "TOPLEFT", 0, -178)
+    Placer(p.zone, p, "TOPLEFT", "TOPLEFT", 0, -204)
+    p.zone:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -10, 46)
+    UI.BordureFine(p.zone, 0.15)
+    Placer(p.toutRetirer, p, "BOTTOMRIGHT", "BOTTOMRIGHT", 0, 0)
+    p.toutRetirer:SetSize(132, 28)
+    p.toutRetirer.label:SetTextColor(0.85, 0.48, 0.42)
+    if p.retirer then
+        Placer(p.retirer, p, "BOTTOMLEFT", "BOTTOMLEFT", 0, 0)
+        p.retirer:SetSize(170, 28)
+    end
+    f.listeVide = UI.Texte(f.liste, "Aucun résultat.\nCrée un modèle ou modifie la recherche.", UI.C.discret)
+    f.listeVide:SetPoint("TOPLEFT", f.liste, "TOPLEFT", 8, -20)
+    f.listeVide:SetWidth(176)
+    f.listeVide:SetWordWrap(true)
+    function f:FiltrerDefinitions(definitions)
+        local out = {}
+        local filtre = string.lower(self.filtre or "")
+        for _, point in ipairs(definitions) do
+            if string.find(string.lower(point.label or ""), filtre, 1, true) then out[#out + 1] = point end
+        end
+        self.compteModeles:SetText(string.format("%d / %d modèles", #out, #definitions))
+        self.listeVide:SetShown(#out == 0)
+        return out
+    end
+    -- La selection a un fond et un filet, perceptibles sans lire la couleur du nom.
+    local afficher = f.Afficher
+    function f:Afficher()
+        afficher(self)
+        local modifie = self:Modifie()
+        if modifie then p.poser:SetEnabled(false) end
+        p.etatEdition:SetText(modifie and "Enregistre tes modifications avant de placer ce modèle." or "")
+        self.dupliquer:SetEnabled(self:Point() ~= nil)
+        for _, b in ipairs(self.lignes) do
+            b:SetWidth(186)
+            if not b.selectionFond then
+                b.selectionFond = UI.Aplat(b, { 0.65, 0.48, 0.18, 0.23 })
+                b.selectionFond:SetAllPoints(b)
+                b.selectionTrait = UI.Aplat(b, { 0.92, 0.71, 0.32, 1 }, "OVERLAY")
+                b.selectionTrait:SetWidth(3)
+                b.selectionTrait:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+                b.selectionTrait:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+                b.label:SetWordWrap(false)
+                UI.Bulle(b, "Modèle", function() return b.label:GetText() end, 0.3)
+            end
+            b.selectionFond:SetShown(b.pointId == self.pointId)
+            b.selectionTrait:SetShown(b.pointId == self.pointId)
+        end
+    end
+end
+
 function UI.Champ(parent, largeur, hauteur, onChange)
     local e = CreateFrame("EditBox", nil, parent)
     e:SetSize(largeur or 180, hauteur or 22)
@@ -837,6 +1276,126 @@ function UI.Champ(parent, largeur, hauteur, onChange)
             if cible.HighlightText then cible:HighlightText() end
         end
     end)
+    if onChange then
+        e:SetScript("OnTextChanged", function(self, parLUtilisateur)
+            if parLUtilisateur ~= false then onChange(self:GetText() or "") end
+        end)
+    end
+    return e
+end
+
+-- Un petit bouton CARRE a signe (« + », « × »), dans le style des boutons du
+-- modele, la ou un libelle ne tient pas. Dans la colonne d'action d'une fiche
+-- (110/786 de sa largeur : une cinquantaine d'unites dans une fenetre de 390),
+-- « + Ajouter » se coupait en « + Aj… » (16 octobre 2026). Le geste se lit au
+-- signe ; ce qu'il fait, l'infobulle le dit. `b:Signe(signe, titre, texte)`.
+function UI.BoutonSigne(parent, taille, onClick)
+    local b = UI.Bouton(parent, "", taille, taille, onClick)
+    if UI.Police then UI.Police(b.label, math.floor(taille * 0.75)) end
+    function b:Signe(signe, titre, texte)
+        self.label:SetText(signe)
+        self.titreBulle, self.texteBulle = titre, texte
+    end
+    UI.Bulle(b, function(soi) return soi.titreBulle or "" end,
+        function(soi) return soi.texteBulle end, 0.3)
+    return b
+end
+
+-- Le bout droit d'une ligne, qui EST le bouton : un fondu d'or qui part de
+-- rien et s'intensifie vers la droite, ferme par un trait plein a droite, ses
+-- filets du haut et du bas s'effacant vers la gauche, et le signe (« + »,
+-- « × ») au milieu de sa moitie droite. Dessine par le MJ le 16 octobre 2026,
+-- a la place d'un petit bouton carre perdu au bout de la ligne.
+--
+-- Le fondu est une IMAGE (la moitie montante de bannieres/Gradient.tga) et
+-- non `SetGradient` : le client Epsilon rend mal la transparence d'un
+-- SetGradient (voir UI/Experience.lua, UI/Banniere.lua).
+-- On l'ancre soi-meme (haut, bas, droite et largeur). `b:Signe(signe, titre,
+-- texte)` comme UI.BoutonSigne.
+local FONDU = "Interface\\AddOns\\LesContesMalveillants\\ressources\\bannieres\\Gradient.tga"
+function UI.BoutonDegrade(parent, onClick)
+    local b = CreateFrame("Button", nil, parent)
+    b:RegisterForClicks("LeftButtonUp")
+    local or1, or2, or3 = UI.C.accent[1], UI.C.accent[2], UI.C.accent[3]
+    local function Fondu(couche, alpha)
+        local t = b:CreateTexture(nil, couche)
+        t:SetTexture(FONDU)
+        t:SetTexCoord(0, 0.5, 0, 1)
+        t:SetVertexColor(or1, or2, or3, alpha)
+        return t
+    end
+    b.fond = Fondu("BACKGROUND", 0.14)
+    b.fond:SetAllPoints(b)
+    b.survol = Fondu("HIGHLIGHT", 0.14)
+    b.survol:SetAllPoints(b)
+    -- Le meme eclat, allume par qui porte le bouton : quand c'est toute la
+    -- LIGNE qui se clique, c'est elle qu'on survole, pas le bouton.
+    b.eclat = Fondu("BORDER", 0.14)
+    b.eclat:SetAllPoints(b)
+    b.eclat:Hide()
+    function b:Eclairer(oui) self.eclat:SetShown(oui and true or false) end
+    b.haut = Fondu("ARTWORK", 0.75)
+    b.haut:SetHeight(1)
+    b.haut:SetPoint("TOPLEFT", b, "TOPLEFT", 0, 0)
+    b.haut:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    b.bas = Fondu("ARTWORK", 0.75)
+    b.bas:SetHeight(1)
+    b.bas:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
+    b.bas:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    b.droite = UI.Aplat(b, { or1, or2, or3, 0.75 }, "ARTWORK")
+    b.droite:SetWidth(1)
+    b.droite:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, 0)
+    b.droite:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    -- Le signe dans la moitie droite, la ou le fondu est franc.
+    b.label = UI.Texte(b, "", UI.C.titre, "GameFontNormal")
+    b.label:SetPoint("TOPLEFT", b, "TOP", 0, 0)
+    b.label:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0)
+    b.label:SetJustifyH("CENTER")
+    if onClick then b:SetScript("OnClick", onClick) end
+    function b:Signe(signe, titre, texte)
+        self.label:SetText(signe)
+        self.titreBulle, self.texteBulle = titre, texte
+    end
+    UI.Bulle(b, function(soi) return soi.titreBulle or "" end,
+        function(soi) return soi.texteBulle end, 0.3)
+    return b
+end
+
+-- Une saisie qui EST sa cellule de tableau. `UI.Champ` pose une boite
+-- encadree : dans une case de tableau, ca faisait une boite dans une boite, au
+-- texte dore, qui jurait avec les cellules voisines (16 octobre 2026). Ici,
+-- rien par-dessus la case : le texte centre dans la couleur des autres
+-- cellules, un reflet au survol, et un fond leger souligne d'or pendant la
+-- saisie. Elle prend la taille qu'on lui donne par ses ancrages.
+function UI.ChampCellule(parent, onChange)
+    local e = CreateFrame("EditBox", nil, parent)
+    e:SetAutoFocus(false)
+    e:SetMaxLetters(12)
+    e:SetFontObject("GameFontNormalSmall")
+    e:SetTextColor(UI.C.texte[1], UI.C.texte[2], UI.C.texte[3])
+    e:SetJustifyH("CENTER")
+    e:SetTextInsets(4, 4, 0, 0)
+    local survol = UI.Aplat(e, { 0.85, 0.75, 0.40, 0.06 }, "HIGHLIGHT")
+    survol:SetAllPoints(e)
+    e.saisie = UI.Aplat(e, { 0.85, 0.75, 0.40, 0.08 }, "BACKGROUND")
+    e.saisie:SetAllPoints(e)
+    e.saisie:Hide()
+    e.trait = UI.Aplat(e, { UI.C.accent[1], UI.C.accent[2], UI.C.accent[3], 0.8 }, "ARTWORK")
+    e.trait:SetHeight(1)
+    e.trait:SetPoint("BOTTOMLEFT", e, "BOTTOMLEFT", 6, 2)
+    e.trait:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", -6, 2)
+    e.trait:Hide()
+    e:SetScript("OnEditFocusGained", function(self)
+        self.saisie:Show()
+        self.trait:Show()
+        self:HighlightText()
+    end)
+    e:SetScript("OnEditFocusLost", function(self)
+        self.saisie:Hide()
+        self.trait:Hide()
+    end)
+    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     if onChange then
         e:SetScript("OnTextChanged", function(self, parLUtilisateur)
             if parLUtilisateur ~= false then onChange(self:GetText() or "") end
@@ -2102,6 +2661,10 @@ function UI.Demande()
     d.titre:SetPoint("TOPLEFT", d, "TOPLEFT", 12, -12)
     d.fermer = UI.Bouton(d, "x", 16, 16, function() d:Hide() end)
     d.fermer:SetPoint("TOPRIGHT", d, "TOPRIGHT", -8, -8)
+    -- Le titre s'arrete avant la croix : un long nom d'objet passait dessous.
+    d.titre:SetPoint("RIGHT", d.fermer, "LEFT", -6, 0)
+    d.titre:SetJustifyH("LEFT")
+    d.titre:SetWordWrap(false)
     d.saisie = UI.Champ(d, 190, 24)
     d.saisie:SetMaxLetters(15)
     d.saisie:SetPoint("TOPLEFT", d, "TOPLEFT", 12, -44)
@@ -2115,7 +2678,9 @@ function UI.Demande()
     end)
     d.valider:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -12, 12)
     d.saisie:SetScript("OnEnterPressed", function() d.valider:Click() end)
-    function d:Demander(titre, valeur, onValider)
+    -- `bouton` : le verbe du geste (« Scinder »), « Valider » sinon.
+    function d:Demander(titre, valeur, onValider, bouton)
+        self.valider.label:SetText(bouton or "Valider")
         self.titre:SetText(titre)
         self.saisie:SetText(tostring(valeur or ""))
         self.message:SetText("")

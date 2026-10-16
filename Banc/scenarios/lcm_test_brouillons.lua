@@ -1,4 +1,11 @@
--- Brouillons du MJ : creation en seance, prise en compte immediate.
+-- Ce que le MJ ecrit en seance : prise en compte immediate, et synchro entre
+-- maitres du jeu.
+--
+-- Le nom du fichier date de l'epoque des « brouillons ». Depuis le 15 octobre
+-- 2026, une entree enregistree EXISTE : plus de comptage « en attente
+-- d'export », plus de signalement des doublons « deja publies », plus de
+-- commande /lcm brouillons. Ces trois sections ont ete remplacees par ce qui
+-- les remplace dans le jeu.
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -32,12 +39,10 @@ LCM.Brouillons.Enregistrer("jeux", {
 
 __personnage()   -- ce scenario joue un personnage : il le dit
 
-dire("== les brouillons sont jouables tout de suite")
+dire("== ce qui est enregistre est jouable tout de suite")
 attendu("le trait existe", LCM.Traits.Get("oeil_du_faucon") ~= nil, true)
 attendu("la race aussi", LCM.Races.Get("gobelin") ~= nil, true)
--- Trois : les deux d'avant la connexion, plus le jeu temoin pose juste au
--- dessus. On compte ce que CE scenario a cree, pas un nombre en dur.
-attendu("comptage", LCM.Brouillons.Count(), 3)
+attendu("le jeu temoin aussi", LCM.Forge.Get("essai_traits") ~= nil, true)
 
 local moi = LCM.Entities.Self()
 LCM.Traits.Grant(moi, "oeil_du_faucon")
@@ -56,20 +61,29 @@ dire("== une race inconnue en morphologie est refusee")
 local ok2 = pcall(LCM.Races.Add, { id = "chimere", label = "Chimere", morphology = "nexistepas" })
 attendu("refus", ok2, false)
 
-dire("== ce qui est deja publie est signale")
-LCM.Brouillons.Set("traits", {
-    id = "escalade_jungle", label = "Escalade de la jungle (doublon)",
-    bonus = { escalade = 1 },
-})
-local publies = LCM.Brouillons.Published()
-attendu("le doublon est repere", #publies, 1)
-dire("   ->", publies[1])
+dire("== une entree venue d'un fichier se modifie comme les autres")
+-- Avant, il fallait la « reprendre en brouillon » ; sans ce detour, elle
+-- etait refusee comme « contenu publie ».
+local B1 = LCM.Brouillons
+local escalade = LCM.Copie(LCM.Traits.Get("escalade_jungle"))
+escalade.label = "Escalade de la jungle (corrigée)"
+escalade.forge = "essai_traits/libre"
+local modifiee, pourquoi = B1.Enregistrer("traits", escalade, false)
+attendu("modifiee sans detour", modifiee, true)
+if not modifiee then dire("   raison :", tostring(pourquoi)) end
+attendu("  et en jeu", LCM.Traits.Get("escalade_jungle").label, "Escalade de la jungle (corrigée)")
+local double, raisonDouble = B1.Enregistrer("traits", escalade, true)
+attendu("la CREER une seconde fois est une collision", double, false)
+dire("   ->", tostring(raisonDouble))
 
-dire("== la commande /lcm brouillons")
+dire("== la commande /lcm brouillons n'existe plus")
 local n = #__sorties
 SlashCmdList.LCM("brouillons")
-attendu("elle repond", #__sorties > n, true)
-for i = n + 1, #__sorties do dire("   " .. __sansCouleur(__sorties[i])) end
+local liste = false
+for i = n + 1, #__sorties do
+    if __sansCouleur(__sorties[i]):find("en attente d'export", 1, true) then liste = true end
+end
+attendu("plus de liste d'attente a consulter", liste, false)
 
 dire("== la synchro entre maitres du jeu")
 -- On est deux a ecrire en seance : ce que l'un cree part TOUT DE SUITE chez

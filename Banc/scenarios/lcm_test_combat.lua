@@ -282,11 +282,25 @@ __groupe({ "Reika-Apertus", "Nytherah-Apertus", "Bram-Apertus" }, true)
 local courantAvantAjout = C.Courant().id
 local panneauCombat = LCM.UI.CombatMJ.Basculer()
 panneauCombat:Afficher()
-attendu("la colonne passe aux joueurs disponibles", panneauCombat.titreQui:GetText(), "Joueurs à intégrer")
+-- « Joueurs a integrer » est devenu « A integrer » le 16 octobre 2026 : les
+-- PNJ en jeu peuvent aussi rejoindre un combat lance.
+attendu("la colonne passe a ceux qui peuvent entrer", panneauCombat.titreQui:GetText(), "À intégrer")
 attendu("le bouton d'integration apparait", panneauCombat.integrer:IsShown(), true)
-attendu("le nouveau joueur est proposé", panneauCombat.lignesPNJ[1].nom:GetText(), "Bram-Apertus")
-attendu("la case selectionne le joueur", panneauCombat.lignesPNJ[1].case:IsEnabled(), true)
-panneauCombat.lignesPNJ[1].case:Click()
+-- Integrer et « Tour precedent » etaient ancres tous deux au coin bas gauche
+-- et se recouvraient (16 octobre 2026) : les tours suivent Integrer.
+local _, ancrePrecedent = panneauCombat.precedent:GetPoint(1)
+attendu("  Tour précédent se range à sa droite", ancrePrecedent == panneauCombat.integrer, true)
+-- Les PNJ en jeu hors du combat sont proposes en tete (le Garde) : on
+-- cherche la ligne par son nom plutot que par son rang.
+local function LigneCandidat(nom)
+    for _, l in ipairs(panneauCombat.lignesPNJ) do
+        if l:IsShown() and l.nom:GetText() == nom then return l end
+    end
+end
+local ligneBram = LigneCandidat("Bram-Apertus")
+attendu("le nouveau joueur est proposé", ligneBram ~= nil, true)
+attendu("la case selectionne le joueur", ligneBram and ligneBram.case:IsEnabled(), true)
+ligneBram.case:Click()
 panneauCombat.integrer:Click()
 local tardive = C.invitationTardive
 attendu("invitation tardive", tardive ~= nil, true)
@@ -295,6 +309,31 @@ recevoir("Bram-Apertus", "combat+", { s = C.Etat().s, ok = 1, v = 77, n = "Bram"
 attendu("il est ajoute sans relancer", #C.Etat().entrees, 3)
 attendu("le combattant courant ne change pas", C.Courant().id, courantAvantAjout)
 attendu("l'etat complet est rediffuse", dernierEnvoi().message:find("combat=", 1, true) ~= nil, true)
+
+dire("== integrer un PNJ apres le lancement")
+local renfort = I.Instancier(LCM.PNJ.list[1].id, "Renfort")
+panneauCombat:Afficher()
+local ligneRenfort = LigneCandidat("Renfort")
+attendu("le PNJ en jeu est proposé", ligneRenfort ~= nil, true)
+ligneRenfort.case:Click()
+local avantRenfort = #__envois
+panneauCombat.integrer:Click()
+attendu("il entre tout de suite, sans invitation", #C.Etat().entrees, 4)
+local entreeRenfort
+for _, e in ipairs(C.Etat().entrees) do if e.id == renfort.id then entreeRenfort = e end end
+attendu("  marque PNJ", entreeRenfort and entreeRenfort.pnj, true)
+attendu("  le combattant courant ne change pas", C.Courant().id, courantAvantAjout)
+-- L'etat a quatre combattants part en plusieurs morceaux : on cherche son
+-- debut parmi les envois, pas dans le dernier.
+local rediffuse = false
+for i = avantRenfort + 1, #__envois do
+    if __envois[i].message:find("combat=", 1, true) then rediffuse = true end
+end
+attendu("  l'etat est rediffuse", rediffuse, true)
+panneauCombat:Afficher()
+attendu("il n'est plus proposé", LigneCandidat("Renfort"), nil)
+local _, deja = C.Integrer({ renfort.id })
+attendu("deja au combat : refuse, et dit", deja, "aucun nouveau combattant valide a integrer.")
 C.Terminer()
 -- Le combat du MJ est un onglet du Panel MJ depuis le 3 octobre 2026 : on
 -- ferme le panneau, pas l'onglet.

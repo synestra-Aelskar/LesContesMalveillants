@@ -3058,7 +3058,7 @@ end
 -- porte le journal, la declaration, et les references inconnues.
 function Actions.Lancer(resolutionId, entity, onFin)
     -- Une action de bouton (Core/ActionsBoutons.lua) l'emporte : c'est le
-    -- code qui fait foi, pas un brouillon qui porterait le meme identifiant.
+    -- code qui fait foi, pas une entree du compendium au meme identifiant.
     local resolution = type(resolutionId) == "table" and resolutionId
         or (LCM.ActionsBoutons and LCM.ActionsBoutons.Get(resolutionId))
         or LCM.Resolutions.Get(resolutionId)

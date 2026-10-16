@@ -16,27 +16,31 @@ local Marchands = LCM.MarchandsMJ
 local Ecran = {}
 UI.MarchandsMJ = Ecran
 
-local LARGEUR, HAUTEUR = 760, 500
+local LARGEUR, HAUTEUR = 820, 640
 local COLONNE = 210
-local LIGNE = 26
+local LIGNE = 36
+-- Le tableau des articles : titre, x de depart, largeur (la derniere va
+-- jusqu'au bord). La meme allure que celui des Ressources.
+local PAS_ARTICLE = 28
+local COLONNES_ARTICLES = {
+    { "I", 0, 31 }, { "ARTICLE / LOT", 31, 250 }, { "PRIX", 281, 130 }, { "STOCK", 411 },
+}
 
 local function Constructeur()
     return UI.Points and UI.Points.Editeur and UI.Points.Editeur("vendeur")
 end
 
 local function Prix(offre)
-    if not (offre.prix and offre.devise) then return "" end
-    local devise = LCM.Devises.Get(offre.devise)
-    return string.format("%s %s", tostring(offre.prix), (devise and devise.label) or offre.devise)
+    return LCM.Prix.Texte(offre.formules)
 end
 
 local function Construire()
-    local f = UI.Fenetre("marchands_mj", "Vendeur", LARGEUR, HAUTEUR, { x = -80, y = -40 })
+    local f = UI.Fenetre("marchands_mj", "Vendeur", LARGEUR, HAUTEUR, { x = 0, y = -20 }, { enTeteSimple = true, sobre = true })
     f.onglet = "creation"
 
     f.liste = UI.Defilement(f.contenu)
     f.liste:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 34)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 64)
     f.liste:SetWidth(COLONNE)
     f.lignes = {}
     f.nouveau = UI.Bouton(f.contenu, "+ Nouveau", 100, 24, function()
@@ -44,11 +48,14 @@ local function Construire()
         if ed then ed:Ouvrir(nil) end
     end)
     f.nouveau:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
-    f.modifier = UI.Bouton(f.contenu, "Modifier", 100, 24, function()
+    -- La copie s'ouvre dans le constructeur comme un vendeur neuf, pas encore
+    -- enregistre : elle ne part dans la base qu'une fois renommee et validee.
+    f.dupliquer = UI.Bouton(f.contenu, "Dupliquer", 206, 24, function()
         local ed, point = Constructeur(), f:Point()
-        if ed and point then ed:Ouvrir(point) end
+        if not point then LCM.Alerte("choisis d'abord le vendeur à dupliquer.") return end
+        if ed then ed:Ouvrir(point, true) end
     end)
-    f.modifier:SetPoint("LEFT", f.nouveau, "RIGHT", 6, 0)
+    f.dupliquer:SetPoint("BOTTOMLEFT", f.nouveau, "TOPLEFT", 0, 6)
     f.confirmation = UI.Confirmer(f, "", "Confirmer")
 
     f.droite = CreateFrame("Frame", nil, f.contenu)
@@ -67,15 +74,56 @@ local function Construire()
     c.titre = UI.Texte(c, "", UI.C.titre)
     UI.Police(c.titre, 14)
     c.titre:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -2)
-    c.aide = UI.Texte(c, "Les articles, leurs prix et leur stock se règlent dans le constructeur (« Modifier »).",
-        UI.C.discret, "GameFontNormalSmall")
-    c.aide:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -22)
-    c.aide:SetPoint("RIGHT", c, "RIGHT", 0, 0)
-    c.aide:SetJustifyH("LEFT")
-    c.zone = UI.Defilement(c)
-    c.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -46)
-    c.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -10, 0)
+    c.aide = UI.Texte(c, "", UI.C.discret, "GameFontNormalSmall")
+    c.aide:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -26)
+    c.mode = "ventes"
+    c.ventes = UI.Bouton(c, "Vend", 100, 28, function() c.mode = "ventes"; f:AfficherArticles() end)
+    c.ventes:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -52)
+    c.rachats = UI.Bouton(c, "Rachète", 100, 28, function() c.mode = "rachats"; f:AfficherArticles() end)
+    c.rachats:SetPoint("LEFT", c.ventes, "RIGHT", 6, 0)
+    f.modifier = UI.Bouton(c, "Modifier", 100, 24, function()
+        local ed, point = Constructeur(), f:Point()
+        if ed and point then ed:Ouvrir(point) end
+    end)
+    f.modifier:SetPoint("LEFT", f.nouveau, "RIGHT", 6, 0)
+    f.modifier:ClearAllPoints()
+    f.modifier:SetPoint("TOPRIGHT", c, "TOPRIGHT", 0, -52)
+    f.modifier:SetSize(196, 28)
+    f.modifier.label:SetText("Modifier le catalogue")
+    -- Les articles en TABLEAU, comme les ressources et les objets des
+    -- fenetres Ressources et Coffres (le MJ, 16 octobre 2026) : un cadre, un
+    -- en-tete aux colonnes separees, une ligne encadree par article. Il
+    -- grandit avec ses lignes, puis defile.
+    c.tableau = CreateFrame("Frame", nil, c)
+    c.tableau:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -98)
+    c.tableau:SetPoint("TOPRIGHT", c, "TOPRIGHT", -8, -98)
+    c.tableau:SetHeight(25 + PAS_ARTICLE)
+    UI.BordureFine(c.tableau, 0.18)
+    local entete = CreateFrame("Frame", nil, c.tableau)
+    entete:SetPoint("TOPLEFT", c.tableau, "TOPLEFT", 1, -1)
+    entete:SetPoint("TOPRIGHT", c.tableau, "TOPRIGHT", -1, -1)
+    entete:SetHeight(23)
+    local fondEntete = UI.Aplat(entete, { 0.07, 0.07, 0.07, 0.30 })
+    fondEntete:SetAllPoints(entete)
+    for index, colonne in ipairs(COLONNES_ARTICLES) do
+        local titre = UI.Texte(entete, colonne[1], UI.C.discret, "GameFontNormalSmall")
+        titre:SetPoint("TOPLEFT", entete, "TOPLEFT", colonne[2], -6)
+        if colonne[3] then titre:SetWidth(colonne[3]) else titre:SetPoint("RIGHT", entete, "RIGHT", -6, 0) end
+        titre:SetJustifyH("CENTER")
+        if index > 1 then
+            local trait = UI.Filet(entete, false, true)
+            trait:SetPoint("TOPLEFT", entete, "TOPLEFT", colonne[2], 0)
+            trait:SetPoint("BOTTOMLEFT", entete, "BOTTOMLEFT", colonne[2], 0)
+        end
+    end
+    c.zone = UI.Defilement(c.tableau)
+    c.zone:SetPoint("TOPLEFT", c.tableau, "TOPLEFT", 1, -24)
+    c.zone:SetPoint("BOTTOMRIGHT", c.tableau, "BOTTOMRIGHT", -1, 1)
     c.lignes = {}
+    c.vide = UI.Texte(c.zone, "Aucun article.\nOuvre le catalogue pour en ajouter.", UI.C.discret)
+    c.vide:SetPoint("TOP", c.zone, "TOP", 0, -35)
+    c.vide:SetWidth(400)
+    c.vide:SetWordWrap(true)
 
     -- ----- PLACEMENT ------------------------------------------------------
     local p = CreateFrame("Frame", nil, f.droite)
@@ -160,36 +208,70 @@ local function Construire()
     -- Les articles du marchand, avec ce qu'il en reste et ce qui est reserve.
     function f:AfficherArticles()
         local point = self:Point()
-        c.titre:SetText(point and point.label or "Choisis un marchand à gauche")
-        local h = 0
-        local n = 0
-        for _, onglet in ipairs((point and point.onglets) or {}) do
+        c.titre:SetText(point and point.label or "Créer ton premier vendeur")
+        c.ventes:Selectionner(c.mode == "ventes")
+        c.rachats:Selectionner(c.mode == "rachats")
+        local h, n = 0, 0
+        local onglets = (point and (c.mode == "rachats" and point.rachats or point.onglets)) or {}
+        for _, onglet in ipairs(onglets) do
             for _, offre in ipairs(onglet.offres or {}) do
                 n = n + 1
                 local l = c.lignes[n]
                 if not l then
-                    l = UI.Texte(c.zone.contenu, "", UI.C.texte, "GameFontNormalSmall")
-                    l:SetJustifyH("LEFT")
+                    l = CreateFrame("Frame", nil, c.zone.contenu)
+                    l:SetHeight(PAS_ARTICLE)
+                    local fond = UI.Aplat(l, { 0.07, 0.07, 0.07, 0.10 })
+                    fond:SetAllPoints(l)
+                    UI.BordureFine(l, 0.14)
+                    l.icone = l:CreateTexture(nil, "ARTWORK")
+                    l.icone:SetSize(20, 20)
+                    l.icone:SetPoint("CENTER", l, "LEFT", COLONNES_ARTICLES[1][3] / 2, 0)
+                    l.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                    for rang, cle in ipairs({ "nom", "prix", "stock" }) do
+                        local colonne = COLONNES_ARTICLES[rang + 1]
+                        l[cle] = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
+                        l[cle]:SetPoint("LEFT", l, "LEFT", colonne[2] + 8, 0)
+                        if colonne[3] then l[cle]:SetWidth(colonne[3] - 16)
+                        else l[cle]:SetPoint("RIGHT", l, "RIGHT", -8, 0) end
+                        l[cle]:SetJustifyH(cle == "nom" and "LEFT" or "CENTER")
+                        l[cle]:SetWordWrap(false)
+                        if rang > 0 then
+                            local trait = UI.Filet(l, true, true)
+                            trait:SetPoint("TOPLEFT", l, "TOPLEFT", colonne[2], 0)
+                            trait:SetPoint("BOTTOMLEFT", l, "BOTTOMLEFT", colonne[2], 0)
+                        end
+                    end
                     c.lignes[n] = l
                 end
-                local stock = ""
+                local stock = c.mode == "rachats" and "—" or "Illimité"
                 local limite = LCM.Stock.Limite(offre.cle)
-                if limite > 0 then
+                if c.mode ~= "rachats" and limite > 0 then
                     local reserve = Marchands.EnAttente(point.id, offre.id)
-                    stock = string.format("   stock %d / %d%s", LCM.Stock.Restant(offre.cle), limite,
-                        reserve > 0 and string.format(" (|cffe0c060%d en attente|r)", reserve) or "")
+                    stock = string.format("%d / %d%s", LCM.Stock.Restant(offre.cle), limite,
+                        reserve > 0 and string.format("\n%d en attente", reserve) or "")
                 end
-                l:SetText(string.format("%s%s   |cffffd36b%s|r%s", Points.Libelle(offre),
-                    offre.quantite > 1 and ("  x" .. offre.quantite) or "", Prix(offre), stock))
+                l.icone:SetTexture(Points.Icone(offre))
+                -- L'onglet ne se dit que s'il y en a plusieurs.
+                l.nom:SetText(Points.Libelle(offre) .. ((offre.quantite or 1) > 1 and (" ×" .. offre.quantite) or "")
+                    .. (#onglets > 1 and ("  |cff999184· " .. tostring(onglet.label or "Articles") .. "|r") or ""))
+                l.prix:SetText(Prix(offre))
+                l.stock:SetText((stock:gsub("\n", "  ")))
                 l:ClearAllPoints()
-                l:SetPoint("TOPLEFT", c.zone.contenu, "TOPLEFT", 4, -h)
-                l:SetPoint("RIGHT", c.zone.contenu, "RIGHT", 0, 0)
+                l:SetPoint("TOPLEFT", c.zone.contenu, "TOPLEFT", 0, -h)
+                l:SetPoint("TOPRIGHT", c.zone.contenu, "TOPRIGHT", 0, -h)
                 l:Show()
-                h = h + 20
+                h = h + PAS_ARTICLE
             end
         end
         for index = n + 1, #c.lignes do c.lignes[index]:Hide() end
-        c.zone:Regler(h)
+        c.aide:SetText(string.format("%d article(s) %s · %d emplacement(s) dans le monde", n,
+            c.mode == "rachats" and "rachetés" or "en vente", point and Marchands.Compte(point.id) or 0))
+        c.vide:SetShown(n == 0)
+        -- Le tableau a la hauteur de ses lignes, jusqu'au bas de la page.
+        local contenu = math.max(n, 1) * PAS_ARTICLE
+        local plafond = math.max(PAS_ARTICLE, (c:GetHeight() or 0) - 98 - 25 - 8)
+        c.tableau:SetHeight(25 + math.min(contenu, plafond))
+        c.zone:Regler(contenu)
     end
 
     function f:AfficherPoints()
@@ -240,7 +322,7 @@ local function Construire()
     end
 
     function f:Afficher()
-        local definitions = Marchands.Definitions()
+        local definitions = self:FiltrerDefinitions(Marchands.Definitions())
         if self.pointId and not Points.Get(self.pointId) then self.pointId = nil end
         if not self.pointId and definitions[1] then self.pointId = definitions[1].id end
         local y = 0
@@ -248,7 +330,7 @@ local function Construire()
             local b = self.lignes[rang]
             if not b then
                 b = UI.Bouton(self.liste.contenu, "", COLONNE - 10, LIGNE - 2, function(bouton)
-                    self:Choisir(bouton.pointId)
+                    self:ChangerModele(function() self:Choisir(bouton.pointId) end)
                 end)
                 b.label:ClearAllPoints()
                 b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
@@ -277,6 +359,7 @@ local function Construire()
         self:Show()
     end
 
+    UI.AtelierInteractions(f, "vendeur")
     f:Hide()
     return f
 end
@@ -300,7 +383,7 @@ end
 LCM.WhenReady(function()
     -- L'entree « Vendeur » du menu ouvre cette fenetre. Posee apres
     -- MJ/PointsUI.lua, cette liaison remplace l'ancienne vue du vendeur, qui
-    -- reste ce qu'ouvre le sort Arcanum.
+    -- reste celle de l'« Aperçu » du constructeur.
     UI.Menu.Lier("vendeur", function() Ecran.Basculer() end)
     Marchands.onChange = function()
         local f = Ecran.frame

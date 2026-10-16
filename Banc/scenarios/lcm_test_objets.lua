@@ -33,7 +33,9 @@ attendu("trois categories", #O.CATEGORIES, 3)
 attendu("2 armes", O.Emplacements("arme"), 2)
 attendu("5 equipements", O.Emplacements("equipement"), 5)
 attendu("5 accessoires", O.Emplacements("accessoire"), 5)
-attendu("les brouillons sont jouables", O.Get("lame_de_givre") and O.Get("lame_de_givre").brouillon, true)
+-- 15 octobre 2026 : plus de marque « brouillon » sur l'entree. Ce qui est
+-- enregistre existe et se joue, c'est tout ce qu'on verifie.
+attendu("ce qui est enregistre est jouable", O.Get("lame_de_givre") ~= nil, true)
 local ok, err = pcall(O.Construire, { id = "x", categorie = "bouclier" })
 attendu("categorie inconnue refusee", ok, false)
 dire("     " .. tostring(err))
@@ -149,7 +151,9 @@ attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_Quest
 -- La ligne annonce d'abord l'ETAT de l'objet (sa durabilite), puis ses
 -- effets. Elle ne disait que les effets avant que les objets aient une usure.
 attendu("ses effets", ligne.effets:GetText(), "État 10 / 10  ·  Eau +2")
-attendu("bouton retirer (MJ)", ligne.action.label:GetText(), "Retirer")
+-- 16 octobre 2026 : un bouton carre a signe, le sens dans l'infobulle.
+-- « + Ajouter » ne tenait pas dans la colonne d'action et se coupait.
+attendu("bouton retirer (MJ)", ligne.action.label:GetText() .. " " .. ligne.action.titreBulle, "× Retirer")
 
 -- 3 octobre 2026 : la ligne d'un objet porte se lit sans la souris.
 attendu("l'icone est doublee", ligne.iconeCote, 32)
@@ -166,9 +170,13 @@ local apres = 0
 for _, c in ipairs(LCM.UI.Compendium.cartes) do if c:IsShown() then apres = apres + 1 end end
 attendu("clic droit : la fiche s'ouvre", apres > avant, true)
 
--- Survol : la carte de l'objet, pas une infobulle de deux lignes.
+-- Survol : la carte de l'objet, pas une infobulle de deux lignes. Elle se
+-- charge au curseur, puis s'epingle (16 octobre 2026).
+ligne.__survol = true
 ligne:GetScript("OnEnter")(ligne)
 local survol = LCM.UI.Fiche.carteSurvol
+attendu("au premier survol : pas encore", survol ~= nil and survol:IsShown(), false)
+__avancer(0.8, 0.1)
 attendu("le survol ouvre une carte", survol ~= nil and survol:IsShown(), true)
 attendu("elle nomme l'objet", survol.nom:GetText(), "Lame de givre")
 -- Ranges par section de fiche, avec la valeur a part : « Ombre +2 · Perce-
@@ -180,8 +188,11 @@ for _, c in ipairs(survol.cases) do
 end
 attendu("les effets sont categorises", #titres > 0, true)
 attendu("et chiffres a part", table.concat(valeurs, " "), "Eau=+2")
+ligne.__survol = nil
 ligne:GetScript("OnLeave")(ligne)
-attendu("elle se retire", survol:IsShown(), false)
+attendu("epinglee, elle reste en quittant la ligne", survol:IsShown(), true)
+survol.fermer:Click()
+attendu("sa croix la retire", survol:IsShown(), false)
 -- Une case vide n'a pas de carte : elle garde l'infobulle.
 local vide
 for _, e in ipairs(armes.conteneur.emplacements) do if not e.elementId then vide = e end end
@@ -197,7 +208,10 @@ attendu("bloc Armures et vetements", armures.titre:GetText(), "ARMURES ET VÊTEM
 attendu("armure : les cinq cases, meme vides", #armures.conteneur.emplacements, 5)
 attendu("la cinquieme est visible", armures.conteneur.emplacements[5]:IsShown(), true)
 attendu("vide : Emplacement", armures.conteneur.emplacements[1].nom:GetText(), "Emplacement")
-attendu("vide : bouton ajouter", armures.conteneur.emplacements[1].action.label:GetText(), "+  Ajouter")
+local equiper = armures.conteneur.emplacements[1].action
+attendu("vide : bouton equiper", equiper.label:GetText() .. " " .. equiper.titreBulle, "+ Équiper")
+-- Le bout droit de la ligne, en fondu (dessin du MJ, 16 octobre 2026).
+attendu("  un fondu sur toute la hauteur", equiper.fond:GetTexture():find("Gradient") ~= nil, true)
 attendu("occupation 0 / 5", armures.occupation:GetText(), "0 / 5")
 
 dire("== le MJ retire et equipe depuis la fenetre")

@@ -169,7 +169,7 @@ function Races.Disponibles()
     return out
 end
 
--- Brouillons supprimes en seance uniquement (voir Traits.Retirer).
+-- Une race supprimee en seance (voir Traits.Retirer).
 function Races.Retirer(id)
     id = tostring(id or "")
     if not Races.byId[id] then return false end

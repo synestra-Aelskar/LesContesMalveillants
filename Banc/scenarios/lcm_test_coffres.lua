@@ -113,13 +113,55 @@ attendu("le contenu est présenté en grille", coffreUI.cases[1] and coffreUI.ca
 attendu("la grille est visible une fois le coffre ouvert", coffreUI.grille:IsShown(), true)
 attendu("la fenêtre ouverte s'adapte à son contenu", coffreUI:GetHeight() < 400, true)
 attendu("le bouton Verrouiller est centré en bas", coffreUI.verrouiller:GetPoint(), "BOTTOM")
-coffreUI.cases[1]:GetScript("OnEnter")(coffreUI.cases[1])
-attendu("la carte apparaît au survol", LCM.UI.Coffre.carteSurvol:IsShown(), true)
-attendu("le survol réutilise la carte du compendium",
-    LCM.UI.Coffre.carteSurvol.donnees.nom, "Clé témoin")
-attendu("la carte de survol n'affiche pas de bouton de fermeture",
-    LCM.UI.Coffre.carteSurvol.fermer:IsShown(), false)
-coffreUI.cases[1]:GetScript("OnLeave")(coffreUI.cases[1])
+-- La carte se CHARGE au curseur, puis s'epingle (16 octobre 2026) : elle
+-- n'apparait plus au premier survol, mais a la fin du chargement — et reste
+-- alors, au-dessus de tout, jusqu'a sa croix.
+local case1 = coffreUI.cases[1]
+case1.__survol = true
+case1:GetScript("OnEnter")(case1)
+local carte = LCM.UI.Coffre.carteSurvol
+attendu("au survol : pas encore de carte", carte:IsShown(), false)
+__avancer(0.3, 0.1)
+attendu("  un chargement au curseur", LCM.UI.chargementCurseur:IsShown(), true)
+-- En anneau (16 octobre 2026) : une moitie de chargement, a peu pres la
+-- moitie des segments allumes.
+local anneau = LCM.UI.chargementCurseur
+attendu("  en anneau de segments", #anneau.segments, 20)
+attendu("  qui se remplit", anneau.fraction > 0.3 and anneau.fraction < 0.8, true)
+case1.__survol = nil
+case1:GetScript("OnLeave")(case1)
+__avancer(0.6, 0.1)
+attendu("parti avant la fin : rien ne s'ouvre", carte:IsShown(), false)
+attendu("  le chargement disparait", LCM.UI.chargementCurseur:IsShown(), false)
+case1.__survol = true
+case1:GetScript("OnEnter")(case1)
+__avancer(0.8, 0.1)
+attendu("charge : la carte apparait", carte:IsShown(), true)
+attendu("  le survol réutilise la carte du compendium", carte.donnees.nom, "Clé témoin")
+attendu("  epinglee", carte.epinglee, true)
+attendu("  elle prend la souris", carte:IsMouseEnabled(), true)
+attendu("  sa croix est la", carte.fermer:IsShown(), true)
+attendu("  le chargement s'efface", LCM.UI.chargementCurseur:IsShown(), false)
+case1.__survol = nil
+case1:GetScript("OnLeave")(case1)
+__avancer(1, 0.1)
+attendu("quitter la case ne la ferme pas", carte:IsShown(), true)
+carte.basculeStats:Click()
+attendu("on deplie ses statistiques", carte.statsRepliees, false)
+-- La souris sur la carte : une case qu'elle recouvre ne charge rien (le
+-- coffre temoin n'a qu'une case ; on la survole sous la carte).
+carte.__survol = true
+case1.__survol = true
+case1:GetScript("OnEnter")(case1)
+__avancer(0.3, 0.1)
+attendu("a travers la carte, rien ne charge", LCM.UI.chargementCurseur:IsShown(), false)
+case1.__survol = nil
+case1:GetScript("OnLeave")(case1)
+carte.__survol = nil
+carte.fermer:Click()
+attendu("la croix la ferme", carte:IsShown(), false)
+attendu("  et rend la souris", carte:IsMouseEnabled(), false)
+attendu("  la croix se cache", carte.fermer:IsShown(), false)
 coffreUI.cases[1]:GetScript("OnClick")(coffreUI.cases[1], "RightButton")
 attendu("le clic droit propose Prendre", LCM.UI.menuContexte.lignes[1].texte:GetText(), "Prendre")
 attendu("le clic droit propose Voir", LCM.UI.menuContexte.lignes[2].texte:GetText(), "Voir")
@@ -189,8 +231,15 @@ local function ChoisirDans(popup, id)
     end
     return false
 end
+-- 16 octobre 2026 : le tableau a la hauteur de ce qu'il contient (en-tete,
+-- lignes, « + Ajouter »), et rien n'y est ajoute tout seul.
+local tableau = editeur.creation.tableauObjets
+attendu("coffre neuf : aucun objet pose d'office", #editeur.travail.coffre.objets, 0)
+local hauteurVide = tableau:GetHeight()
+attendu("  le tableau n'a que l'en-tete et l'ajout", hauteurVide, 25 + 28)
 editeur.depotObjets:Click()
 attendu("la liste d'objets propose le contenu", ChoisirDans(editeur.choixObjet, REF), true)
+attendu("  il grandit d'une ligne", tableau:GetHeight(), hauteurVide + 28)
 editeur.depotOutils:Click()
 attendu("la liste d'objets propose l'outil", ChoisirDans(editeur.choixOutil, REF2), true)
 editeur.ajouterExpertise:Click()

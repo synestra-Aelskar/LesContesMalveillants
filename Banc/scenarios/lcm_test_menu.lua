@@ -58,7 +58,7 @@ attendu("le clic ouvre la jauge de déplacement", LCM.UI.DeplacementForce.frame:
 LCM.UI.DeplacementForce.frame:Hide()
 local memeRayon = true
 for i = 1, A.nombreCategories do
-    if rayon(A.boutonsCategorie[i]) ~= R.RAYON_CATEGORIE then memeRayon = false end
+    if rayon(A.boutonsCategorie[i]) ~= math.floor(R.RAYON_CATEGORIE + 0.5) then memeRayon = false end
 end
 attendu("categories sur le cercle", memeRayon, true)
 -- Le 3 octobre 2026 : categories et entrees a la meme taille (40 et 52
@@ -66,7 +66,9 @@ attendu("categories sur le cercle", memeRayon, true)
 attendu("categories a la taille commune", A.boutonsCategorie[1]:GetWidth(), R.VIGNETTE)
 -- La vignette dessinee deborde du bouton (cadre 64/48) : un anneau ne doit
 -- pas toucher l'autre, legende de la categorie comprise (~16 px dessous).
-local demi = R.VIGNETTE * 64 / 48 / 2
+-- Le disque visible occupe x=28..228 sur la texture de 256 pixels.
+-- Ne pas compter sa marge transparente comme une bordure du cercle.
+local demi = R.VIGNETTE * 64 / 48 * 200 / 256 / 2
 attendu("les deux anneaux ne se touchent pas",
     R.RAYON_CATEGORIE + demi + 16 < R.RAYON_ACTION - demi, true)
 local controles
@@ -128,7 +130,7 @@ attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfant
 -- place, puis les Lieux. Huit etait le plafond parce qu'il n'existait que huit
 -- bandeaux d'eventail ; un neuvieme a ete dessine pour cette entree, et le
 -- compte se lit maintenant chez celui qui le sait.
-attendu("Système : six entrees", #M.Trouver("systeme").enfants, 6)
+attendu("Système : quatre entrees", #M.Trouver("systeme").enfants, 4)
 attendu("Outils : cinq entrees", #M.Trouver("outils").enfants, 5)
 attendu("les deux dossiers tiennent dans l'eventail",
     #M.Trouver("outils").enfants <= LCM.UI.Radial.MAX_ENTREES
@@ -158,9 +160,78 @@ local function categorie(c, id)
         if c.boutonsCategorie[i].cible.id == id then return c.boutonsCategorie[i] end
     end
 end
+dire("== le sous-menu Interactions")
+local function entree(id)
+    for i = 1, F.nombreEntrees do
+        if F.boutonsEntree[i].cible.id == id then return F.boutonsEntree[i] end
+    end
+end
+categorie(F, "systeme"):Click("LeftButton")
+__avancer(1)
+attendu("les coffres sont regroupes", entree("coffres"), nil)
+attendu("Interactions est disponible", entree("interactions").disponible, true)
+entree("interactions"):Click("LeftButton")
+__avancer(1)
+attendu("Systeme conserve ses quatre entrees", F.nombreEntrees, 4)
+attendu("Interactions reste visible", entree("interactions"):IsShown(), true)
+attendu("second eventail ouvert", F.sousMenu.orbite:IsShown(), true)
+attendu("second eventail a trois branches", F.sousMenu.nombreEntrees, 3)
+attendu("fond adapte a trois branches", tostring(F.sousMenu.secteur.surface.__texture):find("fan%-3%.tga") ~= nil, true)
+-- Le second eventail est le MEME que le premier, decale vers l'exterieur, avec
+-- un espace entre les deux (16 octobre 2026, apres quatre essais concentriques :
+-- trop gros, ou colle). Meme taille, et le bord interieur du second reste a
+-- l'ecart du bord exterieur du premier, au milieu comme aux bouts.
+attendu("le second a la taille du premier",
+    F.sousMenu.secteur.surface:GetWidth(), F.secteur.surface:GetWidth())
+local _, _, _, ox, oy = F.sousMenu.orbite:GetPoint(1)
+local bordPremier = R.FOND * R.BANDE_EXTERIEURE
+local interieur = R.FOND * R.BANDE_INTERIEURE
+local decalage = math.sqrt(ox * ox + oy * oy)
+local function Ecart(theta)
+    local c = math.cos(theta)
+    return math.sqrt(decalage * decalage + interieur * interieur + 2 * decalage * interieur * c) - bordPremier
+end
+attendu("un espace au milieu", Ecart(0) >= R.ECART_SOUS_MENU - 0.5, true)
+attendu("  et aux bouts", Ecart(1.5 * math.pi / 8.75) >= R.ECART_BORDS - 0.5, true)
+local _, _, _, origineX, origineY = F.sousMenu.orbite:GetPoint(1)
+for i, id in ipairs({ "coffres", "vendeur", "ressources" }) do
+    local bouton = F.sousMenu.boutonsEntree[i]
+    attendu(id .. " accessible", bouton.disponible, true)
+    -- Aucun bouton du premier eventail ne se fait chevaucher. Le test exigeait
+    -- d'etre plus bas que le parent d'un bouton entier, a la verticale : vrai
+    -- pour un sous-menu large, faux pour celui-ci, plus serre (16 octobre
+    -- 2026), dont les boutons des cotes ne touchent pourtant rien.
+    local libre = true
+    for j = 1, F.nombreEntrees do
+        local voisin = F.boutonsEntree[j]
+        local dx, dy = origineX + bouton.rx - voisin.rx, origineY + bouton.ry - voisin.ry
+        if math.sqrt(dx * dx + dy * dy) < R.ACTION then libre = false end
+    end
+    attendu(id .. " sans chevauchement", libre, true)
+    attendu(id .. " plus loin que le parent", origineY + bouton.ry < entree("interactions").ry, true)
+    local cible = M.Trouver(id)
+    local original, ouvert = cible.onClick, false
+    cible.onClick = function() ouvert = true end
+    bouton:Click("LeftButton")
+    attendu(id .. " lance sa fenetre", ouvert, true)
+    cible.onClick = original
+end
+entree("interactions"):Click("LeftButton")
+__avancer(1)
+attendu("re-clic replie seulement le sous-menu", F.sousMenu.orbite:IsShown(), false)
+attendu("Systeme reste ouvert", entree("interactions"):IsShown(), true)
+entree("interactions"):Click("LeftButton")
+__avancer(1)
+categorie(F, "systeme"):Click("LeftButton")
+__avancer(1)
+attendu("clic Systeme replie le sous-menu", F.sousMenu.orbite:IsShown(), false)
+attendu("Systeme garde son eventail", entree("interactions") ~= nil, true)
+entree("interactions"):Click("LeftButton")
+__avancer(1)
 local fiches = categorie(F, "fiches_personnages")
 fiches:Click("LeftButton")
 __avancer(1)
+attendu("changer de categorie ferme le sous-menu", F.sousMenu.orbite:IsShown(), false)
 local libelles = {}
 for i = 1, F.nombreEntrees do libelles[#libelles + 1] = F.boutonsEntree[i].cible.label end
 attendu("ses fenetres dans l'ordre du template", table.concat(libelles, ", "),
@@ -198,8 +269,8 @@ dire("== une seule couronne a la fois")
 f.sceau:Click("LeftButton")
 __avancer(1)
 attendu("le voile pourpre est retire", F.boutonsCategorie[1].magie.fond, nil)
-attendu("Aelskar conserve son icone", M.Trouver("systeme_aelskar").icone,
-    "Interface\\ICONS\\achievement_zone_stormpeaks_03")
+attendu("Compendium utilise le livre dore", M.Trouver("systeme_aelskar").icone,
+    "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-compendium.tga")
 categorie(F, "outils"):Click("LeftButton")
 __avancer(1)
 f.sceau:Click("RightButton")
@@ -233,6 +304,7 @@ attendu("outils du joueur", table.concat(ids, ","), "campement,parametres")
 attendu("Systeme d'Aelskar reserve au MJ", M.Trouver("systeme_aelskar").mjSeulement, true)
 local systemeJoueur = M.Visibles(M.Trouver("systeme").enfants)
 attendu("Système du joueur", systemeJoueur[1] and systemeJoueur[1].id, "regles")
+attendu("Interactions masque pour le joueur", #M.Visibles({ M.Trouver("interactions") }), 0)
 f.sceau:Click("LeftButton")
 __avancer(1)
 attendu("la couronne du joueur garde Système", categorie(F, "systeme") ~= nil, true)
@@ -248,6 +320,23 @@ attendu("/lcm fenetres", F.ouvert, true)
 LCM_ToggleMenu()
 __avancer(1)
 attendu("le raccourci la referme", F.ouvert, false)
+
+dire("== fermer pendant le deploiement du sous-menu")
+f.sceau:Click("LeftButton")
+__avancer(1)
+categorie(F, "systeme"):Click("LeftButton")
+__avancer(1)
+entree("interactions"):Click("LeftButton")
+__avancer(0.05)
+F.orbite:Hide()
+__avancer(1)
+attendu("Echap masque aussi le second eventail", F.sousMenu.orbite:IsShown(), false)
+attendu("aucune animation ne le rouvre", F.ouvert, false)
+f.sceau:Click("LeftButton")
+__avancer(1)
+attendu("reouverture sans sous-menu residuel", F.sousChoisi, nil)
+f.sceau:Click("LeftButton")
+__avancer(1)
 
 dire("== la documentation")
 SlashCmdList.LCM("doc")

@@ -44,22 +44,22 @@ end
 dire("== clic droit dans le panneau de contenu")
 ligne:Click("RightButton")
 attendu("le menu s'ouvre", menu:IsShown(), true)
-attendu("Voir, Échanger, Jeter", libelles(), "Voir,Échanger,Jeter")
+attendu("Voir, Échanger, Jeter", libelles(), "Voir,Échanger,Détruire")
 
 dire("== Jeter demande, et Annuler ne jette rien")
-cliquer("Jeter")
+cliquer("Détruire")
 local d
 for _, cadre in ipairs({ UIParent:GetChildren() }) do
     if cadre.oui and cadre.non and cadre:IsShown() then d = cadre end
 end
 attendu("une confirmation", d ~= nil, true)
-attendu("elle nomme l'objet", d and d.texte:GetText():find("Jeter « ", 1, true) ~= nil, true)
+attendu("elle nomme l'objet", d and d.texte:GetText():find("Détruire « ", 1, true) ~= nil, true)
 d.non:Click()
 attendu("annule : la dague est la", dague(), DAGUE)
 
 dire("== Jeter, puis oui")
 ligne:Click("RightButton")
-cliquer("Jeter")
+cliquer("Détruire")
 d.oui:Click()
 attendu("la dague est jetee", dague(), nil)
 attendu("la ligne le montre", ligne.nom:GetText(), "Vide")
@@ -68,7 +68,7 @@ dire("== l'objet a bouge entre la question et la reponse")
 I.Ranger(moi, "sacs", 1, 3, DAGUE, 1)
 f:Rafraichir()
 ligne:Click("RightButton")
-cliquer("Jeter")
+cliquer("Détruire")
 I.Vider(moi, "sacs", 1, 3)
 I.Ranger(moi, "sacs", 1, 3, "ressources/eau", 1)
 d.oui:Click()
@@ -88,7 +88,7 @@ end
 attendu("seul, on dit pourquoi", dit, true)
 __groupe({ "Nytherah-Apertus" })
 ligne:Click("RightButton")
-attendu("en groupe : un sous-menu", libelles(), "Voir,Échanger >,Jeter")
+attendu("en groupe : un sous-menu", libelles(), "Voir,Échanger >,Détruire")
 cliquer("Échanger >")
 attendu("le membre du groupe", menu.sousLignes[1].texte:GetText(), "Nytherah-Apertus")
 menu.sousLignes[1]:Click()
@@ -97,7 +97,12 @@ attendu("la dague attend la reponse, encore au sac", dague(), DAGUE)
 LCM.Echange.Annuler("essai", true)
 __groupe({})
 
-dire("== lacher dans le vide : on propose de jeter")
+dire("== lacher dans le vide : l'objet tombe au sol")
+-- 16 octobre 2026 (le MJ) : un objet lache hors de l'inventaire n'est plus
+-- detruit, il TOMBE et se ramasse (Core/SacsAuSol.lua). Detruire, c'est le
+-- clic droit, « Détruire ». Ce passage proposait de jeter ; il verifie
+-- maintenant la chute, puis remet la dague a sa place pour la suite.
+__position(5, 5, 0)
 local function lacherSur(focus)
     __focusSouris(focus)
     __souris.LeftButton = true
@@ -108,9 +113,15 @@ local function lacherSur(focus)
     __focusSouris(nil)
 end
 lacherSur(nil)
-attendu("la confirmation s'ouvre", d:IsShown(), true)
-d.non:Click()
-attendu("et la dague reste", dague(), DAGUE)
+attendu("pas de confirmation : rien n'est detruit", d:IsShown(), false)
+attendu("la dague a quitte le sac", dague(), nil)
+local auSol
+for id, s in pairs(LCM.SacsAuSol.sacs) do if s.objet and s.objets[1].entree == DAGUE then auSol = id end end
+attendu("  elle est au sol, a ramasser", auSol ~= nil, true)
+-- On la remet a sa place pour la suite.
+if auSol then LCM.SacsAuSol.Mourir(auSol) end
+LCM.Inventaire.Ranger(LCM.Entities.Self(), "sacs", 1, 3, DAGUE, 1)
+attendu("et la dague est revenue", dague(), DAGUE)
 lacherSur(f)
 attendu("lache sur une fenetre : rien a jeter", d:IsShown(), false)
 attendu("la dague est toujours la", dague(), DAGUE)
@@ -120,7 +131,7 @@ local s = LCM.UI.Inventaires.OuvrirSac("sacs", 1)
 local case
 for _, b in ipairs(s.cases) do if b:IsShown() and b.index == 3 then case = b end end
 case:Click("RightButton")
-attendu("joueur : Voir, Échanger, Jeter", libelles(), "Voir,Échanger,Jeter")
+attendu("joueur : Voir, Échanger, Jeter", libelles(), "Voir,Échanger,Détruire")
 menu:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

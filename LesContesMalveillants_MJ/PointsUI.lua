@@ -34,7 +34,6 @@ end
 local function CopiePoint(point, nature)
     if point then
         local copie = LCM.Copie(point)
-        copie.brouillon, copie.remplacePublie = nil, nil
         for _, offre in ipairs(copie.offres or {}) do offre.cle, offre.restant = nil, nil end
         return copie
     end
@@ -102,171 +101,10 @@ local function Libelle(parent, texte, x, y)
     return t
 end
 
--- ===== Publication Arcanum ================================================
--- L'identifiant du point LCM et l'ArcID n'ont pas le meme role. Le premier
--- relie le contenu de campagne ; le second est la cle du sort dans les coffres
--- Arcanum personnel et de phase.
-
-local ACTION_VENDEUR = "lcm_vendeur_open"
+-- Le vendeur n'est plus publie en sort Arcanum (15 octobre 2026) : les joueurs
+-- l'ouvrent a son etal, pose au GPS (MJ/MarchandsUI.lua), et le sort ne
+-- servait qu'a rouvrir cette vue cote MJ.
 local ICONE_VENDEUR = "Interface\\Icons\\INV_Misc_Coin_02"
-local publicationEnCours = false
-
-local function NettoyerArcId(valeur)
-    local arcId = tostring(valeur or ""):match("^%s*(.-)%s*$") or ""
-    if arcId == "" then return nil, "donne un identifiant Arcanum unique." end
-    if #arcId > 40 then return nil, "l'identifiant Arcanum est limité à 40 caractères." end
-    if arcId:find("[^%w_]") then
-        return nil, "l'identifiant Arcanum accepte uniquement lettres, chiffres et _."
-    end
-    return arcId
-end
-
-local function ArcIdParDefaut(id)
-    local suffixe = tostring(id or ""):gsub("[^%w_]", "_")
-    suffixe = suffixe:sub(math.max(1, #suffixe - 30))
-    return "vendeur_" .. suffixe
-end
-
-local function ProfilArcanum()
-    local profil = type(SpellCreatorMasterTable) == "table"
-        and type(SpellCreatorMasterTable.Options) == "table"
-        and SpellCreatorMasterTable.Options.defaultProfile or nil
-    return profil == "Account" and "Account" or (UnitName and UnitName("player") or "Account")
-end
-
-local function IconeArcanum(chemin)
-    chemin = tostring(chemin or ICONE_VENDEUR)
-    if tonumber(chemin) then return tonumber(chemin) end
-    chemin = chemin:gsub("/", "\\")
-    if GetFileIDFromPath then
-        local id = GetFileIDFromPath(chemin)
-        if tonumber(id) then return tonumber(id) end
-    end
-    return chemin
-end
-
-local function SortVendeur(point)
-    local arcId, raison = NettoyerArcId(point and point.arcId)
-    if not arcId then return nil, raison end
-    return {
-        profile = ProfilArcanum(),
-        commID = arcId,
-        fullName = tostring(point.label or "Vendeur"),
-        description = "Ouvre un vendeur des Contes Malveillants.",
-        icon = IconeArcanum(point.icone),
-        author = UnitName and UnitName("player") or "Les Contes Malveillants",
-        actions = {
-            { actionType = ACTION_VENDEUR, delay = 0, vars = tostring(point.id), selfOnly = true },
-        },
-    }
-end
-
-local function PublierVendeurArcanum(point, callback)
-    local fini = false
-    local function Terminer(ok, message)
-        if fini then return end
-        fini = true
-        publicationEnCours = false
-        if callback then callback(ok, message) end
-    end
-
-    if publicationEnCours then
-        fini = true
-        if callback then callback(false, "une publication Arcanum est déjà en cours.") end
-        return false
-    end
-    local sort, raison = SortVendeur(point)
-    if not sort then Terminer(false, raison) return false end
-    if not (C_Epsilon and ((C_Epsilon.IsMember and C_Epsilon.IsMember())
-        or (C_Epsilon.IsOfficer and C_Epsilon.IsOfficer())
-        or (C_Epsilon.IsOwner and C_Epsilon.IsOwner()))) then
-        Terminer(false, "tu dois être membre, officier ou propriétaire de la phase.")
-        return false
-    end
-    if not (EpsilonLib and EpsilonLib.PhaseAddonData
-        and EpsilonLib.PhaseAddonData.Get and EpsilonLib.PhaseAddonData.Set) then
-        Terminer(false, "le stockage de phase EpsilonLib est indisponible.")
-        return false
-    end
-    local ace = LibStub and LibStub("AceSerializer-3.0", true)
-    local deflate = LibStub and LibStub("LibDeflate", true)
-    if not (ace and deflate and deflate.CompressDeflate and deflate.EncodeForWoWChatChannel
-        and deflate.DecodeForWoWChatChannel and deflate.DecompressDeflate) then
-        Terminer(false, "les bibliothèques de sérialisation Arcanum sont indisponibles.")
-        return false
-    end
-
-    local function Encoder(valeur)
-        local ok, serialise = pcall(ace.Serialize, ace, valeur)
-        if not ok or type(serialise) ~= "string" then return nil end
-        ok, serialise = pcall(deflate.CompressDeflate, deflate, serialise, { level = 9 })
-        if not ok or type(serialise) ~= "string" then return nil end
-        ok, serialise = pcall(deflate.EncodeForWoWChatChannel, deflate, serialise)
-        return ok and type(serialise) == "string" and serialise or nil
-    end
-    local function Decoder(valeur)
-        if type(valeur) ~= "string" or valeur == "" then return {} end
-        local ok, donnees = pcall(deflate.DecodeForWoWChatChannel, deflate, valeur)
-        if not ok then return nil end
-        ok, donnees = pcall(deflate.DecompressDeflate, deflate, donnees)
-        if not ok or type(donnees) ~= "string" then return nil end
-        local succes
-        ok, succes, donnees = pcall(ace.Deserialize, ace, donnees)
-        return ok and succes and type(donnees) == "table" and donnees or nil
-    end
-
-    local sortEncode = Encoder(sort)
-    if not sortEncode then Terminer(false, "la compression du sort Arcanum a échoué.") return false end
-
-    -- Comme Necronicon : le coffre personnel reçoit la meme version, sans
-    -- appeler l'interface sécurisée d'Arcanum depuis notre bouton.
-    SpellCreatorSavedSpells = type(SpellCreatorSavedSpells) == "table" and SpellCreatorSavedSpells or {}
-    SpellCreatorSavedSpells[sort.commID] = sort
-    publicationEnCours = true
-    if C_Timer and C_Timer.After then
-        C_Timer.After(20, function()
-            if publicationEnCours and not fini then
-                Terminer(false, "le serveur n'a pas répondu pendant la publication Arcanum.")
-            end
-        end)
-    end
-
-    EpsilonLib.PhaseAddonData.Get("SCFORGE_KEYS%s", function(indexEncode)
-        if fini then return end
-        local ids = Decoder(indexEncode)
-        if not ids then Terminer(false, "l'index du coffre Arcanum de phase est illisible.") return end
-        local present = false
-        for _, id in ipairs(ids) do
-            if tostring(id) == sort.commID then present = true break end
-        end
-        if not present then ids[#ids + 1] = sort.commID end
-        local nouvelIndex = Encoder(ids)
-        if not nouvelIndex then Terminer(false, "la mise à jour de l'index Arcanum a échoué.") return end
-        local ok, erreur = pcall(function()
-            EpsilonLib.PhaseAddonData.Set("SCFORGE_S%s_" .. sort.commID, sortEncode)
-            if not present then EpsilonLib.PhaseAddonData.Set("SCFORGE_KEYS%s", nouvelIndex) end
-        end)
-        if not ok then Terminer(false, "écriture du coffre de phase impossible : " .. tostring(erreur)) return end
-
-        local essais = 0
-        local function Verifier()
-            essais = essais + 1
-            EpsilonLib.PhaseAddonData.Get("SCFORGE_S%s_" .. sort.commID, function(valeur)
-                if fini then return end
-                if type(valeur) == "string" and valeur ~= "" then
-                    Terminer(true, string.format("Vendeur « %s » enregistré et sort « %s » publié dans la phase.",
-                        tostring(point.label or "Vendeur"), sort.commID))
-                elseif essais < 4 and C_Timer and C_Timer.After then
-                    C_Timer.After(0.5, Verifier)
-                else
-                    Terminer(false, "le serveur n'a pas confirmé le sort dans le coffre de phase.")
-                end
-            end)
-        end
-        if C_Timer and C_Timer.After then C_Timer.After(0.25, Verifier) else Verifier() end
-    end)
-    return true
-end
 
 local function ConstruireEditeurSimple(nature)
     local mots = MOTS[nature]
@@ -460,7 +298,6 @@ local function ConstruireEditeurSimple(nature)
 
     function ed:Ouvrir(point)
         self.creation = point == nil
-        self.remplacePublie = point and LCM.Brouillons.EstPublie("points", point.id) or false
         self.travail = CopiePoint(point, self.nature)
         self.offreIndex = #self.travail.offres > 0 and 1 or nil
         self.nom:SetText(self.travail.label or "")
@@ -484,7 +321,7 @@ local function ConstruireEditeurSimple(nature)
             end
         end
         local ok, raison = LCM.Brouillons.Enregistrer("points", self.travail,
-            self.creation, self.remplacePublie)
+            self.creation)
         if not ok then LCM.Alerte(tostring(raison)) return end
         local point = Points.Get(self.travail.id)
         Points.ActualiserRegles(point)
@@ -502,15 +339,49 @@ end
 -- ===== Constructeur de vendeur ===========================================
 -- Le port du constructeur Necronicon garde sa vraie organisation : catalogue
 -- a gauche, ventes/achats et onglets au centre, reglages d'article dans une
--- fenetre dediee. Le contenu reste un brouillon LCM synchronise ; son bouton
--- d'enregistrement fabrique aussi l'ArcSpell et le publie dans la phase.
+-- fenetre dediee. Le vendeur enregistre est une entree comme une autre,
+-- synchronisee avec l'autre MJ et versee dans la base au /reload.
 
-local function NouvelleOffre(ref, devise)
+-- Un article neuf : une seule facon de payer, d'un seul morceau, dans la
+-- monnaie par defaut du vendeur (un morceau sans `ref` la prend).
+local function NouvelleOffre(ref)
     return {
         id = LCM.Brouillons.NouvelIdentifiant(), entree = tostring(ref or ""),
-        label = "", quantite = 1, prix = 0, devise = devise,
+        label = "", quantite = 1, prix = { { { quantite = 0 } } },
         stock = { limite = 0, unites = 0, minutes = 0 },
     }
+end
+
+-- Le prix d'une offre, sous la forme que l'editeur modifie : une liste de
+-- facons de payer, chacune une liste de morceaux { ref, quantite }. Une offre
+-- construite porte `formules` ; une ancienne, un montant et une devise.
+local function PrixEditable(offre)
+    if type(offre.prix) ~= "table" then
+        if type(offre.formules) == "table" then
+            offre.prix = LCM.Copie(offre.formules)
+        else
+            offre.prix = { { { ref = offre.devise and ("devises/" .. offre.devise) or nil,
+                quantite = tonumber(offre.prix) or 0 } } }
+        end
+    end
+    offre.formules, offre.devise = nil, nil
+    if #offre.prix == 0 then offre.prix[1] = { { quantite = 0 } } end
+    return offre.prix
+end
+
+-- Ce avec quoi on peut payer : les devises d'abord, puis les ressources et
+-- les objets (le troc). En tete, la monnaie par defaut du vendeur.
+local function OptionsPaiement()
+    local options = { { id = "", label = "Monnaie par défaut", groupe = "Monnaie" } }
+    for _, devise in ipairs(OptionsDevises()) do
+        options[#options + 1] = { id = "devises/" .. devise.id, label = devise.label, groupe = "Devises" }
+    end
+    for _, entree in ipairs(OptionsEntrees()) do
+        if entree.famille == "ressources" or entree.famille == "objets" then
+            options[#options + 1] = entree
+        end
+    end
+    return options
 end
 
 local function NomEntree(ref)
@@ -524,9 +395,9 @@ local function IconeEntree(ref)
 end
 
 local function ConstruireReglageOffre(proprietaire)
-    local d = UI.Fenetre("reglage_offre_vendeur", "Réglage de l'article", 540, 350,
+    local d = UI.Fenetre("reglage_offre_vendeur", "Réglage de l'article", 560, 520,
         { x = 180, y = -40 })
-    d.choixDevise = UI.Choix("reglage_offre_devise", "Devise de l'article")
+    d.choixPaiement = UI.Choix("reglage_offre_paiement", "Payé en")
     d.nom = UI.Texte(d.contenu, "", UI.C.titre, "GameFontNormal")
     d.nom:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 0, 0)
     d.nom:SetPoint("TOPRIGHT", d.contenu, "TOPRIGHT", 0, 0)
@@ -544,41 +415,236 @@ local function ConstruireReglageOffre(proprietaire)
     end)
     d.quantite:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 150, -90)
 
-    Libelle(d.contenu, "Prix", 0, -129)
-    d.prix = UI.Champ(d.contenu, 70, 22, function(texte)
-        if d.offre then d.offre.prix = texte end
-    end)
-    d.prix:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 150, -124)
-    d.devise = UI.Bouton(d.contenu, "Devise par défaut", 210, 22, function()
-        local options = { { id = "", label = "Devise par défaut" } }
-        for _, option in ipairs(OptionsDevises()) do options[#options + 1] = option end
-        d.choixDevise:Proposer(d.devise, options, function(id)
-            if d.offre then d.offre.devise = id ~= "" and id or nil end
-            d:Remplir()
-        end)
-    end)
-    d.devise:SetPoint("LEFT", d.prix, "RIGHT", 10, 0)
-
-    Libelle(d.contenu, "Stock maximum", 0, -176)
+    Libelle(d.contenu, "Stock maximum", 0, -129)
     d.limite = UI.Champ(d.contenu, 60, 22, function(texte)
         if d.offre then d.offre.stock.limite = texte end
     end)
-    d.limite:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 105, -171)
-    Libelle(d.contenu, "Recharge", 185, -176)
+    d.limite:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 105, -124)
+    Libelle(d.contenu, "Recharge", 185, -129)
     d.unites = UI.Champ(d.contenu, 55, 22, function(texte)
         if d.offre then d.offre.stock.unites = texte end
     end)
-    d.unites:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 250, -171)
-    Libelle(d.contenu, "toutes les", 320, -176)
+    d.unites:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 250, -124)
+    Libelle(d.contenu, "toutes les", 320, -129)
     d.minutes = UI.Champ(d.contenu, 55, 22, function(texte)
         if d.offre then d.offre.stock.minutes = texte end
     end)
-    d.minutes:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 385, -171)
-    Libelle(d.contenu, "minutes", 450, -176)
+    d.minutes:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 385, -124)
+    Libelle(d.contenu, "minutes", 450, -129)
     d.aide = UI.Texte(d.contenu,
         "Stock 0 : illimité. Recharge 0 : aucune régénération automatique.",
         UI.C.discret, "GameFontNormalSmall")
-    d.aide:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 0, -210)
+    d.aide:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 0, -156)
+
+    -- ----- Le prix : plusieurs facons de payer, au choix (Core/Prix.lua) ---
+    -- Chaque facon est un TABLEAU, comme ceux des coffres et des ressources :
+    -- un en-tete (son nom, les colonnes), une ligne par morceau — une quantite
+    -- et ce en quoi elle se paie, devise, ressource ou objet — et une ligne
+    -- pour en ajouter. Tous les morceaux d'une facon sont dus ; le joueur
+    -- choisit l'une des facons au moment d'acheter.
+    Libelle(d.contenu, "Prix — le joueur choisit l'une des façons, et paie tout ce qu'elle demande", 0, -186)
+    d.zonePrix = UI.Defilement(d.contenu)
+    d.zonePrix:SetPoint("TOPLEFT", d.contenu, "TOPLEFT", 0, -206)
+    d.zonePrix:SetPoint("BOTTOMRIGHT", d.contenu, "BOTTOMRIGHT", -10, 36)
+    d.tableaux = {}
+
+    local ENTETE, PAS = 24, 26
+    -- Deux colonnes : la quantite, puis ce en quoi on paie, jusqu'au bord. La
+    -- croix d'une ligne vit DANS sa ligne, a droite, sans colonne a elle : une
+    -- colonne vide pour une croix qu'on ne montre pas faisait un trou.
+    local COL_QUANTITE, COL_PAIEMENT, MARGE_CROIX = { 0, 96 }, 96, 28
+
+    local function NomPaiement(ref)
+        if not ref or ref == "" then
+            local defaut = d.proprietaire and d.proprietaire.travail and d.proprietaire.travail.deviseDefaut
+            local devise = defaut and LCM.Devises.Get(defaut)
+            return "Monnaie par défaut" .. (devise and (" (" .. devise.label .. ")") or "")
+        end
+        return LCM.Prix.Nom(ref)
+    end
+
+    local function Survol(cadre)
+        local survol = UI.Aplat(cadre, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
+        survol:SetAllPoints(cadre)
+    end
+
+    -- Un bouton sans boite : un texte qui s'eclaire au survol, comme les
+    -- cellules cliquables des coffres.
+    local function BoutonTexte(parent, texte, couleur, justifie)
+        local b = CreateFrame("Button", nil, parent)
+        b.label = UI.Texte(b, texte or "", couleur or UI.C.discret, "GameFontNormalSmall")
+        b.label:SetPoint("TOPLEFT", b, "TOPLEFT", 8, 0)
+        b.label:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -8, 0)
+        b.label:SetJustifyH(justifie or "CENTER")
+        Survol(b)
+        return b
+    end
+
+    -- Une ligne « + ... » hors tableau, encadree, comme « + Ajouter une
+    -- ressource ».
+    local function LigneAjout(parent, texte, onClick)
+        local b = BoutonTexte(parent, texte)
+        b:SetHeight(PAS - 2)
+        local fond = UI.Aplat(b, { 0.07, 0.07, 0.07, 0.10 })
+        fond:SetAllPoints(b)
+        UI.BordureFine(b, 0.14)
+        b:SetScript("OnClick", onClick)
+        return b
+    end
+
+    -- Un trait de colonne, de haut en bas d'un cadre.
+    local function TraitColonne(cadre, x, doux)
+        local trait = UI.Filet(cadre, doux, true)
+        trait:SetPoint("TOPLEFT", cadre, "TOPLEFT", x, 0)
+        trait:SetPoint("BOTTOMLEFT", cadre, "BOTTOMLEFT", x, 0)
+    end
+
+    -- Une ligne de morceau, collee a ses voisines : la quantite se saisit dans
+    -- sa cellule meme (UI.ChampCellule), ce en quoi on paie se choisit d'un
+    -- clic sur sa cellule.
+    local function Ligne(t, rang)
+        local l = t.lignes[rang]
+        if l then return l end
+        l = CreateFrame("Frame", nil, t)
+        l:SetHeight(PAS)
+        l.fond = UI.Aplat(l, { 0.07, 0.07, 0.07, 0.10 })
+        l.fond:SetAllPoints(l)
+        local bas = UI.Filet(l, true)
+        bas:SetPoint("BOTTOMLEFT", l, "BOTTOMLEFT", 0, 0)
+        bas:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT", 0, 0)
+        l.quantite = UI.ChampCellule(l, function(texte)
+            if l.morceau then l.morceau.quantite = texte end
+        end)
+        l.quantite:SetPoint("TOPLEFT", l, "TOPLEFT", COL_QUANTITE[1] + 1, -1)
+        l.quantite:SetPoint("BOTTOMRIGHT", l, "BOTTOMLEFT", COL_QUANTITE[2] - 1, 1)
+        TraitColonne(l, COL_PAIEMENT, true)
+        l.paiement = BoutonTexte(l, "", UI.C.texte, "LEFT")
+        l.paiement:SetPoint("TOPLEFT", l, "TOPLEFT", COL_PAIEMENT + 1, -1)
+        l.paiement:SetPoint("BOTTOMRIGHT", l, "BOTTOMRIGHT", -MARGE_CROIX, 1)
+        l.paiement:SetScript("OnClick", function(b)
+            d.choixPaiement:Proposer(b, OptionsPaiement(), function(id)
+                if l.morceau then l.morceau.ref = id ~= "" and id or nil end
+                d:Remplir()
+            end)
+        end)
+        UI.Bulle(l.paiement, "Payé en", "Clic : une devise, une ressource ou un objet.")
+        l.retirer = BoutonTexte(l, "×")
+        l.retirer:SetPoint("TOPRIGHT", l, "TOPRIGHT", -1, -1)
+        l.retirer:SetPoint("BOTTOMLEFT", l, "BOTTOMRIGHT", -MARGE_CROIX + 1, 1)
+        l.retirer.label:ClearAllPoints()
+        l.retirer.label:SetAllPoints(l.retirer)
+        UI.Bulle(l.retirer, "Retirer ce morceau")
+        l.retirer:SetScript("OnClick", function()
+            local facon = l.facon
+            if facon and #facon > 1 then
+                for i, m in ipairs(facon) do
+                    if m == l.morceau then table.remove(facon, i) break end
+                end
+            end
+            d:Remplir()
+        end)
+        t.lignes[rang] = l
+        return l
+    end
+
+    -- Un tableau par facon. Cree une fois par rang, puis replace.
+    local function Tableau(rang)
+        local t = d.tableaux[rang]
+        if t then return t end
+        t = CreateFrame("Frame", nil, d.zonePrix.contenu)
+        UI.BordureFine(t, 0.18)
+        t.lignes = {}
+        t.entete = CreateFrame("Frame", nil, t)
+        t.entete:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -1)
+        t.entete:SetPoint("TOPRIGHT", t, "TOPRIGHT", -1, -1)
+        t.entete:SetHeight(ENTETE - 1)
+        local fond = UI.Aplat(t.entete, { 0.07, 0.07, 0.07, 0.30 })
+        fond:SetAllPoints(t.entete)
+        local sous = UI.Filet(t.entete)
+        sous:SetPoint("BOTTOMLEFT", t.entete, "BOTTOMLEFT", 0, 0)
+        sous:SetPoint("BOTTOMRIGHT", t.entete, "BOTTOMRIGHT", 0, 0)
+        -- Le nom de la facon au-dessus du tableau ; l'en-tete ne porte que
+        -- les titres de colonnes, chacun au-dessus de la sienne.
+        t.nom = UI.Texte(d.zonePrix.contenu, "", UI.C.titre, "GameFontNormalSmall")
+        t.colonnes = UI.Texte(t.entete, "Quantité", UI.C.discret, "GameFontNormalSmall")
+        t.colonnes:SetPoint("CENTER", t.entete, "LEFT", COL_QUANTITE[1] + COL_QUANTITE[2] / 2, 0)
+        TraitColonne(t.entete, COL_PAIEMENT, false)
+        t.payeEn = UI.Texte(t.entete, "Payé en", UI.C.discret, "GameFontNormalSmall")
+        t.payeEn:SetPoint("LEFT", t.entete, "LEFT", COL_PAIEMENT + 9, 0)
+        t.retirer = BoutonTexte(t.entete, "Retirer cette façon")
+        t.retirer:SetSize(140, ENTETE - 3)
+        t.retirer.label:SetJustifyH("RIGHT")
+        t.retirer:SetPoint("RIGHT", t.entete, "RIGHT", 0, 0)
+        t.retirer:SetScript("OnClick", function()
+            local prix = d.offre and d.offre.prix
+            if prix and #prix > 1 then table.remove(prix, t.rang) end
+            d:Remplir()
+        end)
+        -- La derniere ligne du tableau, sans cadre a elle.
+        t.ajouter = BoutonTexte(t, "+ Ajouter un morceau")
+        t.ajouter:SetHeight(PAS)
+        t.ajouter:SetScript("OnClick", function()
+            if t.facon then t.facon[#t.facon + 1] = { quantite = 1 } end
+            d:Remplir()
+        end)
+        d.tableaux[rang] = t
+        return t
+    end
+
+    d.ajouterFacon = LigneAjout(d.zonePrix.contenu, "+ Ajouter une autre façon de payer", function()
+        if d.offre then d.offre.prix[#d.offre.prix + 1] = { { quantite = 0 } } end
+        d:Remplir()
+    end)
+
+    function d:AfficherPrix()
+        local prix = PrixEditable(self.offre)
+        local y = 0
+        for rang, facon in ipairs(prix) do
+            if #facon == 0 then facon[1] = { quantite = 0 } end
+            local t = Tableau(rang)
+            t.rang, t.facon = rang, facon
+            t.nom:SetText(rang == 1 and "Façon 1" or ("ou, façon " .. rang))
+            t.nom:ClearAllPoints()
+            t.nom:SetPoint("TOPLEFT", self.zonePrix.contenu, "TOPLEFT", 2, -y)
+            t.nom:Show()
+            y = y + 18
+            t.retirer:SetShown(#prix > 1)
+            local h = ENTETE
+            for i, morceau in ipairs(facon) do
+                local l = Ligne(t, i)
+                l.morceau, l.facon = morceau, facon
+                l.quantite:SetText(tostring(morceau.quantite or 0))
+                l.paiement.label:SetText(NomPaiement(morceau.ref))
+                l.retirer:SetShown(#facon > 1)
+                -- Une ligne sur deux un ton plus sombre.
+                l.fond:SetColorTexture(0.07, 0.07, 0.07, i % 2 == 0 and 0.22 or 0.10)
+                l:ClearAllPoints()
+                l:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -h)
+                l:SetPoint("TOPRIGHT", t, "TOPRIGHT", -1, -h)
+                l:Show()
+                h = h + PAS
+            end
+            for i = #facon + 1, #t.lignes do t.lignes[i]:Hide() end
+            t.ajouter:ClearAllPoints()
+            t.ajouter:SetPoint("TOPLEFT", t, "TOPLEFT", 1, -h)
+            t.ajouter:SetPoint("TOPRIGHT", t, "TOPRIGHT", -1, -h)
+            h = h + PAS
+            t:SetHeight(h)
+            t:ClearAllPoints()
+            t:SetPoint("TOPLEFT", self.zonePrix.contenu, "TOPLEFT", 0, -y)
+            t:SetPoint("TOPRIGHT", self.zonePrix.contenu, "TOPRIGHT", 0, -y)
+            t:Show()
+            y = y + h + 10
+        end
+        for rang = #prix + 1, #self.tableaux do
+            self.tableaux[rang]:Hide()
+            self.tableaux[rang].nom:Hide()
+        end
+        self.ajouterFacon:ClearAllPoints()
+        self.ajouterFacon:SetPoint("TOPLEFT", self.zonePrix.contenu, "TOPLEFT", 0, -y)
+        self.ajouterFacon:SetPoint("TOPRIGHT", self.zonePrix.contenu, "TOPRIGHT", 0, -y)
+        self.zonePrix:Regler(y + PAS)
+    end
 
     d.valider = UI.Bouton(d.contenu, "Terminer", 130, 26, function()
         d:Hide()
@@ -594,12 +660,10 @@ local function ConstruireReglageOffre(proprietaire)
         self.ref:SetText(offre.entree or "")
         self.libelle:SetText(offre.label or "")
         self.quantite:SetText(tostring(offre.quantite or 1))
-        self.prix:SetText(tostring(offre.prix or 0))
-        local devise = offre.devise and LCM.Devises.Get(offre.devise)
-        self.devise.label:SetText((devise and devise.label) or offre.devise or "Devise par défaut")
         self.limite:SetText(tostring(offre.stock.limite or 0))
         self.unites:SetText(tostring(offre.stock.unites or 0))
         self.minutes:SetText(tostring(offre.stock.minutes or 0))
+        self:AfficherPrix()
     end
 
     function d:Ouvrir(offre, owner)
@@ -613,8 +677,8 @@ local function ConstruireReglageOffre(proprietaire)
 end
 
 local function ConstruireVendeur()
-    local ed = UI.Fenetre("constructeur_vendeur", "Constructeur de vendeur", 1120, 620,
-        { x = 0, y = -10 })
+    local ed = UI.Fenetre("constructeur_vendeur", "Catalogue du vendeur", 1120, 620,
+        { x = 0, y = -10 }, { enTeteSimple = true, sobre = true })
     ed.nature = "vendeur"
     ed.lignesCatalogue, ed.lignesOffres, ed.boutonsOnglets = {}, {}, {}
     ed.mode = "ventes"
@@ -640,26 +704,19 @@ local function ConstruireVendeur()
             ed.iconeBouton.texture:SetTexture(chemin)
         end)
     end)
-    UI.Bulle(ed.iconeBouton, "Icône du sort", "Clic : choisir l'icône du vendeur dans le piqueur LCM.")
+    UI.Bulle(ed.iconeBouton, "Icône du vendeur","Clic : choisir l'icône du vendeur dans le piqueur LCM.")
 
     Libelle(ed.contenu, "Identifiant unique LCM", 42, -4)
     ed.ident = UI.Texte(ed.contenu, "", UI.C.discret, "GameFontNormalSmall")
     ed.ident:SetPoint("TOPLEFT", ed.contenu, "TOPLEFT", 42, -22)
     ed.ident:SetWidth(195)
 
-    Libelle(ed.contenu, "Identifiant unique Arcanum", 250, -4)
-    ed.arcId = UI.Champ(ed.contenu, 195, 22, function(texte)
-        if ed.travail then ed.travail.arcId = texte end
-    end)
-    ed.arcId:SetMaxLetters(40)
-    ed.arcId:SetPoint("TOPLEFT", ed.contenu, "TOPLEFT", 250, -20)
-
-    Libelle(ed.contenu, "Nom de la fenêtre", 460, -4)
-    ed.nom = UI.Champ(ed.contenu, 250, 22, function(texte)
+    Libelle(ed.contenu, "Nom de la fenêtre", 250, -4)
+    ed.nom = UI.Champ(ed.contenu, 460, 22, function(texte)
         if ed.travail then ed.travail.label = texte end
     end)
     ed.nom:SetMaxLetters(80)
-    ed.nom:SetPoint("TOPLEFT", ed.contenu, "TOPLEFT", 460, -20)
+    ed.nom:SetPoint("TOPLEFT", ed.contenu, "TOPLEFT", 250, -20)
     Libelle(ed.contenu, "Monnaie par défaut", 725, -4)
     ed.deviseDefaut = UI.Bouton(ed.contenu, "Aucune devise", 235, 22, function()
         local options = { { id = "", label = "Aucune devise" } }
@@ -888,10 +945,15 @@ local function ConstruireVendeur()
                 ligne.ref = UI.Texte(ligne, "", UI.C.discret, "GameFontNormalSmall")
                 ligne.ref:SetPoint("TOPLEFT", ligne.nom, "BOTTOMLEFT", 0, -5)
                 ligne.ref:SetWidth(235)
+                -- Toute la place entre le nom et les boutons : un prix peut
+                -- proposer plusieurs facons de payer.
                 ligne.prix = UI.Texte(ligne, "", UI.C.accent, "GameFontNormalSmall")
+                ligne.prix:SetPoint("LEFT", ligne.nom, "RIGHT", 12, 0)
                 ligne.prix:SetPoint("RIGHT", ligne, "RIGHT", -224, 0)
-                ligne.prix:SetWidth(135)
+                ligne.prix:SetPoint("TOP", ligne, "TOP", 0, -6)
+                ligne.prix:SetPoint("BOTTOM", ligne, "BOTTOM", 0, 6)
                 ligne.prix:SetJustifyH("RIGHT")
+                ligne.prix:SetWordWrap(true)
                 ligne.prixBouton = UI.Bouton(ligne, "Prix...", 66, 22, function(b)
                     self.reglageOffre:Ouvrir(b.offre, self)
                 end)
@@ -910,10 +972,8 @@ local function ConstruireVendeur()
             ligne.icone:SetTexture(IconeEntree(offre.entree))
             ligne.nom:SetText(offre.label ~= "" and offre.label or NomEntree(offre.entree))
             ligne.ref:SetText(offre.entree)
-            local deviseId = offre.devise or self.travail.deviseDefaut
-            local devise = deviseId and LCM.Devises.Get(deviseId)
-            ligne.prix:SetText(string.format("%s %s", tostring(offre.prix or 0),
-                (devise and devise.label) or deviseId or "sans devise"))
+            local facons, raison = LCM.Prix.Lire(PrixEditable(offre), nil, self.travail.deviseDefaut)
+            ligne.prix:SetText(facons and LCM.Prix.Texte(facons) or ("|cffe86b6b" .. tostring(raison) .. "|r"))
             ligne.prixBouton.offre, ligne.stockBouton.offre = offre, offre
             ligne.retirer.index = index
             ligne:ClearAllPoints()
@@ -929,12 +989,13 @@ local function ConstruireVendeur()
         for _, onglet in ipairs(self:Onglets()) do total = total + #(onglet.offres or {}) end
         self.status:SetText(string.format("%d article(s) dans cet onglet, %d au total.", #offres, total))
     end
-    function ed:Ouvrir(point)
-        self.creation = point == nil
-        self.remplacePublie = point and LCM.Brouillons.EstPublie("points", point.id) or false
-        self.travail = CopiePoint(point, "vendeur")
-        self.travail.arcId = tostring(self.travail.arcId or "")
-        if self.travail.arcId == "" then self.travail.arcId = ArcIdParDefaut(self.travail.id) end
+    -- `dupliquer` ouvre une copie de `point` comme une creation neuve, pas
+    -- encore enregistree : le MJ la renomme avant qu'elle parte dans la base.
+    function ed:Ouvrir(point, dupliquer)
+        self.creation = point == nil or dupliquer == true
+        self.travail = dupliquer and Points.Dupliquer(point) or CopiePoint(point, "vendeur")
+        -- Reste d'un vendeur publie en sort Arcanum, avant le 15 octobre 2026.
+        self.travail.arcId = nil
         self.travail.icone = tostring(self.travail.icone or ICONE_VENDEUR)
         self.travail.deviseDefaut = self.travail.deviseDefaut or nil
         if type(self.travail.onglets) ~= "table" or #self.travail.onglets == 0 then
@@ -943,10 +1004,16 @@ local function ConstruireVendeur()
         if type(self.travail.rachats) ~= "table" or #self.travail.rachats == 0 then
             self.travail.rachats = { { id = "rachat_1", label = "Rachats", offres = {} } }
         end
+        -- Chaque article repasse a la forme que l'editeur modifie : la copie
+        -- d'un vendeur construit porte `formules`, un ancien un seul montant.
+        for _, collection in ipairs({ self.travail.onglets, self.travail.rachats }) do
+            for _, onglet in ipairs(collection) do
+                for _, offre in ipairs(onglet.offres or {}) do PrixEditable(offre) end
+            end
+        end
         self.mode, self.indexVente, self.indexRachat = "ventes", 1, 1
         self.nom:SetText(self.travail.label or "")
         self.ident:SetText(self.travail.id)
-        self.arcId:SetText(self.travail.arcId)
         self.iconeBouton.texture:SetTexture(self.travail.icone)
         self:MajDevise()
         self:AfficherCatalogue()
@@ -959,47 +1026,23 @@ local function ConstruireVendeur()
         if not self.travail or tostring(self.travail.label or ""):match("%S") == nil then
             LCM.Alerte("donne un nom au vendeur.") return false
         end
-        local arcId, erreurArcId = NettoyerArcId(self.travail.arcId)
-        if not arcId then LCM.Alerte(erreurArcId) return false end
-        self.travail.arcId = arcId
-        self.arcId:SetText(arcId)
-        for _, collection in ipairs({ self.travail.onglets, self.travail.rachats }) do
-            for _, onglet in ipairs(collection) do
-                for _, offre in ipairs(onglet.offres or {}) do
-                    if not offre.devise and not self.travail.deviseDefaut then
-                        LCM.Alerte("choisis une monnaie par défaut ou une devise pour chaque article.")
-                        return false
-                    end
-                end
-            end
-        end
+        -- Le prix de chaque article est verifie par le registre (Core/Prix.lua) :
+        -- un morceau sans monnaie ni monnaie par defaut, une quantite illisible,
+        -- et le refus nomme l'article.
         -- Evite de sauvegarder la vue plate heritee d'une ancienne version :
         -- le registre la reconstruit depuis les onglets.
         self.travail.offres = nil
         local ok, raison = LCM.Brouillons.Enregistrer("points", self.travail,
-            self.creation, self.remplacePublie)
+            self.creation)
         if not ok then LCM.Alerte(tostring(raison)) return false end
-        self.creation, self.remplacePublie = false, false
+        self.creation = false
         Points.ActualiserRegles(Points.Get(self.travail.id))
         for _, fenetre in pairs(Ecran.frames) do
             if fenetre.nature == "vendeur" then fenetre:Choisir(self.travail.id) end
         end
         if apercu then return true end
-
-        self.enregistrer:SetEnabled(false)
-        self.status:SetText("Vendeur enregistré. Publication du sort Arcanum dans la phase…")
-        local demarre = PublierVendeurArcanum(self.travail, function(publie, message)
-            self.enregistrer:SetEnabled(true)
-            self.status:SetText(tostring(message or ""))
-            if publie then
-                self:Hide()
-                LCM.Ok(message)
-            else
-                LCM.Alerte("vendeur enregistré localement, mais publication Arcanum impossible : "
-                    .. tostring(message or "erreur inconnue"))
-            end
-        end)
-        if not demarre then self.enregistrer:SetEnabled(true) end
+        self:Hide()
+        LCM.Ok(string.format("Vendeur « %s » enregistré.", tostring(self.travail.label)))
         return true
     end
 
@@ -1042,12 +1085,7 @@ local function Construire(nature)
         local point = f:Point()
         if not point then return end
         f.confirmation:Demander(string.format("Supprimer « %s » ?", point.label), function()
-            local ok, raison
-            if point.brouillon == true then
-                ok = LCM.Brouillons.Supprimer("points", point.id)
-            else
-                ok, raison = LCM.Brouillons.Masquer("points", point.id)
-            end
+            local ok, raison = LCM.Brouillons.Supprimer("points", point.id)
             if not ok then LCM.Alerte(tostring(raison or "suppression impossible")) return end
             f.pointId = nil
             f:Choisir((Points.Nature(nature)[1] or {}).id)
@@ -1225,12 +1263,10 @@ local function Construire(nature)
             l.icone:SetTexture(Points.Icone(offre))
             local nom = Points.Libelle(offre)
             if offre.quantite > 1 then nom = nom .. "  x" .. offre.quantite end
-            if offre.prix then
-                -- Le libelle de la devise, pas son identifiant : « 5 Écus »,
-                -- pas « 5 ecus ».
-                local devise = offre.devise and LCM.Devises.Get(offre.devise)
-                nom = string.format("%s   |cffffd36b%s %s|r", nom, tostring(offre.prix),
-                    (devise and devise.label) or tostring(offre.devise or ""))
+            if #(offre.formules or {}) > 0 then
+                -- Les libelles, pas les identifiants : « 5 Écus », pas
+                -- « 5 ecus » ; et toutes les facons de payer.
+                nom = string.format("%s   |cffffd36b%s|r", nom, LCM.Prix.Texte(offre.formules))
             end
             l.nom:SetText(nom)
 
@@ -1283,42 +1319,9 @@ function Ecran.Basculer(nature)
     return f
 end
 
-local actionArcanumEnregistree = false
-local function EnregistrerActionArcanum()
-    if actionArcanumEnregistree then return true end
-    if not (ARC and ARC.RegisterAction) then return false end
-    local ok, resultat = pcall(ARC.RegisterAction,
-        "Les Contes Malveillants",
-        ACTION_VENDEUR,
-        "script",
-        "Ouvrir un vendeur LCM",
-        {
-            command = function(pointId)
-                if not Autorise() then return false end
-                pointId = tostring(pointId or "")
-                local point = Points.Get(pointId)
-                if not point or point.nature ~= "vendeur" then
-                    LCM.Alerte("ce vendeur LCM est inconnu : " .. pointId)
-                    return false
-                end
-                local fenetre = Ecran.Fenetre("vendeur")
-                if not fenetre then return false end
-                fenetre:Choisir(pointId)
-                fenetre:Show()
-                if fenetre.Raise then fenetre:Raise() end
-                return true
-            end,
-            description = "Ouvre un vendeur construit dans le plugin MJ des Contes Malveillants.",
-            dataName = "Identifiant du vendeur",
-            inputDescription = "Identifiant interne généré automatiquement par LCM.",
-            example = "Utilisez /lcm vendeur pour créer ou modifier ce sort.",
-        })
-    actionArcanumEnregistree = ok and resultat ~= false
-    return actionArcanumEnregistree
-end
-
 -- Les vendeurs ont leur fenetre de creation et de placement depuis le 13
--- octobre 2026 (MJ/MarchandsUI.lua). Cette vue-ci reste celle du sort Arcanum.
+-- octobre 2026 (MJ/MarchandsUI.lua). Cette vue-ci reste celle de l'« Aperçu »
+-- du constructeur.
 LCM.AddCommand("vendeur", "ouvre les vendeurs", function()
     if UI.MarchandsMJ then UI.MarchandsMJ.Basculer() end
 end, true)
@@ -1329,7 +1332,6 @@ LCM.AddCommand("ressources", "ouvre les points de recolte", function()
 end, true)
 
 LCM.WhenReady(function()
-    EnregistrerActionArcanum()
     UI.Menu.Lier("vendeur", function() Ecran.Basculer("vendeur") end)
     -- Un stock qui bouge ailleurs se voit ici sans qu'on rouvre la fenetre.
     LCM.Stock.onChange = function()
@@ -1346,8 +1348,4 @@ LCM.WhenReady(function()
             if f:IsShown() then f:Choisir(f.pointId) end
         end
     end
-end)
-
-LCM.On("ADDON_LOADED", function(nom)
-    if nom == "SpellCreator" or nom == "Arcanum" then EnregistrerActionArcanum() end
 end)

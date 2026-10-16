@@ -295,7 +295,7 @@ attendu("et pas l'ancien panneau",
     LCM_CompendiumEditeur == nil or not LCM_CompendiumEditeur:IsShown(), true)
 LCM.UI.Forge.Fenetre():Hide()
 
--- La suite travaille sur un trait en brouillon. On le pose par la porte de
+-- La suite travaille sur un trait d'essai. On le pose par la porte de
 -- derriere avec son propre jeu d'equilibrage : ce qu'on teste plus bas, c'est
 -- la liste, la modification groupee et la suppression, pas la forge.
 LCM.Brouillons.Enregistrer("jeux", {
@@ -313,7 +313,9 @@ LCM.UI.Compendium.Actualiser()
 local neuf = LCM.Traits.Get(idRapace)
 attendu("trait jouable", neuf and neuf.bonus.vue, 2)
 attendu("cout", neuf and neuf.cout, 3)
-attendu("brouillon", neuf and neuf.brouillon, true)
+-- 15 octobre 2026 : plus de marque « brouillon ». L'entree est dans la file
+-- d'envoi jusqu'au /reload, verifie juste en dessous.
+attendu("sans marque", neuf and neuf.brouillon, nil)
 attendu("sauvegarde du compagnon", LCM_MJ_DB.brouillons.traits[idRapace].label, "Oeil du rapace")
 
 dire("== Contenu forgeable : modification directe dans la Forge")
@@ -344,14 +346,14 @@ attendu("la ligne du trait d'essai est la", rRapace ~= nil, true)
 rRapace.dupliquer:Click()
 local copie
 for _, element in ipairs(LCM.Traits.list) do
-    if element.brouillon and element.label == "Oeil du rapace (copie)" then copie = element end
+    if element.label == "Oeil du rapace (copie)" then copie = element end
 end
 local copieId = copie and copie.id
-attendu("copie en brouillon", copie and copie.brouillon, true)
+attendu("copie enregistree", copie ~= nil and LCM.Brouillons.Get("traits", copie.id) ~= nil, true)
 attendu("libelle", copie and copie.label, "Oeil du rapace (copie)")
 attendu("bonus copie", copie and copie.bonus.vue, 2)
 
-dire("== Supprimer : brouillons oui, publie non")
+dire("== Supprimer : toute entree, d'ou qu'elle vienne")
 f:BasculerEdition()
 attendu("mode edition", f.modeEdition:IsShown(), true)
 f.champRecherche:Saisir("Oeil du rapace (copie)")
@@ -365,18 +367,18 @@ f.champRecherche:Saisir("Maitre de la discr")
 for _, r in ipairs(f.rangees) do if r.element and r.element.id == "maitre_de_la_discretion" then rPub = r end end
 rPub.supprimer:Click()
 f.confirmation.oui:Click()
--- 5 octobre 2026 : une entree PUBLIEE se MASQUE au lieu d'etre refusee net.
--- Elle disparait du jeu tout de suite et reste masquee d'une session a
--- l'autre ; le fichier, lui, se corrige a la source. Refuser sans issue ne
--- laissait aucun moyen de se debarrasser d'un trait en seance.
-attendu("le publie est retire du jeu", LCM.Traits.Get("maitre_de_la_discretion"), nil)
-attendu("et marque comme masque",
+-- 5 octobre 2026 : une entree d'un fichier se « masquait », a retirer du
+-- fichier a la main. Depuis le 15 octobre, supprimer supprime : retiree du
+-- jeu tout de suite, et la suppression est notee pour la base, qui suit au
+-- /reload. Plus rien a « retirer du fichier ».
+attendu("l'entree est retiree du jeu", LCM.Traits.Get("maitre_de_la_discretion"), nil)
+attendu("et notee pour la base",
     LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discretion"), true)
-attendu("on dit qu'il reste a retirer du fichier",
-    (f.message:GetText() or ""):find("fichier") ~= nil, true)
--- On peut revenir dessus : le masque se leve.
-attendu("demasquer", LCM.Brouillons.Demasquer("traits", "maitre_de_la_discretion"), true)
-attendu("plus masque", LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discretion"), false)
+attendu("plus de « retire-la du fichier »",
+    (f.message:GetText() or ""):find("fichier"), nil)
+-- Tant que la base n'a pas suivi, la suppression s'annule.
+attendu("annuler", LCM.Brouillons.Demasquer("traits", "maitre_de_la_discretion"), true)
+attendu("plus notee", LCM.Brouillons.EstMasquee("traits", "maitre_de_la_discretion"), false)
 f:BasculerEdition()
 
 dire("== Modification groupee")

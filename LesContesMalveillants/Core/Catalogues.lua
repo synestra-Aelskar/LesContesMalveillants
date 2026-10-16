@@ -88,7 +88,7 @@ function LCM.Catalogue(def)
         LCM.ChampsCommuns(definition, element, Erreur)
         -- Certaines familles portent une jauge d'etat meme quand une ancienne
         -- definition ne la declarait pas encore. Le defaut reste ici, au coeur
-        -- du registre, afin que contenu publie, brouillon et PNJ soient egaux.
+        -- du registre, afin que toute entree et tout PNJ soient egaux.
         if element.etat == nil and def.etatDefaut ~= nil then
             local maximum = type(def.etatDefaut) == "function" and def.etatDefaut() or def.etatDefaut
             maximum = tonumber(maximum)
@@ -162,7 +162,7 @@ function LCM.Catalogue(def)
 
     function C.Get(id) return C.byId[tostring(id or "")] end
 
-    -- Brouillons supprimes en seance uniquement (voir Traits.Retirer).
+    -- Une entree supprimee en seance (voir Traits.Retirer).
     function C.Retirer(id)
         id = tostring(id or "")
         if not C.byId[id] then return false end

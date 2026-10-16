@@ -408,7 +408,7 @@ LCM.WhenReady(function()
     end)
 
     -- Le MJ connait ses propres points des le chargement. Leurs DEFINITIONS
-    -- sont souvent des brouillons, recharges par le WhenReady de
+    -- sont souvent des entrees du MJ, rechargees par le WhenReady de
     -- MJ/Brouillons.lua : ce fichier doit donc venir APRES lui dans le .toc.
     -- Avant, il passait le premier, ne trouvait aucune definition, et les
     -- points poses restaient au carnet sans exister sur le terrain apres un
@@ -468,7 +468,7 @@ LCM.On("UNIT_CONNECTION", function()
 end)
 
 -- Rend actifs tous les points poses dont la definition est connue. Rappele
--- quand une definition arrive ou change par la synchronisation des brouillons.
+-- quand une definition arrive ou change par la synchronisation entre MJ.
 function Recoltes.Reconstruire()
     local vus = {}
     for _, p in pairs(Magasin()) do
@@ -477,6 +477,21 @@ function Recoltes.Reconstruire()
             Rafraichir(p.def)
         end
     end
+end
+
+-- Un point de recolte modifie (ou supprime) : ce que J'AI pose se met a jour
+-- chez tous, sans le reposer (MJ/Brouillons.lua, SurPoint).
+if LCM.Brouillons and LCM.Brouillons.SurPoint then
+    LCM.Brouillons.SurPoint(function(defId)
+        if Recoltes.Compte(defId) == 0 then return end
+        Rafraichir(defId)
+        if Recoltes.Definition(defId) then
+            Recoltes.Diffuser(defId)
+        else
+            local canal = Canal()
+            if canal then LCM.Reseau.Envoyer(S.retrait, { d = defId }, canal) end
+        end
+    end)
 end
 
 local precedent = LCM.Brouillons and LCM.Brouillons.onSynchro

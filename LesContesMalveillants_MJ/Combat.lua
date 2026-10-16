@@ -128,8 +128,22 @@ function Ecran.Construire(page, fenetre)
     end)
     f.annuler:SetPoint("LEFT", f.forcer, "RIGHT", 8, 0)
 
+    -- « Integrer au combat » ne se montre qu'en combat, comme les tours : il
+    -- ouvre la rangee, les tours le suivent. Ancres tous au coin, ils se
+    -- recouvraient (constate le 16 octobre 2026).
+    f.integrer = UI.Bouton(f.contenu, "Intégrer au combat", 150, 24, function()
+        local ids = {}
+        for _, candidat in ipairs(f.candidats or {}) do
+            if f.choisis[candidat.id] then ids[#ids + 1] = candidat.id end
+        end
+        local invitation, raison = C.Integrer(ids)
+        Dire(invitation ~= nil, raison)
+        f:Afficher()
+    end)
+    f.integrer:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+
     f.precedent = UI.Bouton(f.contenu, "Tour précédent", 120, 24, function() Dire(C.Avancer(-1)) end)
-    f.precedent:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
+    f.precedent:SetPoint("LEFT", f.integrer, "RIGHT", 8, 0)
     f.suivant = UI.Bouton(f.contenu, "Tour suivant", 120, 24, function() Dire(C.Avancer(1)) end)
     f.suivant:SetPoint("LEFT", f.precedent, "RIGHT", 8, 0)
     -- Arreter un combat se confirme : un clic de travers le ferait chez tout
@@ -142,32 +156,25 @@ function Ecran.Construire(page, fenetre)
     end)
     f.terminer:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
 
-    f.integrer = UI.Bouton(f.contenu, "Intégrer au combat", 150, 24, function()
-        local joueurs = {}
-        for _, joueur in ipairs(LCM.Combat.Membres()) do
-            if f.choisis[joueur] then joueurs[#joueurs + 1] = joueur end
-        end
-        local invitation, raison = C.Integrer(joueurs)
-        Dire(invitation ~= nil, raison)
-        f:Afficher()
-    end)
-    f.integrer:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
-
     function f:AfficherPNJ(modifiable)
         local etat = C.Etat()
         local actifs = {}
         if etat then
-            for _, entree in ipairs(etat.entrees) do
-                if not entree.pnj then actifs[entree.id] = true end
-            end
+            for _, entree in ipairs(etat.entrees) do actifs[entree.id] = true end
         end
         local liste = LCM.Incarnation.Liste()
+        -- Combat lance : les PNJ en jeu qui n'y sont pas encore, puis les
+        -- joueurs du groupe. Les uns comme les autres peuvent le rejoindre.
         local candidats = {}
         if etat then
+            for _, instance in ipairs(liste) do
+                if not actifs[instance.id] then candidats[#candidats + 1] = instance end
+            end
             for _, joueur in ipairs(C.Membres()) do
                 if not actifs[joueur] then candidats[#candidats + 1] = { id = joueur, name = joueur } end
             end
         end
+        self.candidats = candidats
         local y = 0
         local source = etat and candidats or liste
         for rang, instance in ipairs(source) do
@@ -191,9 +198,9 @@ function Ecran.Construire(page, fenetre)
         end
         for rang = #source + 1, #self.lignesPNJ do self.lignesPNJ[rang]:Hide() end
         self.zonePNJ:Regler(y)
-        self.titreQui:SetText(etat and "Joueurs à intégrer" or "Au combat")
+        self.titreQui:SetText(etat and "À intégrer" or "Au combat")
         self.aucunPNJ:SetText(#source > 0 and ""
-            or (etat and "Aucun joueur disponible hors du combat." or "Aucun PNJ en jeu. Mets-en en jeu depuis la fenêtre Incarner pour qu'ils combattent."))
+            or (etat and "Personne hors du combat : ni joueur du groupe, ni PNJ en jeu." or "Aucun PNJ en jeu. Mets-en en jeu depuis la fenêtre Incarner pour qu'ils combattent."))
         self.integrer:SetShown(etat ~= nil)
         self.integrer:SetEnabled(etat ~= nil and #candidats > 0)
     end

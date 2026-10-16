@@ -268,6 +268,9 @@ end)
 -- nous demande si le curseur est sur quelqu'un.
 if UI.Glisser then
     UI.Glisser.SansCible = function(objet)
+        -- Une pile qu'on scinde (Maj + glisser) ne se donne pas : elle ne va
+        -- que dans une case de sac (UI/Inventaires.lua).
+        if objet.scinder then return false end
         if not (UnitExists and UnitExists("mouseover")) then return false end
         if UnitIsPlayer and not UnitIsPlayer("mouseover") then return false end
         if UnitIsUnit and UnitIsUnit("mouseover", "player") then return false end

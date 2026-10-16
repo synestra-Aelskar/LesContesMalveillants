@@ -9,28 +9,7 @@ local Ecran = {}
 UI.Recolte = Ecran
 
 local function Construire()
-    local b = CreateFrame("Button", "LCM_BoutonRecolte", UIParent)
-    b:SetSize(260, 44)
-    b:SetPoint("CENTER", UIParent, "CENTER", 0, -170)
-    b:SetFrameStrata("HIGH")
-    b.fond = UI.Aplat(b, UI.C.fond, "BACKGROUND")
-    b.fond:SetAllPoints(b)
-    UI.Bordure(b)
-    b.icone = b:CreateTexture(nil, "ARTWORK")
-    b.icone:SetSize(34, 34)
-    b.icone:SetPoint("LEFT", b, "LEFT", 5, 0)
-    b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    b.titre = UI.Texte(b, "Récolter", UI.C.titre)
-    UI.Police(b.titre, 13)
-    b.titre:SetPoint("TOPLEFT", b.icone, "TOPRIGHT", 8, -2)
-    b.nom = UI.Texte(b, "", UI.C.texte)
-    UI.Police(b.nom, 11)
-    b.nom:SetPoint("BOTTOMLEFT", b.icone, "BOTTOMRIGHT", 8, 2)
-    b.nom:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-    b.nom:SetJustifyH("LEFT")
-    b.nom:SetWordWrap(false)
-    b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
-    b.survol:SetAllPoints(b)
+    local b = UI.Interaction("LCM_BoutonRecolte", "Récolter", "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-recoltes.tga")
     b:SetScript("OnClick", function(self)
         local ok, raison = LCM.Recolte.Tenter(self.pointId)
         if not ok and raison then LCM.Alerte(tostring(raison)) end
@@ -49,9 +28,12 @@ function Ecran.Actualiser(point)
         return
     end
     b.pointId = point.id
-    local ressource = LCM.Compendium and LCM.Compendium.Resoudre
-        and LCM.Compendium.Resoudre(definition.entree)
-    b.icone:SetTexture((ressource and ressource.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark")
+    -- Une ressource unique montre son icone ; un point multiple garde
+    -- l'embleme de recolte, sans privilegier arbitrairement un de ses produits.
+    local ressources = LCM.Recolte.Ressources(definition)
+    local ressource = #ressources == 1 and LCM.Compendium.Resoudre(ressources[1].entree)
+    b.icone:SetTexture(ressource and ressource.icone and LCM.Icone(ressource.icone)
+        or "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-recoltes.tga")
     b.nom:SetText(definition.label)
     b:Show()
 end

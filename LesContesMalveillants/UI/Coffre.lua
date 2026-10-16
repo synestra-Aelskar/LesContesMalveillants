@@ -5,7 +5,7 @@ local UI, C = LCM.UI, LCM.Coffres
 local Ecran = {}
 UI.Coffre = Ecran
 
-local CASE, ECART, COLONNES_MAX = 58, 8, 6
+local CASE, HAUTEUR_CASE, ECART, COLONNES_MAX = 68, 86, 8, 5
 local LARGEUR_MIN, LARGEUR_VERROUILLEE = 340, 390
 local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 
@@ -156,6 +156,9 @@ local function CarteSurvol()
     p:SetScript("OnDragStop", nil)
     if p.fermer then p.fermer:Hide() end
     if p.poignee then p.poignee:Hide() end
+    -- Rester sur la case la charge, puis l'epingle : on la consulte, et sa
+    -- croix (cachee jusque-la) la ferme.
+    UI.SurvolAccrochable(p)
     p:Hide()
     Ecran.carteSurvol = p
     return p
@@ -163,20 +166,31 @@ end
 
 local function AfficherProche(point)
     if not Ecran.bouton then
-        local b = CreateFrame("Button", "LCM_BoutonCoffre", UIParent)
-        b:SetSize(250, 42); b:SetPoint("CENTER", UIParent, "CENTER", 0, -220)
-        b:SetFrameStrata("HIGH")
-        b.fond = UI.Aplat(b, UI.C.fond, "BACKGROUND"); b.fond:SetAllPoints(b); UI.Bordure(b)
-        b.label = UI.Texte(b, "Ouvrir le coffre", UI.C.titre)
-        b.label:SetPoint("CENTER", b, "CENTER")
-        b:SetScript("OnClick", function(self) C.Ouvrir(self.pointId) end)
+        local b = UI.Interaction("LCM_BoutonCoffre", "Ouvrir", "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-coffres.tga")
+        b:SetScript("OnClick", function(self)
+            -- Un objet pose seul au sol se ramasse d'un clic ; un coffre s'ouvre.
+            if self.ramasser then Ecran.RamasserObjet(self.pointId) else C.Ouvrir(self.pointId) end
+        end)
         Ecran.bouton = b
     end
     local b = Ecran.bouton
     if not point then b.pointId = nil; b:Hide(); return end
     b.pointId = point.id
     local d = C.definitions[point.def]
-    b.label:SetText("Ouvrir : " .. tostring(d and d.label or "Coffre"))
+    b.ramasser = d and d.coffre and d.coffre.objet and true or false
+    b.titre:SetText(b.ramasser and "Ramasser" or "Ouvrir")
+    b.nom:SetText(tostring(d and d.label or "Coffre"))
+    local coffre = d and d.coffre or {}
+    local contenu = coffre.objets
+    local objet
+    if coffre.sac then
+        objet = LCM.Sacs.Get(coffre.sac)
+    elseif coffre.tente then
+        objet = LCM.Tentes and LCM.Tentes.Get(coffre.tente)
+    elseif b.ramasser and contenu and contenu[1] then
+        objet = LCM.Compendium.Resoudre(contenu[1].entree)
+    end
+    b.icone:SetTexture(objet and objet.icone and LCM.Icone(objet.icone) or "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-coffres.tga")
     b:Show()
 end
 
@@ -184,6 +198,15 @@ local function Construire()
     local f = UI.Fenetre("coffre_joueur", "Coffre", 420, 280, { x = 0, y = -30 })
     f.verrouiller = UI.Bouton(f.contenu, "Verrouiller", 120, 24, function() C.Envoyer("verrouiller") end)
     f.verrouiller:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 0)
+    -- Un coffre qui EST un sac lache au sol (Core/SacsAuSol.lua) se ramasse
+    -- en entier : le sac s'equipe, son contenu dedans.
+    f.ramasser = UI.Bouton(f.contenu, "Ramasser le sac", 180, 32, function() Ecran.Ramasser() end)
+    f.ramasser:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 0)
+    f.ramasser.survol:Hide()
+    f.ramasser.reflet = UI.DegradeOr(f.ramasser, "ARTWORK", 0.40)
+    f.ramasser.reflet:SetAllPoints(f.ramasser)
+    UI.FonduSurvol(f.ramasser, f.ramasser.reflet, 0.35, 1)
+    f.ramasser:Hide()
     f.verrousBrises = UI.Texte(f.contenu, "", UI.C.plein, "GameFontNormalSmall")
     f.verrousBrises:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
     f.statut = UI.Texte(f.contenu, "", UI.C.discret, "GameFontNormalSmall")
@@ -236,9 +259,11 @@ local function Construire()
             local aide = f.aides[self.index]
             local element, categorie = aide and LCM.Compendium.Resoudre(aide.ref)
             local carte = element and categorie and CarteSurvol()
-            if carte then carte.placee = nil; carte:Montrer(categorie, element, self); carte:SetFrameStrata("TOOLTIP") end
+            if carte then
+                carte:SuivreSurvol(self, function() carte.placee = nil; carte:Montrer(categorie, element, self) end)
+            end
         end)
-        b:SetScript("OnLeave", function() if Ecran.carteSurvol then Ecran.carteSurvol:Hide() end end)
+        b:SetScript("OnLeave", function() if Ecran.carteSurvol then Ecran.carteSurvol:QuitterSurvol() end end)
         UI.Glisser.Cible(b, function(objet)
             if not (f.etatRecu and f.etatRecu.f) then return false, "le coffre n’est pas verrouillé." end
             if not (objet.origine and objet.origine.case) then
@@ -408,9 +433,27 @@ local function Construire()
     f.forcer:SetPoint("TOP", f.contenu, "TOP", 0, -210)
     f.forcer:Hide()
     f.grille = UI.Defilement(f.contenu)
-    f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -48)
+    f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -58)
     f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0, 36)
     f.cases = {}
+    f.bandeau = UI.DegradeOr(f.contenu, "BACKGROUND", 0.15)
+    f.bandeau:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", -5, 6)
+    f.bandeau:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 5, 6)
+    f.bandeau:SetHeight(48)
+    f.apercu = UI.Texte(f.contenu, "CONTENU", UI.C.titre)
+    UI.Police(f.apercu, 13)
+    f.apercu:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -24)
+    f.apercu:SetPoint("RIGHT", f.contenu, "RIGHT", 0, 0)
+    f.apercu:SetWordWrap(false)
+    f.aideContenu = UI.Texte(f.contenu, "Glisser : prendre   ·   Clic droit : options", UI.C.libelle, "GameFontNormalSmall")
+    f.aideContenu:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 42)
+    f.capaciteFond = UI.Aplat(f.contenu, { 0.30, 0.23, 0.12, 0.55 })
+    f.capaciteFond:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -42)
+    f.capaciteFond:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, -42)
+    f.capaciteFond:SetHeight(3)
+    f.capacite = UI.Aplat(f.contenu, UI.C.accent, "ARTWORK")
+    f.capacite:SetPoint("TOPLEFT", f.capaciteFond, "TOPLEFT")
+    f.capacite:SetHeight(3)
 
     function f:PeutPrendre(ref, quantite)
         local copie = LCM.Copie(LCM.Entities.Self())
@@ -457,20 +500,30 @@ local function Construire()
 
     function f:NouvelleCase(index)
         local b = CreateFrame("Button", nil, self.grille.contenu)
-        b:SetSize(CASE, CASE)
+        b:SetSize(CASE, HAUTEUR_CASE)
         b.index = index
         b:RegisterForClicks("RightButtonUp")
         b:RegisterForDrag("LeftButton")
         b.fond = UI.Aplat(b, { 0, 0, 0, 0.28 })
         b.fond:SetAllPoints(b)
+        b.traits = UI.Bordure(b, { 0.55, 0.42, 0.22, 0.55 })
+        if UI.AelCadre then UI.AelCadre(b, "icone") end
         b.icone = b:CreateTexture(nil, "ARTWORK")
         b.icone:SetPoint("TOPLEFT", b, "TOPLEFT", 5, -5)
-        b.icone:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 5)
+        b.icone:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -5, 23)
+        b.nom = UI.Texte(b, "", UI.C.texte, "GameFontNormalSmall")
+        UI.Police(b.nom, 10)
+        b.nom:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 4, 6)
+        b.nom:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 6)
+        b.nom:SetJustifyH("CENTER")
+        b.nom:SetWordWrap(false)
+        b.vide = UI.Texte(b, "+", UI.C.libelle)
+        b.vide:SetPoint("CENTER", b, "CENTER", 0, 8)
         b.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
         b.nombre = UI.Texte(b, "", { 1, 0.92, 0.48 }, "GameFontNormal")
-        b.nombre:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -4, 3)
+        b.nombre:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -6, 25)
         b.nombre:SetJustifyH("RIGHT")
-        b.survol = UI.Aplat(b, UI.C.survol, "HIGHLIGHT")
+        b.survol = UI.DegradeOr(b, "ARTWORK", 0.34)
         b.survol:SetAllPoints(b)
         UI.Glisser.Cible(b, function(objet)
             if not f.ouvert then return false, "le coffre est verrouillé." end
@@ -502,18 +555,23 @@ local function Construire()
             })
         end)
         b:SetScript("OnEnter", function(self)
+            f.apercu:SetText(self.pile and self.pile.element and self.pile.element.label
+                or (self.pile and self.pile.ref) or "Emplacement libre")
             if not self.pile then return end
             local element, categorie = LCM.Compendium.Resoudre(self.pile.ref)
             local carte = element and categorie and CarteSurvol()
             if carte then
-                carte.placee = nil
-                carte:Montrer(categorie, element, self)
-                carte:SetFrameStrata("TOOLTIP")
+                carte:SuivreSurvol(self, function()
+                    carte.placee = nil
+                    carte:Montrer(categorie, element, self)
+                end)
             end
         end)
         b:SetScript("OnLeave", function()
-            if Ecran.carteSurvol then Ecran.carteSurvol:Hide() end
+            if Ecran.carteSurvol then Ecran.carteSurvol:QuitterSurvol() end
         end)
+        b:HookScript("OnLeave", function() f.apercu:SetText("CONTENU") end)
+        UI.FonduSurvol(b, b.survol, 0.12, 1)
         self.cases[index] = b
         return b
     end
@@ -541,6 +599,12 @@ function Ecran.MettreAJour()
     local e = C.etat
     if not p then f:Hide(); return end
     f:Titre(tostring(d and d.label or "Coffre"))
+    f.apercu:SetText("CONTENU")
+    f.apercu:SetShown(e and e.s == true or false)
+    f.bandeau:SetShown(e and e.s == true or false)
+    f.aideContenu:SetShown(e and e.s == true or false)
+    f.capaciteFond:SetShown(e and e.s == true or false)
+    f.capacite:Hide()
     if not e then
         f.verrousBrises:Hide()
         f.statut:ClearAllPoints()
@@ -571,6 +635,14 @@ function Ecran.MettreAJour()
     local reverrouillable = not (d and d.coffre and d.coffre.reset) and #verrousOuverts > 0
     for _, autorise in ipairs(verrousOuverts) do if not autorise then reverrouillable = false; break end end
     f.verrouiller:SetShown(f.ouvert and reverrouillable)
+    local unSac = d and d.coffre and (d.coffre.sac or d.coffre.tente) and true or false
+    f.verrouiller:ClearAllPoints()
+    f.verrouiller:SetPoint(unSac and "BOTTOMLEFT" or "BOTTOM", f.contenu,
+        unSac and "BOTTOMLEFT" or "BOTTOM", 0, 0)
+    f.ramasser:SetShown(f.ouvert and unSac)
+    f.ramasser.label:SetText(d and d.coffre and d.coffre.tente and "Ramasser la tente" or "Ramasser le sac")
+    -- La rangee du bas sert aux deux boutons.
+    if unSac then reverrouillable = reverrouillable or f.ouvert end
     local verrouille = e.f == true
     f.choixExpertise:SetShown(verrouille)
     f.aidesTitre:SetShown(verrouille)
@@ -591,22 +663,25 @@ function Ecran.MettreAJour()
     local lignes = math.max(1, math.ceil(places / colonnes))
     if f.ouvert then
         f.grille:ClearAllPoints()
-        f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -48)
+        f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -58)
         f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0,
-            reverrouillable and 36 or 0)
+            reverrouillable and 70 or 30)
         f.grille:Show()
         for index = 1, places do
             local b = f.cases[index] or f:NouvelleCase(index)
             b.pile = piles[index]
+            b.icone:SetAlpha(b.pile and 1 or 0)
+            b.vide:SetShown(not b.pile)
+            b.nom:SetText(b.pile and b.pile.element and b.pile.element.label or (b.pile and b.pile.ref) or "Libre")
+            b.nom:SetTextColor(unpack(b.pile and UI.C.texte or UI.C.discret))
+            b.fond:SetColorTexture(0.10, 0.075, 0.045, b.pile and 0.9 or 0.4)
             b.icone:SetTexture(b.pile and b.pile.element and LCM.Icone(b.pile.element.icone) or VIDE)
-            b.icone:SetAlpha(b.pile and 1 or 0.18)
-            b.fond:SetColorTexture(0, 0, 0, b.pile and 0.24 or 0.10)
             b.nombre:SetText(b.pile and b.pile.quantite > 1 and tostring(b.pile.quantite) or "")
             local colonne = (index - 1) % colonnes
             local ligne = math.floor((index - 1) / colonnes)
             b:ClearAllPoints()
             b:SetPoint("TOPLEFT", f.grille.contenu, "TOPLEFT",
-                colonne * (CASE + ECART), -ligne * (CASE + ECART))
+                colonne * (CASE + ECART), -ligne * (HAUTEUR_CASE + ECART))
             b:Show()
         end
     else
@@ -614,26 +689,68 @@ function Ecran.MettreAJour()
         for _, b in ipairs(f.cases) do b:Hide() end
     end
     for index = places + 1, #f.cases do f.cases[index]:Hide() end
-    local hauteurGrille = lignes * (CASE + ECART) - ECART
+    local hauteurGrille = lignes * (HAUTEUR_CASE + ECART) - ECART
     f.grille:Regler(hauteurGrille)
     if e.f then
         f:SetSize(500, f.insetHaut + 250 + f.insetBas)
     else
         local largeurGrille = colonnes * (CASE + ECART) - ECART
         local largeur = math.max(LARGEUR_MIN, largeurGrille + f.insetCote * 2)
-        local margeBas = reverrouillable and 44 or 12
-        f:SetSize(largeur, f.insetHaut + 48 + hauteurGrille + margeBas + f.insetBas)
+        f.capacite:SetWidth(math.max(1, (largeur - f.insetCote * 2) * math.min(1, Occuper(e.o) / math.max(1, places))))
+        f.capacite:SetShown(f.ouvert and Occuper(e.o) > 0)
+        local margeBas = reverrouillable and 78 or 38
+        f.aideContenu:ClearAllPoints()
+        f.aideContenu:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, reverrouillable and 44 or 4)
+        f:SetSize(largeur, f.insetHaut + 58 + math.min(hauteurGrille, math.max(150, UIParent:GetHeight() * 0.70 - f.insetHaut - f.insetBas - 58 - margeBas)) + margeBas + f.insetBas)
     end
 end
 
 function Ecran.Proche(point) AfficherProche(point) end
 C.onChange = Ecran.MettreAJour
 
+-- Ramasser un objet pose seul au sol : on verifie la place AVANT (a blanc,
+-- sur une copie du personnage), puis on le demande a qui le garde.
+function Ecran.RamasserObjet(pointId)
+    local p = C.points[tostring(pointId or "")]
+    local d = p and C.definitions[p.def]
+    if not (d and d.coffre and d.coffre.objet) then return false end
+    if Ecran.ramassageObjet then LCM.Alerte("un ramassage est déjà en cours.") return false end
+    local copie = LCM.Copie(LCM.Entities.Self())
+    for _, o in ipairs(d.coffre.objets or {}) do
+        local ok, raison = LCM.Inventaire.Deposer(copie, o.entree, o.quantite)
+        if not ok then LCM.Alerte(raison or "aucune place libre.") return false end
+    end
+    Ecran.ramassageObjet = p.id
+    C.courant = p.id
+    return C.Envoyer("emporter")
+end
+
 function Ecran.Repondre(expediteur, data)
+    -- L'objet ramasse arrive dans les sacs ; sans fenetre de coffre.
+    if data.action == "emporter" and Ecran.ramassageObjet then
+        Ecran.ramassageObjet = nil
+        if C.courant and not (Ecran.frame and Ecran.frame:IsShown()) then C.courant, C.etat = nil, nil end
+        if not data.ok then if data.msg then LCM.Alerte(tostring(data.msg)) end return end
+        local entite = LCM.Entities.Self()
+        for _, o in ipairs(type(data.w) == "table" and data.w or {}) do
+            if type(o.d) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
+                LCM.Echange.ImporterObjetPartage({ ref = o.e, definition = o.d })
+            end
+            local ok, raison = LCM.Inventaire.Deposer(entite, o.e, tonumber(o.q) or 1)
+            if not ok then LCM.Alerte(raison or "aucune place libre.") end
+        end
+        if LCM.Entities.Changed then LCM.Entities.Changed(entite) end
+        LCM.Ok("Ramassé.")
+        return
+    end
     local f = Ecran.frame
     if not f then return end
     if data.msg and not data.ok then LCM.Alerte(tostring(data.msg)) end
     if data.action == nil then return end
+    if data.action == "emporter" then
+        if data.ok then Ecran.Emporter(data) else f.ramassage = nil end
+        return
+    end
     if data.action == "ranger" and f.rangementEnAttente then
         if data.ok then f.rangementEnAttente = nil
         elseif f.rangementEnAttente.rendre then
@@ -674,6 +791,61 @@ function Ecran.Repondre(expediteur, data)
         f.outilsEnAttente = nil
     end
 end
+
+-- Ramasser le sac en entier : il faut un emplacement libre de sa nature
+-- (Inventaire.PlacePour), cherche AVANT de demander — sinon le sac quitterait
+-- le sol sans avoir ou aller.
+function Ecran.Ramasser()
+    local f = Ecran.frame
+    local p = C.points[C.courant or ""]
+    local d = p and C.definitions[p.def]
+    if not (f and d and d.coffre and (d.coffre.sac or d.coffre.tente)) then return false end
+    if f.ramassage then LCM.Alerte("un ramassage est déjà en cours.") return false end
+    local contenu = { sac = d.coffre.sac, tente = d.coffre.tente }
+    local onglet, index = LCM.Inventaire.PlacePour(LCM.Entities.Self(), contenu)
+    if not onglet then
+        LCM.Alerte(d.coffre.tente and "aucun emplacement Saccoches libre pour porter cette tente."
+            or (LCM.Sacs.EstSacoche(d.coffre.sac) and "aucun emplacement Saccoches libre pour porter cette sacoche."
+                or "aucun emplacement Sacs libre pour porter ce sac."))
+        return false
+    end
+    f.ramassage = contenu
+    return C.Envoyer("emporter")
+end
+
+-- La reponse : le sac s'equipe, ce qu'il contenait y est range. Ce qui n'y
+-- tiendrait pas va ailleurs dans les sacs ; et si rien ne le prend, on le dit.
+local function Emporter(data)
+    local entite = LCM.Entities.Self()
+    local contenu = Ecran.frame.ramassage or {}
+    Ecran.frame.ramassage = nil
+    local sac, tente = data.b or contenu.sac, data.t or contenu.tente
+    local onglet, index = LCM.Inventaire.PlacePour(entite, { sac = sac, tente = tente })
+    local objets = {}
+    for _, o in ipairs(type(data.w) == "table" and data.w or {}) do
+        if type(o.d) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
+            LCM.Echange.ImporterObjetPartage({ ref = o.e, definition = o.d })
+        end
+        objets[#objets + 1] = { entree = o.e, quantite = tonumber(o.q) or 1 }
+    end
+    local reste = objets
+    if onglet and LCM.Inventaire.Poser(entite, onglet, index, tente and ("tentes/" .. tente) or sac) then
+        reste = LCM.Inventaire.RemplirSac(entite, onglet, index, objets)
+    else
+        LCM.Alerte("plus d'emplacement libre : le sac n'a pas pu être équipé.")
+    end
+    local perdus = {}
+    for _, o in ipairs(reste) do
+        if not LCM.Inventaire.Deposer(entite, o.entree, o.quantite) then
+            local e = LCM.Compendium.Resoudre(o.entree)
+            perdus[#perdus + 1] = string.format("%s x%d", e and e.label or o.entree, o.quantite)
+        end
+    end
+    if #perdus > 0 then LCM.Alerte("faute de place, n'a pas pu être rangé : " .. table.concat(perdus, ", ")) end
+    if LCM.Entities.Changed then LCM.Entities.Changed(entite) end
+    LCM.Ok("Ramassé.")
+end
+Ecran.Emporter = Emporter
 
 function Ecran.Retirer(id)
     local f = Ecran.frame

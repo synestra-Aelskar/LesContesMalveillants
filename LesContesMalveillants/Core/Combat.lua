@@ -534,56 +534,78 @@ function Combat.Lancer()
     return etat
 end
 
--- Ajoute des joueurs a un combat deja lance. Ils font leur jet comme lors de
--- l'invitation initiale ; a chaque acceptation, l'ordre est retrie sans
--- deplacer le combattant dont c'est actuellement le tour.
-function Combat.Integrer(joueurs)
+-- Range de nouveaux combattants dans un combat lance : l'ordre est retrie sans
+-- deplacer celui dont c'est actuellement le tour, puis diffuse.
+local function AjouterEntrees(entrees)
+    local courant = Combat.Courant()
+    local idCourant = courant and courant.id
+    local nouveau = LCM.Copie(Combat.etat)
+    for _, entree in ipairs(entrees) do nouveau.entrees[#nouveau.entrees + 1] = entree end
+    Combat.Trier(nouveau.entrees)
+    for index, entree in ipairs(nouveau.entrees) do
+        if entree.id == idCourant then nouveau.c = index break end
+    end
+    Appliquer(nouveau)
+    Envoyer("combat=", Combat.Paquet(nouveau), Combat.CanalGroupe())
+end
+
+local function DansLeCombat(etat, id)
+    for _, entree in ipairs(etat.entrees) do
+        if entree.id == id then return true end
+    end
+    return false
+end
+
+-- Ajoute des joueurs ou des PNJ a un combat deja lance. Un joueur fait son jet
+-- comme lors de l'invitation initiale, et entre a son acceptation. Un PNJ en
+-- jeu (Incarner) n'a personne a attendre : le MJ jette pour lui et il entre
+-- tout de suite — jusqu'au 16 octobre 2026, seuls les joueurs pouvaient
+-- rejoindre un combat lance.
+function Combat.Integrer(ids)
     if not Combat.EstMJ() then return nil, "reserve au maitre du jeu qui mene le combat." end
     local etat = Combat.etat
     if not etat then return nil, "aucun combat en cours." end
-    local invitation = Combat.invitationTardive
-    if not invitation then
-        invitation = { s = etat.s, cibles = {}, reponses = {} }
+    local pnj = {}
+    local invitation = Combat.invitationTardive or { s = etat.s, cibles = {}, reponses = {} }
+    for _, nom in ipairs(ids or {}) do
+        local instance = LCM.Incarnation.Instance(nom)
+        if instance then
+            if not DansLeCombat(etat, instance.id) then
+                pnj[#pnj + 1] = {
+                    id = instance.id, nom = Tronquer(instance.name, Combat.NOM_MAX),
+                    v = (Combat.Jet(instance)), icone = Tronquer(LCM.Icone(instance.icon), Combat.ICONE_MAX),
+                    pnj = true, ko = EstKO(instance) or nil,
+                }
+            end
+        else
+            local joueur = IdJoueur(nom)
+            if not DansLeCombat(etat, joueur) and LCM.Reseau.DansLeGroupe(joueur) then
+                invitation.cibles[joueur] = true
+                Envoyer("combat?", { s = invitation.s }, "WHISPER", joueur)
+            end
+        end
+    end
+    if #pnj > 0 then AjouterEntrees(pnj) end
+    if next(invitation.cibles) then
         Combat.invitationTardive = invitation
+        if Combat.onInvitation then Combat.onInvitation(invitation) end
+        return invitation
     end
-    for _, nom in ipairs(joueurs or {}) do
-        local joueur = IdJoueur(nom)
-        local dansCombat = false
-        for _, entree in ipairs(etat.entrees) do
-            if not entree.pnj and entree.id == joueur then dansCombat = true break end
-        end
-        if not dansCombat and LCM.Reseau.DansLeGroupe(joueur) then
-            invitation.cibles[joueur] = true
-            Envoyer("combat?", { s = invitation.s }, "WHISPER", joueur)
-        end
-    end
-    if not next(invitation.cibles) then
-        Combat.invitationTardive = nil
-        return nil, "aucun nouveau joueur valide a inviter."
-    end
-    if Combat.onInvitation then Combat.onInvitation(invitation) end
-    return invitation
+    Combat.invitationTardive = nil
+    if #pnj > 0 then return Combat.etat end
+    return nil, "aucun nouveau combattant valide a integrer."
 end
 
 local function AjouterReponseTardive(joueur, reponse)
-    local invitation, avant = Combat.invitationTardive, Combat.etat
+    local invitation = Combat.invitationTardive
     if not invitation or not invitation.cibles[joueur] then return false end
     invitation.cibles[joueur] = nil
     invitation.reponses[joueur] = reponse
     if reponse.ok then
-        local courant = Combat.Courant()
-        local idCourant = courant and courant.id
-        local nouveau = LCM.Copie(avant)
-        nouveau.entrees[#nouveau.entrees + 1] = {
+        AjouterEntrees({ {
             id = joueur, nom = reponse.nom, v = reponse.v, icone = reponse.icone,
             ko = reponse.ko or nil,
-        }
-        Combat.Trier(nouveau.entrees)
-        for index, entree in ipairs(nouveau.entrees) do
-            if entree.id == idCourant then nouveau.c = index break end
-        end
-        Appliquer(nouveau)
-        Envoyer("combat=", Combat.Paquet(nouveau), Combat.CanalGroupe())
+        } })
     end
     if not next(invitation.cibles) then Combat.invitationTardive = nil end
     if Combat.onInvitation then Combat.onInvitation(Combat.invitationTardive) end

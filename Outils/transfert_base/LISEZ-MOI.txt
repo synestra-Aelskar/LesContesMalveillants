@@ -1,0 +1,17 @@
+BASE LCM - TRANSFERT AU BINOME
+
+1. Extraire toute l'archive ZIP.
+2. Fermer completement World of Warcraft.
+3. Installer les deux addons LesContesMalveillants et LesContesMalveillants_MJ si necessaire.
+4. Double-cliquer sur "Installer la base.bat". Entrer le chemin du dossier _retail_ quand il est demande.
+   On peut aussi glisser le dossier _retail_ sur le .bat.
+5. Si plusieurs comptes WoW sont detectes, choisir le numero affiche ou le nom
+   du dossier de compte. Entree seule choisit la sauvegarde MJ la plus recente.
+6. Attendre le message de succes, puis relancer WoW.
+
+Le script copie les fichiers de contenu publie et ajoute 111 definitions aux brouillons
+du compte MJ choisi. Il conserve les autres brouillons du destinataire et ses donnees
+de personnage. Une copie des fichiers remplaces est creee dans _retail_/Sauvegarde_LCM_*.
+Le dossier Source contient la base entree par entree pour inspection.
+
+Ne donner cette archive qu'a un autre MJ : elle contient les PNJ et les jeux d'equilibrage.

@@ -42,7 +42,6 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm actions    la couronne du lanceur d'actions
 /lcm sceau      montrer / cacher le sceau
 /lcm doc        la documentation en jeu
-/lcm brouillons (MJ) le contenu créé en séance
 /lcm atelier    (MJ) créer traits, races et objets en séance
 /lcm combat     (MJ) la fenêtre de combat ; joueur : passer son tour
 /lcm combat fin (MJ) terminer le combat
@@ -140,7 +139,7 @@ la fenêtre du MJ de Necronicon, en quatre onglets : **Joueurs** (addon présent
 niveau et PV dès que la fiche est reçue, consulter, donner l'XP avec un motif
 commun), **Combat** (l'ancienne fenêtre de combat, devenue onglet ; `/lcm
 combat` y mène), **PNJ & contenu** (la scène et Incarner, l'Atelier, le
-compendium, les brouillons en attente) et **Outils** : annonces, compteurs,
+compendium) et **Outils** : annonces, compteurs,
 barres et notes **partagés avec le groupe** (`Core/Outils.lua`), affichés chez
 le joueur dans une petite fenêtre (`/lcm outils`) avec le nom de qui les envoie.
 Ils vivent en mémoire vive, le temps d'une scène ; un joueur qui recharge les
@@ -502,7 +501,7 @@ combien d'autres répondent.
 
 **On ne retire plus ses propres traits** : ils se choisissent à la création et
 font le personnage. Le MJ garde la main sur la fiche d'un autre, et un trait
-**fantôme** (brouillon supprimé) reste retirable, sinon il resterait collé sans
+**fantôme** (entrée supprimée) reste retirable, sinon il resterait collé sans
 rien donner.
 
 ### Le constructeur de buff et de débuff, repris
@@ -539,19 +538,24 @@ Les neuf écarts avec le composeur de Necronicon, relevés en séance :
   voie. Les points se **rejouent champ par champ**, et un modèle qui ne rentre
   plus se charge en partie **en le disant**.
 
-### L'Atelier : on peut enfin enregistrer une modification
+### Plus de brouillons : une entrée enregistrée existe
 
-Le contenu publié vient d'un fichier généré, et **un brouillon portant un
-identifiant publié était refusé**. On ouvrait une entrée, on corrigeait une
-faute, aucun bouton ne permettait d'enregistrer. Un bouton **« Modifier
-(brouillon) »** en fait une version jouable tout de suite, qui **prend le pas
-sur le fichier** jusqu'à ce qu'on l'y reporte — marqué dans la liste
-(« remplace le publié ») et dit à chaque ouverture.
+Le 15 octobre 2026, la notion de brouillon a disparu du contenu. Une entrée
+**enregistrée en jeu existe** : jouable tout de suite, envoyée à l'autre MJ,
+et versée dans la base commune au `/reload` par le service de synchro. Toute
+entrée s'ouvre et se modifie de la même façon, d'où qu'elle vienne ;
+**supprimer supprime**, et la base suit. Plus de « publié », de « Modifier
+(brouillon) », de « remplace le publié » ni de « masqué, à retirer du
+fichier ». Seule la création de personnage garde un brouillon : c'est vraiment
+un travail pas fini.
 
-**Le banc a attrapé une perte de données** au passage : écraser une entrée
-publiée se faisait sur place, donc supprimer le brouillon ensuite **emportait
-le contenu publié avec lui**. L'original est mis de côté avant d'être recouvert,
-et la suppression le **rend** au lieu de retirer l'entrée.
+Ce qui a provoqué la refonte : une armure enregistrée en jeu n'était jamais
+partie dans la base (le service protégeait les « vieux brouillons »), alors
+qu'un coffre de la base la citait — et le coffre, refusé, arrêtait le
+chargement de tout ce qui suivait. Les deux sont réparés : le service publie
+ce qui est enregistré (sans écraser par une vieille copie une version plus
+récente de la base, et il le dit), et une entrée refusée dans un fichier
+généré est écartée seule.
 
 ### Ce que la première séance en jeu a corrigé
 

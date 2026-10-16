@@ -116,7 +116,9 @@ creation.valider:Click()
 
 local repris = LCM.PNJ.Get("assassin_du_culte")
 attendu("le PNJ n'a pas ete duplique", repris ~= nil, true)
-attendu("  c'est devenu un brouillon", repris.brouillon, true)
+-- 15 octobre 2026 : plus de marque « brouillon ». Le PNJ repris est le meme
+-- PNJ, modifie ; la file d'envoi le porte jusqu'au /reload (verifie plus bas).
+attendu("  aucune marque de brouillon", repris.brouillon, nil)
 attendu("  son nom est conserve", repris.label, "Assassin du culte")
 -- Le gros du geste : la creation ne connait ni equipement, ni etats, ni
 -- apprentissages. Reprise sans report, elle deshabillait le PNJ.
@@ -125,8 +127,9 @@ attendu("  la sauvegarde du compagnon aussi",
     LCM_MJ_DB.brouillons.pnj["assassin_du_culte"] ~= nil, true)
 attendu("  avec l'equipement dedans",
     #((LCM_MJ_DB.brouillons.pnj["assassin_du_culte"].equipement or {}).equipement or {}), equipementAvant)
-attendu("  et il remplace du publie",
-    LCM_MJ_DB.brouillons.pnj["assassin_du_culte"].remplacePublie, true)
+-- « remplace du publie » n'a plus de sens : modifier une entree la modifie.
+attendu("  sans marque « remplace le publie »",
+    LCM_MJ_DB.brouillons.pnj["assassin_du_culte"].remplacePublie, nil)
 attendu("la fenetre de creation se referme", creation:IsShown(), false)
 
 dire("== Le bouton clique voyage jusqu'a l'editeur")

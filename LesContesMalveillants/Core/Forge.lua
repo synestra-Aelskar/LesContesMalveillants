@@ -13,8 +13,8 @@
 -- Une valeur sous la base rembourse.
 --
 -- Ce qui change par rapport a Necronicon, et pourquoi :
---   * un jeu est du CONTENU : il nait en brouillon chez le MJ et part dans un
---     fichier genere, comme un trait. Necronicon le gardait dans sa
+--   * un jeu est du CONTENU : le MJ l'enregistre et il part dans la base
+--     commune, comme un trait. Necronicon le gardait dans sa
 --     sauvegarde (NecroniconDB.forge) ;
 --   * le cout d'un point est propre a chaque jeu (decision du 3 octobre 2026),
 --     la ou Necronicon le partageait entre tous ;

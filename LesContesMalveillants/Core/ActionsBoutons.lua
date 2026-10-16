@@ -3,7 +3,7 @@
 -- Jusqu'au 3 octobre 2026, un bouton (« Attaque », « Répulsion »...) citait une
 -- entree du compendium (Systeme-Resolution-Action, Actions-MJ), importee de
 -- Necronicon. Le bouton dependait donc d'une entree que n'importe quel MJ
--- pouvait dupliquer, modifier en brouillon ou perdre a l'import suivant. Ici,
+-- pouvait dupliquer, modifier ou perdre a l'import suivant. Ici,
 -- l'action APPARTIENT a son bouton : elle est definie avec lui, dans le code,
 -- et n'est plus une entree du compendium.
 --

@@ -12,8 +12,8 @@ local Coffres = LCM.CoffresMJ
 local Ecran = {}
 UI.CoffresMJ = Ecran
 
-local LARGEUR, HAUTEUR = 760, 650
-local COLONNE, LIGNE = 210, 26
+local LARGEUR, HAUTEUR = 820, 640
+local COLONNE, LIGNE = 210, 36
 local function Eq() return (LCM.Equilibrage and LCM.Equilibrage.coffres) or {} end
 local function NomMethode(id)
     if id == LCM.Coffres.METHODE_CLEF then return "Clef" end
@@ -22,7 +22,7 @@ local function NomMethode(id)
 end
 
 local function Libelle(parent, texte, x, y)
-    local t = UI.Texte(parent, texte, UI.C.discret, "GameFontNormalSmall")
+    local t = UI.Texte(parent, texte, UI.C.texte, "GameFontNormalSmall")
     t:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
     return t
 end
@@ -85,7 +85,6 @@ end
 local function Travail(point)
     if point then
         local copie = LCM.Copie(point)
-        copie.brouillon, copie.remplacePublie = nil, nil
         copie.coffre = copie.coffre or {}
         copie.coffre.places = copie.coffre.places or 10
         copie.coffre.rayon = copie.coffre.rayon or Eq().rayon or 4
@@ -151,7 +150,18 @@ local function Tableau(parent, y, colonnes, hauteur)
     local zone = UI.Defilement(cadre)
     zone:SetPoint("TOPLEFT", cadre, "TOPLEFT", 1, -24)
     zone:SetPoint("BOTTOMRIGHT", cadre, "BOTTOMRIGHT", -1, 1)
+    -- `hauteur` est un PLAFOND : le tableau grandit avec ses lignes jusque-la,
+    -- puis defile (AjusterTableau).
+    cadre.maxVisible = hauteur - 25
     return cadre, zone
+end
+
+-- Le tableau a la hauteur de ce qu'il contient : l'en-tete, ses lignes et la
+-- ligne « + Ajouter ». Il avait une hauteur fixe, et trois objets laissaient
+-- un grand vide sous eux (16 octobre 2026). Rien n'est ajoute pour le remplir.
+local function AjusterTableau(cadre, zone, contenu)
+    cadre:SetHeight(25 + math.min(contenu, cadre.maxVisible))
+    zone:Regler(contenu)
 end
 
 local function FondLigne(ligne)
@@ -172,7 +182,7 @@ local function BoutonTexte(parent, largeur)
 end
 
 local function Construire()
-    local f = UI.Fenetre("coffres_mj", "Coffres", LARGEUR, HAUTEUR, { x = 100, y = -40 })
+    local f = UI.Fenetre("coffres_mj", "Coffres", LARGEUR, HAUTEUR, { x = 0, y = -20 }, { enTeteSimple = true, sobre = true })
     f.onglet = "creation"
     f.lignes, f.lignesObjets, f.lignesExpertises, f.lignesOutils, f.placements = {}, {}, {}, {}, {}
     f.choixObjet = UI.Choix("coffre_objet", "Objet du coffre")
@@ -183,12 +193,14 @@ local function Construire()
 
     f.liste = UI.Defilement(f.contenu)
     f.liste:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
-    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 34)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 64)
     f.liste:SetWidth(COLONNE)
     f.nouveau = UI.Bouton(f.contenu, "+ Nouveau", 100, 24, function() f:Nouveau() end)
     f.nouveau:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, 0)
     f.supprimer = UI.Bouton(f.contenu, "Supprimer", 100, 24, function() f:Supprimer() end)
     f.supprimer:SetPoint("LEFT", f.nouveau, "RIGHT", 6, 0)
+    f.dupliquer = UI.Bouton(f.contenu, "Dupliquer", 206, 24, function() f:Dupliquer() end)
+    f.dupliquer:SetPoint("BOTTOMLEFT", f.nouveau, "TOPLEFT", 0, 6)
 
     f.droite = CreateFrame("Frame", nil, f.contenu)
     f.droite:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", COLONNE + 16, 0)
@@ -206,35 +218,43 @@ local function Construire()
     c.nom = UI.Champ(c, 300, 22, function(texte) if f.travail then f.travail.label = texte end end)
     c.nom:SetMaxLetters(80)
     c.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 110, 0)
-    Libelle(c, "Emplacements", 0, -38)
-    c.places = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.places = texte end end)
-    c.places:SetPoint("TOPLEFT", c, "TOPLEFT", 110, -32)
-    Libelle(c, "Nombre de verrous", 190, -38)
-    c.verrous = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.verrous = texte end end)
-    c.verrous:SetPoint("TOPLEFT", c, "TOPLEFT", 320, -32)
-    Libelle(c, "Rayon (yards)", 382, -38)
-    c.rayon = UI.Champ(c, 50, 22, function(texte) if f.travail then f.travail.coffre.rayon = texte end end)
-    c.rayon:SetPoint("TOPLEFT", c, "TOPLEFT", 470, -32)
-    c.reset = UI.Case(c, "Réinitialiser à la fermeture", function(coche)
+    c.pages = UI.PagesFormulaire(c, { "Contenu du coffre", "Accès & outils" })
+    Libelle(c.pages[1], "Emplacements", 0, -8)
+    c.places = UI.Champ(c.pages[1], 50, 22, function(texte) if f.travail then f.travail.coffre.places = texte end end)
+    c.places:SetPoint("TOPLEFT", c.pages[1], "TOPLEFT", 110, -2)
+    Libelle(c.pages[1], "Nombre de verrous", 190, -8)
+    c.verrous = UI.Champ(c.pages[1], 50, 22, function(texte) if f.travail then f.travail.coffre.verrous = texte end end)
+    c.verrous:SetPoint("TOPLEFT", c.pages[1], "TOPLEFT", 320, -2)
+    Libelle(c.pages[1], "Rayon (yards)", 382, -8)
+    c.rayon = UI.Champ(c.pages[1], 50, 22, function(texte) if f.travail then f.travail.coffre.rayon = texte end end)
+    c.rayon:SetPoint("TOPLEFT", c.pages[1], "TOPLEFT", 470, -2)
+    c.reset = UI.Case(c.pages[1], "Réinitialiser à la fermeture", function(coche)
         if f.travail then f.travail.coffre.reset = coche end
     end)
-    c.reset:SetPoint("TOPLEFT", c, "TOPLEFT", 0, -64)
-    local aideRayon = Libelle(c, "Distance à laquelle le bouton « Ouvrir » apparaît.", 210, -66)
+    c.reset:SetPoint("TOPLEFT", c.pages[1], "TOPLEFT", 0, -34)
+    local aideRayon = Libelle(c.pages[1], "Distance à laquelle le bouton « Ouvrir » apparaît.", 210, -36)
     aideRayon:SetWidth(310)
-    Libelle(c, "Objets contenus", 0, -98)
-    c.tableauObjets, c.zoneObjets = Tableau(c, -116, {
+    Libelle(c.pages[1], "Objets contenus", 0, -76)
+    c.tableauObjets, c.zoneObjets = Tableau(c.pages[1], -98, {
         { "I", 0, 31 }, { "OBJET", 31, 309 }, { "QUANTITÉ", 340, 110 }, { "", 450, 48 },
-    }, 126)
-    Libelle(c, "Méthodes autorisées — chaque réussite ouvre un verrou", 0, -252)
-    c.tableauExpertises, c.zoneExpertises = Tableau(c, -270, {
+    }, 226)
+    Libelle(c.pages[2], "Méthodes autorisées — chaque réussite ouvre un verrou", 0, -2)
+    c.tableauExpertises, c.zoneExpertises = Tableau(c.pages[2], -26, {
         { "EXPERTISE", 0, 150 }, { "DD", 150, 48 }, { "FATIGUE", 198, 65 },
         { "USURE OUTILS", 263, 98 }, { "REVERROUILLER", 361, 111 }, { "", 472, 26 },
-    }, 104)
-    Libelle(c, "Outils requis", 0, -384)
-    c.tableauOutils, c.zoneOutils = Tableau(c, -402, {
+    }, 150)
+    -- Les outils suivent le tableau des expertises, qui grandit avec ses
+    -- lignes : poses a une hauteur fixe, ils laisseraient un trou entre eux.
+    local titreOutils = Libelle(c.pages[2], "Outils requis", 0, -194)
+    titreOutils:ClearAllPoints()
+    titreOutils:SetPoint("TOPLEFT", c.tableauExpertises, "BOTTOMLEFT", 0, -18)
+    c.tableauOutils, c.zoneOutils = Tableau(c.pages[2], -218, {
         { "OUTIL", 0, 168 }, { "EXPERTISE", 168, 114 }, { "REQUIS", 282, 55 },
         { "CONSOMMÉ", 337, 73 }, { "QTÉ CONS.", 410, 62 }, { "", 472, 26 },
-    }, 126)
+    }, 142)
+    c.tableauOutils:ClearAllPoints()
+    c.tableauOutils:SetPoint("TOPLEFT", c.tableauExpertises, "BOTTOMLEFT", 0, -42)
+    c.tableauOutils:SetPoint("TOPRIGHT", c.tableauExpertises, "BOTTOMRIGHT", 0, -42)
     c.erreur = UI.Texte(c, "", UI.C.plein, "GameFontNormalSmall")
     c.erreur:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 0, 6)
     c.erreur:SetPoint("RIGHT", c, "RIGHT", -150, 0)
@@ -308,7 +328,6 @@ local function Construire()
         local point = self:Point()
         self.creationNeuve = point == nil
         self.travail = Travail(point)
-        self.remplacePublie = point and LCM.Brouillons.EstPublie("points", point.id) or false
         self.pointPose = nil
         c.erreur:SetText("")
         self:Remplir()
@@ -317,6 +336,21 @@ local function Construire()
 
     function f:Nouveau()
         self:Choisir(nil)
+        self:Onglet("creation")
+        c.pages:Choisir(1)
+    end
+
+    -- La copie s'ouvre comme une creation neuve, pas encore enregistree : elle
+    -- ne part dans la base qu'une fois renommee et validee par « Enregistrer ».
+    function f:Dupliquer()
+        local point = self:Point()
+        if not point then LCM.Alerte("choisis d'abord le coffre à dupliquer.") return end
+        self.pointId = nil
+        self.creationNeuve = true
+        self.travail = Travail(Points.Dupliquer(point))
+        self.pointPose = nil
+        c.erreur:SetText("")
+        self:Remplir()
         self:Onglet("creation")
     end
 
@@ -450,7 +484,7 @@ local function Construire()
             ajouter:SetHeight(pas)
             FondLigne(ajouter)
             ajouter.label = UI.Texte(ajouter,
-                outils and "Ajoutez un outil +" or "Ajoutez un objet +",
+                outils and "+ Ajouter un outil" or "+ Ajouter un objet",
                 UI.C.discret, "GameFontNormalSmall")
             ajouter.label:SetAllPoints(ajouter)
             ajouter.label:SetJustifyH("CENTER")
@@ -468,7 +502,7 @@ local function Construire()
         c[cle]:ClearAllPoints()
         c[cle]:SetPoint("TOPLEFT", zone.contenu, "TOPLEFT", 0, -#liste * pas)
         c[cle]:SetPoint("TOPRIGHT", zone.contenu, "TOPRIGHT", 0, -#liste * pas)
-        zone:Regler((#liste + 1) * pas)
+        AjusterTableau(outils and c.tableauOutils or c.tableauObjets, zone, (#liste + 1) * pas)
     end
 
     function f:AfficherContenu()
@@ -563,7 +597,7 @@ local function Construire()
             c.ajouterExpertise:SetHeight(pas)
             FondLigne(c.ajouterExpertise)
             c.ajouterExpertise.label = UI.Texte(c.ajouterExpertise,
-                "Ajoutez une expertise +", UI.C.discret, "GameFontNormalSmall")
+                "+ Ajouter une méthode", UI.C.discret, "GameFontNormalSmall")
             c.ajouterExpertise.label:SetAllPoints(c.ajouterExpertise)
             c.ajouterExpertise.label:SetJustifyH("CENTER")
             local survol = UI.Aplat(c.ajouterExpertise, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
@@ -579,7 +613,7 @@ local function Construire()
         c.ajouterExpertise:ClearAllPoints()
         c.ajouterExpertise:SetPoint("TOPLEFT", c.zoneExpertises.contenu, "TOPLEFT", 0, -#liste * pas)
         c.ajouterExpertise:SetPoint("TOPRIGHT", c.zoneExpertises.contenu, "TOPRIGHT", 0, -#liste * pas)
-        c.zoneExpertises:Regler((#liste + 1) * pas)
+        AjusterTableau(c.tableauExpertises, c.zoneExpertises, (#liste + 1) * pas)
     end
 
     function f:AfficherDetails()
@@ -674,7 +708,7 @@ local function Construire()
         c.erreur:SetText("")
         self.travail.coffre = coffre
         local ok, erreur = LCM.Brouillons.Enregistrer("points", self.travail,
-            self.creationNeuve, self.remplacePublie)
+            self.creationNeuve)
         if not ok then LCM.Alerte(tostring(erreur)); return end
         if Coffres.Renvoyer then Coffres.Renvoyer() end
         LCM.Ok(string.format("Coffre « %s » enregistré.", self.travail.label))
@@ -689,9 +723,7 @@ local function Construire()
             and string.format("Supprimer « %s » et ses %d coffre(s) placé(s) ?", point.label, #poses)
             or string.format("Supprimer « %s » ?", point.label)
         self.confirmation:Demander(texte, function()
-            local ok, raison
-            if point.brouillon == true then ok = LCM.Brouillons.Supprimer("points", point.id)
-            else ok, raison = LCM.Brouillons.Masquer("points", point.id) end
+            local ok, raison = LCM.Brouillons.Supprimer("points", point.id)
             if not ok then LCM.Alerte(tostring(raison or "suppression impossible")); return end
             for _, pose in ipairs(poses) do Coffres.Retirer(pose.id) end
             local premier = Points.Nature("coffre")[1]
@@ -780,12 +812,12 @@ local function Construire()
     end
 
     function f:Afficher()
-        local definitions = Points.Nature("coffre")
+        local definitions = self:FiltrerDefinitions(Points.Nature("coffre"))
         for index, point in ipairs(definitions) do
             local bouton = self.lignes[index]
             if not bouton then
                 bouton = UI.Bouton(self.liste.contenu, "", COLONNE - 10, LIGNE - 2, function(b)
-                    self:Choisir(b.pointId)
+                    self:ChangerModele(function() self:Choisir(b.pointId) end)
                 end)
                 bouton.label:ClearAllPoints()
                 bouton.label:SetPoint("LEFT", bouton, "LEFT", 6, 0)
@@ -819,6 +851,7 @@ local function Construire()
         self:Raise()
     end
 
+    UI.AtelierInteractions(f, "coffre")
     f:Hide()
     return f
 end

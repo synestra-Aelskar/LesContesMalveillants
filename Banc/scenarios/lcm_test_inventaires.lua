@@ -71,27 +71,39 @@ attendu("vider la case", I.Vider(moi, "sacs", 1, 3), true)
 attendu("plus rien dans le sac", I.Emplacement(moi, "sacs", 1).cases, nil)
 
 dire("== deplacer un sac, avec ce qu'il contient")
+-- 16 octobre 2026 : chacun sa place. Un SAC ne va que dans Sacs, une sacoche
+-- que dans Saccoches (Inventaire.PeutPorter). Ce passage deplacait le gros sac
+-- vers une saccoche ; il se deplace maintenant d'un emplacement de sac a
+-- l'autre, et la saccoche le refuse.
 I.Ranger(moi, "sacs", 1, 2, "ressources/eau", 3)
-attendu("vers une saccoche", I.Deplacer(moi, "sacs", 1, "saccoches", 2), true)
-attendu("le sac est arrive", I.Emplacement(moi, "saccoches", 2).sac, "gros_sac")
-attendu("avec son contenu", I.Case(I.Emplacement(moi, "saccoches", 2), 2).quantite, 3)
+refus, raison = I.Deplacer(moi, "sacs", 1, "saccoches", 2)
+attendu("un sac vers une saccoche : refus", refus, false)
+attendu("  et dit pourquoi", raison, "un sac se porte dans un emplacement Sacs.")
+attendu("vers l'autre emplacement de sac", I.Deplacer(moi, "sacs", 1, "sacs", 2), true)
+attendu("le sac est arrive", I.Emplacement(moi, "sacs", 2).sac, "gros_sac")
+attendu("avec son contenu", I.Case(I.Emplacement(moi, "sacs", 2), 2).quantite, 3)
 attendu("le depart est libre", I.Emplacement(moi, "sacs", 1), nil)
-attendu("et l'onglet vide n'est pas garde", moi.inventaire.sacs, nil)
-refus, raison = I.Deplacer(moi, "sacs", 1, "saccoches", 3)
+refus, raison = I.Deplacer(moi, "sacs", 1, "sacs", 2)
 attendu("depuis un emplacement vide : refus", refus, false)
 I.Poser(moi, "sacs", 1, "sac_de_gros")
-refus, raison = I.Deplacer(moi, "sacs", 1, "saccoches", 2)
-attendu("vers un emplacement occupe : refus", refus, false)
-dire("     " .. tostring(raison))
-attendu("rien n'a bouge", I.Emplacement(moi, "sacs", 1).sac, "sac_de_gros")
-refus, raison = I.Deplacer(moi, "saccoches", 2, "saccoches", 9)
+-- Vers un emplacement OCCUPE, les deux echangent leur place (on reorganise
+-- ses sacs) ; c'etait un refus. On echange, on verifie, puis on echange de
+-- nouveau pour garder la situation dont la suite a besoin.
+refus, raison = I.Deplacer(moi, "sacs", 1, "sacs", 2)
+attendu("vers un emplacement occupe : echange", refus, true)
+attendu("  chacun a pris la place de l'autre",
+    I.Emplacement(moi, "sacs", 1).sac .. "/" .. I.Emplacement(moi, "sacs", 2).sac, "gros_sac/sac_de_gros")
+attendu("  le contenu a suivi", I.Case(I.Emplacement(moi, "sacs", 1), 2).quantite, 3)
+I.Deplacer(moi, "sacs", 1, "sacs", 2)
+attendu("rien n'a bouge au bout du compte", I.Emplacement(moi, "sacs", 1).sac, "sac_de_gros")
+refus, raison = I.Deplacer(moi, "sacs", 2, "sacs", 9)
 attendu("vers un emplacement qui n'existe pas : refus", refus, false)
-attendu("sur place : refus", (I.Deplacer(moi, "saccoches", 2, "saccoches", 2)), false)
+attendu("sur place : refus", (I.Deplacer(moi, "sacs", 2, "sacs", 2)), false)
 -- On remet la situation d'avant pour la suite : gros sac vide en Sacs 1.
 I.Retirer(moi, "sacs", 1)
-I.Deplacer(moi, "saccoches", 2, "sacs", 1)
+I.Deplacer(moi, "sacs", 2, "sacs", 1)
 I.Vider(moi, "sacs", 1, 2)
-attendu("retour a la situation d'avant", I.Emplacement(moi, "sacs", 1).sac .. "/" .. tostring(moi.inventaire.saccoches),
+attendu("retour a la situation d'avant", I.Emplacement(moi, "sacs", 1).sac .. "/" .. tostring(I.Emplacement(moi, "sacs", 2)),
     "gros_sac/nil")
 
 dire("== la fenetre")
@@ -206,7 +218,8 @@ for _, l in ipairs(menu.lignes) do if l:IsShown() then libelles[#libelles + 1] =
 -- garde Quantite et Deplacer au milieu. « Supprimer » (sans confirmation) a
 -- laisse la place a « Jeter », qui demande. Pas de groupe ici : « Échanger »
 -- n'a pas de sous-menu et dit pourquoi.
-attendu("options", table.concat(libelles, ","), "Voir,Échanger,Quantite : 1,Deplacer >,Jeter")
+attendu("options", table.concat(libelles, ","), "Voir,Échanger,Quantite : 1,Deplacer >,Détruire")
+-- 16 octobre 2026 : « Jeter » est devenu « Détruire » (jeter, c'est poser au sol).
 menu.lignes[3]:Click()
 local d = LCM_Demande
 d.saisie:SetText("abc")

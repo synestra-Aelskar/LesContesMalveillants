@@ -84,7 +84,11 @@ local marchand = P.Add({
     offres = { { id = "herbe", label = "Herbe de lune", prix = 5, devise = "ecus",
                  stock = { limite = 2, unites = 0, minutes = 0 } } },
 })
-attendu("le vendeur passe", marchand.offres[1].prix, 5)
+-- 16 octobre 2026 : un prix est une liste de facons de payer (Core/Prix.lua).
+-- L'ancienne forme (un montant, une devise) se lit toujours : une facon, un
+-- morceau.
+attendu("le vendeur passe", marchand.offres[1].formules[1][1].quantite, 5)
+attendu("  payé en écus", marchand.offres[1].formules[1][1].ref, "devises/ecus")
 attendu("deux points de plus qu'au depart", #P.list, pointsAvant + 2)
 attendu("par nature", #P.Nature("vendeur"), vendeursAvant + 1)
 attendu("et l'autre aussi", #P.Nature("ressource"), ressourcesAvant + 1)

@@ -1,5 +1,11 @@
--- Atelier du MJ : saisie des brouillons en seance, refus, modification,
--- suppression, et la fenetre pilotee au clic.
+-- Atelier du MJ : saisie en seance, refus, modification, suppression, et la
+-- fenetre pilotee au clic.
+--
+-- 15 octobre 2026 : plus de brouillons. Une entree enregistree EXISTE, d'ou
+-- qu'elle vienne ; elle ne porte aucune marque, l'atelier n'a plus de
+-- « lecture seule » pour le contenu des fichiers ni de « reprendre en
+-- brouillon », et supprimer supprime. Les attentes qui racontaient l'ancien
+-- modele ont ete reecrites ici, avec ce qui les remplace.
 local function dire(...) print(table.concat({...}, " ")) end
 local ko = 0
 local function attendu(libelle, obtenu, voulu)
@@ -8,13 +14,11 @@ local function attendu(libelle, obtenu, voulu)
     dire(ok and "  ok  " or "  KO  ", libelle, "=", tostring(obtenu), ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 
--- Brouillons d'une seance precedente, deja en sauvegarde : un valide, un
--- fautif, et un qui reprend l'identifiant d'un contenu publie.
+-- Entrees d'une seance precedente, encore dans la file d'envoi : une valide,
+-- une fautive, et une correction d'une entree venue d'un fichier.
 LCM.Brouillons.Set("traits", { id = "agile", label = "Agile", cout = 1, bonus = { acrobaties = 2 } })
 LCM.Brouillons.Set("traits", { id = "triche", label = "Triche", cout = 1, bonus = { force = 5 } })
--- `remplacePublie` : c'est ce que pose l'enregistrement quand le MJ corrige
--- sciemment du contenu publie. Un brouillon ecrit en seance l'a toujours ;
--- sans lui, l'atelier n'a aucun moyen de savoir qu'il recouvre un fichier.
+-- `remplacePublie` : reste de l'ancien modele, que la migration efface.
 LCM.Brouillons.Set("traits",
     { id = "escalade_jungle", label = "Correction", cout = 1, remplacePublie = true })
 
@@ -37,16 +41,20 @@ for rang = #LCM.Forge.list, 1, -1 do
 end
 
 dire("== A la connexion")
-attendu("brouillon valide jouable", LCM.Traits.Get("agile") and LCM.Traits.Get("agile").brouillon, true)
-attendu("brouillon fautif ecarte", LCM.Traits.Get("triche"), nil)
--- Depuis le 9 octobre 2026, un brouillon qui RECOUVRE une entree publiee et
--- qui en differe est applique au chargement. Avant, la correction tenait le
--- temps de la seance puis disparaissait au rechargement, sans un mot, alors
--- qu'elle etait toujours en sauvegarde.
-attendu("le brouillon recouvre le fichier", LCM.Traits.Get("escalade_jungle").label, "Correction")
+attendu("entree valide jouable", LCM.Traits.Get("agile") ~= nil, true)
+attendu("  sans marque", LCM.Traits.Get("agile").brouillon, nil)
+attendu("entree fautive ecartee", LCM.Traits.Get("triche"), nil)
+-- Depuis le 9 octobre 2026, une correction encore dans la file est appliquee
+-- au chargement par-dessus le fichier. Avant, elle tenait le temps de la
+-- seance puis disparaissait au rechargement, sans un mot.
+attendu("la correction s'applique", LCM.Traits.Get("escalade_jungle").label, "Correction")
+attendu("  et perd ses restes de l'ancien modele",
+    B.Get("traits", "escalade_jungle").remplacePublie, nil)
 local annonce = false
 for _, l in ipairs(__sorties) do
-    if l:lower():find("brouillon refuse %(traits%)") and l:find("primaire") then annonce = true end
+    -- Pas de `lower()` : sous Windows, il depend de la locale du C et abime
+    -- les octets de l'UTF-8 (« é » n'en sort pas intact).
+    if l:find("refusée (traits / triche)", 1, true) and l:find("primaire") then annonce = true end
 end
 attendu("le refus est annonce", annonce, true)
 
@@ -62,12 +70,12 @@ attendu("forme rendue", t.cout, 2)
 attendu("rien d'enregistre", #LCM.Traits.list, avant)
 attendu("le fichier genere charge toujours", LCM.Traits.Get("escalade_jungle") ~= nil, true)
 
-dire("== Enregistrer un brouillon")
+dire("== Enregistrer une entree")
 local ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Pied sûr", cout = 1,
     bonus = { equilibre = 2 }, avantage = { "equilibre" } }, true)
 attendu("accepte", ok, true)
 attendu("jouable aussitot", LCM.Traits.Get("pied_sur") ~= nil, true)
-attendu("marque brouillon", LCM.Traits.Get("pied_sur").brouillon, true)
+attendu("sans marque", LCM.Traits.Get("pied_sur").brouillon, nil)
 attendu("sauvegarde", LCM_MJ_DB.brouillons.traits.pied_sur.label, "Pied sûr")
 
 ok, raison = B.Enregistrer("traits", { id = "pied_sur", label = "Autre", cout = 1 }, true)
@@ -84,7 +92,9 @@ ok, raison = B.Enregistrer("traits", { id = "cher", label = "Cher", cout = 9 }, 
 attendu("cout hors bornes refuse", ok, false)
 
 ok, raison = B.Enregistrer("traits", { id = "escalade_jungle", label = "Copie", cout = 1 }, true)
-attendu("contenu publie protege", ok, false)
+-- Toujours refuse, mais pour la bonne raison : en CREATION, un identifiant
+-- deja pris est une collision, d'ou que vienne l'entree.
+attendu("identifiant deja pris", ok, false)
 dire("     raison : " .. tostring(raison))
 
 ok, raison = B.Enregistrer("objets", { id = "epee", label = "Epee" }, true)
@@ -92,7 +102,7 @@ attendu("objet sans categorie refuse", ok, false)
 dire("     raison : " .. tostring(raison))
 ok = B.Enregistrer("objets", { id = "epee", label = "Epee", categorie = "arme", bonus = { pen_tranchant = 2 } }, true)
 attendu("objet accepte", ok, true)
-attendu("objet jouable", LCM.Objets.Get("epee") and LCM.Objets.Get("epee").brouillon, true)
+attendu("objet jouable", LCM.Objets.Get("epee") ~= nil, true)
 ok = B.Enregistrer("objets", { id = "gantelet", label = "Gantelet", categorie = "equipement", bonus = { force = 1 } }, true)
 attendu("objet : une primaire est permise (template)", ok, true)
 
@@ -102,7 +112,7 @@ ok = B.Enregistrer("traits", { id = "pied_sur", label = "Pied très sûr", cout 
 attendu("modification acceptee", ok, true)
 attendu("meme table", LCM.Traits.Get("pied_sur"), tenu)
 attendu("cout change", tenu.cout, 3)
-attendu("toujours brouillon", tenu.brouillon, true)
+attendu("toujours sans marque", tenu.brouillon, nil)
 attendu("avantage retire", tenu.avantage.equilibre, nil)
 local n = 0 for _, x in ipairs(LCM.Traits.list) do if x.id == "pied_sur" then n = n + 1 end end
 attendu("pas de doublon dans la liste", n, 1)
@@ -137,70 +147,34 @@ attendu("panneau races cache", f.panneaux.races:IsShown(), false)
 attendu("enregistrer visible", f.enregistrer:IsShown(), true)
 attendu("supprimer cache en creation", f.supprimer:IsShown(), false)
 
--- la liste : le trait publie y est, en lecture seule, A COTE de son doublon.
--- Depuis le 9 octobre 2026 le brouillon prend la place du publie dans le
--- registre ; l'atelier va donc rechercher le fichier dans ce que le
--- recouvrement a mis de cote (Brouillons.Original), sans quoi la ligne
--- publiee disparaissait et on ne pouvait plus la relire ni la reprendre.
-local trouve
-local doublon
+-- la liste : une ligne par entree. Il y en avait deux pour une entree d'un
+-- fichier corrigee en seance (« publie » et « remplace le publie ») ; il n'y a
+-- plus qu'une entree, la corrigee.
+local lignes = {}
 for _, b in ipairs(f.liste.lignes) do
-    if b:IsShown() and b.entreeId == "escalade_jungle" then
-        if b.publie then trouve = b else doublon = b end
-    end
+    if b:IsShown() and b.entreeId == "escalade_jungle" then lignes[#lignes + 1] = b end
 end
-attendu("doublon liste a part", doublon ~= nil, true)
-attendu("publie liste", trouve ~= nil, true)
-attendu("le fichier reste retenu de cote",
-    LCM.Brouillons.Original("traits", "escalade_jungle").label, "Escalade de la jungle")
-trouve:Click()
-attendu("publie : lecture seule", f.enregistrer:IsShown(), false)
-attendu("publie : bonus charges", #f.edition.bonus, 1)
-attendu("publie : avantage charge", f.edition.avantage[1], "escalade")
-attendu("publie : pas de suppression", f.supprimer:IsShown(), false)
-doublon:Click()
-attendu("doublon : brouillon ouvert", f.edition.label, "Correction")
--- 3 octobre 2026 : un brouillon qui porte l'identifiant d'un publie le
--- REMPLACE au lieu d'etre ignore. Le refus pur rendait l'atelier inutile en
--- seance : on ouvrait une entree, on corrigeait une faute, et aucun bouton ne
--- permettait d'enregistrer.
-attendu("doublon : enregistrement possible", f.enregistrer:IsShown(), true)
-attendu("doublon : suppression possible", f.supprimer:IsShown(), true)
-attendu("doublon : dit qu'il remplace", (f.message:GetText() or ""):find("REMPLACE") ~= nil, true)
-attendu("doublon : dit de le reporter", (f.message:GetText() or ""):find("fichier") ~= nil, true)
-
--- Et depuis un contenu PUBLIE, on peut le reprendre en brouillon.
-trouve:Click()
-attendu("publie : un bouton pour le reprendre", f.reprendre:IsShown(), true)
-f.reprendre:Click()
-attendu("repris : plus en lecture seule", f.edition.publie, false)
-attendu("repris : enregistrement offert", f.enregistrer:IsShown(), true)
-attendu("repris : marque comme remplacant", f.edition.remplace, true)
--- On n'enregistre PAS ici : ca remplacerait le trait publie dont la suite du
--- scenario a besoin. Le coeur est verifie a part, sur une entree jetable.
+attendu("une seule ligne", #lignes, 1)
+lignes[1]:Click()
+attendu("elle ouvre la correction", f.edition.label, "Correction")
+attendu("  modifiable", f.enregistrer:IsShown(), true)
+attendu("  supprimable", f.supprimer:IsShown(), true)
+attendu("  sans avertissement « remplace »", (f.message:GetText() or ""):find("REMPLACE"), nil)
+attendu("plus de bouton « Modifier (brouillon) »", f.reprendre, nil)
 f:Nouveau()
 
--- Une entree publiee QUI N'A PAS DEJA DE BROUILLON : en prendre une qui en a
--- un detruirait celui du scenario.
-local idPublie
+-- Une entree d'un fichier, que la file ne tient pas : elle se modifie comme
+-- toute autre, sans « remplacer » ni detour.
+local idFichier
 for _, t in ipairs(LCM.Traits.list) do
-    if not t.brouillon and not LCM.Brouillons.Get("traits", t.id) then idPublie = t.id break end
+    if not LCM.Brouillons.Get("traits", t.id) then idFichier = t.id break end
 end
-if idPublie then
-    local avant = LCM.Traits.Get(idPublie).label
-    attendu("sans « remplacer », le fichier fait foi",
-        select(1, LCM.Brouillons.Enregistrer("traits",
-            { id = idPublie, label = "Essai", cout = 1 },
-            false)), false)
-    attendu("avec, on peut corriger en seance",
-        select(1, LCM.Brouillons.Enregistrer("traits",
-            { id = idPublie, label = "Essai", cout = 1 },
-            false, true)), true)
-    attendu("et c'est marque", LCM.Brouillons.Get("traits", idPublie).remplacePublie, true)
-    -- On remet tout en place pour la suite.
-    LCM.Brouillons.Supprimer("traits", idPublie)
-    local revenu = LCM.Traits.Get(idPublie)
-    attendu("le publie revient apres suppression", revenu ~= nil and revenu.label, avant)
+if idFichier then
+    local copie = LCM.Copie(LCM.Traits.Get(idFichier))
+    copie.label = "Essai"
+    attendu("modifiee sans detour",
+        select(1, LCM.Brouillons.Enregistrer("traits", copie, false)), true)
+    attendu("  en jeu", LCM.Traits.Get(idFichier).label, "Essai")
 end
 
 dire("== Atelier : choisir une icone sans la taper")
@@ -396,16 +370,18 @@ dire("== Atelier : statuts dans la liste")
 f.onglets.boutons[1]:Click()
 local statuts = {}
 for _, b in ipairs(f.liste.lignes) do
-    if b:IsShown() then statuts[b.entreeId .. (b.publie and ":publie" or "")] = b.label:GetText() end
+    if b:IsShown() then statuts[b.entreeId] = b.label:GetText() end
 end
 attendu("fautif marque refuse", (statuts.triche or ""):find("refusé") ~= nil, true)
-attendu("doublon marque", (statuts.escalade_jungle or ""):find("remplace le publié") ~= nil, true)
-attendu("publie marque", (statuts["escalade_jungle:publie"] or ""):find("· publié") ~= nil, true)
+-- Plus de « · publié » ni de « remplace le publié » : une entree est une entree.
+attendu("une entree n'a pas de suffixe", statuts.escalade_jungle, "Correction")
 
-dire("== Supprimer un doublon laisse le publie en place")
-attendu("le brouillon doublon part", B.Supprimer("traits", "escalade_jungle"), true)
-attendu("le trait publie reste", LCM.Traits.Get("escalade_jungle") ~= nil, true)
-attendu("et reste publie", LCM.Traits.Get("escalade_jungle").brouillon, nil)
+dire("== Supprimer une entree venue d'un fichier")
+-- Avant : supprimer le « doublon » rendait le publie. Maintenant supprimer
+-- supprime, et la base suit au /reload.
+attendu("supprimee", B.Supprimer("traits", "escalade_jungle"), true)
+attendu("retiree du jeu", LCM.Traits.Get("escalade_jungle"), nil)
+attendu("notee pour la base", B.EstMasquee("traits", "escalade_jungle"), true)
 
 dire("== Atelier : les familles du compendium du template")
 local onglets = {}

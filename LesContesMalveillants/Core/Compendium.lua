@@ -6,7 +6,7 @@
 -- ordonner ses champs, lire une valeur, la mettre en texte, composer la carte
 -- d'une entree (en-tete, meta, corps, statistiques, pied) et regrouper les
 -- entrees en sous-categories. La fenetre (UI/Compendium.lua) ne fait que
--- l'afficher ; l'editeur du MJ ne fait que l'ecrire en brouillon.
+-- l'afficher ; l'editeur du MJ ne fait que l'enregistrer.
 --
 -- La composition de la carte reprend BuildEntryDisplayParts de Necronicon :
 -- meme ordre, memes separateurs (« | » sur une ligne, saut de ligne en
@@ -70,7 +70,7 @@ function Compendium.Registre(categorie)
 end
 
 -- Les entrees d'une categorie, dans l'ordre de leur declaration (celui du
--- template, puis les brouillons du MJ).
+-- template, puis les entrees du MJ).
 function Compendium.Entrees(categorie)
     if type(categorie) ~= "table" then return {} end
     if categorie.entrees then return categorie.entrees() end

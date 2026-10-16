@@ -73,6 +73,15 @@ _G.__groupe = function(membres, raid)
     groupe = membres or {}
     enRaid = raid == true
 end
+-- `__deconnecter(nom, vrai)` : ce membre reste dans le groupe, mais hors ligne
+-- (les sacs au sol changent alors de gardien, Core/SacsAuSol.lua).
+local horsLigne = {}
+_G.__deconnecter = function(nom, oui) horsLigne[tostring(nom)] = oui ~= false or nil end
+function UnitIsConnected(unit)
+    local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
+    local nom = index and groupe[tonumber(index)]
+    return not (nom and horsLigne[nom])
+end
 function GetNumGroupMembers() return #groupe end
 function IsInRaid() return enRaid end
 function IsInGroup() return enRaid or #groupe > 0 end
@@ -403,7 +412,9 @@ local function NouveauCadre(kind, nom, parent, template)
     end
     function f:SetMovable() end
     function f:SetResizable() end
-    function f:EnableMouse() end
+    -- Retenu, pour qu'un scenario sache si un cadre prend la souris.
+    function f:EnableMouse(v) self.__souris = v and true or false end
+    function f:IsMouseEnabled() return self.__souris == true end
     function f:EnableKeyboard(v) self.__keyboard = v end
     function f:SetPropagateKeyboardInput(v) self.__propagateKeyboard = v end
     function f:EnableMouseWheel() end
@@ -456,6 +467,9 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetMaxLetters(n) self.__maxLetters = n end
     function f:SetCursorPosition() end
     function f:SetTextInsets() end
+    -- Une EditBox se cadre et se colore comme un texte (UI.ChampCellule).
+    function f:SetJustifyH(v) self.__justifyH = v end
+    function f:SetTextColor(...) self.__textColor = {...} end
     function f:SetMultiLine() end
     function f:Saisir(texte)
         -- Simule une frappe : pose le texte puis previent la fenetre.

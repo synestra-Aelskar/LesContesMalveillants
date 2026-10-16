@@ -25,6 +25,8 @@ local Marchands = {
     definitions = {}, points = {},
     -- Achats demandes au MJ present, sans reponse encore : « v/o » -> instant.
     enAttente = {},
+    -- Et la facon de payer choisie pour chacun : la reponse du MJ arrive apres.
+    choix = {},
     -- Achats faits en l'absence du MJ, a lui dire : « v/o » -> { a, v, o, n }.
     attente = {},
 }
@@ -57,25 +59,33 @@ function Marchands.Rayon() return tonumber(Eq().rayon) or 4 end
 -- ===== Le paquet d'un vendeur ==============================================
 -- Les offres en table imbriquee (l'encodeur sait les dire) ; les points en
 -- une chaine, comme la recolte. Cles courtes : un etal de vingt articles fait
--- deja plusieurs morceaux.
+-- deja plusieurs morceaux. Le prix voyage plie en une chaine (Prix.Plier) :
+-- ses facons et leurs morceaux en tables feraient trois niveaux de plus.
 
 function Marchands.Paquet(definition, points)
     local o, b = {}, {}
     for _, offre in ipairs(definition.offres or {}) do
         local definitionObjet = LCM.Echange and LCM.Echange.DefinitionObjet(offre.entree)
         o[#o + 1] = { i = offre.id, e = offre.entree, l = offre.label, q = offre.quantite,
-            p = offre.prix, d = offre.devise, g = offre.onglet, s = offre.limite, r = offre.restant,
-            x = definitionObjet }
+            f = LCM.Prix.Plier(LCM.Prix.DeLOffre(offre)), g = offre.onglet, s = offre.limite,
+            r = offre.restant, x = definitionObjet }
     end
     for _, rachat in ipairs(definition.rachats or {}) do
         b[#b + 1] = { i = rachat.id, e = rachat.entree, l = rachat.label,
-            p = rachat.prix, d = rachat.devise, g = rachat.onglet }
+            f = LCM.Prix.Plier(LCM.Prix.DeLOffre(rachat)), g = rachat.onglet }
     end
     return { i = definition.id, n = definition.label, o = o, b = b,
         p = LCM.Recolte.Plier(points) }
 end
 
 local function Nombre(v, defaut) return tonumber(v) or defaut end
+
+-- Le prix d'une offre recue. Un MJ pas encore a jour envoie l'ancienne forme
+-- (`p` et `d`, un montant et une devise).
+local function FaconsRecues(o)
+    if Texte(o.f) ~= "" then return LCM.Prix.Deplier(o.f) end
+    return LCM.Prix.Lire(Nombre(o.p), Texte(o.d)) or {}
+end
 
 function Marchands.Lire(paquet)
     local id = Texte(paquet and paquet.i)
@@ -96,7 +106,7 @@ function Marchands.Lire(paquet)
             definition.offres[#definition.offres + 1] = {
                 id = Texte(o.i), entree = Texte(o.e), label = Texte(o.l),
                 quantite = math.max(1, math.floor(Nombre(o.q, 1))),
-                prix = Nombre(o.p), devise = Texte(o.d) ~= "" and Texte(o.d) or nil,
+                formules = FaconsRecues(o),
                 onglet = Texte(o.g) ~= "" and Texte(o.g) or nil,
                 limite = math.max(0, math.floor(Nombre(o.s, 0))),
                 restant = math.max(0, math.floor(Nombre(o.r, 0))),
@@ -113,7 +123,7 @@ function Marchands.Lire(paquet)
         if Texte(o.i) ~= "" then
             definition.rachats[#definition.rachats + 1] = {
                 id = Texte(o.i), entree = Texte(o.e), label = Texte(o.l),
-                prix = Nombre(o.p), devise = Texte(o.d) ~= "" and Texte(o.d) or nil,
+                formules = FaconsRecues(o),
                 onglet = Texte(o.g) ~= "" and Texte(o.g) or nil,
             }
         end
@@ -298,30 +308,32 @@ end
 
 -- ===== Acheter =============================================================
 
-local function Livrer(definition, offre)
+-- Le paiement est verifie une seconde fois ici : entre la demande et la
+-- reponse du MJ, le joueur a pu depenser ce qu'il comptait donner.
+local function Livrer(definition, offre, facon)
     local entity = LCM.Entities.Self()
+    local peut, manque = LCM.Prix.Peut(entity, facon)
+    if not peut then return false, manque end
     local ok, raison = LCM.Inventaire.Deposer(entity, offre.entree, offre.quantite)
     if not ok then return false, raison or "impossible de ranger." end
-    if offre.prix and offre.prix > 0 and offre.devise then
-        LCM.Bourse.Debiter(entity, offre.devise, offre.prix)
-    end
+    LCM.Prix.Payer(entity, facon)
     LCM.Ok(string.format("Acheté : %s x%d.", Marchands.Libelle(offre), offre.quantite))
     if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
     return true
 end
 
--- Rend vrai quand l'achat est fait (ou demande au MJ).
-function Marchands.Acheter(defId, offreId)
+-- Rend vrai quand l'achat est fait (ou demande au MJ). `choix` : le rang de
+-- la facon de payer, quand l'offre en propose plusieurs (Core/Prix.lua).
+function Marchands.Acheter(defId, offreId, choix)
     local offre, definition = Marchands.Offre(defId, offreId)
     if not offre then return false, "offre inconnue." end
     if not Devant(defId) then return false, "tu n'es pas devant ce marchand." end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
-    if offre.prix and offre.prix > 0 and offre.devise
-        and not LCM.Bourse.Peut(entity, offre.devise, offre.prix) then
-        local devise = LCM.Devises.Get(offre.devise)
-        return false, string.format("il te faut %d %s.", offre.prix, (devise and devise.label) or offre.devise)
-    end
+    local facon, pourquoi = LCM.Prix.Choisir(LCM.Prix.DeLOffre(offre), choix)
+    if not facon then return false, pourquoi end
+    local peut, manque = LCM.Prix.Peut(entity, facon)
+    if not peut then return false, manque end
     local reste = Marchands.Disponible(defId, offre)
     if reste and reste < 1 then return false, "il n'y en a plus." end
     local cle = Cle(defId, offreId)
@@ -333,27 +345,28 @@ function Marchands.Acheter(defId, offreId)
 
     -- Le MJ lui-meme : son propre arbitre.
     if definition.auteur == Moi() then
-        if not reste then return Livrer(definition, offre) end
+        if not reste then return Livrer(definition, offre, facon) end
         if not Marchands.Arbitre then return false, "aucun arbitre." end
         local ok, raison = Marchands.Arbitre(defId, offreId, Moi())
         if not ok then return false, raison end
-        local livre, pourquoi = Livrer(definition, offre)
+        local livre, refus = Livrer(definition, offre, facon)
         if livre then Marchands.Confirmer(defId, offreId, Moi())
         else Marchands.Restituer(defId, offreId, Moi()) end
-        return livre, pourquoi
+        return livre, refus
     end
 
     -- Sans stock a partager, rien a arbitrer : on achete.
-    if not reste then return Livrer(definition, offre) end
+    if not reste then return Livrer(definition, offre, facon) end
 
     if LCM.Recolte.EnLigne(definition.auteur) then
         Marchands.enAttente[cle] = maintenant
+        Marchands.choix[cle] = facon
         LCM.Reseau.Envoyer(S.acheter, { v = defId, o = offreId }, "WHISPER", definition.auteur)
         return true
     end
 
     -- MJ absent : on achete, et on le lui dira.
-    local ok, raison = Livrer(definition, offre)
+    local ok, raison = Livrer(definition, offre, facon)
     if not ok then return false, raison end
     local a = Marchands.attente[cle] or { a = definition.auteur, v = defId, o = offreId, n = 0 }
     a.n = a.n + 1
@@ -363,17 +376,23 @@ function Marchands.Acheter(defId, offreId)
     return true
 end
 
--- Revendre : le vendeur reprend un objet du sac et paie. Sans stock, sans MJ.
-function Marchands.Revendre(defId, rachatId)
+-- Revendre : le vendeur reprend un objet du sac et paie, de la facon que le
+-- joueur choisit. Sans stock, sans MJ. Si le paiement ne tient pas dans les
+-- sacs, l'objet est rendu.
+function Marchands.Revendre(defId, rachatId, choix)
     local rachat = Marchands.Rachat(defId, rachatId)
     if not rachat then return false, "offre de rachat inconnue." end
     if not Devant(defId) then return false, "tu n'es pas devant ce marchand." end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
+    local facon, pourquoi = LCM.Prix.Choisir(LCM.Prix.DeLOffre(rachat), choix)
+    if not facon then return false, pourquoi end
     local ok, raison = LCM.Inventaire.Prendre(entity, rachat.entree)
     if not ok then return false, raison or "objet absent des sacs." end
-    if rachat.prix and rachat.prix > 0 and rachat.devise then
-        LCM.Bourse.Crediter(entity, rachat.devise, rachat.prix)
+    local verse, refus = LCM.Prix.Verser(entity, facon)
+    if not verse then
+        LCM.Inventaire.Deposer(entity, rachat.entree, 1)
+        return false, refus
     end
     LCM.Ok(string.format("Revendu : %s.", Marchands.Libelle(rachat)))
     if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
@@ -443,13 +462,16 @@ LCM.WhenReady(function()
         local offre, d = Marchands.Offre(v, o)
         if not offre or d.auteur ~= expediteur then return end
         Marchands.enAttente[cle] = nil
+        local facon = Marchands.choix[cle] or LCM.Prix.Choisir(LCM.Prix.DeLOffre(offre))
+        Marchands.choix[cle] = nil
         if tonumber(donnees.r) then offre.restant = math.max(0, math.floor(tonumber(donnees.r))) end
         if tostring(donnees.ok or "") ~= "1" then
             Prevenir()
             LCM.Alerte(Texte(donnees.n) ~= "" and Texte(donnees.n) or "il n'y en a plus.")
             return
         end
-        local ok, raison = Livrer(d, offre)
+        local ok, raison = false, "choisis comment payer."
+        if facon then ok, raison = Livrer(d, offre, facon) end
         if ok then
             LCM.Reseau.Envoyer(S.confirmer, { v = v, o = o }, "WHISPER", expediteur)
         else

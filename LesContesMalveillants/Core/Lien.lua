@@ -256,7 +256,7 @@ function Lien.Deserialiser(texte)
 end
 
 -- L'entree citee. Celle qu'on nous a ENVOYEE passe avant la notre : c'est
--- elle que l'autre voulait montrer (un brouillon corrige depuis, un PNJ que
+-- elle que l'autre voulait montrer (une entree corrigee depuis, un PNJ que
 -- nous n'avons pas). Sans envoi, la notre.
 function Lien.TrouverEntree(proprietaire, categorieId, id)
     local categorie = LCM.Compendium.Get(categorieId)

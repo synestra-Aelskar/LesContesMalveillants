@@ -112,15 +112,15 @@ local function Construire()
                 end
             end
         end
-        options[#options + 1] = { label = "Jeter", action = function()
+        options[#options + 1] = { label = "Détruire", action = function()
             if solde <= 0 then Rien() return end
-            DemanderMontant(string.format("Jeter combien de %s ?", label), solde, function(n)
-                confirmation = confirmation or UI.Confirmer(UIParent, "", "Jeter")
-                confirmation:Demander(string.format("Jeter %d %s ?\nC'est perdu : on ne le récupère pas.", n, label),
+            DemanderMontant(string.format("Détruire combien de %s ?", label), solde, function(n)
+                confirmation = confirmation or UI.Confirmer(UIParent, "", "Détruire")
+                confirmation:Demander(string.format("Détruire %d %s ?\nC'est perdu : on ne le récupère pas.", n, label),
                     function()
                         local ok, raison = Bourse.Debiter(entity, id, n)
                         if not ok then LCM.Alerte(tostring(raison)) return end
-                        LCM.Info(string.format("%d %s jeté(s).", n, label))
+                        LCM.Info(string.format("%d %s détruit(s).", n, label))
                         self:Afficher()
                     end)
             end)

@@ -3,8 +3,8 @@
 --
 --   * « Forge d'entrées » (CreateForgeWindow, 600 x 700) : on choisit un jeu
 --     et une rarete, on donne un nom, on dose les statistiques au +/-, un
---     compteur dit ce qui est depense sur le pool. « Créer l'entrée » en fait
---     un brouillon, sans ouvrir l'editeur du compendium : icone et
+--     compteur dit ce qui est depense sur le pool. « Créer l'entrée »
+--     l'enregistre, sans ouvrir l'editeur du compendium : icone et
 --     description se saisissent ici, sous le nom.
 --   * « Équilibrage de la forge » (CreateForgeBalanceWindow) : l'onglet
 --     « Jeu & raretés » (nom, categorie cible, raretes) et l'onglet « Champs »
@@ -22,7 +22,7 @@
 --   * aucune valeur n'est rabotee : une statistique hors bornes reste
 --     affichee en rouge, et la creation est refusee avec sa raison ;
 --   * l'equilibrage s'edite sur une copie et s'enregistre d'un bouton
---     (« Enregistrer le jeu ») : un jeu est un brouillon verifie, la ou
+--     (« Enregistrer le jeu ») : un jeu est une entree verifiee, la ou
 --     Necronicon ecrivait chaque frappe dans sa sauvegarde ;
 --   * deux vues, liste repliable ou tableau en deux colonnes ; pas de blocs
 --     deplacables a la souris, pas
@@ -192,9 +192,6 @@ function ForgeUI.Definition()
         def.type = Texte(courant.type)
     end
     def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
-    -- Ces marques appartiennent au registre en memoire, pas a la definition
-    -- que ses constructeurs valident.
-    def.brouillon = nil
     -- Une description vide n'est pas ecrite : le defaut de la categorie suit.
     local description = Texte(courant.description)
     def.description = description ~= "" and description or nil
@@ -223,7 +220,7 @@ function ForgeUI.Creer()
     local def, categorie = ForgeUI.Definition()
     if not def then return false, categorie end
     local edition = courant.editionId ~= nil
-    local ok, refus = Brouillons.Enregistrer(categorie.famille, def, not edition, courant.remplacePublie)
+    local ok, refus = Brouillons.Enregistrer(categorie.famille, def, not edition)
     if not ok then return false, refus end
     local registre = Brouillons.Registre(categorie.famille)
     local element = registre and registre.Get(def.id)
@@ -231,7 +228,6 @@ function ForgeUI.Creer()
         -- Reste sur l'entree apres l'enregistrement : le MJ peut poursuivre
         -- ses ajustements et voit toujours qu'il modifie, jamais qu'il cree.
         courant.original = element and LCM.Copie(element) or LCM.Copie(def)
-        courant.remplacePublie = false
     else
         courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
         courant.taille = 1
@@ -820,9 +816,9 @@ local function Construire()
             self:Statut("Refusé : " .. tostring(element), UI.C.plein)
             return
         end
-        self:Statut(string.format("Brouillon « %s » %s.", element.label,
+        self:Statut(string.format("« %s » %s.", element.label,
             edition and "enregistré" or "créé"), UI.C.accent)
-        LCM.Ok(string.format("brouillon forge %s : %s (%s)",
+        LCM.Ok(string.format("forge, %s : %s (%s)",
             edition and "enregistré" or "créé", element.label, categorie.label))
         self:Rafraichir()
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
@@ -850,7 +846,7 @@ function ForgeUI.Ouvrir(categorieId, options)
     -- creation. Sans cela, le formulaire garde l'identifiant de l'entree
     -- precedente et le bouton suivant l'ecraserait.
     if courant.editionId then
-        courant.editionId, courant.original, courant.remplacePublie = nil, nil, nil
+        courant.editionId, courant.original = nil, nil
         courant.creationId = Brouillons.NouvelIdentifiant()
         courant.mjSeulement = nil
         courant.taille = 1
@@ -898,7 +894,6 @@ function ForgeUI.OuvrirEdition(categorie, element)
         or LCM.Equilibrage.forge.etatObjet.base
     courant.editionId = tostring(element.id)
     courant.original = LCM.Copie(element)
-    courant.remplacePublie = Brouillons.EstPublie(categorie.famille, element.id)
     ForgeUI.rendre = nil
 
     local f = ForgeUI.Fenetre()
@@ -960,8 +955,7 @@ local function Travail(id)
     if travaux[id] then return travaux[id] end
     local jeu = LCM.Forge.Get(id)
     local def = LCM.Copie(jeu)
-    def.brouillon = nil
-    local t = { id = id, def = def, creation = false, publie = Brouillons.EstPublie("jeux", id) }
+    local t = { id = id, def = def, creation = false }
     travaux[id] = t
     return t
 end
@@ -974,7 +968,7 @@ local function Nouveau()
         raretes[#raretes + 1] = { id = Brouillons.Identifiant(r.label), label = r.label, points = "", couleur = r.couleur }
     end
     local cle = "__nouveau_" .. nouveaux
-    local t = { id = cle, creation = true, publie = false,
+    local t = { id = cle, creation = true,
                 def = { id = Brouillons.NouvelIdentifiant(),
                     label = "Jeu " .. tostring(#LCM.Forge.list + nouveaux), raretes = raretes, champs = {} } }
     travaux[cle] = t
@@ -1025,7 +1019,7 @@ function ForgeUI.EnregistrerJeu(t)
     if def.label == "" then return false, "donne un nom au jeu" end
     if t.creation and Texte(def.id) == "" then def.id = Brouillons.NouvelIdentifiant() end
     if Texte(def.id) == "" then return false, "identifiant absent" end
-    local ok, refus = Brouillons.Enregistrer("jeux", def, t.creation, t.publie)
+    local ok, refus = Brouillons.Enregistrer("jeux", def, t.creation)
     if not ok then return false, refus end
     -- La copie est rendue : la prochaine ouverture repart de l'enregistre.
     travaux[t.id] = nil
@@ -1663,10 +1657,8 @@ local function ConstruireEquilibrage()
     function f:Etat(t)
         if t.creation then
             self.etat:SetText("Jeu neuf, pas encore enregistré.")
-        elseif t.publie then
-            self.etat:SetText("Publié : l'enregistrer en fait un brouillon qui remplace le fichier.")
         else
-            self.etat:SetText(t.modifie and "Brouillon, modifications non enregistrées." or "Brouillon.")
+            self.etat:SetText(t.modifie and "Modifications non enregistrées." or "")
         end
     end
 

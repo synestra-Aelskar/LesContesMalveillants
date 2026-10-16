@@ -131,8 +131,8 @@ function Traits.Get(id)
     return Traits.byId[tostring(id or "")]
 end
 
--- Ne sert qu'aux brouillons que le MJ supprime en seance : le contenu publie se
--- recharge depuis son fichier, le retirer ici ne l'effacerait de rien. Les
+-- Sert aux entrees que le MJ supprime en seance : le retrait vaut tout de
+-- suite, et la base suit au /reload (MJ/Brouillons.lua). Les
 -- entites qui portaient ce trait gardent son identifiant ; il redevient visible
 -- si le trait revient.
 function Traits.Retirer(id)
@@ -172,7 +172,7 @@ function Traits.Owned(entity)
 end
 
 -- Les identifiants portes, TOUS, y compris ceux dont le trait n'existe plus
--- (brouillon supprime, contenu pas encore publie chez ce joueur). `Owned` les
+-- (entree supprimee, ou pas encore recue par ce joueur). `Owned` les
 -- tait ; la fiche doit pouvoir les montrer. Une copie : la modifier ne touche
 -- pas l'entite.
 function Traits.Ids(entity)

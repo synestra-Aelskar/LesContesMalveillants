@@ -115,8 +115,13 @@ attendu("champ max présent", champMax ~= nil, true)
 fenetre.editeurs[champMax].saisie:Saisir("2")
 fenetre:Valider()
 attendu("nouveau max appliqué", accessoires.cape.maxEquipe, 2)
-attendu("brouillon de remplacement", LCM.Brouillons.Get("listes", "cape") ~= nil, true)
-LCM.Brouillons.Supprimer("listes", "cape")
+attendu("dans la file d'envoi", LCM.Brouillons.Get("listes", "cape") ~= nil, true)
+-- 15 octobre 2026 : supprimer ne « rend » plus une version d'origine, il
+-- supprime le type. On remet donc la valeur comme le MJ le ferait : en
+-- reenregistrant l'entree.
+local remise = LCM.Copie(LCM.Brouillons.Get("listes", "cape"))
+remise.maxEquipe = 1
+LCM.Brouillons.Enregistrer("listes", remise, false)
 attendu("original restauré", accessoires.cape.maxEquipe, 1)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

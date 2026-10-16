@@ -72,11 +72,19 @@ function Coffres.Renvoyer(joueur)
     return n
 end
 
-function Coffres.Placer(defId)
+-- `position` : { x, y, source, carte } — la ou poser. Sans elle, la ou se
+-- tient le MJ. Un sac lache au sol se pose la ou le joueur l'a lache.
+function Coffres.Placer(defId, position)
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     local d = Definition(defId)
     if not d then return nil, "choisis d'abord un coffre configuré." end
-    local x, y, source = R.Position()
+    local x, y, source, carte
+    if position then
+        x, y, source, carte = position.x, position.y, position.source, position.carte
+    else
+        x, y, source = R.Position()
+        carte = R.Carte()
+    end
     if not x then
         if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
         return nil, "position indisponible : .gps demandé, reclique dans un instant."
@@ -86,7 +94,7 @@ function Coffres.Placer(defId)
     if Cases(contents) > d.coffre.places then return nil, "le contenu configuré dépasse le nombre d'emplacements." end
     local id = Identifiant()
     Magasin()[id] = { id = id, def = d.id, x = x, y = y, source = source,
-        carte = R.Carte(), quand = time and time() or 0, objets = contents,
+        carte = carte, quand = time and time() or 0, objets = contents,
         verrousRestants = d.coffre.verrous, verrouille = d.coffre.verrous > 0,
         ouvert = d.coffre.verrous == 0, verrousOuverts = {} }
     Coffres.Renvoyer()
@@ -104,6 +112,32 @@ function Coffres.Retirer(id)
     if canal then LCM.Reseau.Envoyer(S.retrait, { i = p.id }, canal) end
     Coffres.Renvoyer()
     return true
+end
+
+-- Un sac lache au sol, que le MJ SECURISE (Core/SacsAuSol.lua) : il devient
+-- une vraie entree « Coffre » (« Sac de gros de Blud'Sh'Idah »), posee la ou
+-- le sac a ete lache, avec ce qu'il contient encore. `sol` : l'etat du sac au
+-- sol tel que ses gardiens se le transmettent. Rend l'emplacement du coffre,
+-- ou nil et la raison.
+function Coffres.DepuisSol(sol)
+    if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
+    local objets = {}
+    for _, o in ipairs(sol.objets or {}) do
+        objets[#objets + 1] = { entree = o.entree, quantite = o.quantite }
+    end
+    local definition = {
+        id = LCM.Brouillons.NouvelIdentifiant(), nature = "coffre", label = sol.label,
+        description = "Lâché au sol par " .. tostring(sol.auteur or "?") .. ".",
+        coffre = {
+            -- Assez de places pour ce qu'il contient : celles du sac, au moins.
+            places = math.max(1, tonumber(sol.places) or 1, Cases(objets)),
+            verrous = 0, reset = false, objets = objets, expertises = {}, outils = {},
+            sac = sol.sac, tente = sol.tente, objet = sol.objet or nil,
+        },
+    }
+    local ok, raison = LCM.Brouillons.Enregistrer("points", definition, true)
+    if not ok then return nil, raison end
+    return Coffres.Placer(definition.id, sol.position)
 end
 
 function Coffres.Points(defId)
@@ -194,6 +228,25 @@ function Coffres.Traiter(expediteur, req)
         end
         Repondre(false, { msg = "il n'y en a plus assez." }); return
     end
+    -- Ramasser le sac EN ENTIER : il n'est plus un coffre. Ce qu'il contient
+    -- encore part avec lui ; le coffre quitte le monde et la base (le MJ,
+    -- 16 octobre 2026). On repond AVANT de retirer : le retrait ferme la
+    -- fenetre du demandeur.
+    if req.a == "emporter" then
+        if not (d.coffre.sac or d.coffre.tente or d.coffre.objet) then
+            Repondre(false, { msg = "ce coffre ne se ramasse pas." }); return
+        end
+        local objets = {}
+        for _, o in ipairs(p.objets or {}) do
+            objets[#objets + 1] = { e = o.entree, q = o.quantite,
+                d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
+        end
+        -- `w`, pas `o` : la reponse porte deja l'etat du coffre sous `o`.
+        Repondre(true, { b = d.coffre.sac, t = d.coffre.tente, w = objets })
+        Coffres.Retirer(p.id)
+        if #Coffres.Points(d.id) == 0 then LCM.Brouillons.Supprimer("points", d.id) end
+        return
+    end
     if req.a == "ranger" then
         local ref, n = tostring(req.e or ""), math.max(1, math.floor(tonumber(req.q) or 1))
         if not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
@@ -216,14 +269,24 @@ function Coffres.Traiter(expediteur, req)
 end
 
 LCM.WhenReady(function()
-    LCM.Reseau.Ecouter(S.action, function(expediteur, data)
-        if LCM.Reseau.DansLeGroupe(expediteur) then Coffres.Traiter(expediteur, data) end
-    end)
-    local precedent = LCM.Brouillons and LCM.Brouillons.onSynchro
-    if LCM.Brouillons then LCM.Brouillons.onSynchro = function(famille, entree)
-        if precedent then precedent(famille, entree) end
-        if famille == "points" and entree and entree.nature == "coffre" then Coffres.Renvoyer() end
-    end end
+    -- Les demandes « cof! » arrivent par l'aiguilleur de Core/Coffres.lua, qui
+    -- les passe ici quand elles ne visent pas un sac au sol garde par un joueur.
+    -- Un coffre modifie (ou supprime) : ce que J'AI pose se met a jour chez
+    -- tous, sans le reposer (MJ/Brouillons.lua, SurPoint). Ce crochet passe
+    -- par l'enregistrement lui-meme, en seance comme a la reception : l'ancien
+    -- (onSynchro) ne voyait que ce qui venait de l'autre MJ.
+    if LCM.Brouillons and LCM.Brouillons.SurPoint then
+        LCM.Brouillons.SurPoint(function(defId)
+            local poses = Coffres.Points(defId)
+            if #poses == 0 then return end
+            if Definition(defId) then Coffres.Renvoyer() return end
+            local canal = Canal()
+            for _, p in ipairs(poses) do
+                C.Oublier(p.id)
+                if canal then LCM.Reseau.Envoyer(S.retrait, { i = p.id }, canal) end
+            end
+        end)
+    end
 
     -- Les placements vivent dans la sauvegarde MJ, tandis que le détecteur de
     -- proximité appartient au module joueur. Après un /reload, sa copie locale
