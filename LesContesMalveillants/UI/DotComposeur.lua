@@ -38,7 +38,7 @@ LCM.BoutonsPropres.dot = true
 -- Les memes mesures que le constructeur : les deux fenetres font le meme
 -- geste, elles doivent se ressembler.
 local LARGEUR, HAUTEUR = 860, 700
-local HAUTEUR_REPLIEE = 190
+local HAUTEUR_REPLIEE = 280
 local DORE = { 0.93, 0.80, 0.52 }
 local LIGNE = 22
 local ICONE_DEFAUT = "Interface\\Icons\\Spell_Shadow_CallOfBone"
@@ -169,7 +169,7 @@ local function Construire()
     f.separateur = UI.Aplat(f, { 1, 1, 1, 0.08 }, "ARTWORK")
     f.separateur:SetWidth(1)
     f.separateur:SetPoint("TOP", f, "TOP", -6, -116)
-    f.separateur:SetPoint("BOTTOM", f, "BOTTOM", -6, 56)
+    f.separateur:SetPoint("BOTTOM", f, "BOTTOM", -6, 140)
 
     f.titreGauche = UI.Texte(f, "CONSTRUCTEUR", DORE)
     Placer(f.titreGauche, "TOPLEFT", f, "TOPLEFT", 16, -144)
@@ -233,7 +233,7 @@ local function Construire()
 
     f.champs = UI.Defilement(f)
     f.champs:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -388)
-    f.champs:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -22, 60)
+    f.champs:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -22, 140)
     f.entetes, f.lignes = {}, {}
 
     -- ----- droite : les choix -----------------------------------------------
@@ -263,7 +263,7 @@ local function Construire()
 
     f.panneau = UI.Defilement(f)
     f.panneau:SetPoint("TOPLEFT", f, "TOP", 8, -166)
-    f.panneau:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 110)
+    f.panneau:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 140)
 
     -- Ce qui fabrique le pool. Trois questions, posees comme celles du
     -- composeur : un titre, puis les reponses.
@@ -312,6 +312,9 @@ local function Construire()
         f.niveaux[index] = b
     end
     f.hauteurPanneau = basPen + 20 + 2 * 26 + 10
+
+    f.emoteAction = UI.EmoteAction(f, LARGEUR - 32, 70, "Émote de l'action.")
+    Placer(f.emoteAction, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 42)
 
     -- ----- pied -------------------------------------------------------------
     f.blocage = UI.Texte(f, "", UI.C.plein, "GameFontNormalSmall")
@@ -556,6 +559,8 @@ function Ecran.Declarer()
         for _, cible in ipairs(noms) do
             LCM.Reseau.Envoyer("etat", paquet, "WHISPER", cible)
         end
+        local emote, canal = f.emoteAction:Lire()
+        if emote:match("%S") then LCM.Actions.DireEmoteAction(emote, canal) end
         LCM.Ok(string.format("« %s » envoyé à %s (jet %d).", nom, table.concat(noms, ", "), valeur))
         f:Hide()
         return true
@@ -570,6 +575,7 @@ function Ecran.Ouvrir()
     f.choix = { rounds = 0, stacks = 0, source = f.choix and f.choix.source,
                 niveau = f.choix and f.choix.niveau }
     f.modeleCharge = nil
+    f.emoteAction:Reset()
     f:Disposer()
     Ecran.Rendre()
     f:Show()

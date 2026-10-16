@@ -39,6 +39,10 @@ attendu("définition enregistrée", sauvegarde, true)
 if not sauvegarde then dire("raison de l'erreur :", tostring(erreur)) end
 
 local id, raison = LCM.CoffresMJ.Placer("coffre_temoin")
+attendu("sans GPS le coffre attend la position serveur", id, nil)
+attendu("un GPS est demandé", __chats[#__chats].texte, ".gps")
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 0.000000 585 2.637213")
+id, raison = LCM.CoffresMJ.Placer("coffre_temoin")
 attendu("coffre posé", id ~= nil, true)
 if not id then dire("raison du refus :", tostring(raison)) end
 local C, MJ = LCM.Coffres, LCM.CoffresMJ
@@ -205,8 +209,8 @@ attendu("réglage reverrouillable transmis", def.coffre.expertises[1].reverrouil
 attendu("méthode Clef transmise", def.coffre.expertises[2].id, LCM.Coffres.METHODE_CLEF)
 attendu("rayon transmis", def.coffre.rayon, 7)
 attendu("emplacement conservé", points[1].id, id)
-attendu("coffre visible dans son rayon", C.Proche({ [p.source] = { x = p.x + 6, y = p.y } }).id, id)
-attendu("coffre invisible hors de son rayon", C.Proche({ [p.source] = { x = p.x + 8, y = p.y } }), nil)
+attendu("coffre visible dans son rayon", C.Proche({ [p.source] = { x = p.x + 6, y = p.y, z = p.z } }).id, id)
+attendu("coffre invisible hors de son rayon", C.Proche({ [p.source] = { x = p.x + 8, y = p.y, z = p.z } }), nil)
 C.definitions.coffre_temoin.coffre.reset = true
 LCM.Points.Get("coffre_temoin").coffre.reset = true
 C.Envoyer("fermer")
@@ -263,14 +267,102 @@ attendu("sélecteur d'expertise de l'outil affiché",
     editeur.lignesOutils[1].expertise and editeur.lignesOutils[1].expertise:IsShown(), true)
 editeur:Choisir("coffre_temoin")
 attendu("rayon affiché dans le constructeur", editeur.rayon:GetText(), "7")
+attendu("un modèle chargé n'est pas considéré comme modifié", editeur:Modifie(), false)
+attendu("le message de modifications disparaît après sélection", editeur.placement.etatEdition:GetText(), "")
+editeur.rayon:Saisir("8")
 editeur:Onglet("placement")
 attendu("onglet Placement visible", editeur.placement:IsShown(), true)
 attendu("onglet Création caché", editeur.creation:IsShown(), false)
+attendu("placement disponible avec des modifications non enregistrées", editeur.poser:IsEnabled(), true)
+local nombreAvantPose = #LCM.CoffresMJ.Points("coffre_temoin")
+editeur.poser:Click()
+attendu("le clic enregistre et place le coffre", #LCM.CoffresMJ.Points("coffre_temoin"), nombreAvantPose + 1)
+attendu("le réglage modifié a été enregistré", LCM.Points.Get("coffre_temoin").coffre.rayon, 8)
+attendu("le placement ne laisse pas de modification en attente", editeur:Modifie(), false)
+local poseSupplementaire = editeur.pointPose
+LCM.CoffresMJ.Retirer(poseSupplementaire)
+editeur.rayon:Saisir("0")
+editeur:Onglet("placement")
+local nombreAvantRefus = #LCM.CoffresMJ.Points("coffre_temoin")
+editeur.poser:Click()
+attendu("un modèle invalide n'est pas placé", #LCM.CoffresMJ.Points("coffre_temoin"), nombreAvantRefus)
+editeur.rayon:Saisir("7")
+editeur:Enregistrer()
 attendu("placement listé pour sa définition", editeur.placements[1] and editeur.placements[1]:IsShown(), true)
 editeur.placements[1]:Click()
 attendu("un placement peut être sélectionné", editeur.pointPose, id)
 attendu("le bouton de retrait apparaît", editeur.retirer:IsShown(), true)
+local chatsAvant = #__chats
+editeur.placements[1].teleporter:Click()
+attendu("le placement propose la téléportation",
+    __chats[#__chats] and __chats[#__chats].texte,
+    ".worldport 100.000000 200.000000 0.000000 585")
+attendu("une seule commande de téléportation", #__chats - chatsAvant, 1)
+p.z = nil
+local commandesAvant = #__chats
+local ancienOk = LCM.CoffresMJ.Teleporter(id)
+attendu("ancien coffre sans altitude : téléportation refusée", ancienOk, false)
+attendu("aucune commande risquée n'est envoyée", #__chats, commandesAvant)
+p.mapid, p.z = 585, -81.5
+editeur.placements[1].teleporter:Click()
+attendu("mapid et altitude transmis à worldport", __chats[#__chats].texte,
+    ".worldport 100.000000 200.000000 -81.500000 585")
+p.source = "gps"
+editeur.placements[1].teleporter:Click()
+attendu("coordonnées GPS transmises sans échange des axes", __chats[#__chats].texte,
+    ".worldport 100.000000 200.000000 -81.500000 585")
+p.source = "monde"
+p.mapid, p.z = nil, 0
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -386.359375 585 2.637213")
+editeur.placements[1].teleporter:Click()
+attendu("ancien coffre réparé depuis son emplacement", p.z, -386.359375)
+attendu("carte serveur corrigée", p.mapid, 585)
+attendu("téléportation avec altitude réparée", __chats[#__chats].texte,
+    ".worldport 100.000000 200.000000 -386.359375 585")
+LCM.DeplacementForce.NoterGPS("Map: 585 (Magisters' Terrace)")
+LCM.DeplacementForce.NoterGPS("X: 11275.129883, Y: 11090.638672, Z: -81.208794")
+attendu("mapid GPS lu même si la réponse est sur deux lignes",
+    LCM.DeplacementForce.CarteGPS(), 585)
 editeur:Hide()
+
+dire("== édition MJ sur le médaillon et réinitialisation des verrous")
+LCM.UI.Coffre.Proche(p)
+local interaction = LCM.UI.Coffre.bouton
+attendu("clic droit disponible sur l’icône MJ", interaction.editer:IsShown(), true)
+attendu("coffre encore verrouillé avant édition", p.verrouille, true)
+interaction.editer:Click("RightButton")
+attendu("clic droit ouvre le mode édition", coffreUI.edition, true)
+attendu("encart d’édition visible", coffreUI.modeEdition:IsShown(), true)
+attendu("contenu visible en édition malgré le verrou", coffreUI.grille:IsShown(), true)
+attendu("l’édition ne déverrouille pas le coffre", p.verrouille, true)
+attendu("reset disponible en édition", coffreUI.resetVerrous:IsShown(), true)
+C.Envoyer("prendre", { e = REF, q = 1 })
+attendu("le MJ édite le contenu d’un coffre verrouillé", #p.objets, 0)
+C.Envoyer("ranger", { e = REF, q = 1 })
+attendu("le MJ peut y replacer le contenu", p.objets[1].quantite, 1)
+p.verrouille, p.ouvert, p.verrousRestants, p.verrousOuverts = false, true, 0, { false }
+MJ.Traiter("Syn-Apertus", { i = id, a = "reset_verrous", edition = true })
+attendu("un joueur ne peut pas réinitialiser les verrous", p.verrousRestants, 0)
+coffreUI.resetVerrous:Click()
+attendu("reset restaure le verrou", p.verrouille, true)
+attendu("reset restaure le compteur", p.verrousRestants, 1)
+attendu("reset efface les verrous brisés", #p.verrousOuverts, 0)
+attendu("le mode édition reste ouvert après reset", coffreUI.grille:IsShown(), true)
+coffreUI:Hide()
+attendu("fermer l’éditeur coupe le mode édition", C.edition, false)
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -386.359375 585 2.637213")
+interaction.editer:Click("LeftButton")
+attendu("clic gauche garde l’ouverture ordinaire", coffreUI.edition, false)
+attendu("le joueur ne voit pas le contenu verrouillé", coffreUI.grille:IsShown(), false)
+coffreUI:Hide()
+
+dire("== la hauteur est prise en compte pour voir et utiliser le coffre")
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -186.359375 585 2.637213")
+attendu("200 m au-dessus : pas de coffre à portée", C.Proche(), nil)
+attendu("200 m au-dessus : ouverture refusée", C.Ouvrir(id), false)
+attendu("200 m au-dessus : aucune action possible", C.Envoyer("prendre", { e = REF, q = 1 }), false)
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -386.359375 585 2.637213")
+attendu("à la bonne hauteur : coffre de nouveau à portée", (C.Proche() or {}).id, p.id)
 
 dire("== retirer un placement le fait disparaître immédiatement")
 attendu("retrait accepté", MJ.Retirer(id), true)

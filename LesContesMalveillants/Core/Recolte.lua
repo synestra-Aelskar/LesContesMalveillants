@@ -89,11 +89,26 @@ end
 local function Position(source)
     local D = LCM.DeplacementForce
     if not (D and D.Position) then return nil end
-    local x, y, _, trouvee = D.Position(source)
+    local x, y, z, trouvee = D.Position(source)
     if not x then return nil end
-    return x, y, trouvee
+    return x, y, trouvee, trouvee ~= "carte" and z or nil
 end
 Recolte.Position, Recolte.Carte = Position, Carte
+
+-- Un placement interactif exige une altitude reelle. Les coordonnees de carte
+-- n'en donnent pas et ne peuvent pas etre utilisees par .worldport.
+function Recolte.Position3D()
+    local x, y, source, z = Position("monde")
+    if x and z then return x, y, source, z end
+    return Position("gps")
+end
+
+function Recolte.Distance(point, position)
+    local x, y, z = tonumber(point and point.x), tonumber(point and point.y), tonumber(point and point.z)
+    local px, py, pz = tonumber(position and position.x), tonumber(position and position.y), tonumber(position and position.z)
+    if not (x and y and z and px and py and pz) then return nil end
+    return math.sqrt((px - x)^2 + (py - y)^2 + (pz - z)^2)
+end
 
 function Recolte.Rayon(definition)
     return tonumber(definition and definition.rayon) or tonumber(Eq().rayon) or 3
@@ -176,9 +191,10 @@ function Recolte.Plier(points)
         local delais = {}
         for i, v in pairs(p.prochain or {}) do delais[#delais + 1] = tostring(i) .. ":" .. tostring(v) end
         table.sort(delais)
-        out[#out + 1] = string.format("%s,%.2f,%.2f,%s,%s,%d,%s,%s", p.id, p.x, p.y,
+        out[#out + 1] = string.format("%s,%.2f,%.2f,%s,%s,%d,%s,%s,%s", p.id, p.x, p.y,
             tostring(p.source or ""), p.carte and tostring(p.carte) or "",
-            tonumber(p.usages) or 0, table.concat(marques, ":"), table.concat(delais, ":"))
+            tonumber(p.usages) or 0, table.concat(marques, ":"), table.concat(delais, ":"),
+            p.z and string.format("%.2f", p.z) or "")
     end
     return table.concat(out, "|")
 end
@@ -186,13 +202,17 @@ end
 function Recolte.Deplier(texte)
     local out = {}
     for morceau in tostring(texte or ""):gmatch("[^|]+") do
-        local id, x, y, source, carte, usages, marques, delais =
-            morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)$")
+        local id, x, y, source, carte, usages, marques, delais, z =
+            morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)$")
+        if not id then
+            id, x, y, source, carte, usages, marques, delais =
+                morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*),([^,]*),([^,]*),([^,]*)$")
+        end
         if not id then
             id, x, y, source, carte = morceau:match("^([^,]+),(-?[%d%.]+),(-?[%d%.]+),([^,]*),([^,]*)$")
         end
         if id and tonumber(x) and tonumber(y) then
-            local p = { id = id, x = tonumber(x), y = tonumber(y), usages = tonumber(usages) or 0,
+            local p = { id = id, x = tonumber(x), y = tonumber(y), z = tonumber(z), usages = tonumber(usages) or 0,
                 source = source ~= "" and source or nil, carte = tonumber(carte),
                 consomme = {}, prochain = {} }
             for i in tostring(marques or ""):gmatch("%d+") do p.consomme[tonumber(i)] = true end
@@ -397,14 +417,13 @@ function Recolte.Proche(positions)
             local source = p.source or "?"
             local pos = positions[source]
             if pos == nil then
-                local x, y = Position(p.source)
-                pos = x and { x = x, y = y } or false
+                local x, y, _, z = Position(p.source)
+                pos = x and { x = x, y = y, z = z } or false
                 positions[source] = pos
             end
             if pos then
-                local dx, dy = pos.x - p.x, pos.y - p.y
-                local distance = math.sqrt(dx * dx + dy * dy)
-                if distance <= Recolte.Rayon(definition)
+                local distance = Recolte.Distance(p, pos)
+                if distance and distance <= Recolte.Rayon(definition)
                     and (not meilleureDistance or distance < meilleureDistance) then
                     meilleur, meilleureDistance = p, distance
                 end

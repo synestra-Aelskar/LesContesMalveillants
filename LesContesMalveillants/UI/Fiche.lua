@@ -415,8 +415,11 @@ local function SaisieExpertise(parent, code)
     end)
     champ:SetNumeric(true)
     champ:SetMaxLetters(5)
-    champ.indication = UI.Texte(parent, code, UI.C.discret, "GameFontNormalSmall")
+    -- L'indication est enfant du champ : creee sur le panneau, elle pouvait
+    -- passer derriere l'EditBox et disparaitre selon le niveau de frame.
+    champ.indication = UI.Texte(champ, code, UI.C.discret, "GameFontNormalSmall")
     champ.indication:SetAllPoints(champ)
+    champ.indication:SetJustifyH("CENTER")
     return champ
 end
 
@@ -424,7 +427,7 @@ local function OuvrirSaisieExpertise(ligne, field)
     local panneau = ligne.saisieExpertise
     if not panneau then
         panneau = CreateFrame("Frame", nil, UIParent)
-        panneau:SetSize(246, 112)
+        panneau:SetSize(286, 112)
         panneau:SetFrameStrata("DIALOG")
         panneau:SetFrameLevel((UIParent:GetFrameLevel() or 0) + 30)
         panneau:EnableMouse(true)
@@ -435,13 +438,44 @@ local function OuvrirSaisieExpertise(ligne, field)
         panneau.titre:SetPoint("TOPLEFT", panneau, "TOPLEFT", 12, -8)
 
         panneau.dd = SaisieExpertise(panneau, "DD")
-        panneau.dd:SetPoint("TOPLEFT", panneau, "TOPLEFT", 40, -32)
-        panneau.nf = SaisieExpertise(panneau, "NF")
-        panneau.nf:SetPoint("TOPLEFT", panneau, "TOPLEFT", 148, -32)
+        panneau.dd:SetPoint("TOPLEFT", panneau, "TOPLEFT", 42, -32)
+        panneau.nf = SaisieExpertise(panneau, "PF")
+        panneau.nf:SetPoint("TOPRIGHT", panneau, "TOPRIGHT", -42, -32)
         UI.Bulle(panneau.dd, "DD — Dés de difficulté",
             "Valeur à égaler ou dépasser pour réussir votre action.")
-        UI.Bulle(panneau.nf, "NF — No fatigue",
+        UI.Bulle(panneau.nf, "PF — Perte de fatigue",
             "Fatigue perdue en cas d'échec ou de réussite partielle. Dépasser le DD de 10 ou réaliser un critique ne fait pas perdre de fatigue.")
+
+        local function HabillerMode(bouton)
+            bouton.selection = UI.Aplat(bouton,
+                { UI.C.accent[1], UI.C.accent[2], UI.C.accent[3], 0.18 }, "ARTWORK")
+            bouton.selection:SetPoint("TOPLEFT", bouton, "TOPLEFT", 3, -3)
+            bouton.selection:SetPoint("BOTTOMRIGHT", bouton, "BOTTOMRIGHT", -3, 3)
+            bouton.selection:Hide()
+            local selectionner = bouton.Selectionner
+            function bouton:Selectionner(actif)
+                selectionner(self, actif)
+                self.selection:SetShown(actif)
+            end
+            bouton:Selectionner(false)
+        end
+        local function ChoisirMode(mode)
+            panneau.mode = panneau.mode == mode and nil or mode
+            panneau.avantage:Selectionner(panneau.mode == "avantage")
+            panneau.desavantage:Selectionner(panneau.mode == "desavantage")
+        end
+        panneau.avantage = UI.Bouton(panneau, "Avec avantage", 122, 22,
+            function() ChoisirMode("avantage") end)
+        panneau.avantage:SetPoint("TOPLEFT", panneau, "TOPLEFT", 16, -66)
+        HabillerMode(panneau.avantage)
+        UI.Bulle(panneau.avantage, "Avec avantage",
+            "Lance deux fois le jet, puis conserve le meilleur résultat.")
+        panneau.desavantage = UI.Bouton(panneau, "Avec désavantage", 122, 22,
+            function() ChoisirMode("desavantage") end)
+        panneau.desavantage:SetPoint("TOPRIGHT", panneau, "TOPRIGHT", -16, -66)
+        HabillerMode(panneau.desavantage)
+        UI.Bulle(panneau.desavantage, "Avec désavantage",
+            "Lance deux fois le jet, puis conserve le pire résultat.")
 
         panneau.lancer = UI.Bouton(panneau, "Lancer", 88, 22, function()
             panneau.dd:ClearFocus()
@@ -453,7 +487,11 @@ local function OuvrirSaisieExpertise(ligne, field)
                 return
             end
             local resultat, raison = LCM.Roll.ResoudreExpertise(ligne.entity, field.id, ddTexte,
-                panneau.nf:GetText(), { avantage = ligne.avantage:GetChecked() })
+                panneau.nf:GetText(), {
+                    avantage = panneau.mode == "avantage"
+                        or (not panneau.avantage:IsShown() and ligne.avantage:GetChecked()),
+                    desavantage = panneau.mode == "desavantage",
+                })
             if not resultat then
                 LCM.Alerte(tostring(raison or "jet impossible"))
                 return
@@ -483,6 +521,14 @@ local function OuvrirSaisieExpertise(ligne, field)
     panneau.nf:SetText("")
     panneau.dd.indication:Show()
     panneau.nf.indication:Show()
+    panneau.mode = nil
+    panneau.avantage:Selectionner(false)
+    panneau.desavantage:Selectionner(false)
+    local traitExpertise = ligne.entity and LCM.Traits.BonusPositif(ligne.entity, field.id) or nil
+    local avecModes = traitExpertise ~= nil
+    panneau.avantage:SetShown(avecModes)
+    panneau.desavantage:SetShown(avecModes)
+    panneau:SetHeight(avecModes and 148 or 112)
     panneau:ClearAllPoints()
     panneau:SetPoint("BOTTOM", ligne.lancer, "TOP", 0, 6)
     panneau:Show()
@@ -565,9 +611,14 @@ function Lignes.roll(parent, field, c)
             Bulle(self, field.label, field.note)
         end
         local source = LCM.Effets.Avantage(e, field.id)
-        self.avantage:SetShown(not e.distante and source ~= nil)
+        -- Les expertises proposent maintenant avantage/desavantage dans leur
+        -- fenetre DD/PF si un trait positif existe. La petite case demeure
+        -- pour un avantage d'objet sur une expertise sans un tel trait.
+        local traitExpertise = field.jetExpertise and LCM.Traits.BonusPositif(e, field.id)
+        self.avantage:SetShown(not e.distante and source ~= nil
+            and (not field.jetExpertise or not traitExpertise))
         self.lancer:SetShown(not e.distante)
-        if not source then
+        if traitExpertise or not source then
             self.avantage:SetChecked(false)
             self.avantage.marque:SetText("")
         end

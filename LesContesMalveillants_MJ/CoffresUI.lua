@@ -67,6 +67,13 @@ local function OptionsObjets(choix, exception, doublons)
                 groupe = objet.categorie or "Objets" }
         end
     end
+    if doublons then
+        for _, typeOutil in ipairs(LCM.Listes.De("outils")) do
+            out[#out + 1] = { id = "type_outil/" .. typeOutil.id,
+                label = "Tout outil de type « " .. typeOutil.label .. " »",
+                groupe = "Types d’outils" }
+        end
+    end
     table.sort(out, function(a, b)
         if a.groupe ~= b.groupe then return tostring(a.groupe) < tostring(b.groupe) end
         return tostring(a.label) < tostring(b.label)
@@ -360,7 +367,8 @@ local function Construire()
     end
 
     function f:Ajouter(typeListe, ref)
-        if not self.travail or not tostring(ref or ""):match("^objets/") then return end
+        local typeOutil = typeListe == "outils" and tostring(ref or ""):match("^type_outil/(.+)$")
+        if not self.travail or (not tostring(ref or ""):match("^objets/") and not typeOutil) then return end
         local liste = self.travail.coffre[typeListe]
         if type(liste) ~= "table" then return end
         if typeListe ~= "outils" then
@@ -372,7 +380,7 @@ local function Construire()
                 end
             end
         end
-        liste[#liste + 1] = { entree = ref, quantite = 1,
+        liste[#liste + 1] = { entree = typeOutil and nil or ref, typeOutil = typeOutil, quantite = 1,
             consomme = false, consommeQuantite = 1,
             expertise = typeListe == "outils" and self.travail.coffre.expertises[1]
                 and self.travail.coffre.expertises[1].id or nil }
@@ -411,12 +419,16 @@ local function Construire()
                     choixPopup:Proposer(ligne.nom,
                         OptionsObjets(f.travail.coffre[typeListe], ligne.index, outils), function(ref)
                             local courant = f.travail.coffre[typeListe][ligne.index]
-                            if courant then courant.entree = ref; f:AfficherDetails() end
+                            if courant then
+                                courant.typeOutil = outils and tostring(ref):match("^type_outil/(.+)$") or nil
+                                courant.entree = courant.typeOutil and nil or ref
+                                f:AfficherDetails()
+                            end
                         end)
                 end)
                 UI.Glisser.Cible(ligne.nom, AccepterObjet, function(donnees)
                     local courant = f.travail.coffre[typeListe][ligne.index]
-                    if courant then courant.entree = donnees.ref; f:AfficherDetails() end
+                    if courant then courant.entree = donnees.ref; courant.typeOutil = nil; f:AfficherDetails() end
                 end)
                 ligne.quantite = UI.Champ(ligne, 48, 20, function(texte)
                     local courant = f.travail.coffre[typeListe][ligne.index]
@@ -461,8 +473,10 @@ local function Construire()
             end
             ligne.index = index
             ligne.item = objet
-            local entree = LCM.Compendium.Resoudre(objet.entree)
-            ligne.nom.label:SetText((entree and entree.label) or objet.entree or "Objet inconnu")
+            local entree = objet.typeOutil and LCM.Listes.Get(objet.typeOutil)
+                or LCM.Compendium.Resoudre(objet.entree)
+            ligne.nom.label:SetText(objet.typeOutil and ("Type : " .. tostring(entree and entree.label or objet.typeOutil))
+                or ((entree and entree.label) or objet.entree or "Objet inconnu"))
             ligne.icone:SetTexture((entree and entree.icone) or "Interface\\ICONS\\INV_Misc_QuestionMark")
             ligne.quantite:SetText(tostring(objet.quantite or 1))
             if outils then
@@ -679,7 +693,14 @@ local function Construire()
         local outilPourClef = false
         for _, outil in ipairs(coffre.outils or {}) do
             local q, consomme = Entier(outil.quantite), Entier(outil.consommeQuantite)
-            if not LCM.Compendium.Resoudre(outil.entree) then return nil, "choisis un outil valide." end
+            local typeOutil = outil.typeOutil and LCM.Listes.Get(outil.typeOutil)
+            if outil.typeOutil then
+                if not typeOutil or typeOutil.liste ~= "outils" then
+                    return nil, "choisis un type d’outil valide."
+                end
+            elseif not LCM.Compendium.Resoudre(outil.entree) then
+                return nil, "choisis un outil valide."
+            end
             if not q or q < 1 then return nil, "les quantités requises doivent être des entiers supérieurs à zéro." end
             if not expertisesParId[outil.expertise] then
                 return nil, "associe chaque outil à une expertise autorisée."
@@ -687,7 +708,8 @@ local function Construire()
             if outil.consomme and (not consomme or consomme < 1 or consomme > q) then
                 return nil, "la quantité consommée doit être comprise entre 1 et la quantité requise."
             end
-            outils[#outils + 1] = { entree = outil.entree, quantite = q,
+            outils[#outils + 1] = { entree = outil.typeOutil and nil or outil.entree,
+                typeOutil = outil.typeOutil, quantite = q,
                 consomme = outil.consomme == true, consommeQuantite = consomme or 1,
                 expertise = outil.expertise }
             if outil.expertise == LCM.Coffres.METHODE_CLEF then outilPourClef = true end
@@ -704,15 +726,16 @@ local function Construire()
 
     function f:Enregistrer()
         local coffre, raison = self:Valider()
-        if not coffre then c.erreur:SetText(raison); LCM.Alerte(raison); return end
+        if not coffre then c.erreur:SetText(raison); LCM.Alerte(raison); return false end
         c.erreur:SetText("")
         self.travail.coffre = coffre
         local ok, erreur = LCM.Brouillons.Enregistrer("points", self.travail,
             self.creationNeuve)
-        if not ok then LCM.Alerte(tostring(erreur)); return end
+        if not ok then LCM.Alerte(tostring(erreur)); return false end
         if Coffres.Renvoyer then Coffres.Renvoyer() end
         LCM.Ok(string.format("Coffre « %s » enregistré.", self.travail.label))
         self:Choisir(self.travail.id)
+        return true
     end
 
     function f:Supprimer()
@@ -732,18 +755,21 @@ local function Construire()
     end
 
     function f:Position()
-        local x, y, source = LCM.Recolte.Position()
-        if x then
+        local D = LCM.DeplacementForce
+        local x, y, z, source = D.Position("gps")
+        local mapid = D.CarteGPS()
+        if x and z and mapid then
             local carte = LCM.Recolte.Carte()
-            p.position:SetText(string.format("Tu es en %.1f, %.1f  (%s%s)", x, y, tostring(source),
-                carte and (", carte " .. carte) or ""))
+            p.position:SetText(string.format("Tu es en %.1f, %.1f, %.1f  (serveur, carte %d%s)", x, y, z, mapid,
+                carte and (" ; interface " .. carte) or ""))
         else
-            p.position:SetText("Position inconnue ici : le clic demandera « .gps ».")
+            p.position:SetText("Position serveur inconnue : le clic demandera « .gps ».")
         end
-        return x, y, source
+        return x, y, source, z
     end
 
     function f:Poser()
+        if (self.creationNeuve or self:Modifie()) and not self:Enregistrer() then return end
         local point = self:Point()
         if not point then LCM.Alerte("choisis d’abord un coffre."); return end
         local id, raison = Coffres.Placer(point.id)
@@ -768,7 +794,7 @@ local function Construire()
     function f:AfficherPlacements()
         local point = self:Point()
         local poses = point and Coffres.Points(point.id) or {}
-        local x, y, source = self:Position()
+        local x, y, source, z = self:Position()
         local carte = LCM.Recolte.Carte()
         for index, pose in ipairs(poses) do
             local ligne = self.placements[index]
@@ -779,8 +805,14 @@ local function Construire()
                 end)
                 ligne.label:ClearAllPoints()
                 ligne.label:SetPoint("LEFT", ligne, "LEFT", 8, 0)
-                ligne.label:SetPoint("RIGHT", ligne, "RIGHT", -38, 0)
+                ligne.label:SetPoint("RIGHT", ligne, "RIGHT", -156, 0)
                 ligne.label:SetJustifyH("LEFT")
+                ligne.teleporter = UI.Bouton(ligne, "S'y téléporter", 112, 20, function(bouton)
+                    local ok, raison = Coffres.Teleporter(bouton:GetParent().pointPose)
+                    if not ok then LCM.Alerte(tostring(raison)) end
+                    if ok then self:AfficherPlacements() end
+                end)
+                ligne.teleporter:SetPoint("RIGHT", ligne, "RIGHT", -34, 0)
                 ligne.retirer = UI.Bouton(ligne, "×", 24, 20, function(bouton)
                     Coffres.Retirer(bouton:GetParent().pointPose)
                     if self.pointPose == bouton:GetParent().pointPose then self.pointPose = nil end
@@ -792,11 +824,13 @@ local function Construire()
             ligne.pointPose = pose.id
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
-                distance = string.format(" — à %.0f yards", math.sqrt((x - pose.x) ^ 2 + (y - pose.y) ^ 2))
+                local d = LCM.Recolte.Distance(pose, { x = x, y = y, z = z })
+                distance = d and string.format(" — à %.0f yards", d) or " — altitude inconnue : replacer"
             elseif pose.carte ~= carte then distance = " — autre carte" end
-            ligne.label:SetText(string.format("#%d   %.1f, %.1f (%s%s)%s", #poses - index + 1,
-                tonumber(pose.x) or 0, tonumber(pose.y) or 0, tostring(pose.source),
-                pose.carte and (", carte " .. pose.carte) or "", distance))
+            ligne.label:SetText(string.format("#%d   %.1f, %.1f, %s (%s%s)%s", #poses - index + 1,
+                tonumber(pose.x) or 0, tonumber(pose.y) or 0, pose.z and string.format("%.1f", pose.z) or "Z ?", tostring(pose.source),
+                pose.mapid and (", carte serveur " .. pose.mapid)
+                    or (pose.carte and ", carte serveur ?" or ""), distance))
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, -(index - 1) * LIGNE)
             ligne:SetPoint("TOPRIGHT", p.zone.contenu, "TOPRIGHT", 0, -(index - 1) * LIGNE)

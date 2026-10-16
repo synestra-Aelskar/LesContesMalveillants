@@ -233,6 +233,7 @@ LCM.LISTES = {
     -- un anneau se choisissait parmi des types d'armes (10 octobre 2026).
     { id = "type_accessoires", label = "Type Accessoires" },
     { id = "armes",        label = "Liste Armes" },
+    { id = "outils",       label = "Liste outils" },
     { id = "origines",     label = "Liste origine" },
     { id = "ressources",   label = "Liste ressources" },
 }

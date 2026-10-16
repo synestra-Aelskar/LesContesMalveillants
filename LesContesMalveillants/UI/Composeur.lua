@@ -29,11 +29,11 @@ local CANAUX_EMOTE = {
     { id = "RAID", nom = "Raid" },
 }
 
-local function AvecEmoteFinale(composeur)
-    local id = composeur and composeur.ctx and composeur.ctx.resolution and composeur.ctx.resolution.id
-    -- Leur constructeur possede deja sa propre emote et son propre canal : ne
-    -- pas demander deux fois le meme texte avant d'ouvrir cet ecran.
-    return id ~= "generation_de_buff_composeur" and id ~= "generation_de_debuff_composeur"
+local function AvecEmoteFinale()
+    -- Toute action qui passe par le composeur se termine par sa narration. Les
+    -- ecrans speciaux portent desormais leur propre bloc commun : aucune action
+    -- ne doit donc etre exclue ici sur la foi d'un ancien parcours d'interface.
+    return true
 end
 
 local function EstControleMental(f)

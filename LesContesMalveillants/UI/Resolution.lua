@@ -1001,7 +1001,7 @@ end
 -- ShowBuffAcceptPrompt pour un buff.
 
 local function ConstruireEffet()
-    local f = Fenetre("LCM_EffetRecu", 440, 240)
+    local f = Fenetre("LCM_EffetRecu", 440, 350)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
     f.titre = UI.Texte(f, "", DORE, "GameFontNormalLarge")
     f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -14)
@@ -1014,6 +1014,8 @@ local function ConstruireEffet()
     f.corps:SetPoint("TOPRIGHT", f.sous, "BOTTOMRIGHT", 0, -10)
     f.corps:SetJustifyV("TOP")
     f.corps:SetWordWrap(true)
+    f.emoteAction = UI.EmoteAction(f, 408, 76, "Émote de réponse.")
+    Placer(f.emoteAction, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 48)
     f.boutons = {}
     f.dernier = UI.Bouton(f, "Subir", 110, 24, function() Ecran.Effet(false) end)
     Placer(f.dernier, "BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 14)
@@ -1037,6 +1039,7 @@ function Ecran.MontrerEffet(recu)
     local f = Ecran.effet or ConstruireEffet()
     if f:IsShown() and f.recu and f.recu ~= recu then return f end
     f.recu = recu
+    f.emoteAction:Reset()
     local p = recu.paquet
     local de = (Trim and Trim(p.rp) or tostring(p.rp or "")) ~= "" and p.rp or p.a
     f.titre:SetText(recu.debuff and "Débuff — résistance" or "Buff reçu")
@@ -1091,7 +1094,8 @@ function Ecran.MontrerEffet(recu)
         f:SetWidth(440)
         f.dernier.label:SetText("Refuser")
     end
-    f:SetHeight(math.max(160, 60 + (f.corps:GetStringHeight() or 60) + 60))
+    f.emoteAction:SetWidth(f:GetWidth() - 32)
+    f:SetHeight(math.max(290, 60 + (f.corps:GetStringHeight() or 60) + 170))
     f:Show()
     f:Raise()
     return f
@@ -1103,6 +1107,7 @@ function Ecran.Effet(oui, competence)
     local f = Ecran.effet
     local recu = f and f.recu
     if not recu then return end
+    local emote, canal = f.emoteAction:Lire()
     f.recu = nil
     f:Hide()
     if recu.debuff then
@@ -1110,6 +1115,7 @@ function Ecran.Effet(oui, competence)
     else
         if oui then A.Subir(recu) else A.Refuser(recu) end
     end
+    if emote:match("%S") then A.DireEmoteAction(emote, canal) end
 end
 
 -- ===== La dissipation ======================================================
@@ -1117,7 +1123,7 @@ end
 -- composition) ; ici une seule, en trois colonnes : cibles, etats, choix.
 
 local function ConstruireDissipation()
-    local f = Fenetre("LCM_Dissipation", 720, 440)
+    local f = Fenetre("LCM_Dissipation", 720, 540)
     f.titre = UI.Texte(f, "Dissipation", DORE, "GameFontNormalLarge")
     Placer(f.titre, "TOPLEFT", f, "TOPLEFT", 16, -14)
     local function Colonne(titre, x, largeur)
@@ -1140,6 +1146,8 @@ local function ConstruireDissipation()
     Placer(f.cout, "TOPLEFT", f, "TOPLEFT", 510, -300)
     f.cout:SetWidth(194)
     f.cout:SetWordWrap(true)
+    f.emoteAction = UI.EmoteAction(f, 688, 76, "Émote de l'action.")
+    Placer(f.emoteAction, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 48)
     f.dissiper = UI.Bouton(f, "Dissiper", 150, 26, function() Ecran.Dissiper(true) end)
     Placer(f.dissiper, "BOTTOMRIGHT", f, "BOTTOMRIGHT", -16, 14)
     f.annuler = UI.Bouton(f, "Annuler", 110, 26, function() Ecran.Dissiper(false) end)
@@ -1254,6 +1262,7 @@ function Ecran.Dissipation(ctx, cfg, rappel)
     if f:IsShown() then f:Hide() end
     f.ctx, f.cfg, f.rappel = ctx, cfg, rappel
     f.selection, f.choix, f.cible = {}, {}, nil
+    f.emoteAction:Reset()
     local joueurs, pnj = A.Cibles()
     f.cibles = {}
     for _, j in ipairs(joueurs) do f.cibles[#f.cibles + 1] = j end
@@ -1275,7 +1284,9 @@ function Ecran.Dissiper(oui)
     if not oui then return rappel(nil) end
     local selection = {}
     for _, s in pairs(f.selection) do selection[#selection + 1] = s end
-    rappel(selection, { competence = f.choix.competence, niveau = f.choix.niveau })
+    local emote, canal = f.emoteAction:Lire()
+    rappel(selection, { competence = f.choix.competence, niveau = f.choix.niveau,
+        emoteAction = emote:match("%S") and { texte = emote, canal = canal } or nil })
 end
 
 -- ===== Devier, intervenir =================================================
@@ -1285,7 +1296,7 @@ end
 -- « Deviation (x PA + y PF) ».
 
 local function ConstruireReaction()
-    local f = Fenetre("LCM_Reaction", 470, 420)
+    local f = Fenetre("LCM_Reaction", 470, 520)
     f:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
     f.titre = UI.Texte(f, "", DORE)
     Placer(f.titre, "TOPLEFT", f, "TOPLEFT", 16, -14)
@@ -1316,6 +1327,15 @@ local function ConstruireReaction()
     f.resume:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -282)
     f.resume:SetPoint("RIGHT", f, "RIGHT", -16, 0)
     f.resume:SetWordWrap(true)
+    -- Une déviation ou une intervention est une action racontée au même titre
+    -- qu'une attaque ou qu'une défense. Le texte ne part que si la tentative
+    -- est effectivement lancée (jamais en annulant la fenêtre).
+    f.emote = UI.Zone(f, 438, 56)
+    f.canal = BoutonCanal(f)
+    Placer(f.canal, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 48)
+    Placer(f.emote, "BOTTOMLEFT", f.canal, "TOPLEFT", 0, 26)
+    f.emoteTitre = UI.Texte(f, "Émote de réaction.", DORE, "GameFontNormalSmall")
+    Placer(f.emoteTitre, "BOTTOMLEFT", f.canal, "TOPLEFT", 0, 8)
     f.agir = UI.Bouton(f, "", 260, 26, function() Ecran.Reagir(true) end)
     Placer(f.agir, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 14)
     f.annuler = UI.Bouton(f, "Annuler", 110, 26, function() Ecran.Reagir(false) end)
@@ -1405,6 +1425,7 @@ function Ecran.Reaction(recu, mode)
     local f = Ecran.reaction or ConstruireReaction()
     f.recu, f.mode = recu, mode
     f.competence, f.cible, f.deplacement = nil, nil, false
+    f.emote:SetText("")
     f.candidats = Candidats(recu)
     local p = recu.paquet
     local pa, pf, libelle = LCM.Reactions.Cout(mode, p)
@@ -1429,7 +1450,11 @@ function Ecran.Reagir(oui)
     f:Hide()
     if oui then
         local cible = mode == "intervention" and { id = LCM.PlayerId(), nom = LCM.PlayerId() } or f.cible
-        LCM.Reactions.Agir(recu, mode, f.competence, cible, f.deplacement)
+        local tentee = LCM.Reactions.Agir(recu, mode, f.competence, cible, f.deplacement)
+        if tentee ~= nil then
+            local emote = f.emote:GetText()
+            if emote ~= "" then A.DireEnChat(emote, f.canal:Canal()) end
+        end
     elseif recu.proposition then
         LCM.Reactions.Refuser(recu)
     else

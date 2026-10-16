@@ -575,6 +575,7 @@ end
 function Composeur:Deriver()
     local V = self.ctx.vars
     for k in pairs(self.cles) do V[k] = nil end
+    V._coutPAParCible = nil
     local pa, pf, pac, pfc = 0, 0, 0, 0
     local moyennes = {}
     for _, q in ipairs(self.questions) do
@@ -592,6 +593,7 @@ function Composeur:Deriver()
         end
         local function Prendre(o)
             pa, pf, pac, pfc = pa + o.pa, pf + o.pf, pac + o.pac, pfc + o.pfc
+            if o.paParCible then V._coutPAParCible = true end
             for paire in o.set:gmatch("[^;\n]+") do
                 local k, v = paire:match("^%s*(.-)%s*=%s*(.-)%s*$")
                 if k and k ~= "" then
@@ -1516,6 +1518,15 @@ function Pas.apply(etape, ctx, suite)
 
     if signe == "-" and montant and montant <= 0 then
         Journal(ctx, string.format("Dégât absorbé : %s, rien à répartir.", tostring(montant)))
+        -- La résistance du calculateur peut ramener une attaque reçue à zéro
+        -- avant même l'écran de répartition. Sans retour visible, le joueur a
+        -- l'impression que la résolution s'est perdue. Ce constat ne concerne
+        -- que la défense automatique d'une attaque et reste strictement local.
+        local paquet = ctx and (ctx.paquet or (ctx.recu and ctx.recu.paquet))
+        local resolution = paquet and Actions.ResolutionPour(paquet.n)
+        if resolution and resolution.id == "defense_auto_v3" then
+            LCM.Info("Votre résistance est suffisamment élevée : vous ne subissez aucun dégât.")
+        end
         return suite()
     end
     local tags = {}
@@ -1816,10 +1827,34 @@ local ELEMENTS = { "feu", "eau", "vent", "air", "terre", "esprit", "pourriture",
 local Constructeur = {}
 Constructeur.__index = Constructeur
 
+local CIBLAGES_EFFET = { mono = true, multi = true, aoe = true, aoecond = true }
+local function CiblageEffetValide(vars)
+    return CIBLAGES_EFFET[Cle(vars and vars.cibleMode)] == true
+end
+
 function Actions.Constructeur(etape, ctx)
     local c = setmetatable({ etape = etape, ctx = ctx, regles = LireRegles(etape.buffRulesText),
                              points = {}, dureeAchetee = 0 }, Constructeur)
     c.composeur = Actions.Composeur({ questionsText = etape.questionsText, hideCost = etape.hideCost }, ctx)
+    -- Le cumul n'est pas encore jouable : retirer ses questions du composeur
+    -- empeche aussi les anciennes reponses enregistrees de produire un effet.
+    local questions = {}
+    for _, question in ipairs(c.composeur.questions) do
+        if question.label ~= "Type d'effet" and not tostring(question.showIf):find("effetMode", 1, true) then
+            questions[#questions + 1] = question
+        end
+    end
+    c.composeur.questions = questions
+    -- Dans un buff/debuff multicible, le premier PA paie la premiere cible.
+    -- Chaque cible suivante ajoute un PA au moment du choix des cibles.
+    for _, question in ipairs(questions) do
+        for _, option in ipairs(question.options) do
+            if option.set:find("cibleMode%s*=%s*multi") then
+                option.pa, option.pac, option.paParCible = 1, 1, true
+            end
+        end
+    end
+    c.composeur:Deriver()
     c.debuff = c.regles.mode == "debuff"
     -- Ou l'effet ira dans la fenetre Sante : Etat, Maladie ou Intangible. Le
     -- choix se fait AVANT tout le reste — c'est lui qui dit de quoi on parle.
@@ -1837,8 +1872,8 @@ function Actions.Constructeur(etape, ctx)
         for _, nom in ipairs(g.noms) do
             local champ = ChampDeFamille(nom)
             local field = champ and LCM.Schema.Field(champ)
-            if champ and field and field.section == sectionExclue then
-                -- Rien : c'est la jumelle de l'autre mode.
+            if champ and field and (field.section == sectionExclue or field.tab == "combat") then
+                -- Les anciennes statistiques de combat ne se choisissent plus.
             elseif champ and not vus[champ] then
                 vus[champ] = true
                 retenus[#retenus + 1] = { id = champ, nom = field and field.label or nom, cout = g.cout }
@@ -1926,13 +1961,17 @@ function Constructeur:Enregistrer(nom, description, icone)
     nom = Trim(nom)
     if nom == "" then return false, "il faut un nom." end
     local reponses = {}
+    local questions = {}
+    for _, q in ipairs(self.composeur.questions) do questions[q.id] = true end
     for cle, valeur in pairs(self.composeur.reponses) do
-        if type(valeur) == "table" then
-            local copie = {}
-            for k, v in pairs(valeur) do copie[k] = v end
-            reponses[cle] = copie
-        else
-            reponses[cle] = valeur
+        if questions[cle] then
+            if type(valeur) == "table" then
+                local copie = {}
+                for k, v in pairs(valeur) do copie[k] = v end
+                reponses[cle] = copie
+            else
+                reponses[cle] = valeur
+            end
         end
     end
     local points = {}
@@ -1962,13 +2001,17 @@ function Constructeur:Charger(modele)
     self.illimite = modele.illimite == true
     self.dureeAchetee = tonumber(modele.duree) or 0
     self.composeur.reponses = {}
+    local questions = {}
+    for _, q in ipairs(self.composeur.questions) do questions[q.id] = true end
     for cle, valeur in pairs(modele.reponses or {}) do
-        if type(valeur) == "table" then
-            local copie = {}
-            for k, v in pairs(valeur) do copie[k] = v end
-            self.composeur.reponses[cle] = copie
-        else
-            self.composeur.reponses[cle] = valeur
+        if questions[cle] then
+            if type(valeur) == "table" then
+                local copie = {}
+                for k, v in pairs(valeur) do copie[k] = v end
+                self.composeur.reponses[cle] = copie
+            else
+                self.composeur.reponses[cle] = valeur
+            end
         end
     end
     -- Les points se REJOUENT champ par champ : `Ajouter` refuse ce qui depasse
@@ -2120,6 +2163,7 @@ end
 function Constructeur:Blocage()
     local b = self.composeur:Blocage()
     if b and not b:find("type d'attaque") then return b end
+    if not CiblageEffetValide(self.ctx.vars) then return "Il faut choisir un mode de ciblage." end
     if self:Depense() > self:Reserve() + 0.001 then return "Plus de points dépensés que la réserve." end
     if not next(self.points) and not self:Cumul() then return "Aucun point réparti." end
     return nil
@@ -2341,6 +2385,10 @@ function Pas.dispel(etape, ctx, suite)
         if Actions.Dissiper(ctx, cfg, selection, choix) == false then
             return Arreter(ctx, "PA indisponibles pendant ce round.")
         end
+        local emote = choix.emoteAction
+        if emote and tostring(emote.texte or ""):match("%S") then
+            Actions.DireEmoteAction(emote.texte, emote.canal)
+        end
         suite()
     end)
 end
@@ -2406,7 +2454,8 @@ function Actions.Supplement(ctx, nombre, mono)
     local pac, pfc = tonumber(V._coutPAC) or 0, tonumber(V._coutPFC) or 0
     if pac ~= 0 or pfc ~= 0 then
         if mono then nombre = math.min(nombre, 1) end
-        return pac * math.floor(nombre / math.max(1, tonumber(V._coutPACPer) or 1)),
+        local nombrePA = V._coutPAParCible and math.max(0, nombre - 1) or nombre
+        return pac * math.floor(nombrePA / math.max(1, tonumber(V._coutPACPer) or 1)),
                pfc * math.floor(nombre / math.max(1, tonumber(V._coutPFCPer) or 1))
     end
     if mono then return 0, 0 end
@@ -2520,6 +2569,9 @@ end
 
 local function DeclarerEffet(etape, ctx, suite)
     local e, V = ctx.effet, ctx.vars
+    if not CiblageEffetValide(V) then
+        return Arreter(ctx, "Il faut choisir un mode de ciblage.")
+    end
     local paquet = {
         t = Jeton_(), a = LCM.PlayerId(), rp = LCM.Identite.NomEnJeu(ctx.entity), nom = e.nom, ic = e.icone, desc = e.description,
         deb = e.debuff and 1 or nil, nar = e.narratif and 1 or nil, txt = e.texte, mt = e.montant, u = e.unite,

@@ -98,7 +98,7 @@ function Marchands.Points(defId)
     local out = {}
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
-            out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y,
+            out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y, z = p.z,
                 source = p.source, carte = p.carte, quand = p.quand }
         end
     end
@@ -136,14 +136,14 @@ function Marchands.Placer(defId)
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     local point = Marchands.Definition(defId)
     if not point then return nil, "choisis d'abord un marchand." end
-    local x, y, source = R.Position()
+    local x, y, source, z = R.Position3D()
     if not x then
         local D = LCM.DeplacementForce
         if D and D.DemanderGPS then D.DemanderGPS(true) end
         return nil, "position indisponible : .gps demandé, reclique dans un instant."
     end
     local id = Identifiant()
-    Magasin()[id] = { def = point.id, x = x, y = y, source = source, carte = R.Carte(),
+    Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
         quand = (time and time()) or 0 }
     Rafraichir(point.id)
     Marchands.Diffuser(point.id)

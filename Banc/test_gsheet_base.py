@@ -32,6 +32,32 @@ class MemorySheet:
 
 
 class GoogleSheetBaseTest(unittest.TestCase):
+    def test_tools_and_chest_tool_types_round_trip(self):
+        packaged_script = SCRIPT.parents[1] / "LesContesMalveillants_MJ" / "Sync" / "Outils" / "gsheet_base.py"
+        packaged_spec = importlib.util.spec_from_file_location("gsheet_base_packaged", packaged_script)
+        packaged = importlib.util.module_from_spec(packaged_spec)
+        packaged_spec.loader.exec_module(packaged)
+        definitions = [
+            ("listes", "serrurerie", '{ id = "serrurerie", liste = "outils" }'),
+            ("objets", "crochet", '{ id = "crochet", categorie = "outil", '
+             'type = "serrurerie", bonus = { ["metier:mineur"] = 2 } }'),
+            ("points", "coffre", '{ id = "coffre", nature = "coffre", '
+             'coffre = { outils = { { typeOutil = "serrurerie", '
+             'expertise = "crochetage", quantite = 1 } } } }'),
+        ]
+        for implementation in (gsheet, packaged):
+            for family, identifier, lua in definitions:
+                with self.subTest(script=implementation.__name__, family=family):
+                    row = implementation.canonical([family, identifier, identifier, "", family == "points",
+                                                    implementation.ACTIVE, lua])
+                    parsed = implementation.lcm_db.LuaParser(row[6]).value()
+                    self.assertEqual(parsed["id"], identifier)
+                    self.assertEqual(implementation.canonical(row), row)
+        with self.assertRaisesRegex(ValueError, "ambigu"):
+            gsheet.canonical(["points", "coffre", "Coffre", "", True, gsheet.ACTIVE,
+                              '{ id = "coffre", nature = "coffre", coffre = { outils = '
+                              '{ { entree = "objets/crochet", typeOutil = "serrurerie" } } } }'])
+
     def test_tabs_cover_each_family_once(self):
         plan = gsheet.feuilles()
         self.assertEqual(len(plan), len(gsheet.lcm_db.FAMILIES) + 5)

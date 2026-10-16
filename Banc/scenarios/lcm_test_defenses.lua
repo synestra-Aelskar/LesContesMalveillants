@@ -167,6 +167,19 @@ attendu("  et il ne porte plus que 85", degats.effets[1] and degats.effets[1].mo
 local dit = table.concat(degats.journal, " | ")
 attendu("  le journal dit pourquoi", dit:find("15 %%") ~= nil, true)
 
+-- Une résistance assez haute peut déjà ramener le calcul à zéro avant la
+-- répartition. La résolution doit alors expliquer localement pourquoi aucune
+-- fenêtre de dégâts ne s'ouvre.
+local messageLocal
+local infoOriginale = LCM.Info
+LCM.Info = function(texte) messageLocal = texte end
+local absorbes = reception("Attaque")
+A.Pas.apply({ amount = "0", sign = "-", tags = "" }, absorbes, function() end)
+LCM.Info = infoOriginale
+attendu("zéro dégât : aucun effet à répartir", #absorbes.effets, 0)
+attendu("  et la résistance est expliquée localement", messageLocal,
+    "Votre résistance est suffisamment élevée : vous ne subissez aucun dégât.")
+
 -- Un soin ne se réduit pas.
 local soin = reception("Soin")
 A.Pas.apply({ amount = "100", sign = "+", tags = "" }, soin, function() end)

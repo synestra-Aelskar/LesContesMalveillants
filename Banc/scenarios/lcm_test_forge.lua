@@ -52,6 +52,9 @@ end
 -- jeu (4 et 10) valent donc 5 et 11 une fois sur une arme. On lit ce bonus
 -- dans les donnees plutot que de recopier des nombres.
 local bonusPool = tonumber(LCM.Equilibrage.forge.etatObjet.bonusPool) or 0
+attendu("pts d'armures : base", LCM.Equilibrage.forge.etatObjet.base, 40)
+attendu("pts d'armures : gain par point", LCM.Equilibrage.forge.etatObjet.pas, 6)
+attendu("pts d'armures : cout historique du pas", LCM.Equilibrage.forge.etatObjet.coutParPas, 0.5)
 local poolCommun = 4 + bonusPool
 local poolRare = 10 + bonusPool
 
@@ -99,6 +102,10 @@ attendu("aucun pour les armures", #F.PourCategorie("armures"), 0)
 
 dire("== Le bilan")
 local jeu = F.Get("creation_arme")
+local bilanBase = F.Bilan(jeu, "rare", { force = 1 }, nil, 40)
+local bilanPlus = F.Bilan(jeu, "rare", { force = 1 }, nil, 46)
+attendu("six pts d'armures gardent le cout historique", bilanPlus.total - bilanBase.total, 0.5)
+attendu("pas intermediaire refuse", F.Bilan(jeu, "rare", { force = 1 }, nil, 42).lignes[1].hors ~= nil, true)
 local bilan = F.Bilan(jeu, "rare", { force = 1, vue = 2, escalade = 3, ouie = 2 })
 attendu("vue 2 x 2 + escalade 3 = 7", bilan.total, 7)
 bilan = F.Bilan(jeu, "rare", { force = 1 })
@@ -389,7 +396,7 @@ q.pageJeu.nom:Saisir("Création d'armure")
 q.onglets.boutons[2]:Click()
 local avant = 0
 for _, b in ipairs(q.pageChamps.dossiers) do if b:IsShown() then avant = avant + 1 end end
-attendu("dossiers visibles sans categorie", avant > 10, true)
+attendu("dossiers visibles sans categorie, sans anciens dossiers de combat", avant, 10)
 q.onglets.boutons[1]:Click()
 q.enregistrer:Click()
 contient("sans categorie : refuse", q.statut:GetText(), "choisis la categorie")
@@ -682,6 +689,24 @@ for _, champ in ipairs(F.Statistiques(LCM.Compendium.Get("traits"))) do
 end
 attendu("Forge : Provocation disponible", mecaniquesForge.meca_provocation, true)
 attendu("Forge : Intimidation disponible", mecaniquesForge.meca_intimidation, true)
+attendu("ancienne statistique de combat absente de la Forge", mecaniquesForge.force_attaque, nil)
+for _, id in ipairs({ "traits", "races", "armes", "armures", "accessoires" }) do
+    local visible = false
+    for _, champ in ipairs(LCM.Compendium.Champs(LCM.Compendium.Get(id))) do
+        if champ.cle == "force_attaque" then visible = true end
+    end
+    attendu("ancienne statistique absente du compendium " .. id, visible, false)
+end
+local ancienJeu = { categorie = "traits", raretes = {
+    { id = "ancien", label = "Ancien", points = 10, couleur = "FFFFFF" } },
+    champs = { force_attaque = { cout = 2 } } }
+local ancienBilan = F.Bilan(ancienJeu, "ancien", { force_attaque = 1 })
+attendu("ancien bonus toujours compté", ancienBilan.total, 2)
+local ancienAffiche = false
+for _, ligne in ipairs(ancienBilan.lignes) do
+    if ligne.champ.cle == "force_attaque" then ancienAffiche = true end
+end
+attendu("ancien bonus absent des lignes visibles", ancienAffiche, false)
 
 dire("== Race publique ou reservee au MJ dans la Forge")
 ok, raison = B.Enregistrer("jeux", {

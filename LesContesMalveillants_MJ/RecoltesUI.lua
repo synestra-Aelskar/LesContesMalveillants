@@ -859,15 +859,15 @@ local function Construire()
     end
 
     function f:Position()
-        local x, y, source = LCM.Recolte.Position()
+        local x, y, source, z = LCM.Recolte.Position3D()
         if x then
             local carte = LCM.Recolte.Carte()
-            p.position:SetText(string.format("Tu es en %.1f, %.1f  (%s%s)", x, y, tostring(source),
+            p.position:SetText(string.format("Tu es en %.1f, %.1f, %.1f  (%s%s)", x, y, z, tostring(source),
                 carte and (", carte " .. carte) or ""))
         else
             p.position:SetText("Position inconnue ici : le clic demandera « .gps ».")
         end
-        return x, y, source
+        return x, y, source, z
     end
 
     function f:AfficherPoints()
@@ -875,7 +875,7 @@ local function Construire()
         -- Tout le carnet : les points recoltes y restent, grises, avec qui
         -- les a pris. Seuls les CREES partent aux joueurs.
         local liste = point and Recoltes.Carnet(point.id) or {}
-        local x, y, source = self:Position()
+        local x, y, source, z = self:Position()
         local carte = LCM.Recolte.Carte()
         local h = 0
         for rang, pose in ipairs(liste) do
@@ -899,7 +899,8 @@ local function Construire()
             -- La distance quand elle se mesure : meme source, meme carte.
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
-                distance = string.format("  —  à %.0f yards", math.sqrt((x - pose.x) ^ 2 + (y - pose.y) ^ 2))
+                local d = LCM.Recolte.Distance(pose, { x = x, y = y, z = z })
+                distance = d and string.format("  —  à %.0f yards", d) or "  —  altitude inconnue : replacer"
             elseif pose.carte ~= carte then
                 distance = "  —  autre carte"
             end
@@ -909,8 +910,9 @@ local function Construire()
                 or not pose.actif and (pose.retour and "|cffe0c060En régénération|r"
                     or "|cff9d9d9dÉpuisé|r")
                 or "|cff7fd07fCréé|r"
-            l.texte:SetText(string.format("#%d   %s   %.1f, %.1f   (%s%s)%s", #liste - rang + 1, statut,
-                pose.x, pose.y, tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "",
+            l.texte:SetText(string.format("#%d   %s   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1, statut,
+                pose.x, pose.y, pose.z and string.format("%.1f", pose.z) or "Z ?",
+                tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "",
                 pose.statut == "cree" and distance or ""))
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, -h)

@@ -129,10 +129,12 @@ local function Bloc()
     for _, groupe in ipairs(Compendium.BLOC or {}) do
         for _, id in ipairs(groupe.champs) do
             dansLeBloc[id] = true
-            blocDeveloppe[#blocDeveloppe + 1] = {
-                cle = id, label = LabelSchema(id), type = "statistique",
-                emplacement = "statistiques", dossier = groupe.dossier,
-            }
+            if not groupe.masque then
+                blocDeveloppe[#blocDeveloppe + 1] = {
+                    cle = id, label = LabelSchema(id), type = "statistique",
+                    emplacement = "statistiques", dossier = groupe.dossier,
+                }
+            end
         end
     end
     for _, id in ipairs(CiblesBonus()) do
@@ -158,6 +160,7 @@ function Compendium.Champs(categorie)
         -- recuperations) quand celui de la fiche n'aurait personne a qui
         -- s'appliquer. La forge dose alors ces champs-la.
         for _, champ in ipairs(categorie.bloc or Bloc()) do tous[#tous + 1] = champ end
+        for _, champ in ipairs(categorie.blocExtra or {}) do tous[#tous + 1] = champ end
     end
     local dossiers = categorie.dossiers or { "Général" }
     local parDossier, connus, ordre = {}, {}, {}

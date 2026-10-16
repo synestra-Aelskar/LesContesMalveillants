@@ -34,6 +34,15 @@ local function Cases(objets)
     return n
 end
 
+local function PositionServeur()
+    local D = LCM.DeplacementForce
+    if not (D and D.Position and D.CarteGPS) then return nil end
+    local x, y, z, source = D.Position("gps")
+    local mapid = D.CarteGPS()
+    if source ~= "gps" or not (tonumber(x) and tonumber(y) and tonumber(z) and tonumber(mapid)) then return nil end
+    return x, y, z, mapid
+end
+
 local function Etat(p)
     return { i = p.id, o = LCM.Copie(p.objets or {}), v = p.verrousRestants or 0,
         f = p.verrouille == true, s = p.ouvert == true,
@@ -72,33 +81,70 @@ function Coffres.Renvoyer(joueur)
     return n
 end
 
--- `position` : { x, y, source, carte } — la ou poser. Sans elle, la ou se
+-- `position` : { x, y, z, source, carte, mapid } — la ou poser. Sans elle, la ou se
 -- tient le MJ. Un sac lache au sol se pose la ou le joueur l'a lache.
 function Coffres.Placer(defId, position)
     if not LCM.IsMaster() then return nil, "réservé au maître du jeu." end
     local d = Definition(defId)
     if not d then return nil, "choisis d'abord un coffre configuré." end
-    local x, y, source, carte
+    local x, y, z, source, carte, mapid
     if position then
-        x, y, source, carte = position.x, position.y, position.source, position.carte
+        x, y, z, source, carte, mapid = position.x, position.y, position.z,
+            position.source, position.carte, position.mapid
     else
-        x, y, source = R.Position()
+        x, y, z, mapid = PositionServeur()
+        source = "gps"
         carte = R.Carte()
     end
-    if not x then
+    if not x or z == nil or (not position and not mapid) or source == "carte" then
         if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
-        return nil, "position indisponible : .gps demandé, reclique dans un instant."
+        return nil, "position serveur indisponible : .gps demandé, reclique après sa réponse."
     end
     local contents = {}
     for _, o in ipairs(d.coffre.objets or {}) do contents[#contents + 1] = LCM.Copie(o) end
     if Cases(contents) > d.coffre.places then return nil, "le contenu configuré dépasse le nombre d'emplacements." end
     local id = Identifiant()
-    Magasin()[id] = { id = id, def = d.id, x = x, y = y, source = source,
-        carte = carte, quand = time and time() or 0, objets = contents,
+    Magasin()[id] = { id = id, def = d.id, x = x, y = y, z = z, source = source,
+        carte = carte, mapid = mapid, quand = time and time() or 0, objets = contents,
         verrousRestants = d.coffre.verrous, verrouille = d.coffre.verrous > 0,
         ouvert = d.coffre.verrous == 0, verrousOuverts = {} }
     Coffres.Renvoyer()
     return id
+end
+
+function Coffres.Teleporter(id)
+    if not LCM.IsMaster() then return false, "réservé au maître du jeu." end
+    local p = Magasin()[tostring(id or "")]
+    if not p then return false, "coffre placé introuvable." end
+    local x, y, z, mapid = tonumber(p.x), tonumber(p.y), tonumber(p.z), tonumber(p.mapid)
+    if not x or not y or z == nil or p.source == "carte" then
+        return false, "coordonnées 3D indisponibles : replace ce coffre pour pouvoir t'y téléporter."
+    end
+    -- Les anciens placements pouvaient retenir Z=0 et l'id de carte d'UI
+    -- plutot que la carte serveur. Ne reparer que depuis le coffre lui-meme.
+    if not mapid or (p.source == "monde" and z == 0) then
+        local gx, gy, gz, gm = PositionServeur()
+        if gx and p.carte == R.Carte() and math.abs(gx - x) <= 3 and math.abs(gy - y) <= 3 then
+            p.x, p.y, p.z, p.mapid, p.source = gx, gy, gz, gm, "gps"
+            x, y, z, mapid = gx, gy, gz, gm
+            Coffres.Renvoyer()
+        else
+            if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
+            return false, "ancien emplacement sans altitude ou carte serveur fiable : va près du coffre, attends la réponse .gps puis reclique, ou replace-le."
+        end
+    end
+    local function Coord(n) return string.format("%.6f", n):gsub(",", ".") end
+    -- .gps et .worldport utilisent le meme ordre X, Y sur le serveur.
+    local commande = ".worldport " .. Coord(x) .. " " .. Coord(y)
+    if z then
+        commande = commande .. " " .. Coord(z)
+        if mapid then commande = commande .. " " .. tostring(math.floor(mapid)) end
+    end
+    if not (LCM.DeplacementForce and LCM.DeplacementForce.Commande
+        and LCM.DeplacementForce.Commande(commande)) then
+        return false, "commande de téléportation non envoyée."
+    end
+    return true
 end
 
 function Coffres.Retirer(id)
@@ -170,6 +216,21 @@ function Coffres.Traiter(expediteur, req)
         if extra.action == nil then extra.action = req.a end
         Envoyer(expediteur, p, ok, extra)
     end
+    local editionMJ = req.edition == true and LCM.IsMaster()
+        and expediteur == LCM.PlayerId()
+    if req.a == "editer" then
+        if not editionMJ then Repondre(false, { msg = "édition réservée au MJ." }); return end
+        Repondre(true)
+        return
+    end
+    if req.a == "reset_verrous" then
+        if not editionMJ then Repondre(false, { msg = "réinitialisation réservée au MJ." }); return end
+        local total = tonumber(d.coffre.verrous) or 0
+        p.verrousRestants, p.verrouille = total, total > 0
+        p.ouvert, p.verrousOuverts = total == 0, {}
+        MettreAJour(p); Repondre(true)
+        return
+    end
     if req.a == "ouvrir" then
         if not p.verrouille then p.ouvert = true; MettreAJour(p) end
         Repondre(true)
@@ -212,7 +273,9 @@ function Coffres.Traiter(expediteur, req)
         MettreAJour(p); Repondre(true, { resultat = "réussite", expertise = choisi.id, total = score })
         return
     end
-    if not p.ouvert or p.verrouille then Repondre(false, { msg = "le coffre est verrouillé." }); return end
+    if (not p.ouvert or p.verrouille) and not editionMJ then
+        Repondre(false, { msg = "le coffre est verrouillé." }); return
+    end
     if req.a == "prendre" then
         local ref, n = tostring(req.e or ""), math.max(1, math.floor(tonumber(req.q) or 1))
         for index, o in ipairs(p.objets or {}) do

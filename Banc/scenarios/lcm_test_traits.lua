@@ -28,6 +28,9 @@ attendu("apres attribution", #LCM.Traits.Owned(moi), 1)
 attendu("deux fois le meme", LCM.Traits.Grant(moi, "escalade_jungle"), false)
 attendu("bonus en escalade", LCM.Traits.Bonus(moi, "escalade"), 3)
 attendu("bonus ailleurs", LCM.Traits.Bonus(moi, "course"), 0)
+attendu("le trait positif est retrouve", LCM.Traits.BonusPositif(moi, "escalade").label,
+    "Escalade de la jungle")
+attendu("aucun trait positif ailleurs", LCM.Traits.BonusPositif(moi, "course"), "nil")
 
 dire("== avantage")
 attendu("accorde en escalade", LCM.Traits.Advantage(moi, "escalade") ~= nil, true)
@@ -48,6 +51,27 @@ attendu("on garde le meilleur", ra.garde, math.max(ra.jets[1], ra.jets[2]))
 attendu("le trait est nomme", ra.trait.label, "Escalade de la jungle")
 dire("   " .. LCM.Roll.Describe(ra))
 
+dire("== avantage et désavantage d'expertise ne paient les PF qu'une fois")
+local ancienRandom = math.random
+local valeurs = { 2, 11 }
+math.random = function() return table.remove(valeurs, 1) end
+local fatigueDepart = LCM.Entities.Gauge(moi, "fatigue").max
+LCM.Entities.SetGauge(moi, "fatigue", fatigueDepart)
+local avecAvantage = LCM.Roll.ResoudreExpertise(moi, "escalade", 9999, 3,
+    { avantage = true })
+attendu("avantage : deux jets", #avecAvantage.jet.jets, 2)
+attendu("avantage : meilleur garde", avecAvantage.jet.garde, 11)
+attendu("avantage : une seule perte de PF", LCM.Entities.Gauge(moi, "fatigue").current,
+    fatigueDepart - 3)
+valeurs = { 2, 11 }
+local avecDesavantage = LCM.Roll.ResoudreExpertise(moi, "escalade", 9999, 3,
+    { desavantage = true })
+attendu("désavantage : deux jets", #avecDesavantage.jet.jets, 2)
+attendu("désavantage : pire garde", avecDesavantage.jet.garde, 2)
+attendu("désavantage : une seule perte de PF", LCM.Entities.Gauge(moi, "fatigue").current,
+    fatigueDepart - 6)
+math.random = ancienRandom
+
 dire("== cocher la case sans trait ne donne rien")
 local rc = LCM.Roll.Field(moi, "course", { avantage = true })
 attendu("un seul de", #rc.jets, 1)
@@ -57,6 +81,10 @@ dire("== retirer le trait")
 LCM.Traits.Revoke(moi, "escalade_jungle")
 attendu("plus de bonus", LCM.Traits.Bonus(moi, "escalade"), 0)
 attendu("plus rien en sauvegarde", moi.traits, "nil")
+local refuse, raison = LCM.Roll.ResoudreExpertise(moi, "escalade", 10, 0,
+    { avantage = true })
+attendu("pas d'avantage d'expertise sans trait", refuse, "nil")
+attendu("et la raison est explicite", tostring(raison):find("aucun trait", 1, true) ~= nil, true)
 
 dire("== formules de fatigue et d'initiative")
 LCM.Entities.Set_Value(moi, "niveau", 5)

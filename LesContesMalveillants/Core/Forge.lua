@@ -57,7 +57,24 @@ local function Statistiques(categorie)
     return out
 end
 
-local CATEGORIES_OBJETS = { armes = true, armures = true, accessoires = true }
+-- Ces anciennes cibles restent reconnues dans les jeux deja publies, mais ne
+-- figurent plus parmi les choix proposes dans la forge.
+local function StatistiquesMasquees(categorie)
+    local out = {}
+    if not categorie or categorie.statistiques ~= "bonus" or categorie.bloc then return out end
+    for _, groupe in ipairs(LCM.Compendium.BLOC or {}) do
+        if groupe.masque then
+            for _, id in ipairs(groupe.champs) do
+                local field = LCM.Schema.Field(id)
+                out[#out + 1] = { cle = id, label = field and field.label or id,
+                    dossier = groupe.dossier, masque = true }
+            end
+        end
+    end
+    return out
+end
+
+local CATEGORIES_OBJETS = { armes = true, armures = true, accessoires = true, outils = true }
 
 local function EstObjet(categorie)
     local id = type(categorie) == "table" and categorie.id or tostring(categorie or "")
@@ -125,6 +142,7 @@ local Forge = LCM.Registre({
         -- une statistique sans reglage est libre, a son cout par defaut.
         local connues = {}
         for _, champ in ipairs(Statistiques(categorie)) do connues[champ.cle] = champ end
+        for _, champ in ipairs(StatistiquesMasquees(categorie)) do connues[champ.cle] = champ end
         element.champs = {}
         for cle, r in pairs(type(definition.champs) == "table" and definition.champs or {}) do
             local champ = connues[tostring(cle)]
@@ -315,7 +333,10 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
             etatObjet = true,
         }
     end
-    for _, champ in ipairs(Statistiques(categorie)) do
+    local toutes = Statistiques(categorie)
+    for _, champ in ipairs(StatistiquesMasquees(categorie)) do toutes[#toutes + 1] = champ end
+    local horsMasques
+    for _, champ in ipairs(toutes) do
         local l = Forge.Limites(jeu, champ.cle, rareteId)
         local v = tonumber(valeurs[champ.cle]) or 0
         local hors
@@ -337,7 +358,11 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
             depense = ecart * l.cout
             depenses = depenses + depense
         end
-        lignes[#lignes + 1] = { champ = champ, valeur = v, limites = l, depense = depense, hors = hors }
+        if champ.masque then
+            horsMasques = horsMasques or hors
+        else
+            lignes[#lignes + 1] = { champ = champ, valeur = v, limites = l, depense = depense, hors = hors }
+        end
     end
 
     -- Sans rarete connue (un jeu qu'on est en train d'ecrire), rien ne plafonne
@@ -348,6 +373,7 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
     return {
         total = depenses - retenu,
         lignes = lignes,
+        horsMasques = horsMasques,
         depenses = depenses,
         credit = credit,
         creditRetenu = retenu,
@@ -422,6 +448,7 @@ function Forge.Verifier(famille, element)
     local multiplicateurPool = categorie.id == "armes" and element.taille or 1
     local etatObjet = type(element.etat) == "table" and element.etat.max or nil
     local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool, etatObjet)
+    if bilan.horsMasques then return false, bilan.horsMasques end
     for _, ligne in ipairs(bilan.lignes) do
         if ligne.hors then return false, ligne.hors end
     end

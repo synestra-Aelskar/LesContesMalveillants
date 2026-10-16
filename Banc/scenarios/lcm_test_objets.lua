@@ -27,7 +27,7 @@ local O = LCM.Objets
 local moi = LCM.Entities.Self()
 
 dire("== le registre")
-attendu("trois categories", #O.CATEGORIES, 3)
+attendu("quatre categories", #O.CATEGORIES, 4)
 -- Deux depuis le 5 octobre 2026 : une arme et un bouclier, ou une arme a
 -- deux mains qui prend les deux.
 attendu("2 armes", O.Emplacements("arme"), 2)
@@ -42,6 +42,24 @@ dire("     " .. tostring(err))
 ok, err = pcall(O.Construire, { id = "x", categorie = "arme", bonus = { force = 2 } })
 attendu("primaire permise pour un objet (template)", ok, true)
 dire("     " .. tostring(err))
+
+dire("== conversion des anciennes valeurs de forge")
+local ancienObjet = O.Add({ id = "ancienne_armure", label = "Ancienne armure",
+    categorie = "equipement", forge = "ancien_jeu/commun", etat = { courant = 14, max = 14 } })
+attendu("ancienne base et deux paliers convertis", O.EtatMax(ancienObjet), 52)
+attendu("ancienne valeur conservee pour migrer l'usure", ancienObjet.etat.ancienMax, 14)
+moi.usureArmure = moi.usureArmure or {}
+moi.usureArmure.ancienne_armure = 7
+attendu("usure a mi-vie conservee", O.Usure(moi, ancienObjet.id), 26)
+attendu("usure migree une seule fois", O.Usure(moi, ancienObjet.id), 26)
+local nouvelObjet = O.Add({ id = "nouvelle_armure", label = "Nouvelle armure",
+    categorie = "equipement", forge = "nouveau_jeu/commun",
+    etat = { courant = 40, max = 40, version = 2 } })
+attendu("nouvelle base non reconvertie", O.EtatMax(nouvelObjet), 40)
+local batonPublie = O.Get("baton_forestier")
+if batonPublie then attendu("baton deja publie converti", O.EtatMax(batonPublie), 52) end
+local rempartPublie = O.Get("rempart_de_guerre")
+attendu("ancien rempart a 40 converti", rempartPublie and O.EtatMax(rempartPublie), 130)
 
 dire("== equiper")
 attendu("au depart rien", #O.Equipes(moi), 0)
@@ -134,7 +152,7 @@ local f = LCM.UI.Vues.frames.equipement
 attendu("ouverte", f:IsShown(), true)
 local noms = {}
 for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
-attendu("trois onglets du template", table.concat(noms, ", "), "Armes, Armures, Accessoires")
+attendu("onglet Outils dans les équipements", table.concat(noms, ", "), "Armes, Armures, Accessoires, Outils")
 attendu("onglet Armes ouvert", f.onglet, "arme")
 local armes = f.pages.arme.blocs[1]
 attendu("bloc titre", armes.titre:GetText(), "ARMES")
@@ -150,7 +168,7 @@ attendu("et son etat devant", nomPorte:find("^%(%d+/%d+%) Lame de givre") ~= nil
 attendu("son icone", ligne.icone:GetTexture(), "Interface\\Icons\\INV_Misc_QuestionMark")
 -- La ligne annonce d'abord l'ETAT de l'objet (sa durabilite), puis ses
 -- effets. Elle ne disait que les effets avant que les objets aient une usure.
-attendu("ses effets", ligne.effets:GetText(), "État 10 / 10  ·  Eau +2")
+attendu("ses effets", ligne.effets:GetText(), "État 40 / 40  ·  Eau +2")
 -- 16 octobre 2026 : un bouton carre a signe, le sens dans l'infobulle.
 -- « + Ajouter » ne tenait pas dans la colonne d'action et se coupait.
 attendu("bouton retirer (MJ)", ligne.action.label:GetText() .. " " .. ligne.action.titreBulle, "× Retirer")

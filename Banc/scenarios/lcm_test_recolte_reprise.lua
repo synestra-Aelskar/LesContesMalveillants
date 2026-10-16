@@ -25,7 +25,7 @@ LCM.Brouillons.Set("points", {
     recolte = { entree = "ressources/eau_temoin", min = 1, max = 1, dd = 0, rayon = 3 },
 })
 LCM.EnsureDatabase()
-LCM.db.recoltes = { r_avant = { def = "puiser_temoin", x = 10, y = 20, source = "monde",
+LCM.db.recoltes = { r_avant = { def = "puiser_temoin", x = 10, y = 20, z = 0, source = "monde",
     carte = LCM.Recolte.Carte(), quand = 1 } }
 
 attendu("avant la connexion, la définition n'est pas chargée", LCM.Points.Get("puiser_temoin"), nil)

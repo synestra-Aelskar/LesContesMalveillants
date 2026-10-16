@@ -98,6 +98,7 @@ attendu("une copie perimee ne la reprend pas", Sol.sacs.solsyn.gardien, MOI)
 __deconnecter("Syn-Apertus", false)
 
 dire("== ramasser le sac en entier")
+LCM.DeplacementForce.NoterGPS("10.000000 10.000000 0.000000 1 0.000000")
 C.Ouvrir(id)
 local fenetre = LCM.UI.Coffre.frame
 attendu("le bouton est la", fenetre.ramasser:IsShown(), true)
@@ -175,6 +176,7 @@ dire("== un objet lache hors de l'inventaire tombe au sol")
 I.Ranger(moi, "sacs", 2, 3, HERBE, 4)
 -- Loin des sacs deja au sol : le bouton montre le plus proche.
 __position(60, 60, 0)
+LCM.DeplacementForce.NoterGPS("60.000000 60.000000 0.000000 585 0.000000")
 local caseHerbe = { ref = HERBE, quantite = 4, nom = "Herbe",
     origine = { onglet = "sacs", index = 2, case = 3 },
     retirer = function() I.Vider(moi, "sacs", 2, 3) end,
@@ -199,7 +201,8 @@ __addonsCharges["LesContesMalveillants_MJ"] = mjCharge
 attendu("on joue en MJ", LCM.IsMaster(), true)
 avant = #__envois
 Recevoir("Zed-Apertus", Sol.SUJETS.etat, { i = "solzed", n = "Sac de réserve de Zed", b = "sac_reserve", s = 6,
-    o = { { e = PIERRE, q = 2 } }, x = 30, y = 40, r = sol.position.source, k = sol.position.carte,
+    o = { { e = PIERRE, q = 2 } }, x = 30, y = 40, z = sol.position.z,
+    r = sol.position.source, k = sol.position.carte,
     a = "Zed-Apertus", g = "Zed-Apertus", v = 1 })
 attendu("le fantome disparait", Sol.sacs.solzed, nil)
 attendu("  et on le dit au groupe", Envoye(Sol.SUJETS.retrait, avant) ~= nil, true)

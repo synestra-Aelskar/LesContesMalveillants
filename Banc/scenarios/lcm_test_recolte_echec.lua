@@ -52,7 +52,7 @@ attendu("aucune ressource attribuée", carnet.consomme and carnet.consomme[1], n
 
 -- Hors ligne, la perte reste locale et sera annoncee au retour du MJ.
 local distant = "Syn-Apertus"
-local copie = { id = "echec_distant", x = carnet.x, y = carnet.y,
+local copie = { id = "echec_distant", x = carnet.x, y = carnet.y, z = carnet.z,
     source = carnet.source, carte = carnet.carte, usages = 0 }
 local definition = R.Lire(paquet)
 R.Connaitre(definition, { copie }, distant)
@@ -70,7 +70,7 @@ R.Oublier(copie.id)
 local libre = { id = "echec_gratuit", label = "Filon témoin", dd = 15,
     limite = 2, rayon = def.recolte.rayon, ressources = def.recolte.ressources,
     auteur = distant }
-R.Connaitre(libre, { { id = "gratuit", x = carnet.x, y = carnet.y,
+R.Connaitre(libre, { { id = "gratuit", x = carnet.x, y = carnet.y, z = carnet.z,
     source = carnet.source, carte = carnet.carte, usages = 0 } }, distant)
 ok, raison = R.Tenter("gratuit")
 attendu("échec gratuit", ok, false)

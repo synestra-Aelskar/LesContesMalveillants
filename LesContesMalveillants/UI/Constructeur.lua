@@ -21,7 +21,7 @@ local LARGEUR, HAUTEUR = 860, 700
 -- Repliee, la fenetre ne montre que l'apercu et la rangee de boutons : de quoi
 -- declarer un effet tout pret sans dérouler quatre-vingts champs. On ne deplie
 -- que pour composer vraiment.
-local HAUTEUR_REPLIEE = 190
+local HAUTEUR_REPLIEE = 280
 local DORE = { 0.93, 0.80, 0.52 }
 local LIGNE = 22
 -- Le cote d'un carre de cout, colle au rectangle du nom d'une option.
@@ -161,7 +161,7 @@ local function Construire()
 
     f.champs = UI.Defilement(f)
     f.champs:SetPoint("TOPLEFT", f, "TOPLEFT", 16, -388)
-    f.champs:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -22, 60)
+    f.champs:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -22, 140)
     f.entetes, f.lignes = {}, {}
     f.replies = {}
 
@@ -170,7 +170,7 @@ local function Construire()
     Placer(f.titreDroite, "TOPLEFT", f, "TOP", 8, -144)
     f.choix = UI.Defilement(f)
     f.choix:SetPoint("TOPLEFT", f, "TOP", 8, -166)
-    f.choix:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 110)
+    f.choix:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 140)
     f.questions, f.options = {}, {}
 
     -- Les deux reserves en CARRES, aux couleurs du jeu (PA vert, PF bleu),
@@ -200,11 +200,17 @@ local function Construire()
     Placer(f.carrePF, "LEFT", f.carrePA, "RIGHT", 0, 0)
 
     f.couts = UI.Texte(f, "", UI.C.texte)
-    Placer(f.couts, "BOTTOMLEFT", f, "BOTTOM", 8, 84)
+    Placer(f.couts, "BOTTOMLEFT", f, "BOTTOM", 8, 114)
     f.absents = UI.Texte(f, "", UI.C.discret, "GameFontNormalSmall")
-    f.absents:SetPoint("BOTTOMLEFT", f, "BOTTOM", 8, 62)
+    f.absents:SetPoint("BOTTOMLEFT", f, "BOTTOM", 8, 94)
     f.absents:SetPoint("RIGHT", f, "RIGHT", -16, 0)
     f.absents:SetWordWrap(true)
+
+    -- La narration appartient aussi aux buffs et aux debuffs. Ces deux actions
+    -- passent par ce constructeur (et non par le composeur generique), elles
+    -- avaient donc ete les seules declarations sans champ d'emote.
+    f.emoteAction = UI.EmoteAction(f, LARGEUR - 32, 70, "Émote de l'action.")
+    Placer(f.emoteAction, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 42)
 
     -- ----- pied -------------------------------------------------------------
     f.blocage = UI.Texte(f, "", UI.C.plein, "GameFontNormalSmall")
@@ -577,6 +583,7 @@ function Ecran.Ouvrir(constructeur, valider, annuler)
     f.nom:SetText("")
     f.desc:SetText("")
     f.modeleCharge = nil
+    f.emoteAction:Reset()
     f.replie = true
     f:Disposer()
     f:Show()
@@ -592,6 +599,9 @@ function Ecran.Declarer()
     f.rappelValider, f.rappelAnnuler = nil, nil
     local nom, desc = f.nom:GetText() or "", f.desc:GetText() or ""
     local icone = f.iconeChoisie
+    local emote, canal = f.emoteAction:Lire()
+    f.constructeur.ctx.emoteAction = emote:match("%S")
+        and { texte = emote, canal = canal } or nil
     f:Hide()
     if valider then valider(nom, desc, icone) end
 end

@@ -251,13 +251,13 @@ function Marchands.Proche(positions)
             local source = p.source or "?"
             local pos = positions[source]
             if pos == nil then
-                local x, y = LCM.Recolte.Position(p.source)
-                pos = x and { x = x, y = y } or false
+                local x, y, _, z = LCM.Recolte.Position(p.source)
+                pos = x and { x = x, y = y, z = z } or false
                 positions[source] = pos
             end
             if pos then
-                local distance = math.sqrt((pos.x - p.x) ^ 2 + (pos.y - p.y) ^ 2)
-                if distance <= Marchands.Rayon() and (not meilleureDistance or distance < meilleureDistance) then
+                local distance = LCM.Recolte.Distance(p, pos)
+                if distance and distance <= Marchands.Rayon() and (not meilleureDistance or distance < meilleureDistance) then
                     meilleur, meilleureDistance = p, distance
                 end
             end

@@ -16,8 +16,9 @@ LCM.Equilibrage = E
 -- champs repartis a la creation. Chaque personnage conserve la derniere
 -- version qu'il a validee ; une version plus ancienne impose une refonte a sa
 -- prochaine connexion. La version 2 introduit les nouveaux budgets de traits
--- et de mecaniques d'octobre 2026.
-E.VERSION_CREATION = 2
+-- et de mecaniques d'octobre 2026. La version 3 adopte le nouveau budget et le
+-- nouveau plafond de penetration valides en jeu le 16 octobre 2026.
+E.VERSION_CREATION = 3
 
 -- ===== Formules de fiche ===================================================
 -- Releve du TEMPLATE Necronicon (« Template Fiche LVL 5 - Contes Malveillants
@@ -77,8 +78,8 @@ E.combat = {
 -- gardes en commentaire, pour qu'on retrouve d'ou vient chaque nombre.
 E.actions = {
     -- ATTAQUES
-    multiForce = 1.2,            -- Base multi Force (field_221)
-    multiMystique = 0.8,         -- Base multi Mystique (field_223)
+    multiForce = 1.1,            -- Base multi Force (field_221)
+    multiMystique = 0.9,         -- Base multi Mystique (field_223)
     multiPerception = 1,         -- Base multi Perception (field_224)
     -- DEFENSE
     baseConstitution = 1,        -- Base constitution (field_226)
@@ -150,12 +151,14 @@ E.malusInadapte = 0.8
 -- La puissance d'une mecanique de competence, en pourcentage : base + par
 -- point investi + par point d'equipement. Releve de la grille « Mecaniques de
 -- competence » (onglet « Equilibrage puissance action », field_258) : les
--- vingt et une lignes y portent les memes valeurs, 70 / 5 / 5. Une mecanique
--- qui en voudrait d'autres prend une entree a son id dans `parMecanique`.
+-- vingt et une lignes y portaient 70 / 5 / 5. Les valeurs 80 / 10 / 10,
+-- validees en jeu le 16 octobre 2026, deviennent la nouvelle reference. Une
+-- mecanique qui en voudrait d'autres prend une entree a son id dans
+-- `parMecanique`.
 E.puissanceMecanique = {
-    base = 70,
-    parPoint = 5,
-    equipParPoint = 5,
+    base = 80,
+    parPoint = 10,
+    equipParPoint = 10,
     parMecanique = {},
 }
 
@@ -309,6 +312,7 @@ E.conteneurs = {
     arme = 2,             -- Equipements › Armes
     equipement = 5,       -- Equipements › Armures et vetements
     accessoire = 5,       -- Equipements › Accessoires
+    outil = 1,            -- Equipements › Outils
     etat = 30,            -- Sante › Etats divers
     maladie = 10,         -- Sante › Etats de maladies
     intangible = 10,      -- Sante › Etats intangibles
@@ -349,9 +353,9 @@ E.forge = {
     -- Etat des armes, armures et accessoires. Les cinq points ajoutes au
     -- pool compensent l'arrivee de cette caracteristique obligatoire.
     etatObjet = {
-        base = 10,
-        min = 2,
-        pas = 2,
+        base = 40,
+        min = 4,
+        pas = 6,
         coutParPas = 0.5,
         bonusPool = 1,
     },
@@ -421,11 +425,11 @@ E.expertise = { plafond = { base = 5, parNiveau = 1 } }
 -- a l'inferieur. Plus on investit dans les trois statistiques de degats, plus
 -- on peut se specialiser dans un type.
 E.penetration = {
-    -- Points a repartir sur les quinze types. LECTURE A CONFIRMER : relevee de
-    -- la feuille Necronicon (Base Pene 5, Pene/lvl 0.5, Pene/Stat 0.5, stat
-    -- secondaire Penetration 4), mais l'utilisateur n'a valide que le plafond.
-    points = { base = 5, parNiveau = 0.5, parStatDeDegats = 0.5, parSecondaire = 4 },
-    plafond = { base = 3, diviseurStats = 1.75 },
+    -- Points a repartir sur les quinze types. La base et les progressions de
+    -- niveau/stat viennent de la feuille Necronicon ; l'apport secondaire et
+    -- le plafond ont ete ajustes puis valides en jeu le 16 octobre 2026.
+    points = { base = 5, parNiveau = 0.5, parStatDeDegats = 0.5, parSecondaire = 8 },
+    plafond = { base = 3, diviseurStats = 1 },
 }
 
 -- Resistance d'un type : 3 + constitution / 4, arrondi a l'inferieur.

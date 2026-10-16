@@ -85,6 +85,7 @@ local CATEGORIES_ENTREES = {
     armes = true,
     armures = true,
     accessoires = true,
+    outils = true,
     races = true,
     traits = true,
     etats = true,
@@ -132,13 +133,23 @@ end
 
 local function EstObjet()
     return courant.categorie == "armes" or courant.categorie == "armures"
-        or courant.categorie == "accessoires"
+        or courant.categorie == "accessoires" or courant.categorie == "outils"
 end
 
 -- Les valeurs d'une entree : une statistique verrouillee vaut sa base, les
 -- autres ce qui est saisi. Un zero ne s'ecrit pas (le registre le refuse).
 local function Bonus(jeu, rarete)
     local out = {}
+    -- Une entree deja publiee peut encore porter des bonus des anciennes
+    -- familles de combat : les conserver sans les reexposer dans l'editeur.
+    local anciens = courant.original and courant.original.bonus or {}
+    for _, groupe in ipairs(C.BLOC or {}) do
+        if groupe.masque then
+            for _, id in ipairs(groupe.champs) do
+                if anciens[id] ~= nil then out[id] = anciens[id] end
+            end
+        end
+    end
     for _, champ in ipairs(LCM.Forge.Statistiques(C.Get(jeu.categorie))) do
         local l = LCM.Forge.Limites(jeu, champ.cle, rarete.id)
         local v = l.verrou and l.base or Valeur(jeu, rarete, champ.cle)
@@ -169,7 +180,10 @@ function ForgeUI.Definition()
     def.forge = LCM.Forge.Valeur(jeu, rarete)
     if EstObjet() then
         local maximum = tonumber(courant.etatObjet) or LCM.Equilibrage.forge.etatObjet.base
-        def.etat = { courant = maximum, max = maximum }
+        def.etat = { courant = maximum, max = maximum, version = 2 }
+        if courant.original and type(courant.original.etat) == "table" then
+            def.etat.ancienMax = courant.original.etat.ancienMax
+        end
     end
     if categorie.id == "armes" then def.taille = MultiplicateurPool() end
     -- Une race publique est proposee aux joueurs ; une race reservee reste
@@ -665,7 +679,7 @@ local function Construire()
         self.description.saisie:SetWidth(math.max(100, (self.description:GetWidth() or (LARGEUR - 28)) - 12))
 
         local bilan = jeu and rarete and LCM.Forge.Bilan(jeu, rarete.id, (function()
-            local v = {}
+            local v = Bonus(jeu, rarete)
             for _, champ in ipairs(LCM.Forge.Statistiques(C.Get(jeu.categorie))) do
                 v[champ.cle] = Valeur(jeu, rarete, champ.cle)
             end
@@ -787,7 +801,8 @@ local function Construire()
             Peindre(l.cout, ligne.depense < 0 and VERT or { 1, 0.82, 0 })
         else
             l.cout:SetText(ligne.etatObjet
-                and (C.Nombre(LCM.Equilibrage.forge.etatObjet.coutParPas) .. " / +2")
+                and (C.Nombre(LCM.Equilibrage.forge.etatObjet.coutParPas) .. " / +"
+                    .. C.Nombre(LCM.Equilibrage.forge.etatObjet.pas))
                 or (C.Nombre(ligne.limites.cout) .. " / pt"))
             Peindre(l.cout, GRIS)
         end
@@ -808,7 +823,8 @@ local function Construire()
             self:Hide()
             local maximum = tonumber(courant.etatObjet) or LCM.Equilibrage.forge.etatObjet.base
             rendre(Bonus(jeu, rarete), LCM.Forge.Valeur(jeu, rarete),
-                EstObjet() and { courant = maximum, max = maximum } or nil)
+                EstObjet() and { courant = maximum, max = maximum, version = 2,
+                    ancienMax = courant.ancienMax } or nil)
             return
         end
         local ok, element, categorie, edition = ForgeUI.Creer()
@@ -925,6 +941,7 @@ function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille,
     courant.taille = categorieId == "armes" and (tonumber(taille) == 2 and 2 or 1) or 1
     courant.etatObjet = type(etat) == "table" and tonumber(etat.max)
         or LCM.Equilibrage.forge.etatObjet.base
+    courant.ancienMax = type(etat) == "table" and etat.ancienMax or nil
     ForgeUI.rendre = onValider
     local f = ForgeUI.Fenetre()
     f:Rafraichir()

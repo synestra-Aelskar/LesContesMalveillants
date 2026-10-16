@@ -102,7 +102,7 @@ function Recoltes.Carnet(defId)
                     end
                 end
             end
-            out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y,
+            out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y, z = p.z,
                 source = p.source, carte = p.carte, quand = p.quand,
                 statut = p.statut or "cree", par = p.par, le = p.le,
                 usages = p.usages, consomme = p.consomme, prochain = p.prochain,
@@ -175,7 +175,7 @@ function Recoltes.Placer(defId)
     if not point.recolte.ressources[1] or point.recolte.ressources[1].entree == "" then
         return nil, "« " .. point.label .. " » ne donne aucune ressource : choisis-la dans la création."
     end
-    local x, y, source = R.Position()
+    local x, y, source, z = R.Position3D()
     if not x then
         -- Au .gps, la reponse arrive dans le chat un instant apres : on la
         -- demande, et le clic suivant la trouvera.
@@ -184,7 +184,7 @@ function Recoltes.Placer(defId)
         return nil, "position indisponible : .gps demandé, reclique dans un instant."
     end
     local id = Identifiant()
-    Magasin()[id] = { def = point.id, x = x, y = y, source = source, carte = R.Carte(),
+    Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
         quand = (time and time()) or 0 }
     Rafraichir(point.id)
     Recoltes.Diffuser(point.id)

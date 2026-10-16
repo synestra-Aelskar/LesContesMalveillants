@@ -35,6 +35,7 @@ local Objets = LCM.Catalogue({
         { id = "arme",       label = "Arme",       onglet = "Armes",       bloc = "Armes" },
         { id = "equipement", label = "Armure",     onglet = "Armures",     bloc = "Armures et vêtements", toutesLesCases = true },
         { id = "accessoire", label = "Accessoire", onglet = "Accessoires", bloc = "Accessoires", toutesLesCases = true },
+        { id = "outil",      label = "Outil",      onglet = "Outils",      bloc = "Outils", toutesLesCases = true },
     },
     -- La valeur d'armure d'une piece (Equilibrage.armure). Une arme ou un
     -- accessoire n'en a pas.
@@ -51,6 +52,37 @@ local Objets = LCM.Catalogue({
     taille = function(objet) return tonumber(objet and objet.taille) or 1 end,
 })
 LCM.Objets = Objets
+
+-- Les objets forges avant le nouveau bareme portaient 10 points de base et
+-- gagnaient 2 points par palier. La conversion se fait a la lecture de leur
+-- definition, sans modifier les fichiers generes (la synchro les regenere).
+-- Les definitions recentes portent une version explicite ; 40 sans version
+-- reste aussi intact, car il peut deja venir de la nouvelle forge. Le rempart
+-- publie a 40 dans l'ancien bareme est l'exception connue.
+local ConstruireObjet = Objets.Construire
+function Objets.Construire(definition)
+    local source = definition
+    local etat = type(definition) == "table" and definition.etat
+    local ancien = type(etat) == "table" and tonumber(etat.max)
+    if definition and definition.forge and type(etat) == "table" and etat.version == nil
+        and ancien and ancien >= 2
+        and (ancien < 40 or (ancien - 40) % 6 ~= 0 or definition.id == "rempart_de_guerre")
+        and ancien == math.floor(ancien)
+        and (ancien - 10) % 2 == 0 then
+        source = LCM.Copie(definition)
+        local maximum = 40 + ((ancien - 10) / 2) * 6
+        source.etat.max = maximum
+        source.etat.courant = math.max(0, math.min(maximum,
+            math.floor((tonumber(etat.courant) or ancien) * maximum / ancien + 0.5)))
+        source.etat.version = 2
+    end
+    local element = ConstruireObjet(source)
+    if type(source) == "table" and type(source.etat) == "table" and type(element.etat) == "table" then
+        element.etat.version = source.etat.version
+        element.etat.ancienMax = source ~= definition and ancien or source.etat.ancienMax
+    end
+    return element
+end
 
 -- Les noms que le reste de l'addon connaissait deja.
 Objets.Icone = LCM.Icone
@@ -241,7 +273,19 @@ end
 
 function Objets.Usure(entity, id)
     local usure = type(entity) == "table" and entity.usureArmure
-    return type(usure) == "table" and math.max(0, math.floor(tonumber(usure[tostring(id)]) or 0)) or 0
+    id = tostring(id)
+    local valeur = type(usure) == "table" and math.max(0, math.floor(tonumber(usure[id]) or 0)) or 0
+    local objet = Objets.Get(id)
+    local ancien = objet and type(objet.etat) == "table" and objet.etat.ancienMax
+    if valeur > 0 and ancien and ancien > 0
+        and not (type(entity.usureArmureMigree) == "table" and entity.usureArmureMigree[id]) then
+        valeur = math.min(Objets.EtatMax(objet),
+            math.floor(valeur * Objets.EtatMax(objet) / ancien + 0.5))
+        usure[id] = valeur
+        entity.usureArmureMigree = type(entity.usureArmureMigree) == "table" and entity.usureArmureMigree or {}
+        entity.usureArmureMigree[id] = true
+    end
+    return valeur
 end
 
 -- Tous les objets portes, dans l'ordre des categories et des emplacements.

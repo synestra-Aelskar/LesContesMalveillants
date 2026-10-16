@@ -423,6 +423,18 @@ F.choix.pf = 1
 U.Rendre()
 attendu("une morsure suffit", F.declarer:IsEnabled(), true)
 attendu("  et plus rien ne bloque", F.blocage:GetText(), "")
-F:Hide()
+attendu("le dot demande une emote", F.emoteAction:IsShown(), true)
+F.emoteAction.zone:SetText("Reïka laisse une brûlure ronger sa cible.")
+F.nom:SetText("Brûlure")
+F.declarer:Click()
+local choixCibles = U.choixCibles
+attendu("le dot demande sa cible", choixCibles and choixCibles:IsShown(), true)
+choixCibles.autre:SetText(LCM.PlayerId())
+choixCibles.envoyer:Click()
+local emoteVue = false
+for _, message in ipairs(__chats) do
+    if message.texte:find("Reïka laisse une brûlure ronger sa cible.", 1, true) then emoteVue = true end
+end
+attendu("l'emote du dot est envoyee", emoteVue, true)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

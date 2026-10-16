@@ -230,13 +230,11 @@ local function entreesStats()
     end
     return out
 end
--- Dix-neuf depuis le chapitre « Mécanique de défense » (11 octobre 2026) :
--- on y investit, on doit pouvoir l'y relire.
-attendu("dix-neuf familles, pas un sous-chapitre de plus", #entreesStats(), 19)
+-- Les dix anciennes familles de combat ne figurent plus au sommaire.
+attendu("neuf familles visibles", #entreesStats(), 9)
 attendu("ouverte sur la premiere", fst.onglet, "statistiques")
 attendu("et le sommaire le dit", entreesStats()[1].marque, "ici")
--- Le libelle d'une famille de combat vient de sa section, pas d'une copie.
-attendu("libelle repris de la section", entreesStats()[8].label:GetText(), "Attaques & Défense")
+attendu("mécaniques après les expertises", entreesStats()[8].label:GetText(), "Mécanique de compétence")
 -- 4 octobre 2026 : la vue se taille a son contenu. Le sommaire prend ce que
 -- demande son plus long chapitre (« Mécanique de compétence » se lisait
 -- « Mécanique de comp… »), et la fenetre suit la page la plus exigeante au
@@ -277,10 +275,7 @@ attendu("un seul bloc par page", #fst.pages.statistiques.blocs, 1)
 attendu("qui ne se replie plus", stats.bascule, nil)
 attendu("ses lignes visibles", stats.lignes[1]:IsShown(), true)
 attendu("Force totale : 3 + 2 (objet)", stats.lignes[1].valeur:GetText(), "5")
-local attaques = famille("attaques_defense")
-attendu("cliquer une famille l'affiche", fst.onglet, "attaques_defense")
-attendu("et cache l'autre", fst.pages.statistiques:IsShown(), false)
-attendu("Force d'attaque : l'objet", attaques.lignes[1].valeur:GetText(), "3")
+attendu("ancienne famille de combat absente", fst.pages.attaques_defense, nil)
 local bonus = famille("bonus")
 attendu("Bonus : PA +1", bonus.lignes[1].valeur:GetText(), "+1")
 attendu("Bonus : Fatigue sans bonus", bonus.lignes[2].valeur:GetText(), "0")

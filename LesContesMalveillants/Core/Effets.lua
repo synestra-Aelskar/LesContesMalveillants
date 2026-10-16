@@ -137,7 +137,9 @@ LCM.WhenReady(function()
     for _, source in ipairs(Effets.sources) do
         for _, element in ipairs(source.liste and source.liste() or {}) do
             for fieldId in pairs(element.bonus) do
-                if not LCM.Schema.Field(fieldId) then
+                local metierId = tostring(fieldId):match("^metier:(.+)$")
+                if not LCM.Schema.Field(fieldId)
+                    and not (metierId and LCM.Metiers.Get(metierId)) then
                     LCM.Erreur(string.format("%s « %s » : bonus vers un champ inconnu (%s)",
                         source.nom, element.label, fieldId))
                 end

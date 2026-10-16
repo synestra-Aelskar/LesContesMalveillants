@@ -29,7 +29,7 @@ function Coffres.Paquet(definition, points)
     end
     local outils = {}
     for _, o in ipairs(c.outils or {}) do
-        outils[#outils + 1] = { e = o.entree, q = o.quantite, c = o.consomme,
+        outils[#outils + 1] = { e = o.entree, t = o.typeOutil, q = o.quantite, c = o.consomme,
             n = o.consommeQuantite, x = o.expertise,
             d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
     end
@@ -73,7 +73,9 @@ function Coffres.Lire(paquet)
     for _, o in ipairs(type(raw.u) == "table" and raw.u or {}) do
         local ref = Texte(o.e)
         importer(ref, o.d)
-        if ref ~= "" then coffre.outils[#coffre.outils + 1] = { entree = ref,
+        local typeOutil = Texte(o.t)
+        if ref ~= "" or typeOutil ~= "" then coffre.outils[#coffre.outils + 1] = {
+            entree = ref ~= "" and ref or nil, typeOutil = typeOutil ~= "" and typeOutil or nil,
             quantite = math.max(1, math.floor(tonumber(o.q) or 1)),
             consomme = o.c == true or o.c == "true",
             consommeQuantite = math.max(1, math.floor(tonumber(o.n) or 1)),
@@ -121,22 +123,32 @@ function Coffres.Oublier(id)
 end
 
 function Coffres.Proche(positions)
+    local imposees = positions ~= nil
     positions = positions or {}
     local carte = LCM.Recolte.Carte()
+    local gps, carteServeur
+    if not imposees then
+        local D = LCM.DeplacementForce
+        local x, y, z
+        if D then x, y, z = D.Position("gps", 1) end
+        carteServeur = D and D.CarteGPS(1)
+        gps = x and z and carteServeur and { x = x, y = y, z = z } or nil
+        if not gps then return nil end
+    end
     local meilleur, distanceMin
     for _, p in pairs(Coffres.points) do
         local definition = Coffres.definitions[p.def]
-        if definition and p.carte == carte then
+        if definition and p.carte == carte and (imposees or not p.mapid or p.mapid == carteServeur) then
             local source = p.source or "?"
-            local pos = positions[source]
-            if pos == nil then
-                local x, y = LCM.Recolte.Position(p.source)
-                pos = x and { x = x, y = y } or false; positions[source] = pos
+            local pos = imposees and positions[source] or gps
+            if imposees and pos == nil then
+                local x, y, _, z = LCM.Recolte.Position(p.source)
+                pos = x and { x = x, y = y, z = z } or false; positions[source] = pos
             end
             if pos then
-                local d = math.sqrt((pos.x - p.x)^2 + (pos.y - p.y)^2)
+                local d = LCM.Recolte.Distance(p, pos)
                 local rayon = tonumber(definition.coffre and definition.coffre.rayon) or RayonDefaut()
-                if d <= rayon and (not distanceMin or d < distanceMin) then meilleur, distanceMin = p, d end
+                if d and d <= rayon and (not distanceMin or d < distanceMin) then meilleur, distanceMin = p, d end
             end
         end
     end
@@ -147,7 +159,11 @@ function Coffres.Envoyer(action, donnees)
     local p = Coffres.points[Coffres.courant or ""]
     local d = p and Coffres.definitions[p.def]
     if not d or not d.auteur then return false, "propriétaire du coffre indisponible." end
+    if action ~= "fermer" and not Coffres.edition and Coffres.Proche() ~= p then
+        return false, "tu es trop loin du coffre ou la position .gps est périmée."
+    end
     donnees = donnees or {}; donnees.i = p.id; donnees.a = action
+    if Coffres.edition then donnees.edition = true end
     -- Un sac au sol dont on est le gardien : on s'arbitre soi-meme.
     if d.sol and d.auteur == Moi() and LCM.SacsAuSol then
         LCM.SacsAuSol.Traiter(Moi(), donnees)
@@ -161,14 +177,22 @@ function Coffres.Envoyer(action, donnees)
     return LCM.Reseau.Envoyer(S.action, donnees, "WHISPER", d.auteur)
 end
 
-function Coffres.Ouvrir(id)
+function Coffres.Ouvrir(id, edition)
     local p = Coffres.points[tostring(id or "")]
     local d = p and Coffres.definitions[p.def]
     if not d then return false, "coffre inconnu." end
-    if Coffres.courant and Coffres.courant ~= p.id then Coffres.Envoyer("fermer") end
-    Coffres.courant, Coffres.etat = p.id, nil
+    if edition and (not LCM.IsMaster() or d.auteur ~= Moi() or d.sol) then
+        return false, "seul le MJ propriétaire peut éditer ce coffre."
+    end
+    if not edition and Coffres.Proche() ~= p then
+        return false, "tu es trop loin du coffre ou la position .gps est périmée."
+    end
+    if Coffres.courant and Coffres.courant ~= p.id and not Coffres.edition then
+        Coffres.Envoyer("fermer")
+    end
+    Coffres.courant, Coffres.etat, Coffres.edition = p.id, nil, edition == true
     if LCM.UI.Coffre and LCM.UI.Coffre.Ouvrir then LCM.UI.Coffre.Ouvrir(p.id) end
-    return Coffres.Envoyer("ouvrir")
+    return Coffres.Envoyer(edition and "editer" or "ouvrir")
 end
 
 function Coffres.Demander()
@@ -183,7 +207,25 @@ Positionner = function()
             self.reste = self.reste + (tonumber(elapsed) or 0)
             if self.reste < 0.25 then return end
             self.reste = 0
+            local D = LCM.DeplacementForce
             local proche = Coffres.Proche()
+            -- UnitPosition donne ici des X/Y utiles mais parfois un Z nul.
+            -- Ne demander .gps que pres d'un coffre sur le plan horizontal :
+            -- le sondage permanent ferait défiler le chat partout dans le monde.
+            if D and D.DemanderGPS and not D.Position("gps", 1) then
+                local x, y = D.Position("monde")
+                local carte = LCM.Recolte.Carte()
+                for _, p in pairs(Coffres.points) do
+                    local definition = Coffres.definitions[p.def]
+                    local rayon = definition and (tonumber(definition.coffre and definition.coffre.rayon) or RayonDefaut())
+                    if x and y and rayon and p.carte == carte
+                        and p.source ~= "carte" and tonumber(p.x) and tonumber(p.y)
+                        and (x - tonumber(p.x))^2 + (y - tonumber(p.y))^2 <= (rayon + 5)^2 then
+                        D.DemanderGPS(nil, true)
+                        break
+                    end
+                end
+            end
             if proche ~= Coffres.proche then
                 Coffres.proche = proche
                 if LCM.UI.Coffre and LCM.UI.Coffre.Proche then LCM.UI.Coffre.Proche(proche) end

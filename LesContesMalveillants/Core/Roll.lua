@@ -27,7 +27,8 @@ function Roll.Des(minimum, maximum)
     return Alea(minimum, maximum), minimum, maximum
 end
 
--- options : { avantage = true, modificateur = 0 }
+-- options : { avantage = true, desavantage = true, modificateur = 0,
+--             traitExpertise = trait }
 function Roll.Field(entity, fieldId, options)
     options = type(options) == "table" and options or {}
     local field = LCM.Schema.Field(fieldId)
@@ -48,12 +49,16 @@ function Roll.Field(entity, fieldId, options)
     -- L'avantage doit etre accorde par un trait ou un objet : cocher la case
     -- ne suffit pas. `trait` garde son nom, mais peut designer un objet.
     local trait, source = LCM.Effets.Avantage(entity, fieldId)
+    if options.traitExpertise then
+        trait, source = options.traitExpertise, "trait"
+    end
     local avantage = options.avantage == true and trait ~= nil
 
     -- Le DESAVANTAGE, lui, ne se coche pas : il s'impose des qu'un trait porte
     -- un bonus negatif sur ce jet. On ne choisit pas ses faiblesses.
     local genant, sourceGenante = LCM.Effets.Desavantage(entity, fieldId)
-    local desavantage = genant ~= nil
+    local desavantageChoisi = options.desavantage == true and options.traitExpertise ~= nil
+    local desavantage = desavantageChoisi or genant ~= nil
     -- Les deux a la fois s'annulent : relancer pour garder le meilleur ET le
     -- pire n'a pas de sens, et c'est le cas d'un trait qui donne et reprend sur
     -- le meme jet.
@@ -84,8 +89,9 @@ function Roll.Field(entity, fieldId, options)
         trait = trait,
         source = source,
         desavantage = desavantage,
-        genant = genant,
-        sourceGenante = sourceGenante,
+        desavantageChoisi = desavantageChoisi,
+        genant = desavantageChoisi and options.traitExpertise or genant,
+        sourceGenante = desavantageChoisi and "trait" or sourceGenante,
         -- Vrai quand la case etait cochee mais qu'aucun trait ne l'autorisait :
         -- on le dit plutot que d'ignorer en silence.
         avantageRefuse = options.avantage == true and trait == nil,
@@ -103,7 +109,27 @@ function Roll.ResoudreExpertise(entity, fieldId, dd, nf, options)
     if nf < 0 or nf ~= math.floor(nf) then return nil, "NF invalide" end
     if type(entity) ~= "table" or entity.distante then return nil, "personnage indisponible" end
 
-    local resultat, raison = Roll.Field(entity, fieldId, options)
+    options = type(options) == "table" and options or {}
+    if options.avantage == true and options.desavantage == true then
+        return nil, "choisis l'avantage ou le désavantage, pas les deux"
+    end
+    local traitExpertise = LCM.Traits and LCM.Traits.BonusPositif
+        and LCM.Traits.BonusPositif(entity, fieldId) or nil
+    local avantageExistant = options.avantage == true and LCM.Effets.Avantage(entity, fieldId) ~= nil
+    if (options.desavantage == true or (options.avantage == true and not avantageExistant))
+        and not traitExpertise then
+        return nil, "aucun trait ne donne de bonus à cette expertise"
+    end
+    local optionsJet = {
+        avantage = options.avantage == true,
+        desavantage = options.desavantage == true,
+        modificateur = options.modificateur,
+        traitExpertise = traitExpertise,
+    }
+
+    -- Les deux des sont lances AVANT de resoudre l'issue. La fatigue n'est
+    -- donc calculee et retiree qu'une fois, d'apres le de finalement garde.
+    local resultat, raison = Roll.Field(entity, fieldId, optionsJet)
     if not resultat then return nil, raison end
     local stat = resultat.valeur + resultat.apport + resultat.bonus + resultat.modificateur
     local maximum = resultat.des.max + stat

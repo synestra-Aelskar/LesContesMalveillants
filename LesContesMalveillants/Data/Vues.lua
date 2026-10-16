@@ -123,6 +123,7 @@ Vues.Add({
         { id = "arme",       label = "Armes",       blocs = { { conteneur = { "objets", "arme" } } } },
         { id = "equipement", label = "Armures",     blocs = { { conteneur = { "objets", "equipement" } } } },
         { id = "accessoire", label = "Accessoires", blocs = { { conteneur = { "objets", "accessoire" } } } },
+        { id = "outil",      label = "Outils",      blocs = { { conteneur = { "objets", "outil" } } } },
     },
 })
 
@@ -187,8 +188,6 @@ do
         bloc.recap = bloc.recap or "total"
         return { id = id, blocs = { bloc } }
     end
-    local function Combat(id) return Famille(id, { section = { "combat", id } }) end
-
     Vues.Add({
         id = "statistiques", titre = "Statistiques",
         -- La page garde la largeur qu'elle avait seule (312) ; le sommaire et
@@ -205,16 +204,6 @@ do
             Famille("observations", { section = { "expertises", "observations" }, label = "Observations" }),
             Famille("athletisme",   { section = { "expertises", "athletisme" },   label = "Athlétismes" }),
             Famille("filouterie",   { section = { "expertises", "filouterie" },   label = "Filouteries" }),
-            Combat("attaques_defense"),
-            Combat("bouclier_soin"),
-            Combat("buff"),
-            Combat("perce_armure"),
-            Combat("brise_armure"),
-            Combat("provocation"),
-            Combat("intimidation"),
-            Combat("saignement"),
-            Combat("empoisonnement"),
-            Combat("debuff"),
             Famille("mecaniques", { label = "Mécanique de compétence", champs = mecaniques }),
             Famille("defenses", { label = "Mécanique de défense", champs = defenses }),
         },

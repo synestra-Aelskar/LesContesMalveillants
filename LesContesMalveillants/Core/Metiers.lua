@@ -101,7 +101,9 @@ end
 
 -- Bonus de jet d'un metier (Necronicon : GetProfessionRollBonus).
 function Metiers.Bonus(entity, id)
-    return Metiers.Palier(entity, id).rangCouleur
+    local appris = Metiers.Palier(entity, id).rangCouleur
+    local equipement = LCM.Effets and LCM.Effets.Bonus(entity, "metier:" .. tostring(id)) or 0
+    return appris + equipement
 end
 
 -- Ajoute (ou retire) de l'XP. Ne descend pas sous zero ; efface ce qui

@@ -79,8 +79,14 @@ LCM.Points = LCM.Registre({
             end
             for _, outil in ipairs(type(c.outils) == "table" and c.outils or {}) do
                 local ref = tostring(outil.entree or "")
+                local typeOutil = tostring(outil.typeOutil or "")
                 local expertise = tostring(outil.expertise or "")
-                if not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
+                if typeOutil ~= "" then
+                    local liste = LCM.Listes.Get(typeOutil)
+                    if ref ~= "" or not liste or liste.liste ~= "outils" then
+                        Erreur(element.id .. " : type d'outil de verrou inconnu (" .. typeOutil .. ")")
+                    end
+                elseif not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
                     Erreur(element.id .. " : outil de verrou inconnu (" .. ref .. ")")
                 end
                 if expertise ~= "" then
@@ -92,7 +98,8 @@ LCM.Points = LCM.Registre({
                         Erreur(element.id .. " : expertise d'outil inconnue (" .. expertise .. ")")
                     end
                 end
-                coffre.outils[#coffre.outils + 1] = { entree = ref,
+                coffre.outils[#coffre.outils + 1] = { entree = ref ~= "" and ref or nil,
+                    typeOutil = typeOutil ~= "" and typeOutil or nil,
                     quantite = math.max(1, math.floor(tonumber(outil.quantite) or 1)),
                     consomme = outil.consomme == true,
                     consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)),

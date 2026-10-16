@@ -98,7 +98,8 @@ end
 -- tous les dixiemes de seconde, c'est un mur de texte dans le chat et du bruit
 -- pour le serveur.
 
-local gps = { x = nil, y = nil, z = nil, quand = 0, demande = 0 }
+local gps = { x = nil, y = nil, z = nil, carteMonde = nil, carteQuand = 0,
+    quand = 0, demande = 0 }
 
 -- Une ligne de .gps, quelle que soit la langue du serveur : on cherche les
 -- trois nombres etiquetes, pas une phrase entiere.
@@ -107,17 +108,28 @@ function DeplacementForce.LireGPS(ligne)
     local x = ligne:match("X:%s*(-?%d+%.?%d*)")
     local y = ligne:match("Y:%s*(-?%d+%.?%d*)")
     local z = ligne:match("Z:%s*(-?%d+%.?%d*)")
+    if not (x and y and z) then
+        x, y, z = ligne:match("^%s*(-?%d+%.?%d*)%s+(-?%d+%.?%d*)%s+(-?%d+%.?%d*)%s+%d+%s+-?%d+%.?%d*%s*$")
+    end
     if not (x and y) then return nil end
-    return tonumber(x), tonumber(y), tonumber(z) or 0
+    return tonumber(x), tonumber(y), tonumber(z)
 end
 
 -- Appele par le guetteur de chat (et par le banc) quand une reponse arrive.
 function DeplacementForce.NoterGPS(ligne)
+    local maintenant = (GetTime and GetTime()) or 0
+    local carteMonde = tonumber(tostring(ligne):match("Map:%s*(%d+)"))
+        or tonumber(tostring(ligne):match("^%s*-?%d+%.?%d*%s+-?%d+%.?%d*%s+-?%d+%.?%d*%s+(%d+)%s+-?%d+%.?%d*%s*$"))
+    if carteMonde then
+        gps.carteMonde, gps.carteQuand = carteMonde, maintenant
+    end
     local x, y, z = DeplacementForce.LireGPS(ligne)
     if not x then return false end
     gps.x, gps.y, gps.z = x, y, z
+    if not carteMonde and maintenant > 0
+        and maintenant - gps.carteQuand > 3 then gps.carteMonde = nil end
     DeplacementForce.gpsTente = nil
-    gps.quand = (GetTime and GetTime()) or (gps.quand + 1)
+    gps.quand = maintenant > 0 and maintenant or (gps.quand + 1)
     return true
 end
 
@@ -125,18 +137,23 @@ end
 -- trop longtemps pour s'y fier.
 local GPS_PERIME = 3
 
-local function PositionGPS()
+local function PositionGPS(ageMax)
     if not gps.x then return nil end
     local maintenant = (GetTime and GetTime()) or 0
-    if maintenant > 0 and (maintenant - gps.quand) > GPS_PERIME then return nil end
+    if maintenant > 0 and (maintenant - gps.quand) > (ageMax or GPS_PERIME) then return nil end
     return gps.x, gps.y, gps.z
+end
+
+function DeplacementForce.CarteGPS(ageMax)
+    if not PositionGPS(ageMax) then return nil end
+    return gps.carteMonde
 end
 
 -- `source` : « monde », « carte » ou « gps » pour rester sur celle d'une course
 -- en cours ; rien pour prendre la meilleure disponible. Rend x, y, z, source.
-local function Position(source)
+local function Position(source, ageMax)
     if source == "gps" then
-        local x, y, z = PositionGPS()
+        local x, y, z = PositionGPS(ageMax)
         if x then return x, y, z, "gps" end
         return nil
     end
@@ -160,8 +177,8 @@ end
 -- deplacements — avec les trois sources et, surtout, avec le NOM de celle qui a
 -- repondu. Deux modules qui lisent la position autrement finiraient par ne plus
 -- parler du meme endroit.
-function DeplacementForce.Position(source)
-    return Position(source)
+function DeplacementForce.Position(source, ageMax)
+    return Position(source, ageMax)
 end
 
 -- La carte courante, telle qu'on l'inscrit dans un seuil : deux portes posees
@@ -176,13 +193,17 @@ end
 
 -- Demande une position au serveur, sans inonder le chat.
 local INTERVALLE_GPS = 0.5
-function DeplacementForce.DemanderGPS(force)
+function DeplacementForce.DemanderGPS(force, silencieux)
     local maintenant = (GetTime and GetTime()) or 0
     if not force and maintenant > 0 and (maintenant - gps.demande) < INTERVALLE_GPS then
         return false
     end
     gps.demande = maintenant
-    return DeplacementForce.Commande(".gps")
+    local envoye = DeplacementForce.Commande(".gps")
+    if envoye and silencieux and maintenant > 0 then
+        gps.silencieuxJusqua = maintenant + 2
+    end
+    return envoye
 end
 
 -- Le cadre qui bat la mesure. OnUpdate plutot que C_Timer : il existe toujours,
@@ -342,7 +363,9 @@ LCM.WhenReady(function()
     end)
     if ChatFrame_AddMessageEventFilter then
         ChatFrame_AddMessageEventFilter("CHAT_MSG_SYSTEM", function(_, _, message)
-            if course and course.source == "gps" and DeplacementForce.LireGPS(message) then
+            local auto = GetTime and (GetTime() <= (gps.silencieuxJusqua or 0))
+            if (course and course.source == "gps" or auto)
+                and (DeplacementForce.LireGPS(message) or tostring(message):match("^Map:%s*%d+")) then
                 return true
             end
         end)

@@ -35,6 +35,35 @@ ACTIVE = "ACTIF"
 DELETED = "SUPPRIME"
 
 
+def validate_tool_extensions(family: str, identifier: str, definition: dict) -> None:
+    """Garde les nouveaux outils dans les familles existantes du Sheet.
+
+    Un outil est un objet, son type une entree de listes, et le prerequis
+    correspondant vit dans un point coffre : aucune nouvelle feuille/famille
+    n'est necessaire. Refuser ici une cible ambigue evite de la publier depuis
+    le Sheet puis de la voir echouer au chargement de l'addon.
+    """
+    if family == "objets" and definition.get("categorie") == "outil":
+        bonus = definition.get("bonus") or {}
+        if not isinstance(bonus, dict):
+            raise ValueError(f"bonus d'outil invalides : {identifier}")
+        for field in bonus:
+            if str(field).startswith("metier:") and not str(field)[len("metier:"):]:
+                raise ValueError(f"metier d'outil vide : {identifier}")
+    if family == "points" and definition.get("nature") == "coffre":
+        coffre = definition.get("coffre") or {}
+        tools = coffre.get("outils") or {}
+        if not isinstance(tools, dict):
+            raise ValueError(f"liste d'outils invalide : {identifier}")
+        for index, tool in enumerate(tools.values(), 1):
+            if not isinstance(tool, dict):
+                raise ValueError(f"prerequis d'outil invalide : {identifier} #{index}")
+            exact = bool(str(tool.get("entree") or "").strip())
+            by_type = bool(str(tool.get("typeOutil") or "").strip())
+            if exact == by_type:
+                raise ValueError(f"prerequis d'outil ambigu : {identifier} #{index}")
+
+
 def sheet_bool(value: object) -> bool:
     if value is True:
         return True
@@ -66,6 +95,7 @@ def canonical(row: list[object]) -> list[object]:
     if definition and str(definition.get("id", "")) != identifier:
         raise ValueError(f"ID different dans la definition : {family}/{identifier}")
     if definition:
+        validate_tool_extensions(family, identifier, definition)
         # Les colonnes lisibles priment sur les memes champs dans le Lua.
         definition["label"] = str(label)
         definition["description"] = str(description)

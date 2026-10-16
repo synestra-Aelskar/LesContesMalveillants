@@ -60,9 +60,20 @@ attendu("l'attaquant est proposable", (function()
     return false
 end)(), true)
 local pa, pf = E.Gauge(moi, "pa").current, E.Gauge(moi, "fatigue").current
+W.emote:SetText("détourne l'attaque d'un geste vif.")
+W.canal:Click()
+attendu("canal de l'émote : dire", W.canal:Canal(), "SAY")
+local chatsAvant = #__chats
 W.agir:Click()
 attendu("PA payes (ceux de l'action)", E.Gauge(moi, "pa").current, pa - 1)
 attendu("PF payes", E.Gauge(moi, "fatigue").current, pf - 5)
+local emoteDeviation
+for i = chatsAvant + 1, #__chats do
+    if __chats[i].texte == "détourne l'attaque d'un geste vif." then emoteDeviation = __chats[i] end
+end
+attendu("l'émote de déviation part", emoteDeviation and emoteDeviation.texte,
+    "détourne l'attaque d'un geste vif.")
+attendu("sur le canal choisi", emoteDeviation and emoteDeviation.canal, "SAY")
 attendu("le jet est annonce", chatDit("[Déviation — Rand Esprit]") ~= nil, true)
 attendu("et la reussite", chatDit("dévie « Attaque » de Nytherah vers Bram-Apertus") ~= nil, true)
 local act = dernier("act")

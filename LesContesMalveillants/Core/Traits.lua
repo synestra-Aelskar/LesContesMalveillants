@@ -237,6 +237,17 @@ function Traits.Bonus(entity, fieldId)
     return total
 end
 
+-- Le premier trait porte qui AMELIORE ce champ. Les jets d'expertise s'en
+-- servent pour proposer un avantage ou un desavantage volontaire : les bonus
+-- d'une race, d'un objet ou d'un etat ne donnent pas ce choix.
+function Traits.BonusPositif(entity, fieldId)
+    local cible = tostring(fieldId)
+    for _, trait in ipairs(Traits.Owned(entity)) do
+        if (tonumber(trait.bonus[cible]) or 0) > 0 then return trait end
+    end
+    return nil
+end
+
 -- Le trait qui accorde l'avantage sur ce jet, s'il y en a un.
 function Traits.Advantage(entity, fieldId)
     for _, trait in ipairs(Traits.Owned(entity)) do

@@ -1118,6 +1118,7 @@ function UI.AtelierInteractions(f, nature)
         function f:Choisir(id)
             choisir(self, id)
             self.referenceTravail = LCM.Copie(self.travail)
+            if nature == "coffre" then self:Afficher() end
         end
     end
     for _, bouton in ipairs({ f.nouveau, f.dupliquer }) do
@@ -1232,8 +1233,13 @@ function UI.AtelierInteractions(f, nature)
     function f:Afficher()
         afficher(self)
         local modifie = self:Modifie()
-        if modifie then p.poser:SetEnabled(false) end
-        p.etatEdition:SetText(modifie and "Enregistre tes modifications avant de placer ce modèle." or "")
+        if nature == "coffre" then
+            p.poser:SetEnabled(self.travail ~= nil and self.travail.coffre ~= nil)
+            p.etatEdition:SetText(modifie and "Les modifications seront enregistrées lors du placement." or "")
+        else
+            if modifie then p.poser:SetEnabled(false) end
+            p.etatEdition:SetText(modifie and "Enregistre tes modifications avant de placer ce modèle." or "")
+        end
         self.dupliquer:SetEnabled(self:Point() ~= nil)
         for _, b in ipairs(self.lignes) do
             b:SetWidth(186)
@@ -1855,6 +1861,52 @@ function UI.Zone(parent, largeur, hauteur, onChange)
     end
     function z:GetText() return self.saisie:GetText() or "" end
     return z
+end
+
+-- Bloc de narration commun aux actions qui ont leur propre fenetre (buff,
+-- debuff, dot, dissipation). Le composeur standard et les reactions avaient
+-- chacun recopie ce controle ; les ecrans speciaux finissaient donc facilement
+-- par l'oublier. `Lire` ne force pas une emote : une narration vide reste un
+-- choix valide.
+function UI.EmoteAction(parent, largeur, hauteur, titre)
+    local canaux = {
+        { id = "EMOTE", nom = "Émote" },
+        { id = "SAY", nom = "Dire" },
+        { id = "PARTY", nom = "Groupe" },
+        { id = "RAID", nom = "Raid" },
+    }
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(largeur or 400, hauteur or 72)
+    f.titre = UI.Texte(f, titre or "Émote de l'action.", UI.C.titre, "GameFontNormalSmall")
+    f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -3)
+    f.canal = UI.Bouton(f, "", 130, 22, function(self)
+        self.rang = self.rang % #canaux + 1
+        f.canalId = canaux[self.rang].id
+        self.label:SetText("Canal : " .. canaux[self.rang].nom)
+    end)
+    f.canal:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+    f.zone = UI.Zone(f, math.max(1, (largeur or 400) - 2), math.max(1, (hauteur or 72) - 28))
+    f.zone:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -27)
+    f.zone:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    f.zone.saisie:SetMaxLetters(4000)
+    f:SetScript("OnSizeChanged", function(self, nouvelleLargeur)
+        self.zone.saisie:SetWidth(math.max(1, (tonumber(nouvelleLargeur) or self:GetWidth()) - 12))
+    end)
+
+    function f:Reset()
+        local rang = (IsInRaid and IsInRaid()) and 4 or ((IsInGroup and IsInGroup()) and 3 or 1)
+        self.canal.rang = rang
+        self.canalId = canaux[rang].id
+        self.canal.label:SetText("Canal : " .. canaux[rang].nom)
+        self.zone:SetText("")
+    end
+
+    function f:Lire()
+        return tostring(self.zone:GetText() or ""), self.canalId or "EMOTE"
+    end
+
+    f:Reset()
+    return f
 end
 
 -- Liste de choix, ouverte a cote d'un bouton : « quel champ ? », « quelle

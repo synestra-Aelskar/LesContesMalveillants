@@ -44,22 +44,22 @@ C.BLOC = {
         "puissance", "projection", "prise", "equilibre", "acrobaties", "escalade", "resistance", "endurance", "course", "nage" } },
     { dossier = "Filouteries", champs = {
         "discretion", "deguisement", "vol_a_la_tire", "crochetage", "escamotage", "evasion", "sabotage" } },
-    { dossier = "Attaques & Défense", champs = {
+    { dossier = "Attaques & Défense", masque = true, champs = {
         "force_attaque", "mystique_attaque", "perception_attaque", "defense_constitution" } },
-    { dossier = "Bouclier et Soin", champs = {
+    { dossier = "Bouclier et Soin", masque = true, champs = {
         "force_bouclier", "mystique_bouclier", "constitution_bouclier", "mystique_soin", "constitution_soin" } },
-    { dossier = "Buff", champs = {
+    { dossier = "Buff", masque = true, champs = {
         "force_buff", "mystique_buff", "perception_buff", "constitution_buff", "duree_buff", "puissance_buff" } },
-    { dossier = "Perce-Armure", champs = { "force_perce_armure", "mystique_perce_armure", "perception_perce_armure" } },
-    { dossier = "Brise-Armure", champs = { "force_brise_armure", "mystique_brise_armure", "perception_brise_armure" } },
-    { dossier = "Provocation", champs = {
+    { dossier = "Perce-Armure", masque = true, champs = { "force_perce_armure", "mystique_perce_armure", "perception_perce_armure" } },
+    { dossier = "Brise-Armure", masque = true, champs = { "force_brise_armure", "mystique_brise_armure", "perception_brise_armure" } },
+    { dossier = "Provocation", masque = true, champs = {
         "force_provocation", "constitution_provocation", "esprit_provocation", "mystique_provocation" } },
-    { dossier = "Intimidation", champs = {
+    { dossier = "Intimidation", masque = true, champs = {
         "force_intimidation", "constitution_intimidation", "esprit_intimidation", "mystique_intimidation" } },
-    { dossier = "Saignement", champs = { "force_saignement", "mystique_saignement", "perception_saignement" } },
-    { dossier = "Empoisonnement", champs = {
+    { dossier = "Saignement", masque = true, champs = { "force_saignement", "mystique_saignement", "perception_saignement" } },
+    { dossier = "Empoisonnement", masque = true, champs = {
         "mystique_empoisonnement", "perception_empoisonnement", "constitution_empoisonnement" } },
-    { dossier = "Debuff", champs = {
+    { dossier = "Debuff", masque = true, champs = {
         "force_debuff", "mystique_debuff", "perception_debuff", "constitution_debuff", "duree_debuff", "puissance_debuff" } },
     -- Engendre aussi, et pour la meme raison.
     { dossier = "Mécanique de défense", champs = (function()
@@ -85,7 +85,11 @@ C.BLOC = {
 -- dossier « General » (icone, type, etat, description, metiers) vient juste
 -- apres « Statistiques ». C'est aussi l'ordre des colonnes du tableau.
 local DOSSIERS_GENERIQUES = { "Statistiques", "Général" }
-for index = 2, #C.BLOC do DOSSIERS_GENERIQUES[#DOSSIERS_GENERIQUES + 1] = C.BLOC[index].dossier end
+for index = 2, #C.BLOC do
+    if not C.BLOC[index].masque then
+        DOSSIERS_GENERIQUES[#DOSSIERS_GENERIQUES + 1] = C.BLOC[index].dossier
+    end
+end
 
 -- ===== Fabriques de champs =================================================
 
@@ -127,7 +131,7 @@ local function Generique(def)
     -- montre que la description apres l'icone, l'ID et le nom, pas une
     -- colonne par statistique. Les statistiques se lisent dans « Voir ».
     def.colonnesTableau = def.colonnesTableau or { "description" }
-    def.dossiers = DOSSIERS_GENERIQUES
+    def.dossiers = def.dossiers or DOSSIERS_GENERIQUES
     def.sousCategorie = def.liste and "type" or nil
     def.type = "generic"
     -- L'avantage (relance, garde le meilleur) est une regle de l'addon, pas
@@ -173,6 +177,7 @@ Liste("type_armures", "Type Armures", "type_armures")
 -- anneau se choisissait parmi des types d'armes (10 octobre 2026).
 Liste("type_accessoires", "Type Accessoires", "type_accessoires")
 Liste("liste_armes", "Liste Armes", "armes")
+Liste("liste_outils", "Liste outils", "outils")
 Liste("liste_origine", "Liste origine", "origines")
 Liste("liste_ressources", "Liste ressources", "ressources")
 
@@ -347,6 +352,21 @@ Objet("armures", "Armures", "equipement", "type_armures", {
       defaut = LCM.Equilibrage.armure.parDefaut },
 })
 Objet("accessoires", "Accessoires", "accessoire", "type_accessoires")
+
+-- Les outils ont leur propre liste de types et leur propre jeu de forge.
+-- Chaque point attribué à un métier apporte +1 à son jet lorsqu'il est porté.
+local bonusMetiers = {}
+for _, metier in ipairs(LCM.Metiers.list) do
+    bonusMetiers[#bonusMetiers + 1] = { cle = "metier:" .. metier.id,
+        label = metier.label, type = "statistique", emplacement = "statistiques",
+        dossier = "Métiers" }
+end
+local dossiersOutils = LCM.Copie(DOSSIERS_GENERIQUES)
+dossiersOutils[#dossiersOutils + 1] = "Métiers"
+Objet("outils", "Outils", "outil", "outils")
+local categorieOutils = C.Get("outils")
+categorieOutils.blocExtra = bonusMetiers
+categorieOutils.dossiers = dossiersOutils
 
 -- Ajout de l'addon (10 octobre 2026) : le campement (Core/Campement.lua).
 -- Absent du template ; les colonnes viennent de la feuille de calcul du MJ.

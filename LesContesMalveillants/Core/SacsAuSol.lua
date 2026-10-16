@@ -72,7 +72,7 @@ function Sol.Paquet(sol)
     -- `j` : un OBJET pose seul (pas un sac) : il se ramasse, il ne s'ouvre pas.
     return { i = sol.id, n = sol.label, b = sol.sac, t = sol.tente, j = sol.objet and 1 or nil,
         s = sol.places, o = o,
-        x = p.x, y = p.y, r = p.source, k = p.carte, a = sol.auteur, g = sol.gardien,
+        x = p.x, y = p.y, z = p.z, r = p.source, k = p.carte, a = sol.auteur, g = sol.gardien,
         v = sol.version, w = sol.quand }
 end
 
@@ -95,7 +95,7 @@ function Sol.Lire(paquet)
         objet = paquet.j ~= nil and paquet.j ~= false or nil,
         places = math.max(1, math.floor(tonumber(paquet.s) or 1)),
         objets = objets,
-        position = { x = tonumber(paquet.x), y = tonumber(paquet.y),
+        position = { x = tonumber(paquet.x), y = tonumber(paquet.y), z = tonumber(paquet.z),
             source = Texte(paquet.r) ~= "" and Texte(paquet.r) or nil, carte = tonumber(paquet.k) },
         auteur = Texte(paquet.a), gardien = Texte(paquet.g),
         version = math.max(1, math.floor(tonumber(paquet.v) or 1)),
@@ -122,7 +122,7 @@ local function Inscrire(sol)
     C.Connaitre({ id = sol.id, label = sol.label, sol = true,
         coffre = { places = sol.places, verrous = 0, reset = false, objets = objets,
             expertises = {}, outils = {}, sac = sol.sac, tente = sol.tente, objet = sol.objet } },
-        { { id = sol.id, def = sol.id, x = p.x, y = p.y, source = p.source, carte = p.carte } },
+        { { id = sol.id, def = sol.id, x = p.x, y = p.y, z = p.z, source = p.source, carte = p.carte } },
         sol.gardien)
 end
 
@@ -319,7 +319,7 @@ end
 function Sol.Lacher(onglet, index)
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
-    local x, y, source = LCM.Recolte.Position()
+    local x, y, source, z = LCM.Recolte.Position3D()
     if not x then
         if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
         return false, "position indisponible : .gps demandé, relâche-le dans un instant."
@@ -335,7 +335,7 @@ function Sol.Lacher(onglet, index)
         sac = contenu.sac, tente = contenu.tente,
         places = math.max(1, (contenant and contenant.places or 0) + (contenant and contenant.placesDevise or 0)),
         objets = contenu.objets,
-        position = { x = x, y = y, source = source, carte = LCM.Recolte.Carte() },
+        position = { x = x, y = y, z = z, source = source, carte = LCM.Recolte.Carte() },
         auteur = Moi(), gardien = Moi(), version = 1, quand = Horloge(),
     }
     -- Un MJ le securise sur-le-champ ; un joueur le garde, et le dit au groupe.
@@ -366,7 +366,7 @@ function Sol.LacherObjet(objet)
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
     if type(objet) ~= "table" or not objet.ref then return false, "rien à poser." end
-    local x, y, source = LCM.Recolte.Position()
+    local x, y, source, z = LCM.Recolte.Position3D()
     if not x then
         if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
         return false, "position indisponible : .gps demandé, relâche-le dans un instant."
@@ -379,7 +379,7 @@ function Sol.LacherObjet(objet)
             .. (quantite > 1 and (" x" .. quantite) or ""),
         objet = true, places = 1,
         objets = { { entree = objet.ref, quantite = quantite } },
-        position = { x = x, y = y, source = source, carte = LCM.Recolte.Carte() },
+        position = { x = x, y = y, z = z, source = source, carte = LCM.Recolte.Carte() },
         auteur = Moi(), gardien = Moi(), version = 1, quand = Horloge(),
     }
     if objet.retirer then objet.retirer() end

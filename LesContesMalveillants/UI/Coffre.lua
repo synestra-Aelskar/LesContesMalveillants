@@ -41,6 +41,69 @@ local function InventaireTotal(entity, ref)
 end
 Ecran.InventaireTotal = InventaireTotal
 
+-- Un prérequis peut viser un objet précis ou un type entier de la « Liste
+-- outils ». On réserve d'abord les objets précis, puis les types : un même
+-- exemplaire ne peut satisfaire deux lignes à la fois. Le résultat contient
+-- les références concrètes à user ou consommer après la tentative.
+local function ResoudreOutils(entity, outils)
+    local disponibles, choisis = {}, {}
+    local function Stock(ref)
+        if disponibles[ref] == nil then disponibles[ref] = InventaireTotal(entity, ref) end
+        return disponibles[ref]
+    end
+    local function Ajouter(outil, ref, nombre, consomme)
+        choisis[#choisis + 1] = { entree = ref, quantite = nombre,
+            consomme = consomme > 0, consommeQuantite = consomme,
+            expertise = outil.expertise }
+        disponibles[ref] = Stock(ref) - nombre
+    end
+    local function Traiter(outil)
+        local restant = math.max(1, math.floor(tonumber(outil.quantite) or 1))
+        local aConsommer = outil.consomme and math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)) or 0
+        local refs = {}
+        if outil.typeOutil then
+            for _, objet in ipairs(LCM.Objets.list or {}) do
+                if objet.categorie == "outil" and objet.type == outil.typeOutil then
+                    refs[#refs + 1] = "objets/" .. objet.id
+                end
+            end
+            table.sort(refs)
+        elseif outil.entree then
+            refs[1] = outil.entree
+        end
+        for _, ref in ipairs(refs) do
+            local nombre = math.min(restant, Stock(ref))
+            if nombre > 0 then
+                local consomme = math.min(nombre, aConsommer)
+                Ajouter(outil, ref, nombre, consomme)
+                restant, aConsommer = restant - nombre, aConsommer - consomme
+            end
+            if restant == 0 then break end
+        end
+        if restant > 0 then
+            local typeDef = outil.typeOutil and LCM.Listes.Get(outil.typeOutil)
+            local objet = outil.entree and LCM.Compendium.Resoudre(outil.entree)
+            return false, tostring((typeDef and typeDef.label) or (objet and objet.label)
+                or outil.typeOutil or outil.entree or "outil")
+        end
+        return true
+    end
+    for _, outil in ipairs(outils or {}) do
+        if not outil.typeOutil then
+            local ok, manque = Traiter(outil)
+            if not ok then return nil, manque end
+        end
+    end
+    for _, outil in ipairs(outils or {}) do
+        if outil.typeOutil then
+            local ok, manque = Traiter(outil)
+            if not ok then return nil, manque end
+        end
+    end
+    return choisis
+end
+Ecran.ResoudreOutils = ResoudreOutils
+
 local function ConsommerOutil(entity, ref)
     if LCM.Inventaire.Prendre(entity, ref) then return true end
     local objetId = tostring(ref or ""):match("^objets/(.+)$")
@@ -169,8 +232,28 @@ local function AfficherProche(point)
         local b = UI.Interaction("LCM_BoutonCoffre", "Ouvrir", "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-coffres.tga")
         b:SetScript("OnClick", function(self)
             -- Un objet pose seul au sol se ramasse d'un clic ; un coffre s'ouvre.
-            if self.ramasser then Ecran.RamasserObjet(self.pointId) else C.Ouvrir(self.pointId) end
+            if self.ramasser then Ecran.RamasserObjet(self.pointId) else
+                local ok, raison = C.Ouvrir(self.pointId)
+                if not ok then LCM.Alerte(tostring(raison)) end
+            end
         end)
+        -- Le medaillon seul accepte le clic droit MJ ; le reste du bandeau
+        -- conserve son clic gauche habituel.
+        b.editer = CreateFrame("Button", nil, b)
+        b.editer:SetSize(44, 44)
+        b.editer:SetPoint("LEFT", b, "LEFT", 10, 0)
+        b.editer:SetFrameLevel(b:GetFrameLevel() + 1)
+        b.editer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b.editer:SetScript("OnClick", function(_, bouton)
+            if bouton == "RightButton" then
+                if LCM.IsMaster() and not b.ramasser then
+                    local ok, raison = C.Ouvrir(b.pointId, true)
+                    if not ok then LCM.Alerte(tostring(raison)) end
+                end
+            elseif b.ramasser then Ecran.RamasserObjet(b.pointId)
+            else C.Ouvrir(b.pointId) end
+        end)
+        UI.Bulle(b.editer, "Coffre", "Clic gauche : ouvrir. Clic droit MJ : éditer le contenu.")
         Ecran.bouton = b
     end
     local b = Ecran.bouton
@@ -178,6 +261,7 @@ local function AfficherProche(point)
     b.pointId = point.id
     local d = C.definitions[point.def]
     b.ramasser = d and d.coffre and d.coffre.objet and true or false
+    b.editer:SetShown(LCM.IsMaster() and not b.ramasser)
     b.titre:SetText(b.ramasser and "Ramasser" or "Ouvrir")
     b.nom:SetText(tostring(d and d.label or "Coffre"))
     local coffre = d and d.coffre or {}
@@ -196,8 +280,20 @@ end
 
 local function Construire()
     local f = UI.Fenetre("coffre_joueur", "Coffre", 420, 280, { x = 0, y = -30 })
+    f.modeEdition = CreateFrame("Frame", nil, f.contenu)
+    f.modeEdition:SetSize(128, 24)
+    f.modeEdition:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+    UI.BordureFine(f.modeEdition, 0.45)
+    f.modeEdition.texte = UI.Texte(f.modeEdition, "MODE ÉDITION", UI.C.accent, "GameFontNormalSmall")
+    f.modeEdition.texte:SetAllPoints(f.modeEdition)
+    f.modeEdition.texte:SetJustifyH("CENTER")
+    f.modeEdition:Hide()
     f.verrouiller = UI.Bouton(f.contenu, "Verrouiller", 120, 24, function() C.Envoyer("verrouiller") end)
     f.verrouiller:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 0)
+    f.resetVerrous = UI.Bouton(f.contenu, "Reset les verrous", 140, 24,
+        function() C.Envoyer("reset_verrous") end)
+    f.resetVerrous:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 0)
+    f.resetVerrous:Hide()
     -- Un coffre qui EST un sac lache au sol (Core/SacsAuSol.lua) se ramasse
     -- en entier : le sac s'equipe, son contenu dedans.
     f.ramasser = UI.Bouton(f.contenu, "Ramasser le sac", 180, 32, function() Ecran.Ramasser() end)
@@ -372,19 +468,16 @@ local function Construire()
         if avecClef and #outils == 0 then
             LCM.Alerte("aucune clef n’est configurée pour ce verrou."); return
         end
-        for _, tool in ipairs(outils) do
-            if InventaireTotal(entity, tool.entree) < tool.quantite then
-                LCM.Alerte("outil requis absent : " .. tostring((LCM.Compendium.Resoudre(tool.entree) or {}).label or tool.entree)); return
-            end
-        end
+        local outilsConcrets, manquant = ResoudreOutils(entity, outils)
+        if not outilsConcrets then LCM.Alerte("outil requis absent : " .. manquant); return end
         if avecClef then
             if m.usureOutils then
-                for _, outil in ipairs(outils) do
+                for _, outil in ipairs(outilsConcrets) do
                     for _ = 1, tonumber(outil.quantite) or 1 do UserOutil(entity, outil.entree) end
                 end
             end
             LCM.Actions.Annoncer("Clef : ouverture du verrou sans jet d’expertise.")
-            f.outilsEnAttente = LCM.Copie(outils)
+            f.outilsEnAttente = LCM.Copie(outilsConcrets)
             C.Envoyer("forcer", { expertise = m.id, score = 0, total = 0, clef = true })
             return
         end
@@ -412,7 +505,7 @@ local function Construire()
             LCM.Info("Tentative de verrou : -" .. coutFatigue .. " PF.")
         end
         if m.usureOutils then
-            for _, outil in ipairs(outils) do
+            for _, outil in ipairs(outilsConcrets) do
                 for _ = 1, tonumber(outil.quantite) or 1 do UserOutil(entity, outil.entree) end
             end
         end
@@ -425,7 +518,7 @@ local function Construire()
         f:MettreAJourTentative()
         local score, dd = tonumber(resultat.total) or 0, tonumber(m.dd) or 0
         LCM.Actions.Annoncer(LCM.Roll.Describe(resultat) .. " contre DD " .. m.dd)
-        f.outilsEnAttente = score >= dd and LCM.Copie(outils) or nil
+        f.outilsEnAttente = score >= dd and LCM.Copie(outilsConcrets) or nil
         C.Envoyer("forcer", { expertise = m.id, score = score, total = score, dd = dd })
     end)
     f.forcer:SetSize(300, 26)
@@ -577,7 +670,11 @@ local function Construire()
     end
 
     f.Afficher = function() Ecran.MettreAJour() end
-    f:HookScript("OnHide", function() if f.ouvert then C.Envoyer("fermer") end end)
+    f:HookScript("OnHide", function()
+        if f.edition then C.edition = false
+        elseif f.ouvert then C.Envoyer("fermer") end
+        f.edition = false
+    end)
     Ecran.frame = f
     return f
 end
@@ -585,6 +682,7 @@ end
 function Ecran.Ouvrir(id)
     local f = Ecran.frame or Construire()
     f.pointId = id
+    f.edition = C.edition == true and LCM.IsMaster()
     f.aides = {}
     f.expertise = nil
     f.choixExpertise.label:SetText("Choisir une expertise")
@@ -598,52 +696,70 @@ function Ecran.MettreAJour()
     local d = p and C.definitions[p.def]
     local e = C.etat
     if not p then f:Hide(); return end
+    f.edition = C.edition == true and LCM.IsMaster()
+    f.modeEdition:SetShown(f.edition)
     f:Titre(tostring(d and d.label or "Coffre"))
     f.apercu:SetText("CONTENU")
-    f.apercu:SetShown(e and e.s == true or false)
-    f.bandeau:SetShown(e and e.s == true or false)
-    f.aideContenu:SetShown(e and e.s == true or false)
-    f.capaciteFond:SetShown(e and e.s == true or false)
+    local contenuVisible = e and (e.s == true or f.edition) or false
+    f.apercu:SetShown(contenuVisible and not f.edition)
+    f.bandeau:SetShown(contenuVisible)
+    f.aideContenu:SetShown(contenuVisible)
+    f.capaciteFond:ClearAllPoints()
+    f.capaciteFond:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, f.edition and -68 or -42)
+    f.capaciteFond:SetPoint("TOPRIGHT", f.contenu, "TOPRIGHT", 0, f.edition and -68 or -42)
+    f.capaciteFond:SetShown(contenuVisible)
     f.capacite:Hide()
     if not e then
         f.verrousBrises:Hide()
         f.statut:ClearAllPoints()
-        f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, 0)
+        f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, f.edition and -28 or 0)
         f.statut:SetText("Chargement du coffre…")
         f.grille:Hide()
         f.choixExpertise:Hide(); f.aidesTitre:Hide(); f.bonusTentative:Hide()
         f.ddTentative:Hide(); f.forcer:Hide()
+        f.verrouiller:Hide(); f.resetVerrous:Hide()
         for _, case in ipairs(f.aideCases) do case:Hide() end
         for _, b in ipairs(f.cases) do b:Hide() end
         f:SetSize(LARGEUR_VERROUILLEE, f.insetHaut + 90 + f.insetBas)
         return
     end
     f.etatRecu = e
-    f.ouvert = e.s == true
+    f.ouvert = e.s == true or f.edition
     local places = d and d.coffre and d.coffre.places or 0
     local brises = 0
     for _, reverrouillable in ipairs(e.vo or {}) do if not reverrouillable then brises = brises + 1 end end
     f.verrousBrises:SetText(brises == 1 and "1 verrou brisé."
         or (brises > 1 and string.format("%d verrous brisés.", brises) or ""))
+    f.verrousBrises:ClearAllPoints()
+    f.verrousBrises:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, f.edition and -28 or 0)
     f.verrousBrises:SetShown(brises > 0)
     f.statut:ClearAllPoints()
-    f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, brises > 0 and -20 or 0)
+    f.statut:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0,
+        (f.edition and -28 or 0) - (brises > 0 and 20 or 0))
     f.statut:SetText(e.f and string.format("Verrouillé — %d verrou(x) restant(s).", e.v or 0)
         or string.format("%s — %d / %d emplacements occupés.", f.ouvert and "Ouvert" or "Fermé",
             Occuper(e.o), places))
     local verrousOuverts = e.vo or {}
     local reverrouillable = not (d and d.coffre and d.coffre.reset) and #verrousOuverts > 0
     for _, autorise in ipairs(verrousOuverts) do if not autorise then reverrouillable = false; break end end
-    f.verrouiller:SetShown(f.ouvert and reverrouillable)
+    f.verrouiller:SetShown(not e.f and f.ouvert and reverrouillable)
+    f.resetVerrous:SetShown(f.edition)
     local unSac = d and d.coffre and (d.coffre.sac or d.coffre.tente) and true or false
     f.verrouiller:ClearAllPoints()
-    f.verrouiller:SetPoint(unSac and "BOTTOMLEFT" or "BOTTOM", f.contenu,
-        unSac and "BOTTOMLEFT" or "BOTTOM", 0, 0)
+    f.resetVerrous:ClearAllPoints()
+    if f.edition and f.verrouiller:IsShown() then
+        f.verrouiller:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOM", -5, 0)
+        f.resetVerrous:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOM", 5, 0)
+    else
+        f.verrouiller:SetPoint(unSac and "BOTTOMLEFT" or "BOTTOM", f.contenu,
+            unSac and "BOTTOMLEFT" or "BOTTOM", 0, 0)
+        f.resetVerrous:SetPoint("BOTTOM", f.contenu, "BOTTOM", 0, 0)
+    end
     f.ramasser:SetShown(f.ouvert and unSac)
     f.ramasser.label:SetText(d and d.coffre and d.coffre.tente and "Ramasser la tente" or "Ramasser le sac")
     -- La rangee du bas sert aux deux boutons.
     if unSac then reverrouillable = reverrouillable or f.ouvert end
-    local verrouille = e.f == true
+    local verrouille = e.f == true and not f.edition
     f.choixExpertise:SetShown(verrouille)
     f.aidesTitre:SetShown(verrouille)
     f.bonusTentative:SetShown(verrouille)
@@ -663,9 +779,9 @@ function Ecran.MettreAJour()
     local lignes = math.max(1, math.ceil(places / colonnes))
     if f.ouvert then
         f.grille:ClearAllPoints()
-        f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -58)
+        f.grille:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, f.edition and -80 or -58)
         f.grille:SetPoint("BOTTOMRIGHT", f.contenu, "BOTTOMRIGHT", 0,
-            reverrouillable and 70 or 30)
+            (reverrouillable or f.edition) and 70 or 30)
         f.grille:Show()
         for index = 1, places do
             local b = f.cases[index] or f:NouvelleCase(index)
@@ -698,10 +814,14 @@ function Ecran.MettreAJour()
         local largeur = math.max(LARGEUR_MIN, largeurGrille + f.insetCote * 2)
         f.capacite:SetWidth(math.max(1, (largeur - f.insetCote * 2) * math.min(1, Occuper(e.o) / math.max(1, places))))
         f.capacite:SetShown(f.ouvert and Occuper(e.o) > 0)
-        local margeBas = reverrouillable and 78 or 38
+        local margeBas = (reverrouillable or f.edition) and 78 or 38
         f.aideContenu:ClearAllPoints()
-        f.aideContenu:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0, reverrouillable and 44 or 4)
-        f:SetSize(largeur, f.insetHaut + 58 + math.min(hauteurGrille, math.max(150, UIParent:GetHeight() * 0.70 - f.insetHaut - f.insetBas - 58 - margeBas)) + margeBas + f.insetBas)
+        f.aideContenu:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 0,
+            (reverrouillable or f.edition) and 44 or 4)
+        local margeHaut = f.edition and 80 or 58
+        f:SetSize(largeur, f.insetHaut + margeHaut + math.min(hauteurGrille,
+            math.max(150, UIParent:GetHeight() * 0.70 - f.insetHaut - f.insetBas
+                - margeHaut - margeBas)) + margeBas + f.insetBas)
     end
 end
 
