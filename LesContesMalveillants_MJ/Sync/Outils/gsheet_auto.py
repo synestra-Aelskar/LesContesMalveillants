@@ -277,6 +277,9 @@ def run_once(api: db.Sheets, sheet_id: str, retail: Path,
     state = read_state(sheet_id, retail)
     files = mj_files(retail)
     current = {name: snapshot(file) for name, file in files.items()}
+    # Une seule lecture du Sheet par passage, et aucune s'il n'a pas change
+    # depuis la derniere : tout ce qui suit lit ce qui vient d'etre charge.
+    api.actualiser(db.onglets_contenu())
     if not STATE_FILE.exists():
         # La comparaison avec la Sheet a besoin de son etat de reference.
         sync_content(api, sheet_id)
@@ -372,11 +375,13 @@ def main() -> None:
     parser.add_argument("--sheet-id", required=True)
     parser.add_argument("--credentials", required=True, type=Path)
     parser.add_argument("--retail", required=True, type=Path)
-    parser.add_argument("--interval", type=int, default=60,
-                        help="secondes entre deux lectures du Sheet (defaut : 60)")
+    # Deux minutes : un releve ne coute plus qu'une question a Drive tant que
+    # le classeur ne bouge pas, mais le quota est partage avec l'autre MJ.
+    parser.add_argument("--interval", type=int, default=120,
+                        help="secondes entre deux releves du Sheet (defaut : 120)")
     args = parser.parse_args()
     retail = args.retail.resolve()
-    api = db.Sheets(args.credentials, args.sheet_id)
+    api = db.Sheets(args.credentials, args.sheet_id, journal=log)
     if args.mode == "once":
         run_once(api, args.sheet_id, retail)
         return

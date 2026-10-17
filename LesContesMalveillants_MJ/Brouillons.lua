@@ -193,6 +193,17 @@ end
 
 -- « LCM/Traits : cout invalide » -> « cout invalide » : le prefixe sert a qui
 -- lit une trace, pas au MJ devant son formulaire.
+-- Ce que les joueurs recoivent (Core/BasePublique.lua). Un addon joueur trop
+-- ancien pour l'avoir ne doit pas empecher d'enregistrer.
+-- Vrai pendant qu'on applique ce que l'autre MJ envoie : ce qui arrive ne
+-- repart pas (voir la synchro entre maitres du jeu, plus bas).
+local enReception = false
+
+local RIEN = { Publier = function() return false end, Retirer = function() return false end }
+local function Publique()
+    return LCM.BasePublique and LCM.BasePublique.Publier and LCM.BasePublique or RIEN
+end
+
 local function Raison(message)
     return (tostring(message or ""):gsub("^LCM/%a+ : ", ""))
 end
@@ -290,6 +301,10 @@ function Brouillons.Enregistrer(famille, entree, creation)
     else
         registre.Add(entree)
     end
+    -- Et chez les joueurs connectes, tout de suite ; les autres la recoivent
+    -- a leur connexion (Core/BasePublique.lua). Recue de l'autre MJ, elle
+    -- est deja partie de chez lui.
+    Publique().Publier(famille, entree, enReception)
     PointChange(famille, neuf.id)
     return true
 end
@@ -309,6 +324,7 @@ function Brouillons.Supprimer(famille, id)
     Masques(famille)[id] = true
     if existant and registre.Retirer then registre.Retirer(id) end
     Brouillons.DiffuserSuppression(famille, id)
+    Publique().Retirer(famille, id, enReception)
     PointChange(famille, id)
     return true
 end
@@ -348,7 +364,6 @@ end
 --   * seul un maitre du jeu emet, et seul un maitre du jeu applique. Un joueur
 --     n'a pas d'atelier, et n'a rien a recevoir.
 
-local enReception = false
 local mjConnus, attentes, recus = {}, {}, {}
 local ordreRecus, sequence = {}, 0
 local horlogeSync
@@ -617,6 +632,7 @@ LCM.WhenReady(function()
         for id in pairs(parFamille) do
             if registre and registre.Get(id) then
                 if registre.Retirer then registre.Retirer(id) end
+                Publique().Retirer(famille, id, true)
             else
                 parFamille[id] = nil
             end
@@ -639,6 +655,7 @@ LCM.WhenReady(function()
                 Brouillons.Remove(famille, entree.id)
             elseif existant then
                 Remplacer(registre, existant, neuf)
+                Publique().Publier(famille, entree, true)
             else
                 -- Protege lui aussi : une entree qui echoue ne doit pas
                 -- emporter celles qui la suivent dans la file.
@@ -646,8 +663,11 @@ LCM.WhenReady(function()
                 if not ajoute then
                     LCM.Erreur(string.format("entrée refusée (%s / %s) : %s",
                         famille, tostring(entree.id), Raison(cree)))
-                elseif famille == "points" and registre.ActualiserRegles then
-                    registre.ActualiserRegles(cree)
+                else
+                    if famille == "points" and registre.ActualiserRegles then
+                        registre.ActualiserRegles(cree)
+                    end
+                    Publique().Publier(famille, entree, true)
                 end
             end
         end

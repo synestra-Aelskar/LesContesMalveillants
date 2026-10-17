@@ -1,7 +1,7 @@
 -- Un joueur sans compagnon MJ recoit une definition publique par le ping.
 __declencher("PLAYER_LOGIN")
 __personnage()
-LCM._masterCompanion = false
+LCM.BasculerModeJoueur(true)   -- un joueur, meme avec le compagnon MJ charge au banc
 
 local function attendu(ok, texte)
     if not ok then error(texte) end
