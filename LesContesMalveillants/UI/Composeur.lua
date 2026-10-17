@@ -22,6 +22,10 @@ UI.Composeur = Ecran
 
 local LARGEUR, HAUTEUR = 760, 402
 local PAD, ECART_X, ECART_Y = 4, 8, 8
+-- La jauge de retenue, sous les cases de degats : la fenetre grandit d'autant
+-- a l'ecran final d'un coup, plutot que d'ecraser les cases. Elle avance par
+-- pas de 5 %, assez fin pour doser, assez gros pour viser a la souris.
+local HAUTEUR_RETENUE, PAS_RETENUE = 26, 5
 local DORE = { 0.93, 0.80, 0.52 }
 local CANAUX_EMOTE = {
     { id = "EMOTE", nom = "Émote" },
@@ -69,6 +73,22 @@ end
 local function Placer(region, point, parent, relPoint, x, y)
     region:ClearAllPoints()
     region:SetPoint(point, parent, relPoint, x, y)
+end
+
+-- Le corps, le filet du pied et la hauteur de la fenetre, avec ou sans la
+-- jauge de retenue. Rien ne bouge si la disposition est deja la bonne.
+local function DisposerPied(f, avecRetenue)
+    local d = avecRetenue and HAUTEUR_RETENUE or 0
+    if f.decalagePied == d then return end
+    f.decalagePied = d
+    f:SetHeight(HAUTEUR + d)
+    f.principal:ClearAllPoints()
+    f.principal:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -78)
+    f.principal:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 88 + d)
+    f.pied:ClearAllPoints()
+    f.pied:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 80 + d)
+    f.pied:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 80 + d)
+    f.retenue:SetShown(avecRetenue)
 end
 
 -- Bloc PA ou PF du bandeau : etiquette a gauche, « cout / dispo » a droite.
@@ -137,8 +157,6 @@ local function Construire()
 
     -- ----- corps ------------------------------------------------------------
     f.principal = Panneau(f, 0.95, true)
-    f.principal:SetPoint("TOPLEFT", f, "TOPLEFT", 14, -78)
-    f.principal:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, 88)
     local M = f.principal
 
     f.recap = Panneau(M, 0.34, true)
@@ -251,8 +269,6 @@ local function Construire()
     -- ----- pied : une case par calcul de la feuille -------------------------
     f.pied = UI.Aplat(f, { 0.53, 0.43, 0.27, 0.9 })
     f.pied:SetHeight(1)
-    f.pied:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 80)
-    f.pied:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 80)
     f.resultats = {}
     for i = 1, 3 do
         local c = Panneau(f, 0.3)
@@ -275,6 +291,26 @@ local function Construire()
         c:Hide()
         f.resultats[i] = c
     end
+
+    -- ----- la retenue : frapper moins fort que son plein coup ---------------
+    f.retenue = CreateFrame("Frame", nil, f)
+    f.retenue:SetHeight(16)
+    f.retenue:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 18, 14)
+    f.retenue:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -18, 14)
+    f.retenue.libelle = UI.Texte(f.retenue, "", DORE, "GameFontNormalSmall")
+    Placer(f.retenue.libelle, "LEFT", f.retenue, "LEFT", 0, 0)
+    f.retenue.libelle:SetWidth(170)
+    f.retenue.libelle:SetJustifyH("LEFT")
+    f.retenue.curseur = UI.Curseur(f.retenue, function(valeur)
+        f.composeur.ctx.retenue = valeur * PAS_RETENUE
+        Ecran.Entete()
+    end)
+    f.retenue.curseur:SetPoint("LEFT", f.retenue.libelle, "RIGHT", 8, 0)
+    f.retenue.curseur:SetPoint("RIGHT", f.retenue, "RIGHT", 0, 0)
+    UI.Bulle(f.retenue.curseur, "Retenir son coup",
+        "Baisse les dégâts déclarés, normal et critique ensemble. Jamais sous 1.")
+    f.retenue:Hide()
+    DisposerPied(f, false)
 
     -- Fermer avant de declarer arrete l'action : rien n'est debite.
     f:SetScript("OnHide", function()
@@ -309,11 +345,22 @@ local function Cases(f)
     local c = f.composeur
     local ctx = c.ctx
     local cases = {}
+    -- Un coup retenu montre ce qui partira, et son plein coup a cote. Le
+    -- perce-armure plus bas se calcule sur la valeur retenue : c'est celle
+    -- que la cible recevra.
+    local retenables = A.SortiesRetenables(ctx)
+    local retenue = tonumber(ctx.retenue) or 100
     for _, etape in ipairs(ctx.etapes or {}) do
         if etape.type == "compute" and tostring(etape.out or "") ~= "" then
             local v = A.Calculer(etape, ctx)
             if v then ctx.vars[etape.out] = v end
-            cases[#cases + 1] = { titre = etape.label ~= "" and etape.label or "Résultat", valeur = ctx.vars[etape.out] }
+            local case = { titre = etape.label ~= "" and etape.label or "Résultat", valeur = ctx.vars[etape.out] }
+            local plein = tonumber(case.valeur)
+            if retenables and retenables[etape.out] and plein and retenue < 100 then
+                case.valeur = A.Retenir(math.floor(plein + 0.5), retenue)
+                case.plein = plein
+            end
+            cases[#cases + 1] = case
         end
     end
     for _, p in ipairs(A.Paires(c.etape.previewText)) do
@@ -391,18 +438,22 @@ function Ecran.Entete()
     f.recapZone:Regler(y)
 
     -- Pied.
+    f.retenue.libelle:SetText(string.format("Force du coup : |cffffffff%d %%|r",
+        tonumber(c.ctx.retenue) or 100))
     local cases = Cases(f)
     local n = math.min(3, #cases)
     local l = n > 0 and math.floor((LARGEUR - 36) / n) or 0
     for i, case in ipairs(f.resultats) do
         local spec = cases[i]
         if spec and i <= n then
-            Placer(case, "BOTTOMLEFT", f, "BOTTOMLEFT", 18 + (i - 1) * l, 16)
+            Placer(case, "BOTTOMLEFT", f, "BOTTOMLEFT", 18 + (i - 1) * l, 16 + (f.decalagePied or 0))
             case:SetSize(l, 58)
             case.titre:SetText(spec.titre)
             case.titre:SetWidth(l - 16)
-            case.valeur:SetText(spec.texte or (spec.valeur and
-                (spec.decimales and NombreApercu(spec.valeur) or Arrondi(spec.valeur))) or "—")
+            local texte = spec.texte or (spec.valeur and
+                (spec.decimales and NombreApercu(spec.valeur) or Arrondi(spec.valeur))) or "—"
+            if spec.plein then texte = texte .. "  |cff9a9a9a/ " .. Arrondi(spec.plein) .. "|r" end
+            case.valeur:SetText(texte)
             -- La deuxieme de deux calculs (le critique) en rouge.
             local rouge = i == 2 and not spec.texte
             case.valeur:SetTextColor(1, rouge and 0.35 or 0.82, rouge and 0.35 or 0.35)
@@ -601,6 +652,15 @@ function Ecran.Rendre()
     local f = Ecran.frame
     local c = f.composeur
     Cacher(f)
+    -- La retenue n'apparait qu'a la fin, au moment de declarer un coup : avant,
+    -- les degats bougent encore avec chaque reponse.
+    local fin = f.ecran == "fin" or (f.ecran == "questions" and #c:Visibles() == 0)
+    local retenue = fin and A.Retenable(c.ctx)
+    DisposerPied(f, retenue)
+    if retenue then
+        f.retenue.curseur:Regler(100 / PAS_RETENUE,
+            math.floor((tonumber(c.ctx.retenue) or 100) / PAS_RETENUE + 0.5))
+    end
     Ecran.Entete()
     f.visibles = c:Visibles()
     if f.ecran == "accueil" then

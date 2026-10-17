@@ -2908,6 +2908,44 @@ function Actions.Refuser(recu)
     if Actions.onResolu then Actions.onResolu() end
 end
 
+-- ===== La retenue ==========================================================
+--
+-- Les degats d'une attaque sont calcules, et on frappait toujours a fond : rien
+-- ne permettait de retenir son coup (17 octobre 2026). La retenue est un
+-- pourcentage choisi juste avant de declarer, applique aux deux totaux.
+--
+-- Une action est retenable si sa declaration porte un Total Critique : c'est
+-- ce qui distingue un coup (attaque, perce-armure, brise-armure) d'un soin ou
+-- d'un bouclier, qui ne declarent qu'un Total Normal.
+--
+-- Arrondi au superieur, minimum 1 : retenir son coup n'est pas le rater.
+
+-- Les variables qui portent les deux totaux declares (`tnorm`, `tcrit`), ou
+-- nil si l'action n'est pas un coup.
+function Actions.SortiesRetenables(ctx)
+    local sorties, critique = {}, false
+    for _, etape in ipairs(ctx and ctx.etapes or {}) do
+        if etape.type == "declare" then
+            for _, p in ipairs(Paires(etape.declareTags)) do
+                if p.k == "Total Normal" or p.k == "Total Critique" then
+                    local var = Trim(p.v):match("^[Vv][Aa][Rr]%s*:%s*(.-)%s*$")
+                    if var and var ~= "" then sorties[var] = true end
+                    if p.k == "Total Critique" then critique = true end
+                end
+            end
+        end
+    end
+    return critique and sorties or nil
+end
+
+function Actions.Retenable(ctx) return Actions.SortiesRetenables(ctx) ~= nil end
+
+function Actions.Retenir(valeur, pourcentage)
+    local v, pct = tonumber(valeur), tonumber(pourcentage)
+    if not v or v <= 0 or not pct or pct >= 100 then return v end
+    return math.max(1, math.ceil(v * math.max(0, pct) / 100 - 1e-9))
+end
+
 function Pas.declare(etape, ctx, suite)
     if ctx.effet then return DeclarerEffet(etape, ctx, suite) end
     if ctx.vars._buffData then return Arreter(ctx, "les buffs et débuffs ne se déclarent pas encore.") end
@@ -2985,6 +3023,23 @@ function Pas.declare(etape, ctx, suite)
                 Journal(ctx, string.format("Puissance : +%d %% — %s",
                     math.floor(part * 100 + 0.5), table.concat(touches, ", ")))
             end
+        end
+    end
+    -- La retenue passe APRES la Puissance : elle dit ce qu'on choisit de
+    -- frapper sur le coup qu'on porterait, Puissance comprise.
+    local retenue = tonumber(ctx.retenue)
+    if retenue and retenue < 100 and Actions.Retenable(ctx) then
+        local touches = {}
+        for _, cle in ipairs({ "Total Normal", "Total Critique" }) do
+            local v = tonumber(valeurs[cle])
+            local r = Actions.Retenir(v, retenue)
+            if v and r ~= v then
+                valeurs[cle] = tostring(r)
+                touches[#touches + 1] = string.format("%s %d → %d", cle, v, r)
+            end
+        end
+        if #touches > 0 then
+            Journal(ctx, string.format("Retenue : %d %% — %s", retenue, table.concat(touches, ", ")))
         end
     end
 
