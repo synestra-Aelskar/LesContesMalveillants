@@ -1183,29 +1183,44 @@ function Lieux.Franchir(seuil, lieu, sens)
     end
 end
 
+-- Le cercle qui contient un seuil, pour juger de loin s'il vaut la peine de
+-- redemander `.gps` (DeplacementForce.GPSAPortee). Grossier expres : il ne
+-- sert qu'a savoir si l'on est loin de tout.
+local function Emprise(seuil)
+    if seuil.forme == "cercle" then
+        return { x = seuil.x, y = seuil.y, r = tonumber(seuil.rayon) or RAYON }
+    end
+    if seuil.forme == "porte" then
+        local demi = math.sqrt((seuil.bx - seuil.ax) ^ 2 + (seuil.by - seuil.ay) ^ 2) / 2
+        return { x = (seuil.ax + seuil.bx) / 2, y = (seuil.ay + seuil.by) / 2,
+                 r = demi + (tonumber(seuil.debord) or DEBORD) }
+    end
+    local cx, cy = 0, 0
+    for _, p in ipairs(seuil.points) do cx, cy = cx + p.x, cy + p.y end
+    cx, cy = cx / #seuil.points, cy / #seuil.points
+    local r = 0
+    for _, p in ipairs(seuil.points) do
+        r = math.max(r, math.sqrt((p.x - cx) ^ 2 + (p.y - cy) ^ 2))
+    end
+    return { x = cx, y = cy, r = r }
+end
+
 function Lieux.Tick()
     local carte = Carte()
     local magasin = Magasin()
-    -- Une position par SOURCE, pas une par seuil : trois appels au pire, et
-    -- `.gps` ne se redemande qu'une fois par battement.
-    local positions, demandes = {}, {}
+    -- Une position par SOURCE, pas une par seuil : trois appels au pire.
+    local positions, cibles = {}, {}
 
     for _, lieu in pairs(magasin) do
         for id, seuil in pairs(lieu.seuils or {}) do
             if seuil.actif and seuil.carte == carte and Lieux.Complet(seuil) then
                 local source = seuil.source
+                if source == "gps" then cibles[#cibles + 1] = Emprise(seuil) end
                 local p = positions[source]
                 if p == nil then
                     local x, y = Position(source)
                     p = x and { x = x, y = y } or false
                     positions[source] = p
-                    -- Au GPS la position ne vient pas toute seule : il faut la
-                    -- redemander, et la cadence est bornee dans DemanderGPS.
-                    if not p and source == "gps" and not demandes.gps then
-                        demandes.gps = true
-                        local D = LCM.DeplacementForce
-                        if D and D.DemanderGPS then D.DemanderGPS() end
-                    end
                 end
                 if p then
                     local cote = Lieux.Cote(seuil, p.x, p.y)
@@ -1221,6 +1236,12 @@ function Lieux.Tick()
                 end
             end
         end
+    end
+    -- Au GPS la position ne vient pas toute seule : on la redemande, mais
+    -- seulement a portee d'un seuil.
+    if positions.gps == false then
+        local D = LCM.DeplacementForce
+        if D and D.GPSAPortee then D.GPSAPortee(cibles) end
     end
 end
 

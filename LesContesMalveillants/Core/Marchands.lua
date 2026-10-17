@@ -249,6 +249,11 @@ function Marchands.Proche(positions)
     for _, p in pairs(Marchands.points) do
         if Marchands.definitions[p.def] and p.carte == carte then
             local source = p.source or "?"
+            -- De quoi juger si un `.gps` vaut la peine (DeplacementForce.GPSAPortee).
+            if source == "gps" then
+                positions.cibles = positions.cibles or {}
+                positions.cibles[#positions.cibles + 1] = { x = p.x, y = p.y, r = Marchands.Rayon() }
+            end
             local pos = positions[source]
             if pos == nil then
                 local x, y, _, z = LCM.Recolte.Position(p.source)
@@ -271,7 +276,7 @@ function Marchands.Tick()
     local proche = Marchands.Proche(positions)
     if positions.gps == false then
         local D = LCM.DeplacementForce
-        if D and D.DemanderGPS then D.DemanderGPS() end
+        if D and D.GPSAPortee then D.GPSAPortee(positions.cibles) end
     end
     local avant = Marchands.courant
     Marchands.courant = proche

@@ -128,6 +128,7 @@ function DeplacementForce.NoterGPS(ligne)
     gps.x, gps.y, gps.z = x, y, z
     if not carteMonde and maintenant > 0
         and maintenant - gps.carteQuand > 3 then gps.carteMonde = nil end
+    gps.sansReponse = 0
     DeplacementForce.gpsTente = nil
     gps.quand = maintenant > 0 and maintenant or (gps.quand + 1)
     return true
@@ -199,11 +200,56 @@ function DeplacementForce.DemanderGPS(force, silencieux)
         return false
     end
     gps.demande = maintenant
+    gps.sansReponse = (gps.sansReponse or 0) + 1
     local envoye = DeplacementForce.Commande(".gps")
     if envoye and silencieux and maintenant > 0 then
         gps.silencieuxJusqua = maintenant + 2
     end
     return envoye
+end
+
+-- ===== Le .gps de fond =====================================================
+-- Les marchands, la recolte et les lieux battent la mesure quatre fois par
+-- seconde. Ils redemandaient `.gps` des que la derniere reponse avait trois
+-- secondes, PARTOUT sur la carte, et sans fin si le serveur ne repondait pas
+-- (16 octobre 2026). On ne demande plus qu'A PORTEE d'un point : loin de
+-- tout, on attend le temps qu'il faudrait pour arriver a portee, et c'est
+-- seulement alors qu'on reverifie.
+--
+-- `cibles` : { { x, y, r }, ... } — les points poses au GPS sur cette carte,
+-- `r` le rayon dans lequel ils reagissent.
+local PORTEE_GPS = 30       -- yards au-dela du rayon : de quoi le voir venir
+local VITESSE_MAX = 14      -- yards par seconde, une monture au galop
+local ATTENTE_MAX = 30      -- un teleport ne doit pas laisser aveugle trop longtemps
+local SANS_REPONSE_MAX = 3  -- puis on se tait une minute, sans rien dire
+local REPOS = 60
+
+function DeplacementForce.GPSAPortee(cibles)
+    if type(cibles) ~= "table" or #cibles == 0 then return false end
+    local maintenant = (GetTime and GetTime()) or 0
+    if maintenant < (gps.prochaine or 0) then return false end
+    if (gps.sansReponse or 0) >= SANS_REPONSE_MAX then
+        gps.sansReponse = 0
+        gps.prochaine = maintenant + REPOS
+        return false
+    end
+    -- Sans aucune reponse encore, on ne sait pas ou l'on est : une demande
+    -- est le seul moyen de le savoir. Et une position deja jugee loin ne se
+    -- rejuge pas : l'attente finie, c'est le moment de reverifier, pas de
+    -- repartir pour un tour sur la meme vieille reponse.
+    if gps.x and gps.jugee ~= gps.quand then
+        local proche = math.huge
+        for _, c in ipairs(cibles) do
+            local d = math.sqrt((gps.x - c.x) ^ 2 + (gps.y - c.y) ^ 2) - (tonumber(c.r) or 0)
+            if d < proche then proche = d end
+        end
+        if proche > PORTEE_GPS then
+            gps.jugee = gps.quand
+            gps.prochaine = maintenant + math.min(ATTENTE_MAX, (proche - PORTEE_GPS) / VITESSE_MAX)
+            return false
+        end
+    end
+    return DeplacementForce.DemanderGPS(false, true)
 end
 
 -- Le cadre qui bat la mesure. OnUpdate plutot que C_Timer : il existe toujours,
@@ -352,9 +398,10 @@ function DeplacementForce.Commande(commande)
 end
 
 -- Le guetteur : les reponses de `.gps` arrivent comme des messages systeme.
--- Pendant une course on les RETIRE de l'affichage — a deux par seconde, elles
--- noieraient tout le reste — et on les laisse passer le reste du temps, pour
--- que `.gps` tape a la main reponde normalement.
+-- Pendant une course, et juste apres une demande silencieuse de l'addon, on
+-- les RETIRE de l'affichage — c'est l'addon qui a pose la question, pas le
+-- joueur. Le reste du temps elles passent, pour que `.gps` tape a la main
+-- reponde.
 LCM.WhenReady(function()
     local cadre = CreateFrame("Frame")
     cadre:RegisterEvent("CHAT_MSG_SYSTEM")

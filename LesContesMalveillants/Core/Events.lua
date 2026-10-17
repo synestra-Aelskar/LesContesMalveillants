@@ -30,11 +30,19 @@ end)
 
 -- Demarrage. Tout ce qui a besoin de la sauvegarde ou du compagnon MJ attend
 -- PLAYER_LOGIN : a ce moment-la tous les addons sont charges.
+-- Un module qui plante au demarrage n'arrete pas les autres, mais il le DIT :
+-- le pcall avalait l'erreur, et un module tombe la n'enregistrait jamais ses
+-- ecouteurs reseau — il ne recevait plus rien, sans un mot (16 octobre 2026).
+local function Lancer(handler)
+    local ok, erreur = pcall(handler)
+    if not ok and LCM.Erreur then LCM.Erreur("au démarrage : " .. tostring(erreur)) end
+end
+
 LCM.On("PLAYER_LOGIN", function()
     LCM.EnsureDatabase()
     LCM.ready = true
     if LCM.OnReady then
-        for _, handler in ipairs(LCM.OnReady) do pcall(handler) end
+        for _, handler in ipairs(LCM.OnReady) do Lancer(handler) end
     end
     LCM.Debug(string.format("pret — version %s, MJ : %s", tostring(LCM.version), tostring(LCM.IsMaster())))
 end)
@@ -44,5 +52,5 @@ end)
 LCM.OnReady = {}
 function LCM.WhenReady(handler)
     if type(handler) ~= "function" then return end
-    if LCM.ready then pcall(handler) else table.insert(LCM.OnReady, handler) end
+    if LCM.ready then Lancer(handler) else table.insert(LCM.OnReady, handler) end
 end

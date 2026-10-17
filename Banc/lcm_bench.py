@@ -606,6 +606,20 @@ function SendChatMessage(texte, canal, langue, cible)
     chats[#chats + 1] = { texte = tostring(texte), canal = canal, cible = cible }
 end
 
+-- Les filtres de chat : `__filtreChat(evenement, message)` dit si un message
+-- recu serait RETIRE de l'affichage (un filtre a rendu vrai).
+local filtresChat = {}
+function ChatFrame_AddMessageEventFilter(evenement, fn)
+    filtresChat[evenement] = filtresChat[evenement] or {}
+    table.insert(filtresChat[evenement], fn)
+end
+function _G.__filtreChat(evenement, message)
+    for _, fn in ipairs(filtresChat[evenement] or {}) do
+        if fn(DEFAULT_CHAT_FRAME, evenement, message) then return true end
+    end
+    return false
+end
+
 local lienInsere
 function ChatEdit_GetActiveWindow() return _G.__chatOuvert end
 function ChatEdit_InsertLink(lien) lienInsere = lien return _G.__chatOuvert ~= nil end
