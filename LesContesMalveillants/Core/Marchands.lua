@@ -256,7 +256,9 @@ function Marchands.Proche(positions)
             end
             local pos = positions[source]
             if pos == nil then
-                local x, y, _, z = LCM.Recolte.Position(p.source)
+                local D = LCM.DeplacementForce
+                local x, y, z
+                if D then x, y, z = D.Position(p.source, p.source == "gps" and 1 or nil) end
                 pos = x and { x = x, y = y, z = z } or false
                 positions[source] = pos
             end
@@ -271,13 +273,28 @@ function Marchands.Proche(positions)
     return meilleur, meilleureDistance
 end
 
+function Marchands.ProcheHorizontal()
+    local D = LCM.DeplacementForce
+    local x, y
+    if D then x, y = D.Position("monde") end
+    if not (x and y) then return nil end
+    local carte, meilleur, distanceMin = LCM.Recolte.Carte()
+    for _, p in pairs(Marchands.points) do
+        local px, py = tonumber(p.x), tonumber(p.y)
+        if Marchands.definitions[p.def] and p.carte == carte and p.source ~= "carte" and px and py then
+            local distance = math.sqrt((x - px)^2 + (y - py)^2)
+            if distance <= Marchands.Rayon() and (not distanceMin or distance < distanceMin) then
+                meilleur, distanceMin = p, distance
+            end
+        end
+    end
+    return meilleur
+end
+
 function Marchands.Tick()
     local positions = {}
     local proche = Marchands.Proche(positions)
-    if positions.gps == false then
-        local D = LCM.DeplacementForce
-        if D and D.GPSAPortee then D.GPSAPortee(positions.cibles) end
-    end
+    if positions.gps == false then proche = Marchands.ProcheHorizontal() end
     local avant = Marchands.courant
     Marchands.courant = proche
     if avant ~= proche and Marchands.onProche then pcall(Marchands.onProche, proche) end
@@ -332,7 +349,16 @@ end
 function Marchands.Acheter(defId, offreId, choix)
     local offre, definition = Marchands.Offre(defId, offreId)
     if not offre then return false, "offre inconnue." end
-    if not Devant(defId) then return false, "tu n'es pas devant ce marchand." end
+    if not Devant(defId) then
+        local D = LCM.DeplacementForce
+        local p = Marchands.ProcheHorizontal()
+        if p and p.def == defId and D and not D.Position("gps", 1)
+            and D.DemanderGPS and D.DemanderGPS(true) then
+            Marchands.attenteGPS = { action = "acheter", defId = defId, offreId = offreId, choix = choix }
+            return true
+        end
+        return false, "tu n'es pas devant ce marchand, y compris en hauteur."
+    end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
     local facon, pourquoi = LCM.Prix.Choisir(LCM.Prix.DeLOffre(offre), choix)
@@ -387,7 +413,16 @@ end
 function Marchands.Revendre(defId, rachatId, choix)
     local rachat = Marchands.Rachat(defId, rachatId)
     if not rachat then return false, "offre de rachat inconnue." end
-    if not Devant(defId) then return false, "tu n'es pas devant ce marchand." end
+    if not Devant(defId) then
+        local D = LCM.DeplacementForce
+        local p = Marchands.ProcheHorizontal()
+        if p and p.def == defId and D and not D.Position("gps", 1)
+            and D.DemanderGPS and D.DemanderGPS(true) then
+            Marchands.attenteGPS = { action = "revendre", defId = defId, offreId = rachatId, choix = choix }
+            return true
+        end
+        return false, "tu n'es pas devant ce marchand, y compris en hauteur."
+    end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
     local facon, pourquoi = LCM.Prix.Choisir(LCM.Prix.DeLOffre(rachat), choix)
@@ -402,6 +437,24 @@ function Marchands.Revendre(defId, rachatId, choix)
     LCM.Ok(string.format("Revendu : %s.", Marchands.Libelle(rachat)))
     if LCM.Entities.Changed then LCM.Entities.Changed(entity) end
     return true
+end
+
+function Marchands.ReponseGPS()
+    local attente = Marchands.attenteGPS
+    if not attente then return end
+    Marchands.attenteGPS = nil
+    local p = Marchands.Proche()
+    if not p or p.def ~= attente.defId then
+        LCM.Alerte("tu es trop loin du marchand, y compris en hauteur.")
+        return
+    end
+    local ok, raison
+    if attente.action == "revendre" then
+        ok, raison = Marchands.Revendre(attente.defId, attente.offreId, attente.choix)
+    else
+        ok, raison = Marchands.Acheter(attente.defId, attente.offreId, attente.choix)
+    end
+    if not ok and raison then LCM.Alerte(raison) end
 end
 
 function Marchands.Signaler(auteur)

@@ -493,24 +493,20 @@ E.groupesTypes = { "Physiques", "Élémentaires", "Cosmiques" }
 -- longtemps qu'il dure (9 octobre 2026). Il se compose comme un debuff : un
 -- pool de points qu'on repartit.
 --
--- Trois jauges se grignotent toutes seules : elles sont UNIQUES et communes a
--- tout le monde (bouclier, PA, fatigue). Les deux autres — les points de vie et
+-- Deux jauges se grignotent toutes seules : elles sont UNIQUES et communes a
+-- tout le monde (bouclier, fatigue). Les deux autres — les points de vie et
 -- l'etat des armures — sont reparties en zones propres a la silhouette de la
 -- cible : personne d'autre que son porteur ne sait ou le coup tombe. Pour
 -- celles-la, le dot ne touche a rien et pose une NOTE a jouer : c'est la cible
 -- qui applique, selon ce que la note raconte.
 --
 -- `taux` : une part du MAXIMUM de la jauge, par point investi et par round.
--- `plat` : un nombre fixe, pour une jauge trop petite pour un pourcentage —
--- les PA se comptent en unites, 5 % n'y voudrait rien dire. D'ou leur prix :
--- un point de PA par round coute cher parce qu'il empeche d'AGIR.
 
 E.dot = {
     -- Ce qu'on peut grignoter. `cout` : le prix d'un point dans ce pool.
     cibles = {
         { id = "bouclier", label = "Bouclier", jauge = "armure",  cout = 2,  taux = 0.05 },
         { id = "pf",       label = "PF",       jauge = "fatigue", cout = 3,  taux = 0.05 },
-        { id = "pa",       label = "PA",       jauge = "pa",      cout = 15, plat = 1 },
         -- Zonees : on ne touche a rien, on ecrit la note.
         { id = "pv",       label = "PV",       cout = 4, taux = 0.05, zonee = true,
           note = "points de vie" },

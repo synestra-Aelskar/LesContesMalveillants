@@ -51,7 +51,7 @@ end
 local function Trim_(t) return (tostring(t or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 -- Les deux familles de la colonne de gauche. Elles ne sortent pas du schema de
--- fiche comme celles du constructeur : un dot n'a que cinq jauges a grignoter
+-- fiche comme celles du constructeur : un dot n'a que quatre jauges a grignoter
 -- et deux facons de durer. On les range quand meme en familles repliables,
 -- pour que les deux fenetres se lisent pareil.
 local function Familles()
@@ -97,7 +97,7 @@ local function Construire()
     f.titre = UI.Texte(f, "Composer un dot", DORE, "GameFontNormalLarge")
     Placer(f.titre, "TOP", f, "TOP", 0, -12)
 
-    f.choix = { rounds = 0, stacks = 0 }
+    f.choix = { rounds = 0, stacks = 0, penetrations = {} }
     f.conteneur = "etat"
     f.replies = {}
 
@@ -169,7 +169,7 @@ local function Construire()
     f.separateur = UI.Aplat(f, { 1, 1, 1, 0.08 }, "ARTWORK")
     f.separateur:SetWidth(1)
     f.separateur:SetPoint("TOP", f, "TOP", -6, -116)
-    f.separateur:SetPoint("BOTTOM", f, "BOTTOM", -6, 140)
+    f.separateur:SetPoint("BOTTOM", f, "BOTTOM", -6, 56)
 
     f.titreGauche = UI.Texte(f, "CONSTRUCTEUR", DORE)
     Placer(f.titreGauche, "TOPLEFT", f, "TOPLEFT", 16, -144)
@@ -245,7 +245,7 @@ local function Construire()
     -- page, alors que c'est ce qu'on surveille.
     local function Carre(couleur, libelle)
         local k = CreateFrame("Frame", nil, f)
-        k:SetSize(58, 28)
+        k:SetSize(48, 28)
         k.fond = UI.Aplat(k, couleur)
         k.fond:SetAllPoints(k)
         UI.BordureFine(k, 0.5)
@@ -258,60 +258,74 @@ local function Construire()
     end
     f.carrePool = Carre({ 0.16, 0.42, 0.22, 0.92 }, "Pool")
     f.carreReste = Carre({ 0.16, 0.26, 0.48, 0.92 }, "Reste")
-    Placer(f.carrePool, "TOPRIGHT", f, "TOPRIGHT", -92, -136)
+    Placer(f.carrePool, "TOPRIGHT", f, "TOPRIGHT", -72, -136)
     Placer(f.carreReste, "LEFT", f.carrePool, "RIGHT", 0, 0)
 
     f.panneau = UI.Defilement(f)
     f.panneau:SetPoint("TOPLEFT", f, "TOP", 8, -166)
     f.panneau:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -24, 140)
 
-    -- Ce qui fabrique le pool. Trois questions, posees comme celles du
-    -- composeur : un titre, puis les reponses.
+    -- Memes questions et grille de trois reponses que Buff et Debuff.
     local function Titre(texte, y)
-        local t = UI.Texte(f.panneau.contenu, texte, DORE, "GameFontNormalSmall")
+        local t = UI.Texte(f.panneau.contenu, texte, { 0.62, 0.75, 0.87 }, "GameFontNormalSmall")
         Placer(t, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4, -y)
         return t
     end
-    f.titreSource = Titre("Source du dot", 4)
+    local largeur, pas = 118, 124
+    f.titreSource = Titre("Source du dot", 0)
     f.sources = {}
     for index, id in ipairs((LCM.Equilibrage.dot and LCM.Equilibrage.dot.sources) or {}) do
         local libelle = id
         for _, prim in ipairs(LCM.Equilibrage.primaires or {}) do
             if prim.id == id then libelle = prim.label end
         end
-        local b = UI.Bouton(f.panneau.contenu, libelle, 140, 22, function()
+        local b = UI.Bouton(f.panneau.contenu, libelle, largeur, 22, function()
             f.choix.source = id
             Ecran.Rendre()
         end)
         b.sourceId = id
-        local col, rang = (index - 1) % 2, math.floor((index - 1) / 2)
-        Placer(b, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4 + col * 146, -(24 + rang * 26))
+        local col, rang = (index - 1) % 3, math.floor((index - 1) / 3)
+        Placer(b, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4 + col * pas, -(18 + rang * 26))
         f.sources[index] = b
     end
-    local basSources = 24 + math.max(1, math.ceil(#f.sources / 2)) * 26 + 10
-
-    f.titrePen = Titre("Pénétration moyenne", basSources)
-    f.pen = UI.Champ(f.panneau.contenu, 80, 22, function() Ecran.Rendre() end)
-    Placer(f.pen, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4, -(basSources + 20))
-    f.pen:SetNumeric(true)
-    f.penAide = UI.Texte(f.panneau.contenu, "La moyenne des pénétrations employées.",
-        UI.C.discret, "GameFontNormalSmall")
-    Placer(f.penAide, "LEFT", f.pen, "RIGHT", 10, 0)
-
-    local basPen = basSources + 50
-    f.titreNiveau = Titre("Niveau du sort", basPen)
+    local y = 18 + math.max(1, math.ceil(#f.sources / 3)) * 26 + 8
+    f.titrePen = Titre("Pénétrations (moyenne : 0)", y)
+    y = y + 18
+    f.penetrations = {}
+    for _, groupe in ipairs(LCM.Equilibrage.groupesTypes or {}) do
+        Titre(groupe, y)
+        y = y + 18
+        local index = 0
+        for _, ty in ipairs(LCM.Equilibrage.types or {}) do
+            if ty.groupe == groupe then
+                index = index + 1
+                local b = UI.Bouton(f.panneau.contenu, ty.label, largeur, 22, function()
+                    local selection = f.choix.penetrations
+                    selection[ty.id] = not selection[ty.id] or nil
+                    Ecran.Rendre()
+                end)
+                b.typeId, b.typeLabel = ty.id, ty.label
+                local col, rang = (index - 1) % 3, math.floor((index - 1) / 3)
+                Placer(b, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4 + col * pas, -(y + rang * 26))
+                f.penetrations[#f.penetrations + 1] = b
+            end
+        end
+        y = y + math.ceil(index / 3) * 26 + 8
+    end
+    f.titreNiveau = Titre("Niveau du sort", y)
+    y = y + 18
     f.niveaux = {}
     for index = 1, 6 do
-        local b = UI.Bouton(f.panneau.contenu, "Niveau " .. index, 92, 22, function()
+        local b = UI.Bouton(f.panneau.contenu, "Niveau " .. index, largeur, 22, function()
             f.choix.niveau = index
             Ecran.Rendre()
         end)
         b.niveau = index
         local col, rang = (index - 1) % 3, math.floor((index - 1) / 3)
-        Placer(b, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4 + col * 98, -(basPen + 20 + rang * 26))
+        Placer(b, "TOPLEFT", f.panneau.contenu, "TOPLEFT", 4 + col * pas, -(y + rang * 26))
         f.niveaux[index] = b
     end
-    f.hauteurPanneau = basPen + 20 + 2 * 26 + 10
+    f.hauteurPanneau = y + 2 * 26 + 10
 
     f.emoteAction = UI.EmoteAction(f, LARGEUR - 32, 70, "Émote de l'action.")
     Placer(f.emoteAction, "BOTTOMLEFT", f, "BOTTOMLEFT", 16, 42)
@@ -341,7 +355,7 @@ local function Construire()
     -- ----- l'etat de la composition -----------------------------------------
     function f:Entree()
         return { source = self.choix.source,
-                 penMoyenne = tonumber(self.pen:GetText()) or 0,
+                 penetrations = self.choix.penetrations,
                  niveau = tonumber(self.choix.niveau) or 0 }
     end
 
@@ -363,7 +377,13 @@ local function Construire()
     function f:Charger(modele)
         if type(modele) ~= "table" then return false end
         self.choix = {}
-        for cle, valeur in pairs(modele.choix or {}) do self.choix[cle] = valeur end
+        for cle, valeur in pairs(modele.choix or {}) do
+            if cle == "penetrations" and type(valeur) == "table" then
+                self.choix[cle] = {}
+                for id, actif in pairs(valeur) do self.choix[cle][id] = actif end
+            else self.choix[cle] = valeur end
+        end
+        self.choix.penetrations = self.choix.penetrations or {}
         self.choix.rounds = self.choix.rounds or 0
         self.choix.stacks = self.choix.stacks or 0
         self.conteneur = modele.conteneur or "etat"
@@ -487,6 +507,15 @@ end
 
 local function Droite(f)
     for _, b in ipairs(f.sources) do b:Selectionner(f.choix.source == b.sourceId) end
+    local entity = LCM.Entities.Self()
+    for _, b in ipairs(f.penetrations) do
+        local valeur = tonumber(LCM.Actions.ValeurType(b.typeId, "Penetrations", entity)) or 0
+        b.label:SetText(string.format("%s (%s)", b.typeLabel, tostring(valeur)))
+        b:SetEnabled(valeur > 0)
+        b:Selectionner(f.choix.penetrations and f.choix.penetrations[b.typeId] == true)
+    end
+    f.titrePen:SetText(string.format("Pénétrations (moyenne : %s)",
+        tostring(D.PenetrationMoyenne(entity, f.choix.penetrations))))
     for _, b in ipairs(f.niveaux) do b:Selectionner(tonumber(f.choix.niveau) == b.niveau) end
     f.panneau:Regler(f.hauteurPanneau)
     local pool, cout = f:Pool(), (D.Cout(f.choix))
@@ -573,6 +602,7 @@ function Ecran.Ouvrir()
     -- c'est le personnage et son sort qui les dictent, pas le dot qu'on
     -- compose. Le reste repart a zero.
     f.choix = { rounds = 0, stacks = 0, source = f.choix and f.choix.source,
+                penetrations = f.choix and f.choix.penetrations or {},
                 niveau = f.choix and f.choix.niveau }
     f.modeleCharge = nil
     f.emoteAction:Reset()

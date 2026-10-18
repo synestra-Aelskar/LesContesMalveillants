@@ -364,6 +364,22 @@ attendu("200 m au-dessus : aucune action possible", C.Envoyer("prendre", { e = R
 LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -386.359375 585 2.637213")
 attendu("à la bonne hauteur : coffre de nouveau à portée", (C.Proche() or {}).id, p.id)
 
+dire("== pas de .gps répété tant qu'on attend devant le coffre")
+local function CompterGPS()
+    local n = 0
+    for _, message in ipairs(__chats) do if message.texte == ".gps" then n = n + 1 end end
+    return n
+end
+__avancerTemps(2)
+local gpsAvant = CompterGPS()
+__avancer(2)
+attendu("attendre près du coffre n'envoie aucune commande .gps", CompterGPS(), gpsAvant)
+attendu("un clic lance la vérification de hauteur", C.Ouvrir(id), true)
+attendu("une seule commande .gps à l'ouverture", CompterGPS(), gpsAvant + 1)
+LCM.DeplacementForce.NoterGPS("100.000000 200.000000 -386.359375 585 2.637213")
+attendu("la réponse ouvre le coffre à bonne hauteur", coffreUI:IsShown(), true)
+coffreUI:Hide()
+
 dire("== retirer un placement le fait disparaître immédiatement")
 attendu("retrait accepté", MJ.Retirer(id), true)
 attendu("placement retiré du magasin MJ", MJ.Points("coffre_temoin")[1], nil)

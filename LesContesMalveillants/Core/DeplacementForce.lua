@@ -115,6 +115,40 @@ function DeplacementForce.LireGPS(ligne)
     return tonumber(x), tonumber(y), tonumber(z)
 end
 
+-- Les modules qui attendaient une reponse .gps pour finir ce qu'ils avaient
+-- commence (poser un coffre, une recolte, un marchand).
+local function PrevenirReponse()
+    if LCM.Coffres and LCM.Coffres.ReponseGPS then LCM.Coffres.ReponseGPS() end
+    if LCM.Recolte and LCM.Recolte.ReponseGPS then LCM.Recolte.ReponseGPS() end
+    if LCM.Marchands and LCM.Marchands.ReponseGPS then LCM.Marchands.ReponseGPS() end
+end
+
+-- La position serveur SANS poser de question : `C_Epsilon.GetPosition()` rend
+-- x, y, z et la carte serveur dans le meme repere que `.gps` et `.worldport`
+-- (c'est ce que fait Arcanum pour poser un spark, et il l'envoie tel quel a
+-- `.worldport`). Synchrone, muet dans le chat, et valable sur une carte
+-- d'instance — donc plus de `.gps` a chaque coffre. Absent hors d'Epsilon :
+-- on retombe alors sur la commande.
+local function PositionEpsilon()
+    if type(C_Epsilon) ~= "table" or type(C_Epsilon.GetPosition) ~= "function" then return nil end
+    local ok, x, y, z, mapid = pcall(C_Epsilon.GetPosition)
+    if not ok or type(x) ~= "number" or type(y) ~= "number" then return nil end
+    return x, y, tonumber(z) or 0, tonumber(mapid)
+end
+
+-- Range la position Epsilon comme une reponse .gps toute fraiche.
+local function RafraichirEpsilon()
+    local x, y, z, mapid = PositionEpsilon()
+    if not x then return false end
+    local maintenant = (GetTime and GetTime()) or 0
+    gps.x, gps.y, gps.z = x, y, z
+    gps.carteMonde, gps.carteQuand = mapid, maintenant
+    gps.quand = maintenant > 0 and maintenant or (gps.quand + 1)
+    gps.sansReponse = 0
+    DeplacementForce.gpsTente = nil
+    return true
+end
+
 -- Appele par le guetteur de chat (et par le banc) quand une reponse arrive.
 function DeplacementForce.NoterGPS(ligne)
     local maintenant = (GetTime and GetTime()) or 0
@@ -131,6 +165,7 @@ function DeplacementForce.NoterGPS(ligne)
     gps.sansReponse = 0
     DeplacementForce.gpsTente = nil
     gps.quand = maintenant > 0 and maintenant or (gps.quand + 1)
+    PrevenirReponse()
     return true
 end
 
@@ -139,6 +174,7 @@ end
 local GPS_PERIME = 3
 
 local function PositionGPS(ageMax)
+    RafraichirEpsilon()
     if not gps.x then return nil end
     local maintenant = (GetTime and GetTime()) or 0
     if maintenant > 0 and (maintenant - gps.quand) > (ageMax or GPS_PERIME) then return nil end
@@ -195,6 +231,14 @@ end
 -- Demande une position au serveur, sans inonder le chat.
 local INTERVALLE_GPS = 0.5
 function DeplacementForce.DemanderGPS(force, silencieux)
+    -- Epsilon sait deja ou l'on est : pas de commande, pas de ligne dans le chat.
+    if RafraichirEpsilon() then
+        -- Les appelants posent leur attente APRES cet appel : prevenir tout de
+        -- suite partirait dans le vide. Au tick suivant, ils sont prets.
+        if type(C_Timer) == "table" and C_Timer.After then C_Timer.After(0, PrevenirReponse)
+        else PrevenirReponse() end
+        return true
+    end
     local maintenant = (GetTime and GetTime()) or 0
     if not force and maintenant > 0 and (maintenant - gps.demande) < INTERVALLE_GPS then
         return false

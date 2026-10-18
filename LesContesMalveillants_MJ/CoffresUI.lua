@@ -380,7 +380,7 @@ local function Construire()
                 end
             end
         end
-        liste[#liste + 1] = { entree = typeOutil and nil or ref, typeOutil = typeOutil, quantite = 1,
+        liste[#liste + 1] = { entree = not typeOutil and ref or nil, typeOutil = typeOutil, quantite = 1,
             consomme = false, consommeQuantite = 1,
             expertise = typeListe == "outils" and self.travail.coffre.expertises[1]
                 and self.travail.coffre.expertises[1].id or nil }
@@ -421,7 +421,7 @@ local function Construire()
                             local courant = f.travail.coffre[typeListe][ligne.index]
                             if courant then
                                 courant.typeOutil = outils and tostring(ref):match("^type_outil/(.+)$") or nil
-                                courant.entree = courant.typeOutil and nil or ref
+                                courant.entree = not courant.typeOutil and ref or nil
                                 f:AfficherDetails()
                             end
                         end)
@@ -708,7 +708,7 @@ local function Construire()
             if outil.consomme and (not consomme or consomme < 1 or consomme > q) then
                 return nil, "la quantité consommée doit être comprise entre 1 et la quantité requise."
             end
-            outils[#outils + 1] = { entree = outil.typeOutil and nil or outil.entree,
+            outils[#outils + 1] = { entree = not outil.typeOutil and outil.entree or nil,
                 typeOutil = outil.typeOutil, quantite = q,
                 consomme = outil.consomme == true, consommeQuantite = consomme or 1,
                 expertise = outil.expertise }

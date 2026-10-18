@@ -155,12 +155,65 @@ function Coffres.Proche(positions)
     return meilleur
 end
 
+-- Le bouton peut se montrer sur la seule proximité horizontale. Une ouverture
+-- ou une action exige ensuite une mesure GPS récente des trois axes.
+function Coffres.ProcheHorizontal()
+    local D = LCM.DeplacementForce
+    local x, y
+    if D then x, y = D.Position("monde") end
+    if not (x and y) then return nil end
+    local carte = LCM.Recolte.Carte()
+    local meilleur, distanceMin
+    for _, p in pairs(Coffres.points) do
+        local definition = Coffres.definitions[p.def]
+        local px, py = tonumber(p.x), tonumber(p.y)
+        if definition and p.carte == carte and p.source ~= "carte" and px and py then
+            local distance = math.sqrt((x - px)^2 + (y - py)^2)
+            local rayon = tonumber(definition.coffre and definition.coffre.rayon) or RayonDefaut()
+            if distance <= rayon and (not distanceMin or distance < distanceMin) then
+                meilleur, distanceMin = p, distance
+            end
+        end
+    end
+    return meilleur
+end
+
+local function GPSFrais()
+    local D = LCM.DeplacementForce
+    return D and D.Position("gps", 1) and D.CarteGPS(1)
+end
+
+local function ApresVerificationGPS(p, poursuivre)
+    local D = LCM.DeplacementForce
+    if not (D and D.DemanderGPS and D.DemanderGPS(true)) then
+        return false, "position .gps indisponible."
+    end
+    Coffres.attenteGPS = { id = p.id, poursuivre = poursuivre }
+    return true
+end
+
+function Coffres.ReponseGPS()
+    local attente = Coffres.attenteGPS
+    if not attente then return end
+    Coffres.attenteGPS = nil
+    local p = Coffres.points[attente.id]
+    if p and Coffres.Proche() == p then
+        attente.poursuivre()
+    else
+        LCM.Alerte("tu es trop loin du coffre, y compris en hauteur.")
+    end
+    if Positionner then Positionner() end
+end
+
 function Coffres.Envoyer(action, donnees)
     local p = Coffres.points[Coffres.courant or ""]
     local d = p and Coffres.definitions[p.def]
     if not d or not d.auteur then return false, "propriétaire du coffre indisponible." end
     if action ~= "fermer" and not Coffres.edition and Coffres.Proche() ~= p then
-        return false, "tu es trop loin du coffre ou la position .gps est périmée."
+        if not GPSFrais() and Coffres.ProcheHorizontal() == p then
+            return ApresVerificationGPS(p, function() Coffres.Envoyer(action, donnees) end)
+        end
+        return false, "tu es trop loin du coffre, y compris en hauteur."
     end
     donnees = donnees or {}; donnees.i = p.id; donnees.a = action
     if Coffres.edition then donnees.edition = true end
@@ -185,7 +238,10 @@ function Coffres.Ouvrir(id, edition)
         return false, "seul le MJ propriétaire peut éditer ce coffre."
     end
     if not edition and Coffres.Proche() ~= p then
-        return false, "tu es trop loin du coffre ou la position .gps est périmée."
+        if not GPSFrais() and Coffres.ProcheHorizontal() == p then
+            return ApresVerificationGPS(p, function() Coffres.Ouvrir(id) end)
+        end
+        return false, "tu es trop loin du coffre, y compris en hauteur."
     end
     if Coffres.courant and Coffres.courant ~= p.id and not Coffres.edition then
         Coffres.Envoyer("fermer")
@@ -207,25 +263,8 @@ Positionner = function()
             self.reste = self.reste + (tonumber(elapsed) or 0)
             if self.reste < 0.25 then return end
             self.reste = 0
-            local D = LCM.DeplacementForce
             local proche = Coffres.Proche()
-            -- UnitPosition donne ici des X/Y utiles mais parfois un Z nul.
-            -- Ne demander .gps que pres d'un coffre sur le plan horizontal :
-            -- le sondage permanent ferait défiler le chat partout dans le monde.
-            if D and D.DemanderGPS and not D.Position("gps", 1) then
-                local x, y = D.Position("monde")
-                local carte = LCM.Recolte.Carte()
-                for _, p in pairs(Coffres.points) do
-                    local definition = Coffres.definitions[p.def]
-                    local rayon = definition and (tonumber(definition.coffre and definition.coffre.rayon) or RayonDefaut())
-                    if x and y and rayon and p.carte == carte
-                        and p.source ~= "carte" and tonumber(p.x) and tonumber(p.y)
-                        and (x - tonumber(p.x))^2 + (y - tonumber(p.y))^2 <= (rayon + 5)^2 then
-                        D.DemanderGPS(nil, true)
-                        break
-                    end
-                end
-            end
+            if not GPSFrais() then proche = Coffres.ProcheHorizontal() end
             if proche ~= Coffres.proche then
                 Coffres.proche = proche
                 if LCM.UI.Coffre and LCM.UI.Coffre.Proche then LCM.UI.Coffre.Proche(proche) end

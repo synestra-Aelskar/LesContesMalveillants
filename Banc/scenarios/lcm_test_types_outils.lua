@@ -13,17 +13,25 @@ local personnage = LCM.Entities.Self()
 __groupe({ LCM.PlayerId(), "Temoin-Apertus" })
 __position(100, 200, 0)
 LCM.DeplacementForce.NoterGPS("100.000000 200.000000 0.000000 585 0.000000")
+local typesAvant = #LCM.Listes.De("outils")
+local outilsAvant = #LCM.Compendium.Entrees(LCM.Compendium.Get("outils"))
 
 LCM.Listes.Add({ id = "serrurerie_temoin", liste = "outils", label = "Serrurerie" })
+LCM.Listes.Add({ id = "autre_liste_temoin", liste = "armes", label = "Autre liste" })
+local mauvaisType = pcall(LCM.Points.Construire, { id = "coffre_mauvais_type",
+    nature = "coffre", coffre = { expertises = { { id = "vue", dd = 10 } },
+        outils = { { typeOutil = "autre_liste_temoin", expertise = "vue" } } } })
+attendu("une entrée d'une autre liste reste refusée", mauvaisType, false)
+LCM.Listes.Retirer("autre_liste_temoin")
 attendu("liste de types visible", LCM.Compendium.Get("liste_outils") ~= nil, true)
-attendu("type d'outil proposé", #LCM.Listes.De("outils"), 1)
+attendu("type d'outil proposé", #LCM.Listes.De("outils"), typesAvant + 1)
 local outil = LCM.Objets.Add({ id = "outil_serrure_temoin", label = "Crochet témoin",
     categorie = "outil", type = "serrurerie_temoin", etat = { courant = 10, max = 10 },
     bonus = { ["metier:mineur"] = 3 } })
 LCM.Objets.Add({ id = "outil_serrure_secours", label = "Crochet de secours",
     categorie = "outil", type = "serrurerie_temoin", etat = { courant = 10, max = 10 } })
 attendu("outil accepté par le registre", outil.categorie, "outil")
-attendu("outil classé dans le compendium", #LCM.Compendium.Entrees(LCM.Compendium.Get("outils")), 2)
+attendu("outil classé dans le compendium", #LCM.Compendium.Entrees(LCM.Compendium.Get("outils")), outilsAvant + 2)
 local metierForge
 for _, champ in ipairs(LCM.Forge.Statistiques(LCM.Compendium.Get("outils"))) do
     if champ.cle == "metier:mineur" then metierForge = champ break end
@@ -72,6 +80,16 @@ for _, ligne in ipairs(editeur.choixOutil.lignes) do
     if ligne:IsShown() and ligne.choix == "type_outil/serrurerie_temoin" then typePropose = true end
 end
 attendu("type proposé dans le sélecteur d'outils", typePropose, true)
+editeur.travail.coffre.outils = {}
+editeur:Ajouter("outils", "type_outil/serrurerie_temoin")
+attendu("sélectionner un type n'ajoute pas d'objet précis",
+    editeur.travail.coffre.outils[1].entree, nil)
+local coffreSaisi, refusSaisie = editeur:Valider()
+attendu("le coffre saisi dans la fenêtre est valide", coffreSaisi ~= nil, true)
+if not coffreSaisi then print(tostring(refusSaisie)) end
+attendu("le type reste sans référence d'objet après validation",
+    coffreSaisi and coffreSaisi.outils[1].entree, nil)
+attendu("la fenêtre MJ peut enregistrer ce type", editeur:Enregistrer(), true)
 local id = LCM.CoffresMJ.Placer(definition.id)
 attendu("coffre à type posé", id ~= nil, true)
 local paquet = LCM.Coffres.Paquet(LCM.Points.Get(definition.id), LCM.CoffresMJ.Points(definition.id))

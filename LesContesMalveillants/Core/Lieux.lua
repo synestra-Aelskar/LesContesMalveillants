@@ -192,6 +192,7 @@ local function Position(source)
     local D = LCM.DeplacementForce
     if not (D and D.Position) then return nil end
     local x, y, _, trouvee = D.Position(source)
+    if not x and source == "gps" then x, y, _, trouvee = D.Position("monde") end
     if not x then return nil end
     return x, y, trouvee
 end
@@ -1209,13 +1210,12 @@ function Lieux.Tick()
     local carte = Carte()
     local magasin = Magasin()
     -- Une position par SOURCE, pas une par seuil : trois appels au pire.
-    local positions, cibles = {}, {}
+    local positions = {}
 
     for _, lieu in pairs(magasin) do
         for id, seuil in pairs(lieu.seuils or {}) do
             if seuil.actif and seuil.carte == carte and Lieux.Complet(seuil) then
                 local source = seuil.source
-                if source == "gps" then cibles[#cibles + 1] = Emprise(seuil) end
                 local p = positions[source]
                 if p == nil then
                     local x, y = Position(source)
@@ -1236,12 +1236,6 @@ function Lieux.Tick()
                 end
             end
         end
-    end
-    -- Au GPS la position ne vient pas toute seule : on la redemande, mais
-    -- seulement a portee d'un seuil.
-    if positions.gps == false then
-        local D = LCM.DeplacementForce
-        if D and D.GPSAPortee then D.GPSAPortee(cibles) end
     end
 end
 

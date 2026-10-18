@@ -89,7 +89,7 @@ end
 local function Position(source)
     local D = LCM.DeplacementForce
     if not (D and D.Position) then return nil end
-    local x, y, z, trouvee = D.Position(source)
+    local x, y, z, trouvee = D.Position(source, source == "gps" and 1 or nil)
     if not x then return nil end
     return x, y, trouvee, trouvee ~= "carte" and z or nil
 end
@@ -438,15 +438,30 @@ function Recolte.Proche(positions)
     return meilleur, meilleureDistance
 end
 
+function Recolte.ProcheHorizontal()
+    local D = LCM.DeplacementForce
+    local x, y
+    if D then x, y = D.Position("monde") end
+    if not (x and y) then return nil end
+    local carte, meilleur, distanceMin = Carte()
+    for _, p in pairs(Recolte.points) do
+        local definition = Recolte.definitions[p.def]
+        local px, py = tonumber(p.x), tonumber(p.y)
+        if definition and p.carte == carte and p.source ~= "carte" and px and py
+            and Recolte.Disponible(p, definition) then
+            local distance = math.sqrt((x - px)^2 + (y - py)^2)
+            if distance <= Recolte.Rayon(definition) and (not distanceMin or distance < distanceMin) then
+                meilleur, distanceMin = p, distance
+            end
+        end
+    end
+    return meilleur
+end
+
 function Recolte.Tick()
     local positions = {}
     local proche = Recolte.Proche(positions)
-    -- Au .gps, la position ne vient pas toute seule : on la redemande, mais
-    -- seulement a portee d'un point (DeplacementForce.GPSAPortee).
-    if positions.gps == false then
-        local D = LCM.DeplacementForce
-        if D and D.GPSAPortee then D.GPSAPortee(positions.cibles) end
-    end
+    if positions.gps == false then proche = Recolte.ProcheHorizontal() end
     local avant = Recolte.courant
     Recolte.courant = proche
     if avant ~= proche and Recolte.onProche then pcall(Recolte.onProche, proche) end
@@ -608,7 +623,15 @@ function Recolte.Tenter(pointId)
         return false, "récolte déjà en cours."
     end
     Recolte.enAttente[pointId] = nil
-    if Recolte.Proche() ~= p then return false, "tu es trop loin." end
+    if Recolte.Proche() ~= p then
+        local D = LCM.DeplacementForce
+        if D and not D.Position("gps", 1) and Recolte.ProcheHorizontal() == p
+            and D.DemanderGPS and D.DemanderGPS(true) then
+            Recolte.attenteGPS = pointId
+            return true
+        end
+        return false, "tu es trop loin, y compris en hauteur."
+    end
     local entity = LCM.Entities.Self()
     if not entity then return false, "aucun personnage." end
 
@@ -667,6 +690,19 @@ function Recolte.Tenter(pointId)
     Prevenir()
     LCM.Info("Le MJ sera averti de cette récolte à son retour.")
     return true
+end
+
+function Recolte.ReponseGPS()
+    local pointId = Recolte.attenteGPS
+    if not pointId then return end
+    Recolte.attenteGPS = nil
+    local p = Recolte.points[pointId]
+    if not p or Recolte.Proche() ~= p then
+        LCM.Alerte("tu es trop loin du point de récolte, y compris en hauteur.")
+        return
+    end
+    local ok, raison = Recolte.Tenter(pointId)
+    if not ok and raison then LCM.Alerte(raison) end
 end
 
 -- Demander ce qu'il y a : a la connexion, et en entrant dans un groupe.

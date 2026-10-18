@@ -7,7 +7,7 @@
 --
 -- DEUX FACONS DE MORDRE, et c'est la seule subtilite du module :
 --
---   * une jauge UNIQUE (bouclier, PA, fatigue) se grignote toute seule : il n'y
+--   * une jauge UNIQUE (bouclier, fatigue) se grignote toute seule : il n'y
 --     a qu'elle, tout le monde a la meme, personne n'a de choix a faire ;
 --   * les points de vie et l'etat des armures sont repartis en ZONES propres a
 --     la silhouette de la cible. Personne d'autre que son porteur ne sait ou le
@@ -100,7 +100,20 @@ end
 -- penetrations choisies, le niveau du sort, le tout module par la puissance de
 -- la mecanique « Dot ».
 --
--- `choix` : { source = "force", penMoyenne = n, niveau = n }.
+-- `choix` : { source = "force", penetrations = { feu = true }, niveau = n }.
+-- La moyenne vient des caracteristiques du personnage, pas d'un champ libre.
+function Dot.PenetrationMoyenne(entity, choix)
+    local somme, nombre = 0, 0
+    local selection = type(choix) == "table" and choix or {}
+    for _, ty in ipairs((LCM.Equilibrage and LCM.Equilibrage.types) or {}) do
+        if selection[ty.id] and LCM.Actions and LCM.Actions.ValeurType then
+            local valeur = tonumber(LCM.Actions.ValeurType(ty.id, "Penetrations", entity)) or 0
+            if valeur > 0 then somme, nombre = somme + valeur, nombre + 1 end
+        end
+    end
+    return nombre > 0 and somme / nombre or 0
+end
+
 function Dot.Pool(entity, choix)
     choix = type(choix) == "table" and choix or {}
     local r = Reglages()
@@ -109,8 +122,9 @@ function Dot.Pool(entity, choix)
     if choix.source and LCM.Formules and LCM.Formules.Primaire then
         source = tonumber(LCM.Formules.Primaire(entity, choix.source)) or 0
     end
+    local penetration = Dot.PenetrationMoyenne(entity, choix.penetrations)
     local brut = source * (p.parSource or 0)
-        + (tonumber(choix.penMoyenne) or 0) * (p.parPen or 0)
+        + penetration * (p.parPen or 0)
         + (tonumber(choix.niveau) or 0) * (p.parNiveau or 0)
     -- La puissance de la mecanique, en pourcentage : (base + parPoint x points
     -- investis + equipParPoint x points d'equipement) / 100. C'est la grille
@@ -338,7 +352,12 @@ function Dot.Enregistrer(nom, description, icone, choix, conteneur)
     local compose = Dot.Composer(choix)
     if #compose.morsures == 0 then return false, "ce dot ne grignote rien." end
     local copie = {}
-    for cle, valeur in pairs(choix) do copie[cle] = valeur end
+    for cle, valeur in pairs(choix) do
+        if cle == "penetrations" and type(valeur) == "table" then
+            copie[cle] = {}
+            for id, actif in pairs(valeur) do copie[cle][id] = actif end
+        else copie[cle] = valeur end
+    end
     local modele = { nom = nom, description = tostring(description or ""), icone = icone,
                      conteneur = conteneur, choix = copie }
     local liste = Bibliotheque()

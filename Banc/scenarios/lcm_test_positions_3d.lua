@@ -32,6 +32,15 @@ attendu("ressource au bon étage visible", R.Proche().id, "r3d")
 attendu("vendeur au bon étage visible", M.Proche().id, "m3d")
 attendu("coffre au bon étage visible", C.Proche().id, "c3d")
 
+R.points.rgps = { id = "rgps", def = "ressource_3d", x = 100, y = 200,
+    z = 0, source = "gps", carte = carte }
+M.points.mgps = { id = "mgps", def = "m3d", x = 100, y = 200,
+    z = 0, source = "gps", carte = carte }
+__avancerTemps(2)
+local commandesAvant = #__chats
+for _ = 1, 6 do R.Tick(); M.Tick() end
+attendu("ressources et vendeurs GPS n'envoient rien en arrière-plan", #__chats, commandesAvant)
+
 local positions = R.Deplier(R.Plier({ R.points.r3d }))
 attendu("altitude conservée dans le paquet", positions[1].z, 0)
 local ancien = R.Deplier("ancien,100.00,200.00,monde," .. tostring(carte))
