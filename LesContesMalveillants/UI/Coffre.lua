@@ -569,15 +569,37 @@ local function Construire()
         return C.Envoyer("prendre", { e = ref, q = quantite })
     end
 
+    local function DepuisCompendium(objet)
+        -- Le compendium transmet une categorie et une reference, sans origine
+        -- d'inventaire. Ne pas confondre avec un objet pris dans un autre coffre.
+        return not objet.origine and (objet.categorie == "objets" or objet.categorie == "livres")
+    end
+
     function f:Ranger(objet)
-        if objet.retirer then objet.retirer() end
-        self.rangementEnAttente = objet
-        local ok, raison = C.Envoyer("ranger", { e = objet.ref, q = objet.quantite or 1 })
+        if self.rangementEnAttente then return false end
+        local catalogue = DepuisCompendium(objet)
+        -- Sortir un objet du compendium est un geste de MJ, comme pour les sacs
+        -- (12 octobre 2026). Il fallait en plus le « mode edition », qui ne
+        -- s'ouvre que sur un coffre qu'on a soi-meme pose et qui n'est pas au
+        -- sol : garnir en seance le coffre d'un autre etait impossible
+        -- (19 octobre 2026).
+        if catalogue and not LCM.IsMaster() then
+            LCM.Alerte("sortir un objet du compendium est un geste du maître du jeu.")
+            return false
+        end
+        -- Un exemplaire du catalogue est cree dans le coffre, sans aucun
+        -- retrait ni remboursement dans les sacs du MJ.
+        local transfert = catalogue and {} or objet
+        if transfert.retirer then transfert.retirer() end
+        self.rangementEnAttente = transfert
+        local ok, raison = C.Envoyer(catalogue and "ajouter_compendium" or "ranger",
+            { e = objet.ref, q = catalogue and 1 or (objet.quantite or 1) })
         if not ok then
-            if objet.rendre then objet.rendre() end
+            if transfert.rendre then transfert.rendre() end
             self.rangementEnAttente = nil
             LCM.Alerte(raison or "transfert impossible.")
         end
+        return ok, raison
     end
 
     function f:ObjetGlissable(pile)
@@ -631,12 +653,19 @@ local function Construire()
             if not f.ouvert then return false, "le coffre est verrouillé." end
             if b.pile then return false, "cet emplacement est déjà occupé." end
             if f.rangementEnAttente then return false, "un rangement est déjà en attente." end
-            if not objet.origine or not objet.origine.case then
-                return false, "seuls les objets de ton inventaire peuvent être rangés."
-            end
             if not (tostring(objet.ref or ""):match("^objets/")
                 or tostring(objet.ref or ""):match("^livres/")) then
                 return false, "le coffre n'accepte que des objets ou des livres."
+            end
+            if DepuisCompendium(objet) then
+                if not LCM.IsMaster() then
+                    return false, "sortir un objet du compendium est un geste du maître du jeu."
+                end
+                if not LCM.Compendium.Resoudre(objet.ref) then return false, "objet inconnu." end
+                return true
+            end
+            if not objet.origine or not objet.origine.case then
+                return false, "seuls les objets de ton inventaire peuvent être rangés."
             end
             return true
         end, function(objet) f:Ranger(objet) end)
@@ -708,6 +737,9 @@ function Ecran.MettreAJour()
     if not p then f:Hide(); return end
     f.edition = C.edition == true and LCM.IsMaster()
     f.modeEdition:SetShown(f.edition)
+    f.aideContenu:SetText(f.edition
+        and "Compendium : déposer sur une case libre"
+        or "Glisser : prendre   ·   Clic droit : options")
     f:Titre(tostring(d and d.label or "Coffre"))
     f.apercu:SetText("CONTENU")
     local contenuVisible = e and (e.s == true or f.edition) or false
@@ -879,11 +911,10 @@ function Ecran.Repondre(expediteur, data)
         if data.ok then Ecran.Emporter(data) else f.ramassage = nil end
         return
     end
-    if data.action == "ranger" and f.rangementEnAttente then
-        if data.ok then f.rangementEnAttente = nil
-        elseif f.rangementEnAttente.rendre then
-            f.rangementEnAttente.rendre(); f.rangementEnAttente = nil
-        end
+    if (data.action == "ranger" or data.action == "ajouter_compendium") and f.rangementEnAttente then
+        local transfert = f.rangementEnAttente
+        f.rangementEnAttente = nil
+        if not data.ok and transfert.rendre then transfert.rendre() end
     elseif data.action == "prendre" and f.priseGlissee then
         local demande = f.priseGlissee
         demande.reponse = data.ok == true

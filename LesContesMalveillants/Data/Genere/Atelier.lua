@@ -305,7 +305,7 @@ LCM.PublierPublique(LCM.Livres, "livres", {
     },
 }, "d88971ed8d877a7a")
 
--- ----- objets (35) --------------------------------------------------
+-- ----- objets (39) --------------------------------------------------
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },
     bonus = {
@@ -1070,6 +1070,98 @@ LCM.PublierPublique(LCM.Objets, "objets", {
     tags = "Rare",
     type = "jambiere",
 }, "caa6286a32f3d159")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    armure = 2,
+    avantage = {  },
+    bonus = {
+        escalade = 2,
+        resi_contondant = 1,
+        resi_eau = 2,
+        resi_lumiere = -2,
+        resi_perforant = 2,
+        resi_tranchant = 2,
+        resi_vent = 2,
+    },
+    categorie = "equipement",
+    couleurTitre = "4DE04D",
+    description = "Cette paire de gant rudimentaire semble équipée de crochets, facilitant la prise sur les paroies.",
+    etat = {
+        ancienMax = 14,
+        courant = 40,
+        max = 40,
+        version = 2,
+    },
+    forge = "equilibrage_arme_copie/inhabituel",
+    icone = "Interface\\ICONS\\inv_hand_1h_artifactstormfist_d_01",
+    id = "lcm_64a651_6ad64e8d_1f333644_0002_031f9a",
+    label = "Gants du dompteur de paroie.",
+    tags = "Inhabituel",
+    type = "gants",
+}, "4fc2757fa9fec101")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        mystique = -1,
+        pen_feu = 3,
+    },
+    categorie = "accessoire",
+    couleurTitre = "FF8CB8",
+    description = "Une paire de bracelet dont l'intérieur en cuir usé semble avoir été doté de runes rouges.. Son porteur semble en mesure de générer de petites flammes de ses mains.",
+    etat = {
+        courant = 28,
+        max = 28,
+        version = 2,
+    },
+    forge = "equilibrage_armure_copie/commun",
+    icone = "Interface\\ICONS\\inv_plate_draenorlfr_c_01wrist",
+    id = "lcm_64a651_6ad655bc_1f4f3bea_0001_191e68",
+    label = "Paire de bracelet runique usé.",
+    tags = "Commun",
+    type = "bracelet",
+}, "a4f74ff66d692145")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    bonus = {
+        pen_perforant = 2,
+    },
+    categorie = "outil",
+    couleurTitre = "FF8CB8",
+    description = "Une pioche bon marché. A priori.",
+    etat = {
+        courant = 40,
+        max = 40,
+        version = 2,
+    },
+    forge = "lcm_64a651_6ad4ab02_18cc6d43_0002_bbe6a7/commun",
+    icone = "Interface\\ICONS\\inv_axe_1h_6miningpick",
+    id = "lcm_64a651_6ad65717_1f548f99_0004_7f5032",
+    label = "Pioche en acier",
+    tags = "Commun",
+    type = "lcm_132159_6ad3adf6_01b19bc9_0002_567205",
+}, "e3bed0dbefe2e7b6")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        resi_mort = 6,
+    },
+    categorie = "accessoire",
+    couleurTitre = "4D8CFF",
+    description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées, se trouvent à sa base. Une petite trappe permet d'ouvrir le coté, et d'accéder à l'intérieur pour y placer un cristal. \n\nEnfin, l'objet porte avec lui le poids des siècles, et conserve pourtant sa solidité.",
+    etat = {
+        courant = 88,
+        max = 88,
+        version = 2,
+    },
+    forge = "equilibrage_armure_copie/rare",
+    icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
+    id = "lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+    label = "Lanterne d'aspecta",
+    tags = "Rare",
+    type = "talisman",
+}, "1c3807765b7eee3b")
 
 LCM.PublierPublique(LCM.Objets, "objets", {
     bonus = {

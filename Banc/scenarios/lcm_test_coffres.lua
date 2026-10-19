@@ -38,6 +38,13 @@ local sauvegarde, erreur = LCM.Brouillons.Enregistrer("points", definition, true
 attendu("définition enregistrée", sauvegarde, true)
 if not sauvegarde then dire("raison de l'erreur :", tostring(erreur)) end
 
+-- Poser un coffre demande une position SERVEUR : depuis le 17 octobre 2026,
+-- l'addon exige une reponse de .gps et ne se contente plus de la carte. Le
+-- banc en joue une, comme le guetteur de chat le ferait.
+local GPS = "Map: 585 (Magisters' Terrace) Zone: 0 ( <unknown> ), Area: 0 ( <unknown> ), "
+    .. "Phase: 158070, X: 11275.129883, Y: 11090.638672, Z: -81.208794, O: 1.904451"
+LCM.DeplacementForce.NoterGPS(GPS)
+
 local id, raison = LCM.CoffresMJ.Placer("coffre_temoin")
 attendu("coffre posé", id ~= nil, true)
 if not id then dire("raison du refus :", tostring(raison)) end
@@ -113,6 +120,7 @@ attendu("le contenu est présenté en grille", coffreUI.cases[1] and coffreUI.ca
 attendu("la grille est visible une fois le coffre ouvert", coffreUI.grille:IsShown(), true)
 attendu("la fenêtre ouverte s'adapte à son contenu", coffreUI:GetHeight() < 400, true)
 attendu("le bouton Verrouiller est centré en bas", coffreUI.verrouiller:GetPoint(), "BOTTOM")
+
 -- La carte se CHARGE au curseur, puis s'epingle (16 octobre 2026) : elle
 -- n'apparait plus au premier survol, mais a la fin du chargement — et reste
 -- alors, au-dessus de tout, jusqu'a sa croix.
@@ -175,6 +183,28 @@ C.onChange()
 dire("== stock non renouvelable et capacité en emplacements")
 C.Envoyer("prendre", { e = REF, q = 1 })
 attendu("le contenu est épuisé", #p.objets, 0)
+C.onChange()
+dire("== garnir un coffre depuis le compendium")
+-- Sortir un objet du compendium CREE un exemplaire : geste de MJ, comme pour
+-- les sacs. Il fallait en plus le « mode edition », qui ne s'ouvre que sur un
+-- coffre qu'on a soi-meme pose et qui n'est pas au sol — garnir en seance le
+-- coffre d'un autre etait donc impossible (19 octobre 2026).
+local libre
+for _, c in ipairs(coffreUI.cases) do if c:IsShown() and not c.pile then libre = libre or c end end
+attendu("une case libre dans le coffre", libre ~= nil, true)
+local duCompendium = { ref = REF2, categorie = "objets",
+    element = LCM.Compendium.Resoudre(REF2) }
+attendu("hors mode édition, le MJ peut garnir",
+    (libre.glisserAccepte(duCompendium)), true)
+-- Et un joueur, non : il fabriquerait un objet.
+LCM.BasculerModeJoueur(true)
+local refuse, pourquoi = libre.glisserAccepte(duCompendium)
+attendu("un joueur ne peut pas", refuse, false)
+attendu("  et on dit pourquoi", tostring(pourquoi):find("maître du jeu", 1, true) ~= nil, true)
+LCM.BasculerModeJoueur(false)
+-- Ce qui vient d'un sac reste accepte des deux cotes.
+attendu("ce qu'on possède passe toujours",
+    (libre.glisserAccepte({ ref = REF2, origine = { onglet = "sacs", index = 1, case = 1 } })), true)
 C.Envoyer("prendre", { e = REF, q = 1 })
 attendu("une prise après épuisement reste refusée", #p.objets, 0)
 C.Envoyer("ranger", { e = REF, q = 1 })
@@ -205,8 +235,12 @@ attendu("réglage reverrouillable transmis", def.coffre.expertises[1].reverrouil
 attendu("méthode Clef transmise", def.coffre.expertises[2].id, LCM.Coffres.METHODE_CLEF)
 attendu("rayon transmis", def.coffre.rayon, 7)
 attendu("emplacement conservé", points[1].id, id)
-attendu("coffre visible dans son rayon", C.Proche({ [p.source] = { x = p.x + 6, y = p.y } }).id, id)
-attendu("coffre invisible hors de son rayon", C.Proche({ [p.source] = { x = p.x + 8, y = p.y } }), nil)
+-- La distance se mesure sur TROIS axes depuis le 17 octobre 2026 (« y compris
+-- en hauteur ») : une position sans z ne peut plus etre comparee.
+attendu("coffre visible dans son rayon",
+    C.Proche({ [p.source] = { x = p.x + 6, y = p.y, z = p.z } }).id, id)
+attendu("coffre invisible hors de son rayon",
+    C.Proche({ [p.source] = { x = p.x + 8, y = p.y, z = p.z } }), nil)
 C.definitions.coffre_temoin.coffre.reset = true
 LCM.Points.Get("coffre_temoin").coffre.reset = true
 C.Envoyer("fermer")

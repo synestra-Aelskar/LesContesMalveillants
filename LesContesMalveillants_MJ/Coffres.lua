@@ -218,6 +218,14 @@ function Coffres.Traiter(expediteur, req)
     end
     local editionMJ = req.edition == true and LCM.IsMaster()
         and expediteur == LCM.PlayerId()
+    -- Un ajout depuis le compendium CREE un exemplaire : il reste reserve au
+    -- MJ, et a sa propre machine. Il demandait en plus le mode edition, donc un
+    -- coffre pose par soi-meme et hors du sol (19 octobre 2026).
+    local compendiumMJ = LCM.IsMaster() and expediteur == LCM.PlayerId()
+    if req.a == "ajouter_compendium" and not compendiumMJ then
+        Repondre(false, { msg = "sortir un objet du compendium est un geste du maître du jeu." })
+        return
+    end
     if req.a == "editer" then
         if not editionMJ then Repondre(false, { msg = "édition réservée au MJ." }); return end
         Repondre(true)
@@ -312,7 +320,7 @@ function Coffres.Traiter(expediteur, req)
         if #Coffres.Points(d.id) == 0 then LCM.Brouillons.Supprimer("points", d.id) end
         return
     end
-    if req.a == "ranger" then
+    if req.a == "ranger" or req.a == "ajouter_compendium" then
         local ref, n = tostring(req.e or ""), math.max(1, math.floor(tonumber(req.q) or 1))
         if not (ref:match("^objets/") or ref:match("^livres/"))
             or not LCM.Compendium.Resoudre(ref) then

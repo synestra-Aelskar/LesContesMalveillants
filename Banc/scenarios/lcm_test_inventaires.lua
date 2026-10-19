@@ -218,7 +218,11 @@ for _, l in ipairs(menu.lignes) do if l:IsShown() then libelles[#libelles + 1] =
 -- garde Quantite et Deplacer au milieu. « Supprimer » (sans confirmation) a
 -- laisse la place a « Jeter », qui demande. Pas de groupe ici : « Échanger »
 -- n'a pas de sous-menu et dit pourquoi.
-attendu("options", table.concat(libelles, ","), "Voir,Échanger,Quantite : 1,Deplacer >,Détruire")
+-- 19 octobre 2026 : « Quantite » a quitte la fenetre d'un sac pour CE menu,
+-- le menu partage — la colonne de contenu ne l'offrait pas, et rien ne disait
+-- laquelle des deux fenetres le permettait. Elle y prend son accent au
+-- passage.
+attendu("options", table.concat(libelles, ","), "Voir,Échanger,Quantité : 1,Deplacer >,Détruire")
 -- 16 octobre 2026 : « Jeter » est devenu « Détruire » (jeter, c'est poser au sol).
 menu.lignes[3]:Click()
 local d = LCM_Demande

@@ -3157,7 +3157,7 @@ LCM.Publier(LCM.PNJ, {
     },
 })
 
--- ----- points (5) --------------------------------------------------
+-- ----- points (6) --------------------------------------------------
 LCM.Publier(LCM.Points, {
     description = "",
     id = "lcm_132159_6ace28f1_02d0f402_0002_80cb9c",
@@ -3329,6 +3329,40 @@ LCM.Publier(LCM.Points, {
                 chance = 100,
                 entree = "ressources/lcm_64a651_6ace4cd9_12e7e6e8_0004_f78759",
                 max = 6,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+        },
+    },
+})
+
+LCM.Publier(LCM.Points, {
+    description = "",
+    id = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+    label = "Récupérer la lanterne.",
+    nature = "ressource",
+    offres = {  },
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
+            offres = {  },
+        },
+    },
+    rachats = {  },
+    recolte = {
+        dd = 0,
+        echecConsomme = false,
+        limite = 1,
+        metiers = {  },
+        rayon = 2,
+        ressources = {
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                max = 1,
                 min = 1,
                 minutes = 0,
                 regeneration = false,

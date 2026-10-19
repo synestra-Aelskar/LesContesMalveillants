@@ -294,6 +294,19 @@ local function MenuObjet(ancre, onglet, index, place, extras)
         options[#options + 1] = { label = "Lire", action = function() UI.Livres.Ouvrir(objet.ref) end }
     end
     options[#options + 1] = OptionEchanger(objet)
+    -- Regler une pile, c'est en fabriquer ou en detruire : geste de MJ. La
+    -- fenetre d'un sac l'offrait deja, ce menu-ci non — on ne savait pas
+    -- laquelle des deux fenetres le permettait (19 octobre 2026).
+    if LCM.IsMaster() then
+        options[#options + 1] = { label = "Quantité : " .. tostring(objet.quantite or 1),
+            action = function()
+                UI.Demande():Demander("Quantité de la pile", objet.quantite or 1, function(texte)
+                    local ok, raison = Inv.Quantite(Entite(), onglet, index, place, texte)
+                    if ok then Ecran.Actualiser() end
+                    return ok, raison
+                end)
+            end }
+    end
     for _, extra in ipairs(extras or {}) do options[#options + 1] = extra end
     if (tonumber(objet.quantite) or 1) > 1 then
         options[#options + 1] = { label = "Scinder", action = function() Scinder(objet) end }
@@ -1166,13 +1179,9 @@ local function ConstruireSac(onglet, index)
             if not c then return end
             local options = {}
             if LCM.IsMaster() then
-                options[#options + 1] = { label = "Quantite : " .. tostring(c.quantite or 1), action = function()
-                    UI.Demande():Demander("Quantite de la pile", c.quantite or 1, function(texte)
-                        local ok, raison = Inv.Quantite(entity, self.onglet, self.index, b.index, texte)
-                        if ok then Ecran.Actualiser() end
-                        return ok, raison
-                    end)
-                end }
+                -- « Quantite » vit maintenant dans MenuObjet, le menu partage :
+                -- elle etait ici seulement, et la colonne de contenu ne
+                -- l'offrait pas (19 octobre 2026).
                 -- Deplacer > : vers la premiere case libre d'un autre sac qui l'accepte.
                 local cibles = {}
                 for _, categorie in ipairs(Inv.categories) do
