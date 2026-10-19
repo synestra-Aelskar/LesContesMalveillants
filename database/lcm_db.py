@@ -55,6 +55,7 @@ MJ_OUTPUT = ADDONS / "LesContesMalveillants_MJ" / "Genere" / "Atelier_MJ.lua"
 
 FAMILIES = {
     "objets": "Objets",
+    "livres": "Livres",
     "traits": "Traits",
     "races": "Races",
     "etats": "Etats",
