@@ -285,7 +285,10 @@ C.Categorie({
 C.Categorie({
     id = "devises", label = "Devises", type = "currency",
     registre = "Devises", famille = "devises",
-    champs = { Icone(), Description(false) },
+    champs = { Icone(), Description(false),
+        -- Cochee : la monnaie se materialise en pile dans un sac, et retourne
+        -- en bourse (Core/Bourse.lua). Decochee : elle n'est qu'un solde.
+        { cle = "materiel", label = "Matériel", type = "case", emplacement = "meta" } },
 })
 
 -- Ajout de l'addon (3 octobre 2026) : les jeux d'equilibrage de la forge,

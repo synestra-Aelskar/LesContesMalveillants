@@ -3157,7 +3157,7 @@ LCM.Publier(LCM.PNJ, {
     },
 })
 
--- ----- points (6) --------------------------------------------------
+-- ----- points (12) --------------------------------------------------
 LCM.Publier(LCM.Points, {
     description = "",
     id = "lcm_132159_6ace28f1_02d0f402_0002_80cb9c",
@@ -3369,4 +3369,213 @@ LCM.Publier(LCM.Points, {
             },
         },
     },
+})
+
+LCM.Publier(LCM.Points, {
+    coffre = {
+        expertises = {
+            {
+                dd = 15,
+                fatigue = 2,
+                id = "escamotage",
+                reverrouillable = true,
+                usureOutils = false,
+            },
+            {
+                dd = 15,
+                fatigue = 2,
+                id = "puissance",
+                reverrouillable = false,
+                usureOutils = false,
+            },
+        },
+        objets = {  },
+        outils = {  },
+        places = 10,
+        rayon = 1,
+        reset = false,
+        verrous = 1,
+    },
+    description = "",
+    id = "lcm_64a651_6ad6953f_20475b27_0005_8e597a",
+    label = "Cassier bloqué.",
+    nature = "coffre",
+})
+
+LCM.Publier(LCM.Points, {
+    coffre = {
+        expertises = {
+            {
+                dd = 20,
+                fatigue = 4,
+                id = "puissance",
+                reverrouillable = false,
+                usureOutils = false,
+            },
+            {
+                dd = 15,
+                fatigue = 2,
+                id = "crochetage",
+                reverrouillable = true,
+                usureOutils = true,
+            },
+        },
+        objets = {  },
+        outils = {
+            {
+                consomme = false,
+                consommeQuantite = 1,
+                expertise = "puissance",
+                quantite = 1,
+                typeOutil = "lcm_64a651_6ad64bef_1f28fac8_0003_1e81d7",
+            },
+            {
+                consomme = false,
+                consommeQuantite = 1,
+                expertise = "puissance",
+                quantite = 1,
+                typeOutil = "lcm_64a651_6ad257b0_0fb70286_0002_90a6d4",
+            },
+        },
+        places = 10,
+        rayon = 1,
+        reset = false,
+        verrous = 1,
+    },
+    description = "",
+    id = "lcm_64a651_6ad6958c_20488800_0006_95616c",
+    label = "Cassier fermé.",
+    nature = "coffre",
+    offres = {  },
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
+            offres = {  },
+        },
+    },
+    rachats = {  },
+})
+
+LCM.Publier(LCM.Points, {
+    coffre = {
+        expertises = {  },
+        objets = {  },
+        outils = {  },
+        places = 5,
+        rayon = 2,
+        reset = false,
+        verrous = 0,
+    },
+    description = "",
+    id = "lcm_64a651_6ad696d6_204d92ef_000a_e325e4",
+    label = "Table",
+    nature = "coffre",
+})
+
+LCM.Publier(LCM.Points, {
+    description = "",
+    id = "lcm_64a651_6ad69808_20523dae_000c_d8935d",
+    label = "Déloger l'épée.",
+    nature = "ressource",
+    offres = {  },
+    recolte = {
+        dd = 0,
+        echecConsomme = false,
+        limite = 1,
+        metiers = {  },
+        rayon = 3,
+        ressources = {
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "objets/lcm_64a651_6ad696b3_204d09c7_0009_8dcac8",
+                max = 1,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+        },
+    },
+})
+
+LCM.Publier(LCM.Points, {
+    coffre = {
+        expertises = {
+            {
+                dd = 40,
+                fatigue = 10,
+                id = "puissance",
+                reverrouillable = true,
+                usureOutils = false,
+            },
+        },
+        objets = {  },
+        outils = {  },
+        places = 10,
+        rayon = 4,
+        reset = false,
+        verrous = 2,
+    },
+    description = "",
+    id = "lcm_64a651_6ad69b2b_205e800a_0015_33aeef",
+    label = "Coffre ancien",
+    nature = "coffre",
+})
+
+LCM.Publier(LCM.Points, {
+    coffre = {
+        expertises = {  },
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                quantite = 2,
+            },
+            {
+                entree = "objets/katana",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad699e3_20597cb9_0012_35135e",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 4,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad6a129_2075e8c3_001c_b21b43",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693f0_20423093_0001_2f767b",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a1ac_2077e559_001e_3e8557",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 4,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 25,
+            },
+        },
+        outils = {  },
+        places = 25,
+        reset = false,
+        sac = "sac_de_gros",
+        verrous = 0,
+    },
+    description = "Lâché au sol par Reïkä-Apertus.",
+    id = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
+    label = "Sac de gros de Inconnue",
+    nature = "coffre",
 })

@@ -45,8 +45,11 @@ end
 
 -- Un point donne des ressources ou des objets forges, outils compris.
 -- Les sacs, tentes et autres entrees restent exclus.
-local CATEGORIES = { "ressources", "livres", "outils", "armes", "armures", "accessoires" }
-local FAMILLES = { objets = true, ressources = true, livres = true }
+-- Un filon donne ce qu'on peut ranger : des ressources, des livres, des
+-- objets, et des sacs (le MJ, 20 octobre 2026) — une besace oubliee au fond
+-- d'une caisse est une trouvaille comme une autre.
+local CATEGORIES = { "ressources", "livres", "outils", "armes", "armures", "accessoires", "sacs" }
+local FAMILLES = { objets = true, ressources = true, livres = true, sacs = true }
 
 local function EstEntreeRecoltable(ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
@@ -406,7 +409,7 @@ local function Construire()
         end
         local function Accepter(objet)
             if objet and EstEntreeRecoltable(objet.ref) then return true end
-            return false, "seules les ressources, livres et objets du compendium peuvent être récoltés."
+            return false, "on récolte des ressources, des livres, des objets ou des sacs."
         end
         local function Ajouter(ref)
             local items = self.travail.recolte.ressources

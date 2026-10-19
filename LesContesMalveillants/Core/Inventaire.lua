@@ -502,7 +502,7 @@ end
 local RANGEABLES = { objets = true, livres = true, ressources = true, sacs = true, accessoires_camping = true }
 
 function Inventaire.Accepte(emplacement, index, ref)
-    local famille = tostring(ref or ""):match("^([%w_]+)/")
+    local famille, entree = tostring(ref or ""):match("^([%w_]+)/(.+)$")
     if not LCM.Compendium.Resoudre(ref) then return false, "entrée inconnue du compendium." end
     if emplacement and emplacement.tente then
         if famille ~= "accessoires_camping" then
@@ -512,6 +512,13 @@ function Inventaire.Accepte(emplacement, index, ref)
     end
     if Inventaire.EstCaseDevise(emplacement, index) then
         if famille ~= "devises" then return false, "une case de devise n'accepte qu'une devise." end
+    elseif famille == "devises" then
+        -- Une monnaie cochee « Materiel » a une forme : elle se range comme un
+        -- objet, dans n'importe quelle case (le MJ, 19 octobre 2026). Les
+        -- autres n'existent qu'en solde de bourse.
+        if not (LCM.Bourse and LCM.Bourse.EstMateriel(entree)) then
+            return false, "cette monnaie ne se transporte pas : elle reste dans la bourse."
+        end
     elseif not RANGEABLES[famille] then
         return false, "un sac accepte des objets, des livres, des ressources, des accessoires de camping ou des sacoches."
     end

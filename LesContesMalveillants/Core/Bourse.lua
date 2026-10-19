@@ -120,3 +120,121 @@ function Bourse.Total(entity)
     for _, ligne in ipairs(Bourse.Liste(entity)) do total = total + ligne.solde end
     return total
 end
+
+-- ===== Les monnaies qui ont une forme ======================================
+-- Une devise cochee « Materiel » dans sa creation existe aussi en objet : une
+-- bourse de pieces, un lingot. Elle quitte alors la bourse pour une case de
+-- sac, et y revient (le MJ, 19 octobre 2026). Les autres n'existent qu'en
+-- solde : rien a porter, rien a cacher dans un coffre.
+--
+-- Une pile n'est PAS dans la bourse, et c'est le prix de la forme : elle ne
+-- paie pas chez un marchand (Core/Prix.lua lit le solde), mais elle se donne,
+-- se range et se perd comme un objet.
+
+local function Ref(deviseId) return "devises/" .. tostring(deviseId or "") end
+Bourse.Ref = Ref
+
+function Bourse.EstMateriel(deviseId)
+    local devise = LCM.Devises.Get(deviseId)
+    return (devise and devise.materiel) == true
+end
+
+-- Combien on en porte en piles, tous sacs confondus. La bourse ne compte pas.
+function Bourse.EnPiles(entity, deviseId)
+    local ref, total = Ref(deviseId), 0
+    for _, categorie in ipairs(LCM.Inventaire.categories or VIDE) do
+        for index = 1, LCM.Inventaire.Capacite(categorie.id) do
+            local emplacement = LCM.Inventaire.Emplacement(entity, categorie.id, index)
+            local cases = emplacement and type(emplacement.cases) == "table" and emplacement.cases or VIDE
+            for _, c in pairs(cases) do
+                if type(c) == "table" and c.ref == ref then total = total + (tonumber(c.quantite) or 1) end
+            end
+        end
+    end
+    return total
+end
+
+-- Le controle commun aux deux gestes : la devise existe, elle a une forme, le
+-- montant est un entier positif. Rend la devise et le montant, ou nil et la
+-- raison.
+local function Mesurer(deviseId, combien)
+    local devise = LCM.Devises.Get(deviseId)
+    if not devise then return nil, "devise inconnue." end
+    if not devise.materiel then
+        return nil, string.format("%s ne se transporte pas : elle reste dans la bourse.", devise.label)
+    end
+    local n = tonumber(combien)
+    if not n or n ~= math.floor(n) or n < 1 then
+        return nil, string.format("montant illisible (%s) : un nombre entier, 1 au moins.", tostring(combien))
+    end
+    return devise, n
+end
+
+-- Poser la pile sur UNE case : celle que le joueur a visee en glissant sa
+-- monnaie depuis la bourse. Une case vide la recoit ; une case qui porte deja
+-- la meme monnaie l'absorbe.
+local function Poser(entity, deviseId, n, place)
+    local Inv = LCM.Inventaire
+    local ref = Ref(deviseId)
+    local deja = Inv.Case(Inv.Emplacement(entity, place.onglet, place.index), place.case)
+    if not deja then
+        return Inv.Ranger(entity, place.onglet, place.index, place.case, ref, n)
+    end
+    if deja.ref ~= ref then return false, "cette case est déjà occupée." end
+    return Inv.Quantite(entity, place.onglet, place.index, place.case,
+        (tonumber(deja.quantite) or 1) + n)
+end
+
+-- Sortir de la bourse : le solde baisse, une pile apparait dans les sacs. Avec
+-- `place` ({ onglet, index, case }), sur CETTE case — celle qu'on a visee.
+-- Si la pile ne tient nulle part, le solde revient : on ne perd pas son argent
+-- a manquer de place.
+function Bourse.Materialiser(entity, deviseId, combien, place)
+    local devise, n = Mesurer(deviseId, combien)
+    if not devise then return false, n end
+    local ok, raison = Bourse.Debiter(entity, devise.id, n)
+    if not ok then return false, raison end
+    local pose, pourquoi
+    if type(place) == "table" then
+        pose, pourquoi = Poser(entity, devise.id, n, place)
+    else
+        pose, pourquoi = LCM.Inventaire.Deposer(entity, Ref(devise.id), n)
+    end
+    if not pose then
+        Bourse.Crediter(entity, devise.id, n)
+        return false, pourquoi or "aucune place libre."
+    end
+    return true
+end
+
+-- Remettre en bourse. `place` ({ onglet, index, case }) designe LA pile a
+-- entamer : sans elle on prend dans la premiere trouvee, et le clic droit sur
+-- une pile viderait celle d'a cote.
+function Bourse.Encaisser(entity, deviseId, combien, place)
+    local devise, n = Mesurer(deviseId, combien)
+    if not devise then return false, n end
+    local Inv = LCM.Inventaire
+    if type(place) == "table" then
+        local c = Inv.Case(Inv.Emplacement(entity, place.onglet, place.index), place.case)
+        if not (c and c.ref == Ref(devise.id)) then return false, "cette pile n'est plus là." end
+        local dedans = tonumber(c.quantite) or 1
+        if dedans < n then return false, string.format("cette pile n'en a que %d.", dedans) end
+        local ok, raison
+        if dedans == n then
+            ok, raison = Inv.Vider(entity, place.onglet, place.index, place.case)
+        else
+            ok, raison = Inv.Quantite(entity, place.onglet, place.index, place.case, dedans - n)
+        end
+        if not ok then return false, raison end
+    else
+        local porte = Bourse.EnPiles(entity, devise.id)
+        if porte < n then return false, string.format("tu n'en portes que %d.", porte) end
+        for _ = 1, n do
+            local ok, raison = Inv.Prendre(entity, Ref(devise.id))
+            if not ok then return false, raison end
+        end
+    end
+    local ok, raison = Bourse.Crediter(entity, devise.id, n)
+    if not ok then return false, raison end
+    return true
+end

@@ -187,9 +187,7 @@ Ecran.OutilsPour = OutilsPour
 local function Occuper(objets)
     local total = 0
     for _, objet in ipairs(objets or {}) do
-        local definition = LCM.Compendium.Resoudre(objet.entree)
-        local pile = math.max(1, tonumber(definition and definition.pileMax) or 1)
-        total = total + math.ceil((tonumber(objet.quantite) or 0) / pile)
+        total = total + C.Places(objet.entree, objet.quantite)
     end
     return total
 end
@@ -199,7 +197,7 @@ local function Piles(objets)
     for _, objet in ipairs(objets or {}) do
         local definition = LCM.Compendium.Resoudre(objet.entree)
         local reste = math.max(0, math.floor(tonumber(objet.quantite) or 0))
-        local pile = math.max(1, tonumber(definition and definition.pileMax) or reste)
+        local pile = math.max(1, C.Pile(objet.entree) or reste)
         while reste > 0 do
             local quantite = math.min(reste, pile)
             out[#out + 1] = { ref = objet.entree, quantite = quantite, element = definition }
@@ -571,8 +569,16 @@ local function Construire()
 
     local function DepuisCompendium(objet)
         -- Le compendium transmet une categorie et une reference, sans origine
-        -- d'inventaire. Ne pas confondre avec un objet pris dans un autre coffre.
-        return not objet.origine and (objet.categorie == "objets" or objet.categorie == "livres")
+        -- d'inventaire. Ne pas confondre avec un objet pris dans un autre
+        -- coffre (origine.coffre) ou dans un sac (origine.case).
+        --
+        -- On reconnaissait la categorie a son NOM, « objets » ou « livres ».
+        -- Or celle d'une arme s'appelle « armes », celle d'une armure
+        -- « armures » : seuls les livres passaient, et glisser une epee du
+        -- compendium s'entendait repondre qu'elle n'etait pas dans
+        -- l'inventaire (19 octobre 2026). Ce qu'une entree EST, c'est la
+        -- famille de sa reference qui le dit.
+        return objet.origine == nil and objet.categorie ~= nil
     end
 
     function f:Ranger(objet)
@@ -653,10 +659,8 @@ local function Construire()
             if not f.ouvert then return false, "le coffre est verrouillé." end
             if b.pile then return false, "cet emplacement est déjà occupé." end
             if f.rangementEnAttente then return false, "un rangement est déjà en attente." end
-            if not (tostring(objet.ref or ""):match("^objets/")
-                or tostring(objet.ref or ""):match("^livres/")) then
-                return false, "le coffre n'accepte que des objets ou des livres."
-            end
+            local accueilli, pourquoi = C.Accepte(objet.ref)
+            if not accueilli then return false, pourquoi end
             if DepuisCompendium(objet) then
                 if not LCM.IsMaster() then
                     return false, "sortir un objet du compendium est un geste du maître du jeu."
@@ -868,6 +872,14 @@ function Ecran.MettreAJour()
 end
 
 function Ecran.Proche(point) AfficherProche(point) end
+
+-- On s'est eloigne : la fenetre se referme. Son `OnHide` previent le
+-- proprietaire (« fermer »), exactement comme un clic sur la croix — le coffre
+-- ne reste donc pas occupe par quelqu'un qui est parti.
+function Ecran.Quitter()
+    local f = Ecran.frame
+    if f and f:IsShown() then f:Hide() end
+end
 C.onChange = Ecran.MettreAJour
 
 -- Ramasser un objet pose seul au sol : on verifie la place AVANT (a blanc,

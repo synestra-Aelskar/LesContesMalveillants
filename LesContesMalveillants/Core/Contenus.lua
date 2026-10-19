@@ -221,7 +221,16 @@ local function Vrai(v) return v == true or v == 1 or v == "1" or v == "true" or 
 LCM.Informations = LCM.Registre({ nom = "information", prefixe = "Informations" })
 
 -- « Devises » : une monnaie, son icone, sa description.
-LCM.Devises = LCM.Registre({ nom = "devise", prefixe = "Devises" })
+--
+-- « Materiel » : cette monnaie a une forme. Des pieces, un lingot, une fiole
+-- d'essence — quelque chose qui se porte, se pose dans un coffre et se vole.
+-- Cochee, elle peut quitter la bourse pour une case de sac et y revenir
+-- (Core/Bourse.lua, le MJ du 19 octobre 2026). Sans la case, elle n'existe
+-- qu'en solde.
+LCM.Devises = LCM.Registre({ nom = "devise", prefixe = "Devises",
+    construire = function(definition, element)
+        element.materiel = Vrai(definition.materiel) or nil
+    end })
 
 -- Les listes de valeurs du template (« Type Armures », « Liste Armes »,
 -- « Liste origine », « Liste ressources ») : les choix proposes par le champ

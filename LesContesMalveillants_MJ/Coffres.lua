@@ -27,9 +27,7 @@ end
 local function Cases(objets)
     local n = 0
     for _, o in ipairs(objets or {}) do
-        local e = LCM.Compendium.Resoudre(o.entree)
-        local pile = math.max(1, tonumber(e and e.pileMax) or 1)
-        n = n + math.ceil((tonumber(o.quantite) or 0) / pile)
+        n = n + LCM.Coffres.Places(o.entree, o.quantite)
     end
     return n
 end
@@ -322,17 +320,15 @@ function Coffres.Traiter(expediteur, req)
     end
     if req.a == "ranger" or req.a == "ajouter_compendium" then
         local ref, n = tostring(req.e or ""), math.max(1, math.floor(tonumber(req.q) or 1))
-        if not (ref:match("^objets/") or ref:match("^livres/"))
-            or not LCM.Compendium.Resoudre(ref) then
-            Repondre(false, { msg = "objet inconnu." }); return
+        local accueilli, pourquoi = LCM.Coffres.Accepte(ref)
+        if not accueilli then
+            Repondre(false, { msg = pourquoi or "objet inconnu." }); return
         end
         local found
         for _, o in ipairs(p.objets) do if o.entree == ref then found = o break end end
-        local entree = LCM.Compendium.Resoudre(ref)
-        local pile = math.max(1, tonumber(entree and entree.pileMax) or 1)
         local places = Cases(p.objets)
-        local ajoutePlaces = found and (math.ceil(((tonumber(found.quantite) or 0) + n) / pile)
-            - math.ceil((tonumber(found.quantite) or 0) / pile)) or math.ceil(n / pile)
+        local dedans = found and (tonumber(found.quantite) or 0) or 0
+        local ajoutePlaces = LCM.Coffres.Places(ref, dedans + n) - LCM.Coffres.Places(ref, dedans)
         if places + ajoutePlaces > d.coffre.places then
             Repondre(false, { msg = "le coffre n'a pas assez d'emplacements." }); return
         end

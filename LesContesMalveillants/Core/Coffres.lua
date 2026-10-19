@@ -7,6 +7,50 @@ local Coffres = { definitions = {}, points = {}, courant = nil, etat = nil }
 LCM.Coffres = Coffres
 Coffres.METHODE_CLEF = "clef"
 
+-- Ce qu'un coffre accueille : des objets, des livres, des ressources, des sacs
+-- (le MJ, 20 octobre 2026) et les monnaies qui ont une forme (19 octobre
+-- 2026). Une monnaie qui n'existe qu'en solde de bourse n'a rien a poser dans
+-- une case.
+--
+-- La regle est ici, et non dans chaque fenetre : la fenetre du joueur,
+-- l'atelier du MJ et l'arbitrage du proprietaire la lisent au meme endroit.
+-- Elles la recopiaient, et l'une d'elles finissait par ne plus dire la meme
+-- chose que les autres.
+-- Combien d'emplacements prend une quantite dans un coffre.
+--
+-- Une entree SANS pile maximale n'en prend qu'UN, quelle que soit la quantite :
+-- une bourse d'ecus est une bourse, une poignee d'herbes une poignee. C'est
+-- deja ce que la fenetre MONTRE (une seule pile) ; le compte, lui, divisait par
+-- une pile de 1, donc cinquante ecus occupaient cinquante emplacements (le MJ,
+-- 19 octobre 2026). Quatre fonctions tenaient ces deux regles, et elles n'en
+-- disaient pas la meme.
+function Coffres.Pile(ref)
+    local entree = LCM.Compendium.Resoudre(ref)
+    local pile = tonumber(entree and entree.pileMax)
+    return pile and math.max(1, math.floor(pile)) or nil
+end
+
+function Coffres.Places(ref, quantite)
+    quantite = math.max(0, math.floor(tonumber(quantite) or 0))
+    if quantite == 0 then return 0 end
+    local pile = Coffres.Pile(ref)
+    return pile and math.ceil(quantite / pile) or 1
+end
+
+local ACCUEILLIS = { objets = true, livres = true, ressources = true, devises = true,
+                     sacs = true, accessoires_camping = true }
+function Coffres.Accepte(ref)
+    local famille, entree = tostring(ref or ""):match("^([%w_]+)/(.+)$")
+    if not ACCUEILLIS[famille or ""] then
+        return false, "le coffre accepte des objets, des livres, des ressources, des sacs ou des devises."
+    end
+    if famille == "devises" and not (LCM.Bourse and LCM.Bourse.EstMateriel(entree)) then
+        return false, "cette monnaie ne se transporte pas : elle reste dans la bourse."
+    end
+    if not LCM.Compendium.Resoudre(ref) then return false, "entrée inconnue du compendium." end
+    return true
+end
+
 Coffres.SUJETS = { definition = "cof", retrait = "cof-", demande = "cof?",
     action = "cof!", etat = "cof+" }
 local S = Coffres.SUJETS
@@ -273,6 +317,22 @@ Positionner = function()
             if proche ~= Coffres.proche then
                 Coffres.proche = proche
                 if LCM.UI.Coffre and LCM.UI.Coffre.Proche then LCM.UI.Coffre.Proche(proche) end
+            end
+            -- S'eloigner referme le coffre ouvert. Le proprietaire refusait
+            -- deja tout geste a distance (Coffres.Agir) : la fenetre restait
+            -- ouverte sur un contenu auquel on ne pouvait plus toucher (le MJ,
+            -- 20 octobre 2026). L'etal d'un vendeur se refermait deja ainsi.
+            --
+            -- Verifie a chaque battement, et pas seulement quand le plus
+            -- proche CHANGE : une fenetre ouverte doit se fermer meme si la
+            -- mesure precedente disait deja « personne ».
+            --
+            -- L'EDITION du MJ fait exception, comme pour les actions : elle se
+            -- mene a distance, sur un coffre pose ailleurs.
+            if Coffres.courant and not Coffres.edition
+                and not (proche and proche.id == Coffres.courant)
+                and LCM.UI.Coffre and LCM.UI.Coffre.Quitter then
+                LCM.UI.Coffre.Quitter()
             end
         end)
         Coffres.horloge = h

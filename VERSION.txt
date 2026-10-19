@@ -1,6 +1,6 @@
 ﻿Les Contes Malveillants
 Version 0.2.0
-Publie le 2026-10-19 20:15
+Publie le 2026-10-20 01:45
 
 LesContesMalveillants      : l'addon, pour tout le monde.
 LesContesMalveillants_MJ   : contenu du maitre du jeu, a ne pas distribuer.

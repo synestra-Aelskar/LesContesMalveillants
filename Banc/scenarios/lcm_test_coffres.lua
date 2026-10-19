@@ -24,6 +24,12 @@ LCM.Objets.Add({ id = "outil_temoin", label = "Outil témoin", categorie = "acce
 LCM.Objets.Add({ id = "aide_temoin", label = "Aide témoin", categorie = "accessoire",
     icone = "inv_misc_tool_01", etat = { courant = 10, max = 10 }, pileMax = 1,
     bonus = { vue = 2 } })
+-- Ce qu'un coffre accueille, en plus des objets et des livres (le MJ,
+-- 19 octobre 2026) : les ressources, et les monnaies qui ont une FORME.
+LCM.Ressources.Add({ id = "herbe_coffre", label = "Herbe témoin" })
+LCM.Sacs.Add({ id = "sac_coffre", label = "Sac témoin", places = 6, pileMax = 1 })
+LCM.Devises.Add({ id = "piece_coffre", label = "Pièce témoin", materiel = true })
+LCM.Devises.Add({ id = "jeton_coffre", label = "Jeton témoin" })
 local definition = { id = "coffre_temoin", label = "Coffre témoin", nature = "coffre",
     coffre = { places = 1, rayon = 7, verrous = 1, reset = false,
         objets = { { entree = REF, quantite = 1 } },
@@ -205,6 +211,32 @@ LCM.BasculerModeJoueur(false)
 -- Ce qui vient d'un sac reste accepte des deux cotes.
 attendu("ce qu'on possède passe toujours",
     (libre.glisserAccepte({ ref = REF2, origine = { onglet = "sacs", index = 1, case = 1 } })), true)
+-- Aucune categorie du compendium ne s'appelle « objets » : celle d'une epee
+-- s'appelle « armes », celle d'un anneau « accessoires ». La fenetre
+-- reconnaissait l'entree a ce nom, et seuls les livres entraient — glisser une
+-- epee s'entendait repondre qu'elle n'etait pas dans l'inventaire
+-- (19 octobre 2026). C'est la famille de la reference qui dit ce qu'elle est.
+attendu("une entrée nommée par sa vraie catégorie passe",
+    (libre.glisserAccepte({ ref = REF2, categorie = "accessoires",
+        element = LCM.Compendium.Resoudre(REF2) })), true)
+
+dire("== le coffre accueille ressources et devises (le MJ, 19 octobre 2026)")
+local function accueil(ref, categorie)
+    return libre.glisserAccepte({ ref = ref, categorie = categorie,
+        element = LCM.Compendium.Resoudre(ref) })
+end
+attendu("une ressource", (accueil("ressources/herbe_coffre", "ressources")), true)
+attendu("un sac", (accueil("sacs/sac_coffre", "sacs")), true)
+attendu("une monnaie matérielle", (accueil("devises/piece_coffre", "devises")), true)
+local refusee, raisonDevise = accueil("devises/jeton_coffre", "devises")
+attendu("une monnaie qui n'est qu'un compte, non", refusee, false)
+attendu("  et on dit où elle vit", tostring(raisonDevise):find("bourse", 1, true) ~= nil, true)
+attendu("un PNJ non plus", (accueil("pnj/assassin_du_culte", "pnj")), false)
+-- Et le proprietaire arbitre selon la MEME regle : la fenetre et lui ne
+-- peuvent pas dire deux choses differentes.
+attendu("le propriétaire accepte la ressource",
+    (LCM.Coffres.Accepte("ressources/herbe_coffre")), true)
+attendu("  et refuse le jeton", (LCM.Coffres.Accepte("devises/jeton_coffre")), false)
 C.Envoyer("prendre", { e = REF, q = 1 })
 attendu("une prise après épuisement reste refusée", #p.objets, 0)
 C.Envoyer("ranger", { e = REF, q = 1 })
@@ -212,6 +244,63 @@ attendu("retour au coffre accepté", p.objets[1] and p.objets[1].quantite, 1)
 C.Envoyer("ranger", { e = REF2, q = 1 })
 attendu("un deuxième type dépasse la capacité", #p.objets, 1)
 attendu("le refus ne modifie pas le contenu", p.objets[1] and p.objets[1].entree, REF)
+
+dire("== un emplacement tient toute une pile (le MJ, 19 octobre 2026)")
+-- Une entree sans pile maximale n'occupe qu'UN emplacement, quelle qu'en soit
+-- la quantite. Le compte en prenait un par unite : cinquante pieces
+-- remplissaient cinquante emplacements, alors que la fenetre n'en montrait
+-- qu'une pile. Les deux regles vivaient dans quatre fonctions ; elles n'en
+-- font plus qu'une (LCM.Coffres.Places).
+p.objets = {}
+C.Envoyer("ranger", { e = "devises/piece_coffre", q = 50 })
+attendu("cinquante pièces entrent", p.objets[1] and p.objets[1].quantite, 50)
+attendu("  dans un seul emplacement", #p.objets, 1)
+C.Envoyer("ranger", { e = "ressources/herbe_coffre", q = 40 })
+attendu("et le coffre est plein", #p.objets, 1)
+C.Envoyer("ranger", { e = "devises/piece_coffre", q = 25 })
+attendu("la même pile s'épaissit sans place de plus",
+    p.objets[1] and p.objets[1].quantite, 75)
+-- Ce qui a une pile maximale garde son compte : la clef s'empile par une.
+p.objets = {}
+C.Envoyer("ranger", { e = REF, q = 1 })
+attendu("une clé entre", p.objets[1] and p.objets[1].quantite, 1)
+C.Envoyer("ranger", { e = REF, q = 1 })
+attendu("  la seconde dépasse la capacité", p.objets[1] and p.objets[1].quantite, 1)
+
+dire("== une definition de coffre garde ce qu'un coffre accueille")
+-- Le geste passait, le CHARGEMENT ecartait : la construction d'une definition
+-- gardait sa propre regle (« objets et livres »), et un coffre garni d'une
+-- ressource ou d'un sac disparaissait au /reload suivant, avec tout son
+-- contenu (20 octobre 2026). Les deux lisent maintenant la meme liste.
+local garni = { id = "coffre_garni_temoin", label = "Coffre garni", nature = "coffre",
+    coffre = { places = 6, rayon = 4, verrous = 0, reset = false, expertises = {}, outils = {},
+        objets = { { entree = REF, quantite = 1 },
+                   { entree = "ressources/herbe_coffre", quantite = 7 },
+                   { entree = "sacs/sac_coffre", quantite = 1 },
+                   { entree = "devises/piece_coffre", quantite = 40 } } } }
+local okGarni, raisonGarni = LCM.Brouillons.Enregistrer("points", garni, true)
+attendu("la définition est acceptée", okGarni, true)
+if not okGarni then dire("     raison du refus :", tostring(raisonGarni)) end
+local relu = LCM.Points.Get("coffre_garni_temoin")
+attendu("  et elle se recharge entière", relu and #relu.coffre.objets, 4)
+attendu("  la ressource y est", (function()
+    for _, o in ipairs(relu and relu.coffre.objets or {}) do
+        if o.entree == "ressources/herbe_coffre" then return o.quantite end
+    end
+end)(), 7)
+attendu("  le sac aussi", (function()
+    for _, o in ipairs(relu and relu.coffre.objets or {}) do
+        if o.entree == "sacs/sac_coffre" then return true end
+    end
+    return false
+end)(), true)
+-- Et ce qui n'est pas rangeable reste refuse : un PNJ dans un coffre n'a
+-- aucun sens, et le refus doit continuer a se voir.
+local okPnj = LCM.Brouillons.Enregistrer("points", { id = "coffre_pnj_temoin",
+    label = "Coffre absurde", nature = "coffre",
+    coffre = { places = 1, rayon = 4, verrous = 0, reset = false, expertises = {}, outils = {},
+        objets = { { entree = "pnj/assassin_du_culte", quantite = 1 } } } }, true)
+attendu("un PNJ dans un coffre : refusé", okPnj, false)
 
 dire("== le paquet transporte les outils et les expertises")
 local paquet = C.Paquet(C.definitions.coffre_temoin, { p })

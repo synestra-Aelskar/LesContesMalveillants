@@ -57,6 +57,13 @@ local function Construire()
             devise = ligne.deviseId, combien = solde,
             nom = (devise and devise.label or ligne.deviseId) .. "  (choisir le montant au dépôt)",
             icone = devise and devise.icone,
+            ref = Bourse.Ref(ligne.deviseId),
+            -- Une monnaie glissee de la bourse n'est pas une FABRICATION : elle
+            -- existe deja, elle change seulement de forme. Son origine le dit,
+            -- pour que les sacs ne la prennent pas pour une entree du
+            -- compendium — ce qui la reservait au MJ, et faisait demander au
+            -- compendium ce qu'etait une reference absente (19 octobre 2026).
+            origine = { bourse = true, devise = ligne.deviseId },
         })
     end
 
@@ -111,6 +118,20 @@ local function Construire()
                     end }
                 end
             end
+        end
+        -- Une monnaie « Materiel » sort de la bourse en pile : elle se porte,
+        -- se cache dans un coffre, se donne comme un objet. Elle revient en
+        -- bourse par le clic droit sur la pile (le MJ, 19 octobre 2026).
+        if Bourse.EstMateriel(id) then
+            options[#options + 1] = { label = "Matérialiser", action = function()
+                if solde <= 0 then Rien() return end
+                DemanderMontant(string.format("Sortir combien de %s de la bourse ?", label), solde, function(n)
+                    local ok, raison = Bourse.Materialiser(entity, id, n)
+                    if not ok then LCM.Alerte(tostring(raison)) return end
+                    LCM.Info(string.format("%d %s en main.", n, label))
+                    self:Afficher()
+                end)
+            end }
         end
         options[#options + 1] = { label = "Détruire", action = function()
             if solde <= 0 then Rien() return end
@@ -168,7 +189,49 @@ local function Construire()
                     GameTooltip:SetOwner(ligne, "ANCHOR_RIGHT")
                     GameTooltip:SetText(tostring(ligne.nom:GetText() or ""))
                     GameTooltip:AddLine("Glisse sur un joueur pour proposer un échange.", 0.75, 0.75, 0.75)
+                    if Bourse.EstMateriel(ligne.deviseId) then
+                        GameTooltip:AddLine("Glisse-la dans un sac pour l'emporter en pièces.", 0.75, 0.75, 0.75)
+                        GameTooltip:AddLine("Pose une pile ici pour la remettre en bourse.", 0.75, 0.75, 0.75)
+                    end
                     GameTooltip:Show()
+                end)
+                -- On y REPOSE une pile de cette monnaie : c'est le geste
+                -- inverse de « Materialiser », et il manquait — la bourse
+                -- n'etait une cible pour rien (le MJ, 19 octobre 2026).
+                UI.Glisser.Cible(l, function(objet)
+                    local entity = f.entity
+                    if not (entity and entity == LCM.Entities.Self() and not entity.distante) then
+                        return false, "ce n'est pas ta bourse."
+                    end
+                    local o = type(objet) == "table" and objet.origine
+                    -- Reposer sur la bourse ce qu'on venait d'y prendre : un
+                    -- glissement qu'on annule, pas une erreur. Le depot ne
+                    -- fera rien.
+                    if o and o.bourse then return true end
+                    if not (o and o.case) then return false, "glisse une pile depuis un de tes sacs." end
+                    local devise = tostring(objet.ref or ""):match("^devises/(.+)$")
+                    if not devise then return false, "seule une monnaie se met en bourse." end
+                    if devise ~= l.deviseId then
+                        return false, string.format("c'est la ligne des %s.",
+                            tostring(l.nom:GetText() or l.deviseId))
+                    end
+                    if not Bourse.EstMateriel(devise) then
+                        return false, "cette monnaie ne se transporte pas."
+                    end
+                    return true
+                end, function(objet)
+                    local entity, o = f.entity, objet.origine
+                    if o and o.bourse then return end
+                    local nom = tostring(l.nom:GetText() or "")
+                    local devise = l.deviseId
+                    DemanderMontant(string.format("Remettre combien de %s en bourse ?", nom),
+                        tonumber(objet.quantite) or 1, function(n)
+                            local ok, raison = Bourse.Encaisser(entity, devise, n, o)
+                            if not ok then LCM.Alerte(tostring(raison)) return end
+                            LCM.Info(string.format("%d %s en bourse.", n, nom))
+                            f:Afficher()
+                            if UI.Inventaires then UI.Inventaires.Actualiser() end
+                        end)
                 end)
                 l:SetScript("OnLeave", function() GameTooltip:Hide() end)
                 if UI.SurfaceLigne then UI.SurfaceLigne(l) end

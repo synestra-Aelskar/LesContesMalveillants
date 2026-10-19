@@ -117,6 +117,76 @@ local function ObjetDeCase(onglet, index, place)
     }
 end
 
+-- Une monnaie glissee depuis la BOURSE : elle n'a pas de case d'origine, elle
+-- a un solde. La poser dans un sac, c'est la materialiser — on demande combien,
+-- puisqu'on en a rarement une seule (le MJ, 19 octobre 2026).
+local function DeLaBourse(objet)
+    local o = type(objet) == "table" and objet.origine
+    return o and o.bourse and o.devise or nil
+end
+
+local function AccepteBourse(objet, ici, vers)
+    local devise = DeLaBourse(objet)
+    if not Inv.Contenant(ici) then return false, "aucun sac ici." end
+    local ref = LCM.Bourse.Ref(devise)
+    local deja = Inv.Case(ici, vers.case)
+    if deja and deja.ref ~= ref then return false, "cette case est déjà occupée." end
+    local ok, raison = Inv.Accepte(ici, vers.case, ref)
+    if not ok then return false, raison end
+    if LCM.Bourse.Solde(Entite(), devise) < 1 then return false, "ta bourse n'en a plus." end
+    return true
+end
+
+-- Ou une monnaie lachee sur un SAC se pose : dans la pile de cette monnaie si
+-- le sac en porte deja une, sinon dans sa premiere case libre. On ne cherche
+-- pas ailleurs : c'est sur CE sac qu'on l'a lachee.
+local function CaseDeBourse(devise, onglet, index)
+    local ref = LCM.Bourse.Ref(devise)
+    local ici = Inv.Emplacement(Entite(), onglet, index)
+    if not Inv.Contenant(ici) then return nil end
+    local libre
+    for n = 1, Inv.Cases(ici) do
+        local dedans = Inv.Case(ici, n)
+        if dedans then
+            if dedans.ref == ref then return n end
+        elseif not libre and Inv.Accepte(ici, n, ref) then
+            libre = n
+        end
+    end
+    return libre
+end
+
+local function AccepteBourseSac(objet, onglet, index)
+    local devise = DeLaBourse(objet)
+    if not Inv.Contenant(Inv.Emplacement(Entite(), onglet, index)) then
+        return false, "aucun sac ici."
+    end
+    if not LCM.Bourse.EstMateriel(devise) then
+        return false, "cette monnaie ne se transporte pas : elle reste dans la bourse."
+    end
+    if LCM.Bourse.Solde(Entite(), devise) < 1 then return false, "ta bourse n'en a plus." end
+    if not CaseDeBourse(devise, onglet, index) then
+        return false, "aucune case libre dans ce sac."
+    end
+    return true
+end
+
+local function DeposerBourse(objet, vers)
+    local devise = DeLaBourse(objet)
+    local entite = Entite()
+    local element = LCM.Devises.Get(devise)
+    local nom = element and element.label or devise
+    UI.Demande():Demander(string.format("Sortir combien de %s de la bourse ?", nom),
+        LCM.Bourse.Solde(entite, devise), function(texte)
+            local ok, raison = LCM.Bourse.Materialiser(entite, devise, texte, vers)
+            if ok then
+                Ecran.Actualiser()
+                if UI.Bourse and UI.Bourse.frame then UI.Bourse.frame:Afficher() end
+            end
+            return ok, raison
+        end)
+end
+
 -- Jeter, c'est detruire : on le demande toujours. Et au « oui », on verifie
 -- que l'objet est encore dans sa case — entre la question et la reponse, il a
 -- pu partir dans un echange ou changer de sac. On ne jette jamais ce qui a
@@ -307,6 +377,21 @@ local function MenuObjet(ancre, onglet, index, place, extras)
                 end)
             end }
     end
+    -- Une pile de monnaie retourne en bourse : la pile n'est qu'une forme,
+    -- pas une autre monnaie (le MJ, 19 octobre 2026). On vise CETTE pile :
+    -- avec deux bourses d'ecus dans deux sacs, vider la premiere en cliquant
+    -- sur la seconde serait incomprehensible.
+    local deviseId = tostring(objet.ref or ""):match("^devises/(.+)$")
+    if deviseId and LCM.Bourse and LCM.Bourse.EstMateriel(deviseId) then
+        local ici = { onglet = onglet, index = index, case = place }
+        options[#options + 1] = { label = "Mettre en bourse", action = function()
+            UI.Demande():Demander("Mettre combien en bourse ?", objet.quantite or 1, function(texte)
+                local ok, raison = LCM.Bourse.Encaisser(Entite(), deviseId, texte, ici)
+                if ok then Ecran.Actualiser() end
+                return ok, raison
+            end)
+        end }
+    end
     for _, extra in ipairs(extras or {}) do options[#options + 1] = extra end
     if (tonumber(objet.quantite) or 1) > 1 then
         options[#options + 1] = { label = "Scinder", action = function() Scinder(objet) end }
@@ -426,6 +511,11 @@ local function Carte(f)
 
     -- On y depose un sac (ou une devise) glisse depuis le compendium.
     UI.Glisser.Cible(c, function(objet)
+        -- Une monnaie venue de la BOURSE se materialise dans ce sac. Sans
+        -- cette branche, « transvaser » l'aurait prise pour un objet qu'on
+        -- possede deja — et en aurait range un sans debiter la bourse
+        -- (19 octobre 2026, le jour ou le fantome a recu une reference).
+        if DeLaBourse(objet) then return AccepteBourseSac(objet, c.onglet, c.index) end
         if Reorganise(objet) then
             if MemeEmplacement(objet) then return true end
             local depart, arrivee = Inv.Get(objet.origine.onglet), Inv.Get(c.onglet)
@@ -476,6 +566,13 @@ local function Carte(f)
         if sac then return Inv.PeutPorter(c.onglet, { sac = sac.id }) end
         return true
     end, function(objet)
+        if DeLaBourse(objet) then
+            local place = CaseDeBourse(DeLaBourse(objet), c.onglet, c.index)
+            if place then
+                DeposerBourse(objet, { onglet = c.onglet, index = c.index, case = place })
+            end
+            return
+        end
         if Reorganise(objet) then
             if MemeEmplacement(objet) then return end
             local o = objet.origine
@@ -660,6 +757,11 @@ local function Construire()
                         return false, "sortir un objet du compendium est un geste du maître du jeu."
                     end
                     local ici = l.place and Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
+                    if DeLaBourse(objet) then
+                        if not l.place then return false, "aucun sac ici." end
+                        return AccepteBourse(objet, ici,
+                            { onglet = l.place.onglet, index = l.place.index, case = l.case })
+                    end
                     if objet.scinder then
                         if not l.place then return false, "aucun sac ici." end
                         return AccepteScission(objet, ici,
@@ -673,6 +775,10 @@ local function Construire()
                     return Inv.Accepte(ici, l.case, objet.ref)
                 end, function(objet)
                     local vers = { onglet = l.place.onglet, index = l.place.index, case = l.case }
+                    if DeLaBourse(objet) then
+                        DeposerBourse(objet, vers)
+                        return
+                    end
                     if objet.scinder then
                         DeposerScission(objet, vers)
                         return
@@ -968,6 +1074,9 @@ local function NouvelleCase(s, n)
             return false, "sortir un objet du compendium est un geste du maître du jeu."
         end
         local e = s:Emplacement()
+        if DeLaBourse(objet) then
+            return AccepteBourse(objet, e, { onglet = s.onglet, index = s.index, case = b.index })
+        end
         if objet.scinder then
             return AccepteScission(objet, e, { onglet = s.onglet, index = s.index, case = b.index })
         end
@@ -983,6 +1092,10 @@ local function NouvelleCase(s, n)
         return Inv.Accepte(e, b.index, objet.ref)
     end, function(objet)
         local vers = { onglet = s.onglet, index = s.index, case = b.index }
+        if DeLaBourse(objet) then
+            DeposerBourse(objet, vers)
+            return
+        end
         if objet.scinder then
             DeposerScission(objet, vers)
             return

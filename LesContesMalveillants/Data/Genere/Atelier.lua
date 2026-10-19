@@ -18,6 +18,15 @@ LCM.PublierPublique(LCM.AccessoiresCamping, "accessoires_camping", {
     origine = "Kaléa",
 }, "323d4907b00feaef")
 
+-- ----- devises (1) -------------------------------------------------
+LCM.PublierPublique(LCM.Devises, "devises", {
+    description = "Une monnai somme tout relativement banale.",
+    icone = "Interface\\ICONS\\eps_plunder_misc_pieceofeight",
+    id = "ecus",
+    label = "Écus",
+    materiel = true,
+}, "f4e54a717e552624")
+
 -- ----- etats (1) ---------------------------------------------------
 LCM.PublierPublique(LCM.Etats, "etats", {
     bonus = {
@@ -48,7 +57,7 @@ LCM.PublierPublique(LCM.Etats, "etats", {
     tags = "Inhabituel",
 }, "0f159fc2b5e33cbc")
 
--- ----- listes (24) --------------------------------------------------
+-- ----- listes (33) --------------------------------------------------
 LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",
     icone = "Interface\\ICONS\\inv_jewelry_ring_03",
@@ -223,6 +232,69 @@ LCM.PublierPublique(LCM.Listes, "listes", {
 }, "2b017459462025f0")
 
 LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\inv_inscription_inkblack02",
+    id = "lcm_64a651_6ad69189_2038de7c_0003_65dfb5",
+    label = "Encre",
+    liste = "ressources",
+}, "0b3d0fe7f740b096")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\inv_misc_paperbundle02a",
+    id = "lcm_64a651_6ad691c0_2039b590_0004_033a49",
+    label = "Papier",
+    liste = "ressources",
+}, "8c045bfe277b4260")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\inv_misc_food_159_fish_82",
+    id = "lcm_64a651_6ad6933b_203f7d7a_0006_c0e4d5",
+    label = "Nourriture",
+    liste = "ressources",
+}, "f22f52e4259c92c1")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\inv_misc_bandage_01",
+    id = "lcm_64a651_6ad6939e_2040ff8f_0007_cd304f",
+    label = "Bandage",
+    liste = "ressources",
+}, "5ab085a1b79597c2")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\w3reforgedbronzebowlfull",
+    id = "lcm_64a651_6ad69431_20433b69_0002_621c6d",
+    label = "Baume",
+    liste = "ressources",
+}, "e0daae5e97045f45")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\eps_arc_book_blacksmith1",
+    id = "lcm_64a651_6ad6963b_204b33a4_0007_f08a79",
+    label = "Livre",
+    liste = "ressources",
+}, "797b0bb2ff6702a3")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\hots_thebutcher_furnaceblast_fire",
+    id = "lcm_64a651_6ad698cf_205548ef_000f_056abe",
+    label = "Chaleur",
+    liste = "outils",
+}, "ea3a1917d057f25e")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\inv_drink_07",
+    id = "lcm_64a651_6ad69a7f_205bdff2_0013_e59c87",
+    label = "Boisson",
+    liste = "ressources",
+}, "92d2aba8fcae8abb")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    icone = "Interface\\ICONS\\eps_rumble_powercrystalgreen",
+    id = "lcm_64a651_6ad6a260_207aa4a3_0021_04ec5d",
+    label = "Cristal",
+    liste = "ressources",
+}, "433bd8608bbbc684")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",
     icone = "Interface\\ICONS\\eps_arc_halloween_shatteredmask",
     id = "masque",
@@ -305,7 +377,7 @@ LCM.PublierPublique(LCM.Livres, "livres", {
     },
 }, "d88971ed8d877a7a")
 
--- ----- objets (39) --------------------------------------------------
+-- ----- objets (45) --------------------------------------------------
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },
     bonus = {
@@ -1164,6 +1236,143 @@ LCM.PublierPublique(LCM.Objets, "objets", {
 }, "1c3807765b7eee3b")
 
 LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        constitution = -1,
+        resi_contondant = 1,
+        resi_perforant = 1,
+        resi_tranchant = 1,
+    },
+    categorie = "accessoire",
+    couleurTitre = "FF8CB8",
+    description = "..Une pointe à l'intérieur semble prévue pour se planter dans la chair de son porteur...Allez savoir ce que ça fait.",
+    etat = {
+        courant = 28,
+        max = 28,
+        version = 2,
+    },
+    forge = "equilibrage_armure_copie/commun",
+    icone = "Interface\\ICONS\\eps_wc3h_rubyring",
+    id = "lcm_64a651_6ad6948d_2044a6eb_0003_9081c9",
+    label = "Anneau macabre",
+    tags = "Commun",
+    type = "anneau",
+}, "2f59f336ada36dc9")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    bonus = {
+        resi_contondant = 2,
+        resi_perforant = 2,
+        resi_tranchant = 6,
+    },
+    categorie = "arme",
+    couleurTitre = "4DE04D",
+    description = "Une lame qui fut autrefois impossante, et qui désormais, brisé en deux, n'a de prestance que sa garde encore ornée de symboles complexes et nobles.",
+    etat = {
+        courant = 76,
+        max = 76,
+        version = 2,
+    },
+    forge = "armes/inhabituel",
+    icone = "Interface\\ICONS\\inv_sword_19",
+    id = "lcm_64a651_6ad696b3_204d09c7_0009_8dcac8",
+    label = "Espadon brisé.",
+    tags = "Inhabituel",
+    taille = 2,
+    type = "epee",
+}, "3340c8dae2909b84")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    bonus = {
+        resi_contondant = 2,
+        resi_perforant = 2,
+        resi_tranchant = 2,
+    },
+    categorie = "equipement",
+    couleurTitre = "FF8CB8",
+    description = "Une paire de mitaines épaisses, aux coutures irrégulières. Elles préservent tant bien que mal les doigts des morsures du gel.",
+    etat = {
+        courant = 46,
+        max = 46,
+        version = 2,
+    },
+    forge = "equilibrage_arme_copie/commun",
+    icone = "Interface\\ICONS\\inv_leather_draenordungeon_c_01glove",
+    id = "lcm_64a651_6ad697c4_205133c8_000b_f04e7d",
+    label = "Mitaines de laine grossière",
+    tags = "Commun",
+    type = "gants",
+}, "2141d45bab48e51f")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        pen_contondant = 4,
+        pen_feu = 18,
+        pen_lumiere = 18,
+        pen_perforant = 16,
+        pen_tranchant = 16,
+    },
+    categorie = "arme",
+    couleurTitre = "FF9926",
+    description = "Une épée batarde, dont les ornements ne sont pas sans rappeler les terres d'Era. Cette lame, d'une qualité reconnue, est animée d'une flamme dévorante.",
+    etat = {
+        courant = 76,
+        max = 76,
+        version = 2,
+    },
+    forge = "equilibrage_arme/epique",
+    icone = "Interface\\ICONS\\inv_sword_1h_artifactfelomelorn_d_02",
+    id = "lcm_64a651_6ad69c6a_20635e8c_0018_cf22e7",
+    label = "Sérénité, lame de la gardienne de l'est.",
+    tags = "Épique",
+    taille = 1,
+    type = "epee",
+}, "d6933756e9162df1")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    armure = 2,
+    avantage = {  },
+    bonus = {  },
+    categorie = "equipement",
+    couleurTitre = "FF9926",
+    description = "..Si tant est que vous tentiez d'en passer le voile, c'est l'abysse, et le néant qui vous attendraient. \n\nUn oeil divinatoire ne saurait percer les secrets que cache se masque.. pire encore.. Il semble même officier de barrière pour le porteur, couvrant même ses traces aux affres divinatoires. \n\nEn contrepartie.. Un oeil expert pourrait déterminer, en étudiant le masque, et sa signature, qu'il oeuvre une malédiction, interdisant à son portée l'accès à sa mémoire antérieur au port du masque.",
+    etat = {
+        courant = 40,
+        max = 40,
+        version = 2,
+    },
+    forge = "equilibrage_arme_copie/epique",
+    icone = "Interface\\ICONS\\inv_helm_leather_demonhunter_a_01",
+    id = "lcm_64a651_6ad69ffc_20714dc1_001a_88e267",
+    label = "Vestige brisé de l'occulte masque de Blanche.",
+    tags = "Épique",
+    type = "masque",
+}, "7a883886b986e020")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        acrobaties = 1,
+        escalade = 1,
+    },
+    categorie = "accessoire",
+    couleurTitre = "FF8CB8",
+    description = "Un anneau dont les reliefs ressemblent à une toile d'araignée. Lorsqu'il est porté, le porteur peut sentir son corps s'assouplir.",
+    etat = {
+        courant = 40,
+        max = 40,
+        version = 2,
+    },
+    forge = "equilibrage_armure_copie/commun",
+    icone = "Interface\\ICONS\\inv_70_quest_ring7a",
+    id = "lcm_64a651_6ad6a129_2075e8c3_001c_b21b43",
+    label = "Chevalière de la toile.",
+    tags = "Commun",
+    type = "anneau",
+}, "54981ce461a956bf")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
     bonus = {
         cosmique = 1,
         elementaire = 1,
@@ -1670,7 +1879,7 @@ LCM.PublierPublique(LCM.Races, "races", {
     tags = "Commun",
 }, "7cd83a01972d2ca4")
 
--- ----- ressources (1) ----------------------------------------------
+-- ----- ressources (12) ----------------------------------------------
 LCM.PublierPublique(LCM.Ressources, "ressources", {
     description = "Franchement, c'est solide.",
     etat = {
@@ -1681,6 +1890,138 @@ LCM.PublierPublique(LCM.Ressources, "ressources", {
     id = "lcm_64a651_6ace4cd9_12e7e6e8_0004_f78759",
     label = "Cailloux",
 }, "3916a98044d16548")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "Une feuille de papier de mauvaise qualité.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_misc_paperbundle02a",
+    id = "lcm_64a651_6ad6917e_2038b154_0002_0495e5",
+    label = "Papier de mauvaise qualité.",
+    tags = "Commun",
+    type = "lcm_64a651_6ad65bc0_1f66c19c_0004_cdf550",
+}, "1c7507b67237f09d")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    avantage = {  },
+    couleurTitre = "FF8CB8",
+    description = "Une bande de tissu grossièrement découpée, aux fibres rêches et effilochées. Peu hygiénique, mais suffisante pour couvrir une plaie.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_misc_bandage_03",
+    id = "lcm_64a651_6ad691e4_203a41c9_0005_edf1c8",
+    label = "Bandage de piètre qualité.",
+    tags = "Commun",
+    type = "lcm_64a651_6ad6939e_2040ff8f_0007_cd304f",
+}, "73d07d2d8da78b79")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "Un maigre assortiment de viande séchée, de biscuits durcis et de quelques fruits secs. De quoi tromper la faim durant une journée.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_misc_paperpackage01b",
+    id = "lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+    label = "Petite ration de voyage",
+    tags = "Commun",
+    type = "lcm_64a651_6ad6933b_203f7d7a_0006_c0e4d5",
+}, "383074e500dd16a7")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "Un onguent épais à l'odeur âcre, conservé dans un petit pot de terre cuite. Appliqué sur la peau, il apaise les morsures du froid et soulage les engelures superficielles.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\w3reforgedhealingsalve",
+    id = "lcm_64a651_6ad693f0_20423093_0001_2f767b",
+    label = "Onguent anti-engelures",
+    tags = "Commun",
+    type = "lcm_64a651_6ad69431_20433b69_0002_621c6d",
+}, "fe4f85c7d5c967e6")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "L'ouvrage dégage une auteur de bois et de fougère.. Un cadena gravé d'une rune semble bloqué son ouverture. A en juger par sa deventure, il a été rédigé dans une langue inconnue.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\eps_arc_book_blacksmith2",
+    id = "lcm_64a651_6ad69649_204b6b9c_0008_8ea27e",
+    label = "Livre scellé.",
+    tags = "Commun",
+    type = "lcm_64a651_6ad6963b_204b33a4_0007_f08a79",
+}, "f8a4fe91c933bfc5")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "Un galet sombre qui, une fois placé près d'une flamme, conserve sa chaleur pendant une durée étonnamment longue.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\w3reforgedphilosophersstone",
+    id = "lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+    label = "Pierre chauffe-main",
+    tags = "Commun",
+    type = "lcm_64a651_6ad65bc0_1f66c19c_0004_cdf550",
+}, "949efc33f73feade")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "Un lingot d'or. Quoi de plus parlant que cette richesse ?",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_ingot_03",
+    id = "lcm_64a651_6ad69940_2056ffd5_0011_2aebe3",
+    label = "Lingot d'or.",
+    tags = "Commun",
+    type = "lingot",
+}, "a797ebd200205d8e")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
+    couleurTitre = "FF8CB8",
+    description = "A première vue.. Cette gourde ne semble avoir rien de particulier.. Pourtant, vous discerner dans le fond de l'eau qu'elle contient une rune luissant d'une couleur solaire.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_drink_18",
+    id = "lcm_64a651_6ad699e3_20597cb9_0012_35135e",
+    label = "Gourde d'eau runique",
+    tags = "Commun",
+    type = "lcm_64a651_6ad69a7f_205bdff2_0013_e59c87",
+}, "6fb3386752ea25cd")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    avantage = {  },
+    couleurTitre = "FF8CB8",
+    description = "Ce bibelot empeste d'une odeur de renfermé. En revanche, son contenue écrit dans une langue inconnue est en parfait état. Parfois, sur certaines pages, d'étranges symboles formant des cercles magiques sont présentés.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\eps_arc_book_firedruid1",
+    id = "lcm_64a651_6ad6a1ac_2077e559_001e_3e8557",
+    label = "Livre en langue inconnue.",
+    tags = "Commun",
+    type = "lcm_64a651_6ad6963b_204b33a4_0007_f08a79",
+}, "7db5a3f057edafea")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    avantage = {  },
+    couleurTitre = "FF8CB8",
+    description = "Un cristal d'aspecta rafiné. Allez savoir à quoi cela sert. En revanche, il dégage une lueur verte appaisante.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_misc_uncutgemsuperior2",
+    id = "lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+    label = "Cristal d'aspecta rafiné",
+    tags = "Commun",
+    type = "lcm_64a651_6ad6a260_207aa4a3_0021_04ec5d",
+}, "3f4a22f33369f585")
+
+LCM.PublierPublique(LCM.Ressources, "ressources", {
+    avantage = {  },
+    couleurTitre = "FF8CB8",
+    description = "Une encre noire contenue dans un flacon ébréché.",
+    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
+    icone = "Interface\\ICONS\\inv_inscription_inkblack01",
+    id = "lcm_aa9c40_6ad68e2f_202bb932_0001_d016e0",
+    label = "Encre en fiole",
+    tags = "Commun",
+    type = "lcm_64a651_6ad69189_2038de7c_0003_65dfb5",
+}, "9ece97cf811ea052")
 
 -- ----- tentes (3) --------------------------------------------------
 LCM.PublierPublique(LCM.Tentes, "tentes", {

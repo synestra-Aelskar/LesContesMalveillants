@@ -74,6 +74,30 @@ local function OptionsObjets(choix, exception, doublons)
                 out[#out + 1] = { id = ref, label = livre.label or livre.id, groupe = "Livres" }
             end
         end
+        -- Un coffre contient aussi des ressources, et les monnaies qui ont une
+        -- forme (le MJ, 19 octobre 2026). Une monnaie qui n'existe qu'en solde
+        -- de bourse n'a rien a y poser : LCM.Coffres.Accepte en juge.
+        for _, ressource in ipairs((LCM.Ressources and LCM.Ressources.list) or {}) do
+            local ref = "ressources/" .. tostring(ressource.id)
+            if not deja[ref] then
+                out[#out + 1] = { id = ref, label = ressource.label or ressource.id,
+                    groupe = "Ressources" }
+            end
+        end
+        for _, devise in ipairs((LCM.Devises and LCM.Devises.list) or {}) do
+            local ref = "devises/" .. tostring(devise.id)
+            if not deja[ref] and LCM.Coffres.Accepte(ref) == true then
+                out[#out + 1] = { id = ref, label = devise.label or devise.id, groupe = "Devises" }
+            end
+        end
+        -- Un sac se pose dans un coffre comme n'importe quelle entree : il se
+        -- range, il se transporte (le MJ, 20 octobre 2026).
+        for _, sac in ipairs((LCM.Sacs and LCM.Sacs.list) or {}) do
+            local ref = "sacs/" .. tostring(sac.id)
+            if not deja[ref] then
+                out[#out + 1] = { id = ref, label = sac.label or sac.id, groupe = "Sacs" }
+            end
+        end
     end
     if doublons then
         for _, typeOutil in ipairs(LCM.Listes.De("outils")) do
@@ -370,9 +394,10 @@ local function Construire()
     end
 
     local function AccepterObjet(objet)
-        if objet and (tostring(objet.ref or ""):match("^objets/")
-            or tostring(objet.ref or ""):match("^livres/")) then return true end
-        return false, "choisis un objet ou un livre du compendium."
+        if not objet then return false, "choisis une entrée du compendium." end
+        local accueilli, pourquoi = LCM.Coffres.Accepte(objet.ref)
+        if accueilli then return true end
+        return false, pourquoi or "choisis une entrée que le coffre accueille."
     end
     local function AccepterOutil(objet)
         if objet and tostring(objet.ref or ""):match("^objets/") then return true end
@@ -381,9 +406,11 @@ local function Construire()
 
     function f:Ajouter(typeListe, ref)
         local typeOutil = typeListe == "outils" and tostring(ref or ""):match("^type_outil/(.+)$")
-        if not self.travail or (not tostring(ref or ""):match("^objets/")
-            and not (typeListe == "objets" and tostring(ref or ""):match("^livres/"))
-            and not typeOutil) then return end
+        -- Les outils d'une tentative sont des objets ; le CONTENU accepte
+        -- tout ce qu'un coffre accueille (le MJ, 19 octobre 2026).
+        local contenu = typeListe == "objets" and LCM.Coffres.Accepte(ref) == true
+        if not self.travail or not (contenu or typeOutil
+            or tostring(ref or ""):match("^objets/")) then return end
         local liste = self.travail.coffre[typeListe]
         if type(liste) ~= "table" then return end
         if typeListe ~= "outils" then

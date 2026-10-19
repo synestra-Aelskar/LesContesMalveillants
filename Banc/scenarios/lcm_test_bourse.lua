@@ -13,6 +13,15 @@ local B = LCM.Bourse
 local UI = LCM.UI
 local moi = LCM.Entities.Self()
 
+-- Ce scenario parle du cas ORDINAIRE : une monnaie qui n'existe qu'en solde de
+-- bourse. Les Ecus de la campagne ont recu la case « Materiel » (base publiee,
+-- 20 octobre 2026), ce qui ajoute « Materialiser » a leur menu. On la
+-- neutralise pour la duree du test, et on la remet a la fin : un test ne se
+-- tient pas sur le contenu de la seance. La monnaie materielle a son propre
+-- scenario (lcm_test_devise_materiel.lua).
+local materielEcus = LCM.Devises.Get("ecus").materiel
+LCM.Devises.Get("ecus").materiel = nil
+
 dire("== les devises viennent du compendium, pas d'une liste a part")
 attendu("ecus", LCM.Devises.Get("ecus").label, "Écus")
 attendu("credits domiens", LCM.Devises.Get("credits").label, "Crédits")
@@ -181,5 +190,7 @@ attendu("liee", LCM.UI.Menu.EstLiee("bourse"), true)
 f:Hide()
 SlashCmdList.LCM("bourse")
 attendu("la commande ouvre la bourse", LCM.UI.Bourse.frame:IsShown(), true)
+
+LCM.Devises.Get("ecus").materiel = materielEcus
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

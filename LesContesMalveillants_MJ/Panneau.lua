@@ -11,8 +11,9 @@
 --   Combat    ce qui etait la fenetre de combat a part (Combat.lua) ;
 --   PNJ       les PNJ en scene, leur incarnation et le renvoi de la scene ;
 --   Contenus  le systeme ;
---   Outils    annonces, compteurs, barres et notes partages avec les joueurs
---             (Core/Outils.lua ; les Outils de Necronicon).
+--   Outils    annonces, barres, compteurs et notes partages avec les joueurs,
+--             en quatre sous-onglets (OutilsUI.lua, Core/Outils.lua ; les
+--             Outils de Necronicon, repris en entier le 20 octobre 2026).
 -- Les onglets Général et Permissions de Necronicon ne sont pas repris : il n'y
 -- a ici ni assistants MJ ni droits par interaction.
 --
@@ -1143,139 +1144,12 @@ function Pages.equilibrage(page, f)
     end
 end
 
+-- Les outils partages ont leur propre fichier, et leur propre sous-menu
+-- (OutilsUI.lua) : annonces, barres, compteurs et notes, chacun avec son
+-- apparence, sa portee et sa bibliotheque. Cette page les tenait en une seule
+-- vue tassee ou rien ne se reglait (le MJ, 20 octobre 2026).
 function Pages.outils(page, f)
-    local O = LCM.Outils
-    local largeur = LARGEUR - 24
-
-    -- ----- l'annonce --------------------------------------------------------
-    page.titreAnnonce = Titre(page, "Annonce")
-    page.titreAnnonce:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-    page.annonce = UI.Champ(page, largeur - 130, 22, nil)
-    page.annonce:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -20)
-    page.annoncer = UI.Bouton(page, "Annoncer", 120, 22, function()
-        if Dire(O.Annoncer(page.annonce:GetText())) then
-            LCM.Ok("annonce envoyée.")
-            page.annonce:SetText("")
-        end
-    end)
-    page.annoncer:SetPoint("LEFT", page.annonce, "RIGHT", 10, 0)
-
-    -- ----- creer -------------------------------------------------------------
-    page.titreCreer = Titre(page, "Créer un outil")
-    page.titreCreer:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -54)
-    local function Etiquette(texte, ancre, dx)
-        local t = UI.Texte(page, texte, UI.C.discret)
-        UI.Police(t, 11)
-        t:SetPoint("LEFT", ancre, "RIGHT", dx or 10, 0)
-        return t
-    end
-    page.libelleLabel = UI.Texte(page, "Libellé", UI.C.discret)
-    UI.Police(page.libelleLabel, 11)
-    page.libelleLabel:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -80)
-    page.libelle = UI.Champ(page, 200, 22, nil)
-    page.libelle:SetPoint("LEFT", page.libelleLabel, "RIGHT", 6, 0)
-    page.valeurLabel = Etiquette("Valeur", page.libelle, 12)
-    page.valeur = UI.Champ(page, 52, 22, nil)
-    page.valeur:SetPoint("LEFT", page.valeurLabel, "RIGHT", 6, 0)
-    page.valeur:SetText("0")
-    page.maximumLabel = Etiquette("Max", page.valeur, 12)
-    page.maximum = UI.Champ(page, 52, 22, nil)
-    page.maximum:SetPoint("LEFT", page.maximumLabel, "RIGHT", 6, 0)
-    page.maximum:SetText("10")
-
-    local function Creer(sorte)
-        local o, ok, raison = O.Creer(sorte, page.libelle:GetText(), page.valeur:GetText(),
-            page.maximum:GetText(), page.texte:GetText())
-        -- Refuse : la raison est dite, et la saisie reste la pour corriger.
-        if not o then LCM.Alerte(tostring(ok)) return end
-        if not ok and raison then LCM.Alerte(tostring(raison)) end
-        page.libelle:SetText("")
-        page.texte:SetText("")
-        page:Afficher()
-    end
-    page.creerCompteur = UI.Bouton(page, "+ Compteur", 100, 22, function() Creer("compteur") end)
-    page.creerCompteur:SetPoint("LEFT", page.maximum, "RIGHT", 12, 0)
-    page.creerBarre = UI.Bouton(page, "+ Barre", 80, 22, function() Creer("barre") end)
-    page.creerBarre:SetPoint("LEFT", page.creerCompteur, "RIGHT", 6, 0)
-
-    page.texte = UI.Zone(page, largeur - 110, 54, nil)
-    page.texte.saisie:SetMaxLetters(O.TEXTE_MAX)
-    page.texte:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -110)
-    page.creerNote = UI.Bouton(page, "+ Note", 100, 22, function() Creer("note") end)
-    page.creerNote:SetPoint("TOPLEFT", page.texte, "TOPRIGHT", 10, 0)
-
-    -- ----- ce qui est partage ----------------------------------------------
-    page.titreListe = Titre(page, "Partagés avec le groupe")
-    page.titreListe:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -176)
-    page.renvoyer = UI.Bouton(page, "Tout renvoyer", 110, 20, function()
-        O.Renvoyer()
-        LCM.Ok("outils renvoyés au groupe.")
-    end)
-    page.renvoyer:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -174)
-    page.zone = UI.Defilement(page)
-    page.zone:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -200)
-    page.zone:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    page.lignes = {}
-    page.vide = UI.Texte(page, "", UI.C.discret)
-    UI.Police(page.vide, 11)
-    page.vide:SetPoint("TOP", page.zone, "TOP", 0, -10)
-
-    local function Ligne(rang)
-        local l = page.lignes[rang]
-        if l then return l end
-        l = Rangee(page.zone.contenu, LIGNE)
-        l.sorte = UI.Texte(l, "", UI.C.accent)
-        UI.Police(l.sorte, 10)
-        l.sorte:SetPoint("LEFT", l, "LEFT", 8, 0)
-        l.sorte:SetWidth(70)
-        l.sorte:SetJustifyH("LEFT")
-        l.nom = UI.Texte(l, "", UI.C.texte)
-        UI.Police(l.nom, 12)
-        l.nom:SetPoint("LEFT", l, "LEFT", 82, 0)
-        l.retirer = UI.Bouton(l, "Retirer", 70, 20, function() Dire(O.Retirer(l.outilId)) end)
-        l.retirer:SetPoint("RIGHT", l, "RIGHT", -6, 0)
-        l.plus = UI.Bouton(l, "+1", 30, 20, function() Dire(O.Ajouter(l.outilId, 1)) end)
-        l.plus:SetPoint("RIGHT", l.retirer, "LEFT", -10, 0)
-        l.moins = UI.Bouton(l, "-1", 30, 20, function() Dire(O.Ajouter(l.outilId, -1)) end)
-        l.moins:SetPoint("RIGHT", l.plus, "LEFT", -4, 0)
-        l.valeur = UI.Texte(l, "", UI.C.accent)
-        UI.Police(l.valeur, 12)
-        l.valeur:SetPoint("RIGHT", l.moins, "LEFT", -10, 0)
-        l.valeur:SetJustifyH("RIGHT")
-        page.lignes[rang] = l
-        return l
-    end
-
-    function page:Afficher()
-        local liste = O.Liste()
-        local y = 0
-        for rang, o in ipairs(liste) do
-            local l = Ligne(rang)
-            l.outilId = o.id
-            l.sorte:SetText(O.SORTES[o.sorte])
-            l.nom:SetText(o.libelle)
-            local chiffre = o.sorte ~= "note"
-            l.plus:SetShown(chiffre)
-            l.moins:SetShown(chiffre)
-            if o.sorte == "barre" then
-                l.valeur:SetText(string.format("%d / %d", o.valeur, o.maximum))
-            elseif o.sorte == "compteur" then
-                l.valeur:SetText(tostring(o.valeur))
-            else
-                l.valeur:SetText(string.format("%d caractères", #(o.texte or "")))
-            end
-            Poser(l, self.zone.contenu, y)
-            y = y + LIGNE
-        end
-        for rang = #liste + 1, #self.lignes do self.lignes[rang]:Hide() end
-        self.zone:Regler(y)
-        self.nombre = #liste
-        self.vide:SetText(#liste > 0 and "" or "Rien de partagé pour l'instant.")
-    end
-
-    O.onChangeMJ = function()
-        if f:IsShown() and f.onglet == "outils" then page:Afficher() end
-    end
+    if MJ.OutilsUI then MJ.OutilsUI.Page(page, f) end
 end
 
 -- ===== La fenetre ==========================================================

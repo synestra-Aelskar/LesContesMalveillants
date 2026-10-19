@@ -28,6 +28,8 @@ Forge.lua
 LivresUI.lua
 Compendium.lua
 Consultation.lua
+Outils.lua
+OutilsUI.lua
 Panneau.lua
 Lieux.lua
 Bannieres.lua

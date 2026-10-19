@@ -50,9 +50,19 @@ LCM.Points = LCM.Registre({
             coffre.tente = c.tente and tostring(c.tente) ~= "" and tostring(c.tente) or nil
             -- Un objet pose seul au sol : il se ramasse d'un coup, sans s'ouvrir.
             coffre.objet = c.objet == true or nil
-            local familles = (coffre.sac or coffre.tente or coffre.objet)
-                and { objets = true, livres = true, ressources = true, accessoires_camping = true, sacs = true, devises = true }
-                or { objets = true, livres = true }
+            -- Les memes familles pour TOUS les coffres, qu'ils soient poses ou
+            -- laches au sol : c'est la regle d'accueil de LCM.Coffres.Accepte,
+            -- que la fenetre du joueur, l'atelier et l'arbitrage du
+            -- proprietaire lisent deja. Un coffre ordinaire n'acceptait ici
+            -- qu'objets et livres : garni d'une ressource dans l'atelier, il
+            -- se faisait ecarter au /reload suivant, avec tout son contenu
+            -- (20 octobre 2026).
+            --
+            -- La finesse des devises — seules les « materielles » se
+            -- transportent — reste au moment du GESTE : un chargement ne doit
+            -- pas dependre de l'ordre dans lequel les fichiers arrivent.
+            local familles = { objets = true, livres = true, ressources = true,
+                               accessoires_camping = true, sacs = true, devises = true }
             local presents = {}
             for _, objet in ipairs(type(c.objets) == "table" and c.objets or {}) do
                 local ref = tostring(objet.entree or "")
