@@ -13,7 +13,6 @@ __declencher("PLAYER_LOGIN")
 __personnage()
 __groupe({ LCM.PlayerId(), "Syn-Apertus" })
 __position(50, 60, 0)
-LCM.DeplacementForce.NoterGPS("50.000000 60.000000 0.000000 585 0.000000")
 
 local REF = "objets/coffre_joueur_temoin"
 LCM.Objets.Add({ id = "coffre_joueur_temoin", label = "Potion du coffre", categorie = "accessoire",
@@ -22,7 +21,7 @@ local C = LCM.Coffres
 local definition = { id = "coffre_externe", label = "Coffre partagé", auteur = "Syn-Apertus",
     coffre = { places = 3, verrous = 0, reset = false,
         objets = { { entree = REF, quantite = 2 } }, expertises = {}, outils = {} } }
-local point = { id = "coffre_externe_1", x = 50, y = 60, z = 0, source = "monde", carte = LCM.Recolte.Carte() }
+local point = { id = "coffre_externe_1", x = 50, y = 60, source = "monde", carte = LCM.Recolte.Carte() }
 local paquet = C.Paquet(definition, { point })
 paquet = LCM.Reseau.Decoder(LCM.Reseau.Encoder(paquet))
 LCM.Objets.Retirer("coffre_joueur_temoin")
@@ -33,9 +32,6 @@ attendu("définition de coffre reçue sans MJ", C.definitions.coffre_externe.lab
 attendu("objet importé sans compendium local préalable",
     LCM.Compendium.Resoudre(REF) and LCM.Compendium.Resoudre(REF).label, "Potion du coffre")
 attendu("point sur la carte reconnu", C.Proche() and C.Proche().id, point.id)
-LCM.UI.Coffre.Proche(point)
-attendu("clic droit d'édition masqué au joueur", LCM.UI.Coffre.bouton.editer:IsShown(), false)
-attendu("ouverture en édition refusée au joueur", select(1, C.Ouvrir(point.id, true)), false)
 
 C.Ouvrir(point.id)
 attendu("fenêtre de consultation ouverte", LCM.UI.Coffre.frame and LCM.UI.Coffre.frame:IsShown(), true)

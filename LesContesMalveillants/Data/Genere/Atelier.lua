@@ -273,6 +273,38 @@ LCM.PublierPublique(LCM.Listes, "listes", {
     remplacePublie = true,
 }, "cb994e63522e63f6")
 
+-- ----- livres (1) --------------------------------------------------
+LCM.PublierPublique(LCM.Livres, "livres", {
+    couverture = {
+        texte = "",
+        titre = "",
+    },
+    dos = {
+        texte = "",
+        titre = "",
+    },
+    format = "livre",
+    icone = "Interface\\ICONS\\eps_bg3_itemkethericbook",
+    id = "lcm_64a651_6ad4cd18_19518f43_0002_ea9d76",
+    label = "Ouvrage humide.",
+    pages = {
+        {
+            texte = "[Une large partie de l'ouvrage est vétuste.. rongé par l'humidité, et le temps.. Entre deux pages.. Vous trouvez éventuellement quelques insectes..]\n\nCette page semble contenir des annotations ressemblant à des cercles runiques.. Hélas, l'encre n'a guère survécu à l'humidité des lieux....\n\n{img:Interface\\Garrison\\ShadowlandsMissionLandingPageBackgroundNightFae:256:256:c}\n\n\n\n\n",
+            titre = "",
+        },
+        {
+            texte = "",
+            titre = "",
+        },
+    },
+    style = {
+        accent = "C5A265",
+        alignement = "LEFT",
+        encre = "E9DDBF",
+        fond = "202735",
+    },
+}, "d88971ed8d877a7a")
+
 -- ----- objets (35) --------------------------------------------------
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },

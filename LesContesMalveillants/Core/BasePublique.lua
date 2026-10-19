@@ -33,7 +33,7 @@ local REGISTRES = {
     accessoires_camping = "AccessoiresCamping", apprentissages = "Apprentissages",
     calculateurs = "Calculateurs", connaissances = "Connaissances",
     devises = "Devises", etats = "Etats", informations = "Informations",
-    listes = "Listes", objets = "Objets", races = "Races",
+    listes = "Listes", objets = "Objets", livres = "Livres", races = "Races",
     ressources = "Ressources", sacs = "Sacs", tentes = "Tentes",
     traits = "Traits", resolutions = "Resolutions",
 }

@@ -5,6 +5,15 @@ local UI, C = LCM.UI, LCM.Coffres
 local Ecran = {}
 UI.Coffre = Ecran
 
+local function Importer(ref, definition)
+    if type(definition) ~= "table" then return end
+    if tostring(ref or ""):match("^livres/") then
+        if LCM.Livres then LCM.Livres.Importer(ref, definition) end
+    elseif LCM.Echange and LCM.Echange.ImporterObjetPartage then
+        LCM.Echange.ImporterObjetPartage({ ref = ref, definition = definition })
+    end
+end
+
 local CASE, HAUTEUR_CASE, ECART, COLONNES_MAX = 68, 86, 8, 5
 local LARGEUR_MIN, LARGEUR_VERROUILLEE = 340, 390
 local VIDE = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
@@ -625,8 +634,9 @@ local function Construire()
             if not objet.origine or not objet.origine.case then
                 return false, "seuls les objets de ton inventaire peuvent être rangés."
             end
-            if not tostring(objet.ref or ""):match("^objets/") then
-                return false, "le coffre n'accepte que des objets."
+            if not (tostring(objet.ref or ""):match("^objets/")
+                or tostring(objet.ref or ""):match("^livres/")) then
+                return false, "le coffre n'accepte que des objets ou des livres."
             end
             return true
         end, function(objet) f:Ranger(objet) end)
@@ -853,9 +863,7 @@ function Ecran.Repondre(expediteur, data)
         if not data.ok then if data.msg then LCM.Alerte(tostring(data.msg)) end return end
         local entite = LCM.Entities.Self()
         for _, o in ipairs(type(data.w) == "table" and data.w or {}) do
-            if type(o.d) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-                LCM.Echange.ImporterObjetPartage({ ref = o.e, definition = o.d })
-            end
+            Importer(o.e, o.d)
             local ok, raison = LCM.Inventaire.Deposer(entite, o.e, tonumber(o.q) or 1)
             if not ok then LCM.Alerte(raison or "aucune place libre.") end
         end
@@ -879,9 +887,7 @@ function Ecran.Repondre(expediteur, data)
     elseif data.action == "prendre" and f.priseGlissee then
         local demande = f.priseGlissee
         demande.reponse = data.ok == true
-        if data.ok and data.objet and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-            LCM.Echange.ImporterObjetPartage({ ref = data.e, definition = data.objet })
-        end
+        if data.ok then Importer(data.e, data.objet) end
         C_Timer.After(0, function()
             if f.priseGlissee ~= demande then return end
             if demande.reponse and demande.annulee then
@@ -893,9 +899,7 @@ function Ecran.Repondre(expediteur, data)
         end)
     elseif data.action == "prendre" and data.ok then
         local item = data.objet
-        if item and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-            LCM.Echange.ImporterObjetPartage({ ref = data.e, definition = item })
-        end
+        Importer(data.e, item)
         local ok, raison = LCM.Inventaire.Deposer(LCM.Entities.Self(), data.e, tonumber(data.q) or 1)
         if not ok then C.Envoyer("ranger", { e = data.e, q = tonumber(data.q) or 1 }); LCM.Alerte(raison) end
     elseif data.action == "forcer" and data.ok and f.outilsEnAttente then
@@ -943,9 +947,7 @@ local function Emporter(data)
     local onglet, index = LCM.Inventaire.PlacePour(entite, { sac = sac, tente = tente })
     local objets = {}
     for _, o in ipairs(type(data.w) == "table" and data.w or {}) do
-        if type(o.d) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-            LCM.Echange.ImporterObjetPartage({ ref = o.e, definition = o.d })
-        end
+        Importer(o.e, o.d)
         objets[#objets + 1] = { entree = o.e, quantite = tonumber(o.q) or 1 }
     end
     local reste = objets

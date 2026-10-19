@@ -98,6 +98,14 @@ Recolte.Position, Recolte.Carte = Position, Carte
 -- Un placement interactif exige une altitude reelle. Les coordonnees de carte
 -- n'en donnent pas et ne peuvent pas etre utilisees par .worldport.
 function Recolte.Position3D()
+    -- Comme Arcanum pour un spark : la position serveur d'Epsilon d'abord, avec
+    -- son altitude et sa carte, sans UnitPosition ni `.gps`. Sert aux points de
+    -- recolte comme aux marchands (Marchands.Placer passe ici).
+    local D = LCM.DeplacementForce
+    if D and D.EpsilonDisponible and D.EpsilonDisponible() then
+        local ex, ey, esource, ez = Position("gps")
+        if ex and ez then return ex, ey, esource, ez end
+    end
     local x, y, source, z = Position("monde")
     if x and z then return x, y, source, z end
     return Position("gps")
@@ -232,7 +240,8 @@ function Recolte.Paquet(definition, points)
             entree = ressource.entree, min = ressource.min, max = ressource.max,
             chance = ressource.chance, aleatoire = ressource.aleatoire,
             regeneration = ressource.regeneration, minutes = ressource.minutes,
-            definition = LCM.Echange and LCM.Echange.DefinitionObjet(ressource.entree) or nil,
+            definition = (LCM.Livres and LCM.Livres.Definition(ressource.entree))
+                or (LCM.Echange and LCM.Echange.DefinitionObjet(ressource.entree)) or nil,
         }
     end
     return {
@@ -255,8 +264,12 @@ function Recolte.Lire(paquet)
         ressources = {}
         for _, r in ipairs(paquet.u) do
             local entree = Texte(r.entree)
-            if type(r.definition) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-                LCM.Echange.ImporterObjetPartage({ ref = entree, definition = r.definition })
+            if type(r.definition) == "table" then
+                if entree:match("^livres/") and LCM.Livres then
+                    LCM.Livres.Importer(entree, r.definition)
+                elseif LCM.Echange and LCM.Echange.ImporterObjetPartage then
+                    LCM.Echange.ImporterObjetPartage({ ref = entree, definition = r.definition })
+                end
             end
             ressources[#ressources + 1] = {
                 entree = entree, min = tonumber(r.min) or 1,

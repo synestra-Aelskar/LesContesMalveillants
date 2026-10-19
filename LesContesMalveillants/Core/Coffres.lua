@@ -25,7 +25,8 @@ function Coffres.Paquet(definition, points)
     local objets = {}
     for _, o in ipairs(c.objets or {}) do
         objets[#objets + 1] = { e = o.entree, q = o.quantite,
-            d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
+            d = (LCM.Livres and LCM.Livres.Definition(o.entree))
+                or (LCM.Echange and LCM.Echange.DefinitionObjet(o.entree)) or nil }
     end
     local outils = {}
     for _, o in ipairs(c.outils or {}) do
@@ -44,8 +45,12 @@ function Coffres.Lire(paquet)
     local id = Texte(paquet and paquet.i)
     if id == "" then return nil end
     local function importer(ref, definition)
-        if type(definition) == "table" and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-            LCM.Echange.ImporterObjetPartage({ ref = ref, definition = definition })
+        if type(definition) == "table" then
+            if tostring(ref):match("^livres/") and LCM.Livres then
+                LCM.Livres.Importer(ref, definition)
+            elseif LCM.Echange and LCM.Echange.ImporterObjetPartage then
+                LCM.Echange.ImporterObjetPartage({ ref = ref, definition = definition })
+            end
         end
     end
     local raw = type(paquet.c) == "table" and paquet.c or {}

@@ -353,6 +353,21 @@ Objet("armures", "Armures", "equipement", "type_armures", {
 })
 Objet("accessoires", "Accessoires", "accessoire", "type_accessoires")
 
+-- Les livres sont du contenu lisible, independant de la forge et de l'equipement.
+C.Categorie({
+    id = "livres", label = "Livres", type = "generic", registre = "Livres",
+    famille = "livres", editeur = "LivresUI", dossiers = { "Général" },
+    lire = {
+        format = function(livre) return livre.format == "note" and "Note" or "Livre" end,
+        pages = function(livre) return livre.pages and #livre.pages or 0 end,
+    },
+    champs = {
+        Icone(), Description(true),
+        { cle = "format", label = "Format", type = "texte", emplacement = "meta" },
+        { cle = "pages", label = "Pages", type = "nombre", emplacement = "meta" },
+    },
+})
+
 -- Les outils ont leur propre liste de types et leur propre jeu de forge.
 -- Chaque point attribué à un métier apporte +1 à son jet lorsqu'il est porté.
 local bonusMetiers = {}

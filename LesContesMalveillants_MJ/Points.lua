@@ -51,8 +51,8 @@ LCM.Points = LCM.Registre({
             -- Un objet pose seul au sol : il se ramasse d'un coup, sans s'ouvrir.
             coffre.objet = c.objet == true or nil
             local familles = (coffre.sac or coffre.tente or coffre.objet)
-                and { objets = true, ressources = true, accessoires_camping = true, sacs = true, devises = true }
-                or { objets = true }
+                and { objets = true, livres = true, ressources = true, accessoires_camping = true, sacs = true, devises = true }
+                or { objets = true, livres = true }
             local presents = {}
             for _, objet in ipairs(type(c.objets) == "table" and c.objets or {}) do
                 local ref = tostring(objet.entree or "")

@@ -43,9 +43,10 @@ local function Entier(texte)
     return n and n == math.floor(n) and n or nil
 end
 
--- Un point donne des ressources ou des objets forgés (armes, armures,
--- accessoires). Les sacs, tentes et autres entrées restent exclus.
-local FAMILLES = { objets = "Objets", ressources = "Ressources" }
+-- Un point donne des ressources ou des objets forges, outils compris.
+-- Les sacs, tentes et autres entrees restent exclus.
+local CATEGORIES = { "ressources", "livres", "outils", "armes", "armures", "accessoires" }
+local FAMILLES = { objets = true, ressources = true, livres = true }
 
 local function EstEntreeRecoltable(ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
@@ -54,17 +55,23 @@ end
 
 local function OptionsEntrees()
     local options = {}
-    for famille, groupe in pairs(FAMILLES) do
-        local registreNom = LCM.Compendium and LCM.Compendium.FAMILLES
-            and LCM.Compendium.FAMILLES[famille]
-        local registre = registreNom and LCM[registreNom]
-        for _, entree in ipairs((registre and registre.list) or {}) do
-            options[#options + 1] = { id = famille .. "/" .. entree.id,
-                label = entree.label or entree.id, groupe = groupe }
+    for _, id in ipairs(CATEGORIES) do
+        local categorie = LCM.Compendium.Get(id)
+        if categorie then
+            for _, entree in ipairs(LCM.Compendium.Entrees(categorie)) do
+                options[#options + 1] = { id = LCM.Compendium.Reference(categorie, entree),
+                    label = entree.label or entree.id, groupe = categorie.label }
+            end
         end
     end
+    -- Regrouper d'abord par categorie, dans l'ordre choisi ci-dessus.
+    local ordre = {}
+    for index, id in ipairs(CATEGORIES) do
+        local categorie = LCM.Compendium.Get(id)
+        if categorie then ordre[categorie.label] = index end
+    end
     table.sort(options, function(a, b)
-        if a.groupe ~= b.groupe then return a.groupe < b.groupe end
+        if a.groupe ~= b.groupe then return ordre[a.groupe] < ordre[b.groupe] end
         return tostring(a.label) < tostring(b.label)
     end)
     return options
@@ -399,7 +406,7 @@ local function Construire()
         end
         local function Accepter(objet)
             if objet and EstEntreeRecoltable(objet.ref) then return true end
-            return false, "seules les ressources et les armes, armures ou accessoires du compendium peuvent être récoltés."
+            return false, "seules les ressources, livres et objets du compendium peuvent être récoltés."
         end
         local function Ajouter(ref)
             local items = self.travail.recolte.ressources
@@ -587,7 +594,7 @@ local function Construire()
             c.ajouter.fond = UI.Aplat(c.ajouter, { 0.07, 0.07, 0.07, 0.10 })
             c.ajouter.fond:SetAllPoints(c.ajouter)
             UI.BordureFine(c.ajouter, 0.14)
-            c.ajouter.label = UI.Texte(c.ajouter, "+ Ajouter une ressource", UI.C.discret, "GameFontNormalSmall")
+            c.ajouter.label = UI.Texte(c.ajouter, "+ Ajouter un élément", UI.C.discret, "GameFontNormalSmall")
             c.ajouter.label:SetAllPoints(c.ajouter)
             c.ajouter.label:SetJustifyH("CENTER")
             local survolAjout = UI.Aplat(c.ajouter, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
@@ -749,7 +756,7 @@ local function Construire()
                 return nil, "choisis la ressource que le point donne.", index
             end
             if not EstEntreeRecoltable(lot.entree) then
-                return nil, "un point de récolte donne seulement des ressources ou des objets (armes, armures, accessoires).", index
+                return nil, "un point de récolte donne seulement des ressources, livres ou objets.", index
             end
             local mini = Entier(lot.min)
             if not mini or mini < 1 then return nil, "la quantité doit être un nombre entier, au moins 1.", index end

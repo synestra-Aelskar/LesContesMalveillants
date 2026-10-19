@@ -122,6 +122,21 @@ end
 Echange.DefinitionObjet = DefinitionObjet
 Echange.ImporterObjetPartage = ImporterObjetPartage
 
+function Echange.DefinitionPartagee(ref)
+    if tostring(ref or ""):match("^livres/") and LCM.Livres then
+        return LCM.Livres.Definition(ref)
+    end
+    return DefinitionObjet(ref)
+end
+
+function Echange.ImporterPartage(pose)
+    if type(pose) ~= "table" then return false end
+    if tostring(pose.ref or ""):match("^livres/") and LCM.Livres then
+        return LCM.Livres.Importer(pose.ref, pose.definition)
+    end
+    return ImporterObjetPartage(pose)
+end
+
 function Echange.ChargerObjetsRecus()
     local db = LCM.EnsureDatabase()
     for id, definition in pairs(type(db.objetsRecus) == "table" and db.objetsRecus or {}) do
@@ -240,7 +255,7 @@ function Echange.Offrir(objet)
     seance.mien.objets[#seance.mien.objets + 1] = {
         ref = objet.ref, quantite = objet.quantite or 1,
         nom = objet.nom, icone = objet.icone,
-        definition = DefinitionObjet(objet.ref),
+        definition = Echange.DefinitionPartagee(objet.ref),
         rendre = objet.rendre, origine = objet.origine,
     }
     Bouge()
@@ -306,7 +321,7 @@ local function SurContenu(qui, donnees)
     local seance = Echange.courant
     if not Reconnue(seance, qui) then return end
     seance.sien.objets = (type(donnees) == "table" and donnees.objets) or {}
-    for _, pose in ipairs(seance.sien.objets) do ImporterObjetPartage(pose) end
+    for _, pose in ipairs(seance.sien.objets) do Echange.ImporterPartage(pose) end
     seance.sien.devises = (type(donnees) == "table" and donnees.devises) or {}
     Bouge()
     Prevenir()

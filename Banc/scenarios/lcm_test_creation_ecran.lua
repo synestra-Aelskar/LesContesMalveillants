@@ -487,8 +487,8 @@ for _, etape in ipairs({ "penetrations", "resistances" }) do
         finRang <= f.pages[etape].blocs[1]:GetWidth() - LCM.UI.Fiche.MARGE_BLOC - 6 + 0.5, true)
 end
 local tranchant = compteur(pen, "pen_tranchant")
--- force 8 -> 8 / 1 = 8, plus la base de 3.
-attendu("plafond suivant la force investie", tranchant.plafond, 11)
+-- force 8 -> 8 / 1,75 = 4, plus la base de 3.
+attendu("plafond suivant la force investie", tranchant.plafond, 7)
 for _ = 1, 7 do tranchant.plus:Click() end
 attendu("sept points poses", f.brouillon.valeurs.pen_tranchant, 7)
 

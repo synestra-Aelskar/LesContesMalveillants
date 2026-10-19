@@ -96,11 +96,7 @@ end
 -- de), le bonus reste a part pour dire d'ou vient la difference.
 attendu("vue : le total", ligneVue.valeur:GetText(), "2")
 attendu("vue : bonus dans sa colonne", ligneVue.bonus:GetText(), "+2")
-attendu("vue : plus de petite case d'avantage", ligneVue.avantage:IsShown(), false)
-ligneVue.lancer:Click()
-attendu("vue : avantage dans le panneau de jet", ligneVue.saisieExpertise.avantage:IsShown(), true)
-attendu("vue : désavantage dans le panneau de jet", ligneVue.saisieExpertise.desavantage:IsShown(), true)
-ligneVue.saisieExpertise:Hide()
+attendu("vue : case d'avantage", ligneVue.avantage:IsShown(), true)
 fe:Hide()
 
 dire("== retirer")

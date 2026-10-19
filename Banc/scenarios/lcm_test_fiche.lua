@@ -283,35 +283,14 @@ attendu("le bonus vient apres la valeur",
 attendu("et le bouton ferme la marche",
     x(jet.lancer) >= x(jet.bonus) + jet.bonus:GetWidth(), true)
 
-dire("== un jet d'expertise demande DD/PF et applique le resultat")
-attendu("expertise configuree pour DD/PF", cible.jetExpertise, true)
+dire("== un jet d'expertise demande DD/NF et applique le resultat")
+attendu("expertise configuree pour DD/NF", cible.jetExpertise, true)
 jet.lancer:Click()
 attendu("la saisie expertise s'ouvre", jet.saisieExpertise:IsShown(), true)
 attendu("DD vide affiche son indication", jet.saisieExpertise.dd.indication:IsShown(), true)
-attendu("et le petit texte DD", jet.saisieExpertise.dd.indication:GetText(), "DD")
-attendu("PF vide affiche son indication", jet.saisieExpertise.nf.indication:IsShown(), true)
-attendu("et le petit texte PF", jet.saisieExpertise.nf.indication:GetText(), "PF")
-attendu("sans trait, pas de choix avantage", jet.saisieExpertise.avantage:IsShown(), false)
-attendu("sans trait, pas de choix désavantage", jet.saisieExpertise.desavantage:IsShown(), false)
+attendu("NF vide affiche son indication", jet.saisieExpertise.nf.indication:IsShown(), true)
 jet.saisieExpertise.lancer:Click()
 attendu("DD est obligatoire", jet.saisieExpertise:IsShown(), true)
-
-jet.saisieExpertise:Hide()
-LCM.Traits.Add({ id = "trait_equilibre_banc", label = "Trait d'équilibre du banc",
-    cout = 1, bonus = { equilibre = 1 } })
-LCM.Traits.Grant(moi, "trait_equilibre_banc")
-jet.lancer:Click()
-attendu("le bonus de trait propose l'avantage", jet.saisieExpertise.avantage:IsShown(), true)
-attendu("le bonus de trait propose le désavantage", jet.saisieExpertise.desavantage:IsShown(), true)
-attendu("plus de petite case sur la ligne d'expertise", jet.avantage:IsShown(), false)
-jet.saisieExpertise.avantage:Click()
-attendu("avantage active", jet.saisieExpertise.mode, "avantage")
-attendu("avantage en surbrillance", jet.saisieExpertise.avantage.selection:IsShown(), true)
-jet.saisieExpertise.desavantage:Click()
-attendu("désavantage remplace l'avantage", jet.saisieExpertise.mode, "desavantage")
-attendu("avantage eteint", jet.saisieExpertise.avantage.selection:IsShown(), false)
-attendu("désavantage en surbrillance", jet.saisieExpertise.desavantage.selection:IsShown(), true)
-jet.saisieExpertise:Hide()
 
 local ancienRandom = math.random
 local jaugeFatigue = LCM.Entities.Gauge(moi, "fatigue")
@@ -319,14 +298,14 @@ local fatigueAvant = jaugeFatigue.current
 math.random = function(minimum) return minimum end
 local echec, erreur = LCM.Roll.ResoudreExpertise(moi, cible.id, 9999, 3)
 attendu("DD trop eleve produit un echec", echec and echec.issue, "Échec")
-attendu("PF est perdu en echec", echec and echec.perteFatigue, 3)
+attendu("NF est perdu en echec", echec and echec.perteFatigue, 3)
 attendu("la fatigue est retiree", LCM.Entities.Gauge(moi, "fatigue").current, fatigueAvant - 3)
 
 local jetMinimum = LCM.Roll.Field(moi, cible.id)
 local ddPartiel = jetMinimum.total
 local partiel = LCM.Roll.ResoudreExpertise(moi, cible.id, ddPartiel, 2)
 attendu("egaliser DD est une reussite partielle", partiel and partiel.issue, "Réussite partielle")
-attendu("PF est perdu en partiel", partiel and partiel.perteFatigue, 2)
+attendu("NF est perdu en partiel", partiel and partiel.perteFatigue, 2)
 
 math.random = function(_, maximum) return maximum end
 local critique = LCM.Roll.ResoudreExpertise(moi, cible.id, 9999, 4)
@@ -334,7 +313,6 @@ attendu("le maximum du de est une reussite totale", critique and critique.issue,
 attendu("le critique ne coute pas de fatigue", critique and critique.perteFatigue, 0)
 math.random = ancienRandom
 jet.saisieExpertise:Hide()
-LCM.Traits.Revoke(moi, "trait_equilibre_banc")
 vue:Hide()
 
 dire("== les jauges de ressource : les boutons sont au MJ")

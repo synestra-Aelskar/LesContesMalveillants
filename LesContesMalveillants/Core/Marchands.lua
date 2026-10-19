@@ -65,7 +65,7 @@ function Marchands.Rayon() return tonumber(Eq().rayon) or 4 end
 function Marchands.Paquet(definition, points)
     local o, b = {}, {}
     for _, offre in ipairs(definition.offres or {}) do
-        local definitionObjet = LCM.Echange and LCM.Echange.DefinitionObjet(offre.entree)
+        local definitionObjet = LCM.Echange and LCM.Echange.DefinitionPartagee(offre.entree)
         o[#o + 1] = { i = offre.id, e = offre.entree, l = offre.label, q = offre.quantite,
             f = LCM.Prix.Plier(LCM.Prix.DeLOffre(offre)), g = offre.onglet, s = offre.limite,
             r = offre.restant, x = definitionObjet }
@@ -113,8 +113,8 @@ function Marchands.Lire(paquet)
                 definition = type(o.x) == "table" and o.x or nil,
             }
             local dernier = definition.offres[#definition.offres]
-            if dernier.definition and LCM.Echange and LCM.Echange.ImporterObjetPartage then
-                LCM.Echange.ImporterObjetPartage({ ref = dernier.entree, definition = dernier.definition })
+            if dernier.definition and LCM.Echange and LCM.Echange.ImporterPartage then
+                LCM.Echange.ImporterPartage({ ref = dernier.entree, definition = dernier.definition })
             end
         end
     end

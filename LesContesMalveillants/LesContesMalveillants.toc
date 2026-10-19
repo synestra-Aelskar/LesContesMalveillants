@@ -22,6 +22,7 @@ Core\Body.lua
 Core\Traits.lua
 Core\Catalogues.lua
 Core\Objets.lua
+Core\Livres.lua
 Core\Etats.lua
 Core\EtatsTemporaires.lua
 Core\Dot.lua
@@ -107,6 +108,9 @@ UI\Experience.lua
 UI\HUD.lua
 UI\Auras.lua
 UI\Inventaires.lua
+UI\LivresGlyphes.lua
+UI\LivresAnimation.lua
+UI\Livres.lua
 UI\Metiers.lua
 UI\Grimoires.lua
 UI\SortEditeur.lua

@@ -1,6 +1,6 @@
 -- Le DOT : un etat qui grignote une jauge a chaque round (9 octobre 2026).
 --
--- Il se compose comme un debuff, avec un pool de points. Deux jauges se
+-- Il se compose comme un debuff, avec un pool de points. Trois jauges se
 -- grignotent toutes seules ; les PV et l'etat d'armure sont zones, donc le dot
 -- n'y touche pas et pose une NOTE que la cible applique elle-meme.
 
@@ -44,11 +44,12 @@ attendu("bouclier", prix.bouclier, 2)
 attendu("PF", prix.pf, 3)
 attendu("PV", prix.pv, 4)
 attendu("état d'armure", prix.armure, 4)
-attendu("PA absent du pool", prix.pa, nil)
+attendu("PA", prix.pa, 15)
 attendu("un round de plus", E.dot.coutRound, 4)
 attendu("un stack de plus", E.dot.coutStack, 10)
-attendu("un ancien choix PA ne coûte rien", D.Cout({ pa = 1 }), 0)
-attendu("et ne produit aucune morsure", #D.Composer({ pa = 1 }).morsures, 0)
+-- Les PA se comptent en unites : un pourcentage n'y voudrait rien dire.
+attendu("les PA grignotent a plat", D.Cible("pa").plat, 1)
+attendu("et pas en pourcentage", D.Cible("pa").taux, nil)
 
 dire("== ce que coute une composition")
 -- Deux points de PV (8), deux rounds de plus (8), deux stacks de plus (20).
@@ -80,6 +81,13 @@ attendu("la fatigue a été grignotée", fatigue.max - apres.current, attenduRet
 T.Round(moi)
 local encore = LCM.Entities.Gauge(moi, "fatigue")
 attendu("et du même montant au round suivant", apres.current - encore.current, attenduRetire)
+
+dire("== les PA se grignotent a plat")
+local pa = LCM.Entities.Gauge(moi, "pa")
+LCM.Entities.SetGauge(moi, "pa", pa.max)
+D.Poser(moi, { nom = "Engourdissement", choix = { pa = 1 }, jet = 10 })
+T.Round(moi)
+attendu("un PA en moins", pa.max - LCM.Entities.Gauge(moi, "pa").current, 1)
 
 dire("== une jauge ZONEE ne se touche pas : elle pose une note")
 local avantPV = LCM.Entities.Get_Value(moi, "pv_max")
@@ -258,34 +266,26 @@ dire("== le pool : ce qu'on a a depenser")
 -- penetrations choisies, le niveau du sort, le tout module par la puissance de
 -- la mecanique « Dot ».
 LCM.Entities.Set_Value(moi, "force", 6)
-LCM.Entities.Set_Value(moi, "pen_feu", 4)
 LCM.Entities.Set_Value(moi, "meca_dot", 0)
 local p = E.dot.pool
 local force = LCM.Formules.Primaire(moi, "force")
 local brutAttendu = force * p.parSource + 4 * p.parPen + 3 * p.parNiveau
-local selection = { feu = true }
-local pool, brut, mult = D.Pool(moi, { source = "force", penetrations = selection, niveau = 3 })
-attendu("la pénétration est lue sur la fiche", D.PenetrationMoyenne(moi, selection), 4)
-LCM.Entities.Set_Value(moi, "pen_eau", 2)
-attendu("plusieurs types font une moyenne", D.PenetrationMoyenne(moi, { feu = true, eau = true }), 3)
-LCM.Entities.Set_Value(moi, "pen_eau", 0)
-attendu("une valeur libre est ignorée", D.Pool(moi, { source = "force", penMoyenne = 999, niveau = 3 }),
-    D.Pool(moi, { source = "force", niveau = 3 }))
+local pool, brut, mult = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
 attendu("le brut suit la formule", brut, brutAttendu)
--- Sans point investi, la mecanique vaut sa base d'equilibrage.
+-- Sans point investi, la mecanique vaut sa base : 70 %.
 attendu("le multiplicateur est celui de la mécanique", mult,
     E.puissanceMecanique.base / 100)
 attendu("le pool est le produit, arrondi", pool, math.floor(brutAttendu * mult))
 
 -- Investir dans la mecanique agrandit le pool.
 LCM.Entities.Set_Value(moi, "meca_dot", 4)
-local poolMieux = D.Pool(moi, { source = "force", penetrations = selection, niveau = 3 })
+local poolMieux = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
 attendu("investir dans la mécanique agrandit le pool", poolMieux > pool, true)
 
 -- Et le reglage d'equilibrage le gouverne : « le dot est trop fort, on le passe
 -- a 50 % ». C'est le panneau MJ qui ecrira ce chemin.
 LCM.Reglages.Definir(LCM.Reglages.CheminMecanique("dot", "base"), 35)
-local poolFaible = D.Pool(moi, { source = "force", penetrations = selection, niveau = 3 })
+local poolFaible = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
 attendu("le réglage d'équilibrage le gouverne", poolFaible < poolMieux, true)
 LCM.Reglages.Retirer(LCM.Reglages.CheminMecanique("dot", "base"))
 LCM.Entities.Set_Value(moi, "meca_dot", 0)
@@ -351,13 +351,11 @@ attendu("  le bouton propose alors de réduire", F.basculer.label:GetText(), "R�
 -- niveau — choisis au bouton, comme les questions du composeur.
 dire("== ce qui fabrique le pool")
 for _, b in ipairs(F.sources) do if b.sourceId == "force" then b:Click() end end
-for _, b in ipairs(F.penetrations) do if b.typeId == "feu" then b:Click() end end
+F.pen:Saisir("4")
 F.niveaux[3]:Click()
 attendu("la source est retenue", F.choix.source, "force")
-attendu("la pénétration est sélectionnée", F.choix.penetrations.feu, true)
-attendu("la moyenne est visible", F.titrePen:GetText():find("moyenne : 4", 1, true) ~= nil, true)
 attendu("le niveau aussi", F.choix.niveau, 3)
-local attenduPool = D.Pool(moi, { source = "force", penetrations = { feu = true }, niveau = 3 })
+local attenduPool = D.Pool(moi, { source = "force", penMoyenne = 4, niveau = 3 })
 attendu("le pool est affiché", F.carrePool.valeur:GetText(), tostring(attenduPool))
 attendu("  et le reste avec", F.carreReste.valeur:GetText(), tostring(attenduPool))
 attendu("  l'en-tête le redit", F.reserve:GetText(), string.format("Pool : 0 / %d", attenduPool))
@@ -384,9 +382,12 @@ attendu("  le reste baisse", F.carreReste.valeur:GetText(), tostring(attenduPool
 attendu("  et la ligne dit ce qu'elle fait",
     pf.effet:GetText():find("par round", 1, true) ~= nil, true)
 -- Un pas qui ne tient pas est refuse : la valeur ne bouge pas.
-attendu("aucune ligne PA", ligneDe("pa"), nil)
-for _ = 1, 20 do pf.plus:Click() end
+local pa = ligneDe("pa")
+local avantPA = F.choix.pa or 0
+for _ = 1, 20 do pa.plus:Click() end
 attendu("au-delà du pool, ça ne tient pas", (D.Cout(F.choix)) <= F:Pool(), true)
+attendu("  et les PA n'ont pas bougé au-delà", (F.choix.pa or 0) >= avantPA, true)
+F.choix.pa = nil
 U.Rendre()
 
 dire("== l'aperçu dit ce qu'on est en train de faire")
@@ -399,9 +400,6 @@ dire("== la bibliothèque")
 attendu("vide au départ", #D.Modeles(), 0)
 attendu("on enregistre", (D.Enregistrer("Brûlure", "Ça pique.", nil, F.choix, "maladie")), true)
 attendu("  et on la retrouve", #D.Modeles(), 1)
-F.choix.penetrations.feu = nil
-attendu("  la sélection du modèle est indépendante", D.Modeles()[1].choix.penetrations.feu, true)
-F.choix.penetrations.feu = true
 -- Reenregistrer le meme nom REMPLACE : on retouche un modele, on n'empile pas
 -- trois versions.
 D.Enregistrer("Brûlure", "Ça pique plus.", nil, F.choix, "maladie")

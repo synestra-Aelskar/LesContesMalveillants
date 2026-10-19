@@ -208,7 +208,7 @@ Recevoir("Syn-Apertus", S.definition, M.Paquet({
     id = "etal_syn", label = "Échoppe", offres = {
         { id = "herbe", entree = HERBE, quantite = 1, prix = 1, devise = "piece_temoin", limite = 5, restant = 5 },
     }, rachats = {},
-}, { { id = "ms1", x = 300, y = 300, z = 0, source = "monde", carte = LCM.Recolte.Carte() } }))
+}, { { id = "ms1", x = 300, y = 300, source = "monde", carte = LCM.Recolte.Carte() } }))
 attendu("reçu", M.definitions.etal_syn and M.definitions.etal_syn.auteur, "Syn-Apertus")
 attendu("  gardé dans la sauvegarde", LCM.db.marche.definitions.etal_syn ~= nil, true)
 __position(301, 300, 0)
@@ -246,7 +246,7 @@ Recevoir("Syn-Apertus", S.definition, M.Paquet({
     id = "etal_syn", label = "Échoppe", offres = {
         { id = "herbe", entree = HERBE, quantite = 1, prix = 1, devise = "piece_temoin", limite = 5, restant = 4 },
     }, rachats = {},
-}, { { id = "ms1", x = 300, y = 300, z = 0, source = "monde", carte = LCM.Recolte.Carte() } }))
+}, { { id = "ms1", x = 300, y = 300, source = "monde", carte = LCM.Recolte.Carte() } }))
 envoi, paquet = DernierEnvoi(S.signaler, avant)
 attendu("signalé à son MJ", envoi and envoi.cible, "Syn-Apertus")
 attendu("  l'achat et son nombre", paquet and paquet.l, "etal_syn/herbe:1")

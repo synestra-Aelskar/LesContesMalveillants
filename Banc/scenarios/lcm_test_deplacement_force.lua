@@ -234,4 +234,35 @@ DF.Arreter("interrompu")
 __positionMonde(true)
 __carte(1, 1000, 1000)
 
+dire("== la position par Epsilon : pas de .gps du tout")
+-- Arcanum pose un spark avec C_Epsilon.GetPosition() (x, y, z, carte serveur),
+-- sans rien demander au chat. Poser un coffre ne doit plus lancer de .gps.
+__positionMonde(false)
+__carte(nil)
+local commandesEnvoyees, commandeOrigine = {}, DF.Commande
+DF.Commande = function(c) commandesEnvoyees[#commandesEnvoyees + 1] = c; return true end
+C_Epsilon = { GetPosition = function() return 11101.330078, 10443.251953, -386.713257, 585 end }
+local ex, ey, ez, esource = DF.Position("gps")
+attendu("X rendu par Epsilon", math.floor(ex), 11101)
+attendu("Y rendu par Epsilon", math.floor(ey), 10443)
+attendu("Z rendu par Epsilon", math.floor(ez), -387)
+attendu("la source reste « gps » (meme repere)", esource, "gps")
+attendu("la carte serveur vient avec", DF.CarteGPS(), 585)
+attendu("demander la position repond tout de suite", DF.DemanderGPS(true), true)
+attendu("sans envoyer .gps", #commandesEnvoyees, 0)
+-- Vendeurs et ressources posent par Recolte.Position3D : meme chemin qu'un coffre.
+attendu("Epsilon est disponible", DF.EpsilonDisponible(), true)
+local rx, ry, rsource, rz = LCM.Recolte.Position3D()
+attendu("un point de recolte se pose via Epsilon", math.floor(rx) .. "," .. math.floor(ry) .. "," .. math.floor(rz) .. "," .. rsource, "11101,10443,-387,gps")
+attendu("la tache de fond ne demande rien", DF.GPSAPortee({ { x = 11101, y = 10443, r = 5 } }), false)
+attendu("et n'envoie toujours pas .gps", #commandesEnvoyees, 0)
+C_Epsilon = { GetPosition = function() return nil end }
+attendu("sans Epsilon : indisponible", DF.EpsilonDisponible(), false)
+DF.NoterGPS(LIGNE)
+attendu("sans Epsilon, la reponse .gps sert toujours", select(4, DF.Position("gps", 100)), "gps")
+C_Epsilon = nil
+DF.Commande = commandeOrigine
+__positionMonde(true)
+__carte(1, 1000, 1000)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

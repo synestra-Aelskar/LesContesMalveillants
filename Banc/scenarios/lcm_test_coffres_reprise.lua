@@ -21,11 +21,11 @@ LCM.EnsureDatabase()
 local carte = LCM.Recolte.Carte()
 LCM.db.coffresMJ = {
     coffre_avant_1 = { id = "coffre_avant_1", def = "coffre_reprise",
-        x = 10, y = 20, z = 0, source = "monde", carte = carte, quand = 1,
+        x = 10, y = 20, source = "monde", carte = carte, quand = 1,
         objets = { { entree = REF, quantite = 1 } }, verrousRestants = 0,
         verrouille = false, ouvert = true, verrousOuverts = {} },
     coffre_avant_2 = { id = "coffre_avant_2", def = "coffre_reprise",
-        x = 30, y = 40, z = 0, source = "monde", carte = carte, quand = 2,
+        x = 30, y = 40, source = "monde", carte = carte, quand = 2,
         objets = { { entree = REF, quantite = 1 } }, verrousRestants = 0,
         verrouille = false, ouvert = true, verrousOuverts = {} },
 }
@@ -44,13 +44,11 @@ attendu("le second coffre est restauré côté joueur", LCM.Coffres.points.coffr
 
 dire("== chacun retrouve son bouton a proximite")
 __position(11, 20, 0)
-LCM.DeplacementForce.NoterGPS("11.000000 20.000000 0.000000 1 0.000000")
 __avancer(0.3)
 local bouton = LCM.UI.Coffre.bouton
 attendu("le bouton du premier coffre apparaît", bouton and bouton:IsShown(), true)
 attendu("il cible le premier placement", bouton and bouton.pointId, "coffre_avant_1")
 __position(30, 41, 0)
-LCM.DeplacementForce.NoterGPS("30.000000 41.000000 0.000000 1 0.000000")
 __avancer(0.3)
 attendu("le bouton reste affiché près du second", bouton and bouton:IsShown(), true)
 attendu("il cible le second placement", bouton and bouton.pointId, "coffre_avant_2")

@@ -42,6 +42,7 @@ dossier**. L'outil de mise à jour « joueurs » ne l'installe pas.
 /lcm actions    la couronne du lanceur d'actions
 /lcm sceau      montrer / cacher le sceau
 /lcm doc        la documentation en jeu
+/lcm brouillons (MJ) le contenu créé en séance
 /lcm atelier    (MJ) créer traits, races et objets en séance
 /lcm combat     (MJ) la fenêtre de combat ; joueur : passer son tour
 /lcm combat fin (MJ) terminer le combat
@@ -139,7 +140,7 @@ la fenêtre du MJ de Necronicon, en quatre onglets : **Joueurs** (addon présent
 niveau et PV dès que la fiche est reçue, consulter, donner l'XP avec un motif
 commun), **Combat** (l'ancienne fenêtre de combat, devenue onglet ; `/lcm
 combat` y mène), **PNJ & contenu** (la scène et Incarner, l'Atelier, le
-compendium) et **Outils** : annonces, compteurs,
+compendium, les brouillons en attente) et **Outils** : annonces, compteurs,
 barres et notes **partagés avec le groupe** (`Core/Outils.lua`), affichés chez
 le joueur dans une petite fenêtre (`/lcm outils`) avec le nom de qui les envoie.
 Ils vivent en mémoire vive, le temps d'une scène ; un joueur qui recharge les
@@ -501,7 +502,7 @@ combien d'autres répondent.
 
 **On ne retire plus ses propres traits** : ils se choisissent à la création et
 font le personnage. Le MJ garde la main sur la fiche d'un autre, et un trait
-**fantôme** (entrée supprimée) reste retirable, sinon il resterait collé sans
+**fantôme** (brouillon supprimé) reste retirable, sinon il resterait collé sans
 rien donner.
 
 ### Le constructeur de buff et de débuff, repris
@@ -538,24 +539,19 @@ Les neuf écarts avec le composeur de Necronicon, relevés en séance :
   voie. Les points se **rejouent champ par champ**, et un modèle qui ne rentre
   plus se charge en partie **en le disant**.
 
-### Plus de brouillons : une entrée enregistrée existe
+### L'Atelier : on peut enfin enregistrer une modification
 
-Le 15 octobre 2026, la notion de brouillon a disparu du contenu. Une entrée
-**enregistrée en jeu existe** : jouable tout de suite, envoyée à l'autre MJ,
-et versée dans la base commune au `/reload` par le service de synchro. Toute
-entrée s'ouvre et se modifie de la même façon, d'où qu'elle vienne ;
-**supprimer supprime**, et la base suit. Plus de « publié », de « Modifier
-(brouillon) », de « remplace le publié » ni de « masqué, à retirer du
-fichier ». Seule la création de personnage garde un brouillon : c'est vraiment
-un travail pas fini.
+Le contenu publié vient d'un fichier généré, et **un brouillon portant un
+identifiant publié était refusé**. On ouvrait une entrée, on corrigeait une
+faute, aucun bouton ne permettait d'enregistrer. Un bouton **« Modifier
+(brouillon) »** en fait une version jouable tout de suite, qui **prend le pas
+sur le fichier** jusqu'à ce qu'on l'y reporte — marqué dans la liste
+(« remplace le publié ») et dit à chaque ouverture.
 
-Ce qui a provoqué la refonte : une armure enregistrée en jeu n'était jamais
-partie dans la base (le service protégeait les « vieux brouillons »), alors
-qu'un coffre de la base la citait — et le coffre, refusé, arrêtait le
-chargement de tout ce qui suivait. Les deux sont réparés : le service publie
-ce qui est enregistré (sans écraser par une vieille copie une version plus
-récente de la base, et il le dit), et une entrée refusée dans un fichier
-généré est écartée seule.
+**Le banc a attrapé une perte de données** au passage : écraser une entrée
+publiée se faisait sur place, donc supprimer le brouillon ensuite **emportait
+le contenu publié avec lui**. L'original est mis de côté avant d'être recouvert,
+et la suppression le **rend** au lieu de retirer l'entrée.
 
 ### Ce que la première séance en jeu a corrigé
 
@@ -857,22 +853,6 @@ Par ordre de ce qui bloque le plus :
       créent, modifient et suppriment leurs points et leurs offres. Ils vivent
       comme brouillons MJ, se synchronisent entre MJ et s'exportent dans le
       compagnon ; aucun de ces outils n'est chargé chez les joueurs.
-      Dans « Ressources », le MJ ajoute autant de ressources que nécessaire
-      dans un tableau compact. La dernière ligne « Ajoutez un élément » permet
-      d'en ajouter une autre. Un clic sur une ressource ouvre ou referme ses
-      réglages ; fermée, sa ligne affiche directement quantité, chance et repousse.
-      Chaque ressource règle sa chance (100 % par défaut), une quantité fixe ou
-      aléatoire et, si voulu, un délai de régénération en minutes. Une
-      limite de récoltes s'applique à chaque point posé ; « Infini » le garde
-      en place. Une ressource sans régénération ne peut être obtenue qu'une
-      fois par point, et une chance ratée ne la consomme pas.
-      Le MJ peut aussi lister plusieurs métiers autorisés. Le personnage doit
-      en avoir appris au moins un ; seul un métier dont « Bonus de jet » est
-      activé ajoute son bonus au D15. Si plusieurs conviennent, le meilleur
-      bonus activé est retenu. « Aucun métier » est une option de la liste :
-      elle ouvre aussi la récolte aux personnages sans métier avec un jet sans
-      bonus, tout en conservant le bonus des autres métiers autorisés. Une liste
-      vide n'impose aucun métier.
 - [x] **Un outil MJ pour l'expérience** (3 octobre 2026). Le MJ donne l'XP
       depuis le Panel MJ : un montant par joueur, un motif commun pour la
       tablée. Le palier franchi fait monter le niveau tout seul

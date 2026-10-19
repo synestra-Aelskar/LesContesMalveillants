@@ -499,7 +499,7 @@ end
 -- Une tente se porte comme un sac (10 octobre 2026), mais elle ne recoit QUE
 -- des accessoires de camping. Un accessoire, lui, se transporte aussi dans un
 -- sac ordinaire. La tente, elle, ne se range pas dans un sac : elle s'equipe.
-local RANGEABLES = { objets = true, ressources = true, sacs = true, accessoires_camping = true }
+local RANGEABLES = { objets = true, livres = true, ressources = true, sacs = true, accessoires_camping = true }
 
 function Inventaire.Accepte(emplacement, index, ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
@@ -513,7 +513,7 @@ function Inventaire.Accepte(emplacement, index, ref)
     if Inventaire.EstCaseDevise(emplacement, index) then
         if famille ~= "devises" then return false, "une case de devise n'accepte qu'une devise." end
     elseif not RANGEABLES[famille] then
-        return false, "un sac accepte des objets, des ressources, des accessoires de camping ou des sacoches."
+        return false, "un sac accepte des objets, des livres, des ressources, des accessoires de camping ou des sacoches."
     end
     -- Un contenant dans un contenant : seul un SAC en accepte, et il faut que
     -- le nouveau venu tienne — il occupe sa case plus toutes les siennes.

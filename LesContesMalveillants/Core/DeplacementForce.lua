@@ -268,8 +268,15 @@ local ATTENTE_MAX = 30      -- un teleport ne doit pas laisser aveugle trop long
 local SANS_REPONSE_MAX = 3  -- puis on se tait une minute, sans rien dire
 local REPOS = 60
 
+-- Epsilon repond-il ? Alors la position serveur est toujours fraiche et rien
+-- n'est jamais a demander : ni a la pose, ni en tache de fond.
+function DeplacementForce.EpsilonDisponible()
+    return PositionEpsilon() ~= nil
+end
+
 function DeplacementForce.GPSAPortee(cibles)
     if type(cibles) ~= "table" or #cibles == 0 then return false end
+    if RafraichirEpsilon() then return false end
     local maintenant = (GetTime and GetTime()) or 0
     if maintenant < (gps.prochaine or 0) then return false end
     if (gps.sansReponse or 0) >= SANS_REPONSE_MAX then

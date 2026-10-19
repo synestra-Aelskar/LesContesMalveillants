@@ -83,6 +83,14 @@ local function Voir(ref, ancre)
     if element and categorie then UI.Compendium.Voir(categorie, element, ancre) end
 end
 
+local function LireOuVoir(ref, ancre)
+    if tostring(ref or ""):match("^livres/") and UI.Livres then
+        UI.Livres.Ouvrir(ref)
+    else
+        Voir(ref, ancre)
+    end
+end
+
 -- Les vues choisies (grille / liste) durent le temps de la session : une
 -- preference d'ecran, pas une donnee du personnage.
 local vues = {}
@@ -282,6 +290,9 @@ local function MenuObjet(ancre, onglet, index, place, extras)
     local objet = ObjetDeCase(onglet, index, place)
     if not objet then return end
     local options = { { label = "Voir", action = function() Voir(objet.ref, ancre) end } }
+    if tostring(objet.ref or ""):match("^livres/") then
+        options[#options + 1] = { label = "Lire", action = function() UI.Livres.Ouvrir(objet.ref) end }
+    end
     options[#options + 1] = OptionEchanger(objet)
     for _, extra in ipairs(extras or {}) do options[#options + 1] = extra end
     if (tonumber(objet.quantite) or 1) > 1 then
@@ -702,7 +713,7 @@ local function Construire()
                     if bouton == "RightButton" then
                         MenuObjet(self, self.place.onglet, self.place.index, self.case)
                     else
-                        Voir(c.ref, f)
+                        LireOuVoir(c.ref, f)
                     end
                 end)
                 self.lignes[n] = l
@@ -1194,7 +1205,7 @@ local function ConstruireSac(onglet, index)
         end
         if c then
             -- Un sac range dans un sac : comme dans le template, on le voit.
-            Voir(c.ref, self)
+            LireOuVoir(c.ref, self)
         end
         -- Une case vide ne propose plus de liste au clic (3 octobre 2026) :
         -- on ne se donne pas un objet a la volee. Le MJ le glisse depuis le

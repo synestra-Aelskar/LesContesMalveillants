@@ -285,7 +285,8 @@ function Coffres.Traiter(expediteur, req)
                 local element = LCM.Compendium.Resoudre(ref)
                 MettreAJour(p)
                 Repondre(true, { e = ref, q = n,
-                    objet = LCM.Echange and LCM.Echange.DefinitionObjet(ref) })
+                    objet = (LCM.Livres and LCM.Livres.Definition(ref))
+                        or (LCM.Echange and LCM.Echange.DefinitionObjet(ref)) })
                 return
             end
         end
@@ -302,7 +303,8 @@ function Coffres.Traiter(expediteur, req)
         local objets = {}
         for _, o in ipairs(p.objets or {}) do
             objets[#objets + 1] = { e = o.entree, q = o.quantite,
-                d = LCM.Echange and LCM.Echange.DefinitionObjet(o.entree) or nil }
+                d = (LCM.Livres and LCM.Livres.Definition(o.entree))
+                    or (LCM.Echange and LCM.Echange.DefinitionObjet(o.entree)) or nil }
         end
         -- `w`, pas `o` : la reponse porte deja l'etat du coffre sous `o`.
         Repondre(true, { b = d.coffre.sac, t = d.coffre.tente, w = objets })
@@ -312,7 +314,8 @@ function Coffres.Traiter(expediteur, req)
     end
     if req.a == "ranger" then
         local ref, n = tostring(req.e or ""), math.max(1, math.floor(tonumber(req.q) or 1))
-        if not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
+        if not (ref:match("^objets/") or ref:match("^livres/"))
+            or not LCM.Compendium.Resoudre(ref) then
             Repondre(false, { msg = "objet inconnu." }); return
         end
         local found

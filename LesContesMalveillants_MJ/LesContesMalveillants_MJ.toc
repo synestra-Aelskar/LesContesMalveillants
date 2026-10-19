@@ -25,6 +25,7 @@ Genere\Atelier_MJ.lua
 ActionsBoutons.lua
 Atelier.lua
 Forge.lua
+LivresUI.lua
 Compendium.lua
 Consultation.lua
 Panneau.lua

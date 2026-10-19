@@ -67,6 +67,14 @@ local function OptionsObjets(choix, exception, doublons)
                 groupe = objet.categorie or "Objets" }
         end
     end
+    if not doublons then
+        for _, livre in ipairs((LCM.Livres and LCM.Livres.list) or {}) do
+            local ref = "livres/" .. tostring(livre.id)
+            if not deja[ref] then
+                out[#out + 1] = { id = ref, label = livre.label or livre.id, groupe = "Livres" }
+            end
+        end
+    end
     if doublons then
         for _, typeOutil in ipairs(LCM.Listes.De("outils")) do
             out[#out + 1] = { id = "type_outil/" .. typeOutil.id,
@@ -362,13 +370,20 @@ local function Construire()
     end
 
     local function AccepterObjet(objet)
+        if objet and (tostring(objet.ref or ""):match("^objets/")
+            or tostring(objet.ref or ""):match("^livres/")) then return true end
+        return false, "choisis un objet ou un livre du compendium."
+    end
+    local function AccepterOutil(objet)
         if objet and tostring(objet.ref or ""):match("^objets/") then return true end
-        return false, "choisis un objet du compendium."
+        return false, "choisis un outil du compendium."
     end
 
     function f:Ajouter(typeListe, ref)
         local typeOutil = typeListe == "outils" and tostring(ref or ""):match("^type_outil/(.+)$")
-        if not self.travail or (not tostring(ref or ""):match("^objets/") and not typeOutil) then return end
+        if not self.travail or (not tostring(ref or ""):match("^objets/")
+            and not (typeListe == "objets" and tostring(ref or ""):match("^livres/"))
+            and not typeOutil) then return end
         local liste = self.travail.coffre[typeListe]
         if type(liste) ~= "table" then return end
         if typeListe ~= "outils" then
@@ -426,7 +441,7 @@ local function Construire()
                             end
                         end)
                 end)
-                UI.Glisser.Cible(ligne.nom, AccepterObjet, function(donnees)
+                UI.Glisser.Cible(ligne.nom, outils and AccepterOutil or AccepterObjet, function(donnees)
                     local courant = f.travail.coffre[typeListe][ligne.index]
                     if courant then courant.entree = donnees.ref; courant.typeOutil = nil; f:AfficherDetails() end
                 end)
@@ -509,7 +524,8 @@ local function Construire()
                     f:Ajouter(typeListe, ref)
                 end)
             end)
-            UI.Glisser.Cible(ajouter, AccepterObjet, function(objet) f:Ajouter(typeListe, objet.ref) end)
+            UI.Glisser.Cible(ajouter, outils and AccepterOutil or AccepterObjet,
+                function(objet) f:Ajouter(typeListe, objet.ref) end)
             c[cle] = ajouter
             if outils then f.depotOutils = ajouter else f.depotObjets = ajouter end
         end

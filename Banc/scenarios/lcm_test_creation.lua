@@ -67,17 +67,17 @@ local p = C.Nouveau()
 C.Definir(p, "primaires", "force", 3)
 C.Definir(p, "primaires", "mystique", 3)
 C.Definir(p, "primaires", "perception", 3)
--- 9 / 1 = 9, plus la base de 3.
-attendu("plafond d'un type", C.Plafond(p, "penetration", "pen_tranchant"), 12)
-attendu("13 refuse", (C.Definir(p, "penetration", "pen_perforant", 13)), false)
-attendu("12 passe", (C.Definir(p, "penetration", "pen_tranchant", 12)), true)
+-- 9 / 1,75 = 5,14 arrondi a 5, plus la base de 3.
+attendu("plafond d'un type", C.Plafond(p, "penetration", "pen_tranchant"), 8)
+attendu("8 passe", (C.Definir(p, "penetration", "pen_tranchant", 8)), true)
+attendu("9 refuse", (C.Definir(p, "penetration", "pen_perforant", 9)), false)
 
 dire("== plus on investit en degats, plus on peut se specialiser")
 attendu("sans statistique", C.Plafond(C.Nouveau(), "penetration", "pen_feu"), 3)
 local fort = C.Nouveau()
 C.Definir(fort, "primaires", "force", 9)
 C.Definir(fort, "primaires", "mystique", 9)
-attendu("avec 18 points de degats", C.Plafond(fort, "penetration", "pen_feu"), 21)
+attendu("avec 18 points de degats", C.Plafond(fort, "penetration", "pen_feu"), 13)
 
 dire("== resistance : constitution / 4")
 local r = C.Nouveau()

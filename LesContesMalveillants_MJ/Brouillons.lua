@@ -30,7 +30,7 @@ LCM.Brouillons = Brouillons
 -- synchro, qui les range en DEUX fichiers : ce qui part chez les joueurs
 -- (Data/Genere/Atelier.lua) et ce qui reste chez les MJ
 -- (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua).
-Brouillons.FAMILLES = { "traits", "races", "objets", "etats", "apprentissages", "sacs",
+Brouillons.FAMILLES = { "traits", "races", "objets", "livres", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
     "jeux", "points", "tentes", "accessoires_camping" }
 

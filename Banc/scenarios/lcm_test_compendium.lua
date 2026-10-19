@@ -22,14 +22,14 @@ for _, l in ipairs(alertes) do dire("     " .. l) end
 dire("== Les categories du template, dans son ordre")
 local ids = {}
 for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
--- Vingt-neuf depuis « Type Accessoires », le campement et les outils,
+-- Vingt-sept depuis « Type Accessoires » et le campement (« Tentes »,
 -- « Accessoires de camping », 10 octobre 2026). C'est la STRUCTURE de
 -- l'addon : elle se verifie en entier, contrairement au contenu qui vit.
-attendu("29 categories", #C.categories, 29)
+attendu("27 categories", #C.categories, 27)
 attendu("ordre", table.concat(ids, ","),
-    "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste origine,Liste ressources,Liste métiers,"
+    "Information,Type Armures,Type Accessoires,Liste Armes,Liste origine,Liste ressources,Liste métiers,"
     .. "Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Armes,Armures,"
-    .. "Accessoires,Outils,Tentes,Accessoires de camping,Races,Traits,Etats,Maladies,Apprentissage,"
+    .. "Accessoires,Tentes,Accessoires de camping,Races,Traits,Etats,Maladies,Apprentissage,"
     .. "Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")

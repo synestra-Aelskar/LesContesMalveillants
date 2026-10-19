@@ -39,8 +39,6 @@ local function ligne(champ)
 end
 
 dire("== construire un buff")
-local ongletsStats = LCM.Vues.Get("statistiques").onglets
-attendu("statistiques sans dix anciennes familles de combat", #ongletsStats, 9)
 LCM.UI.Radial.Trouver("generation_buff").onClick()
 K = LCM.UI.Constructeur.frame
 attendu("la fenetre", K:IsShown() and K.titre:GetText(), "Construire un buff")
@@ -53,20 +51,7 @@ attendu("depliee", K.replie, false)
 attendu("le bouton propose de refermer", K.basculer.label:GetText(), "Réduire")
 attendu("rien a depenser sans choix", K.constructeur:Reserve(), 0)
 attendu("on ne declare pas sans points", K.declarer:IsEnabled(), false)
-choisir("Force") choisir("Esprit") choisir("Niveau 2") choisir("Feu") choisir("Monocible")
-local function AucunChoixStack()
-    for _, q in ipairs(K.constructeur.composeur.questions) do
-        if q.label == "Type d'effet" or tostring(q.showIf):find("effetMode", 1, true) then return false end
-    end
-    return true
-end
-attendu("buff sans options de stack", AucunChoixStack(), true)
-choisir("Monocible") choisir("Multicible")
-local paMultiBuff = select(1, K.constructeur.composeur:Deriver())
-attendu("buff multicible : base 1 PA", paMultiBuff, 1)
-attendu("buff multicible : une cible 1 PA", paMultiBuff + select(1, A.Supplement(K.constructeur.ctx, 1, false)), 1)
-attendu("buff multicible : trois cibles 3 PA", paMultiBuff + select(1, A.Supplement(K.constructeur.ctx, 3, false)), 3)
-choisir("Multicible") choisir("Monocible")
+choisir("Force") choisir("Esprit") choisir("Niveau 2") choisir("Feu") choisir("Monocible") choisir("Sans stack")
 local reserve = K.constructeur:Reserve()
 attendu("la reserve suit les choix", reserve > 0, true)
 attendu("elle s'affiche", K.reserve:GetText():find("/ " .. reserve, 1, true) ~= nil, true)
@@ -79,15 +64,15 @@ attendu("groupees par sens", noms[1] and noms[1]:find("Cout") == nil, true)
 attendu("penetrations et resistances se distinguent",
     (table.concat(noms, "|"):find("Pénétrations — Élémentaires", 1, true) ~= nil)
     and (table.concat(noms, "|"):find("Résistances — Élémentaires", 1, true) ~= nil), true)
--- Les dix anciennes familles de statistiques de combat ne sont plus proposees.
-local anciennesVisibles = 0
+-- La jumelle de l'autre mode n'est plus proposee : on voyait DEUX « Durée »
+-- et DEUX « Puissance » en construisant un buff.
+local dureesVisibles = 0
 for _, fam in ipairs(K.constructeur.familles) do
     for _, ch in ipairs(fam.champs) do
-        local field = LCM.Schema.Field(ch.id)
-        if field and field.tab == "combat" then anciennesVisibles = anciennesVisibles + 1 end
+        if ch.id == "duree_buff" or ch.id == "duree_debuff" then dureesVisibles = dureesVisibles + 1 end
     end
 end
-attendu("aucune ancienne statistique de combat", anciennesVisibles, 0)
+attendu("une seule duree", dureesVisibles, 1)
 
 -- 3 octobre 2026 : on choisit D'ABORD ou l'effet atterrit dans la fenetre
 -- Sante — Etat, Maladie ou Intangible. Sans ce choix tout tombait dans
@@ -150,11 +135,6 @@ for _ = 1, 50 do ligne("force").plus:Click() end
 attendu("jamais plus que la reserve", K.constructeur:Depense() <= reserve, true)
 while K.constructeur.points.force and K.constructeur.points.force > 1 do ligne("force").moins:Click() end
 K.nom:SetText("Vigueur")
-choisir("Monocible") -- second clic : on retire le ciblage
-attendu("buff sans ciblage bloqué", K.constructeur:Blocage(), "Il faut choisir un mode de ciblage.")
-attendu("déclaration du buff désactivée sans ciblage", K.declarer:IsEnabled(), false)
-choisir("Monocible")
-attendu("déclaration du buff réactivée avec ciblage", K.declarer:IsEnabled(), true)
 local paBuffAvant = E.Gauge(moi, "pa").current
 local pfBuffAvant = E.Gauge(moi, "fatigue").current
 local coutPABuff, coutPFBuff = K.constructeur.composeur:Deriver()
@@ -182,31 +162,12 @@ attendu("la reponse au buff est envoyee", chatDit("Reïka accueille la vigueur."
 dire("== un debuff construit retire")
 LCM.UI.Radial.Trouver("generation_debuff").onClick()
 attendu("construire un debuff", K.titre:GetText(), "Construire un débuff")
-local combatDebuff = false
-for _, fam in ipairs(K.constructeur.familles) do
-    for _, ch in ipairs(fam.champs) do
-        local field = LCM.Schema.Field(ch.id)
-        if field and field.tab == "combat" then combatDebuff = true end
-    end
-end
-attendu("debuff sans anciennes statistiques de combat", combatDebuff, false)
 K.basculer:Click()
-choisir("Force") choisir("Esprit") choisir("Niveau 6") choisir("Monocible")
-attendu("debuff sans options de stack", AucunChoixStack(), true)
-choisir("Monocible") choisir("Multicible")
-local paMultiDebuff = select(1, K.constructeur.composeur:Deriver())
-attendu("debuff multicible : base 1 PA hors niveau du sort", paMultiDebuff, 3)
-attendu("debuff multicible : trois cibles +2 PA", select(1, A.Supplement(K.constructeur.ctx, 3, false)), 2)
-choisir("Multicible") choisir("Monocible")
+choisir("Force") choisir("Esprit") choisir("Niveau 6") choisir("Monocible") choisir("Sans stack")
 famille("Statistiques"):Click()
 ligne("force").plus:Click()
 attendu("l'apercu est negatif", K.effetsApercu:GetText(), "Force -1")
 K.nom:SetText("Faiblesse")
-choisir("Monocible")
-attendu("débuff sans ciblage bloqué", K.constructeur:Blocage(), "Il faut choisir un mode de ciblage.")
-attendu("déclaration du débuff désactivée sans ciblage", K.declarer:IsEnabled(), false)
-choisir("Monocible")
-attendu("déclaration du débuff réactivée avec ciblage", K.declarer:IsEnabled(), true)
 local paDebuffAvant = E.Gauge(moi, "pa").current
 local pfDebuffAvant = E.Gauge(moi, "fatigue").current
 local coutPADebuff, coutPFDebuff = K.constructeur.composeur:Deriver()
@@ -315,7 +276,7 @@ dire("== la bibliotheque : enregistrer et recharger")
 LCM.UI.Radial.Trouver("generation_buff").onClick()
 K = LCM.UI.Constructeur.frame
 K.basculer:Click()
-choisir("Force") choisir("Esprit") choisir("Niveau 2") choisir("Monocible")
+choisir("Force") choisir("Esprit") choisir("Niveau 2") choisir("Monocible") choisir("Sans stack")
 nature("intangible"):Click()
 famille("Statistiques"):Click()
 ligne("force").plus:Click()
@@ -349,31 +310,6 @@ attendu("rechargé", select(1, K.constructeur:Charger(LCM.Actions.ModelesPour(K.
 attendu("les points sont revenus", K.constructeur.points.force, pointsAvant)
 attendu("la nature aussi", K.constructeur.conteneur, "intangible")
 attendu("et les reponses du composeur", K.constructeur.composeur.reponses ~= nil, true)
-local ancienneQuestionStack
-for _, q in ipairs(A.LireQuestions(K.constructeur.etape.questionsText)) do
-    if q.label == "Type d'effet" then ancienneQuestionStack = q break end
-end
-attendu("ancien choix de stack identifiable", ancienneQuestionStack ~= nil, true)
-if ancienneQuestionStack then
-    local ancienModele = { reponses = { [ancienneQuestionStack.id] = ancienneQuestionStack.options[2].id } }
-    K.constructeur:Charger(ancienModele)
-    K.constructeur.composeur:Deriver()
-    attendu("ancien stack non recharge", K.constructeur.ctx.vars.effetMode, nil)
-    attendu("ancien choix retire des reponses", K.constructeur.composeur.reponses[ancienneQuestionStack.id], nil)
-end
 K:Hide()
-
--- Même si une interface appelle la déclaration directement, aucun effet ni
--- débit ne doit partir sans mode de ciblage.
-local paAvantSansCible = E.Gauge(moi, "pa").current
-local suiteSansCible = false
-local contexteSansCible = { nom = "Buff témoin", entity = moi, vars = {}, journal = {},
-    effet = { nom = "Buff témoin", debuff = false }, differe = true,
-    dettes = { { tag = "#pa", montant = 1 } } }
-A.Pas.declare({}, contexteSansCible, function() suiteSansCible = true end)
-attendu("déclaration directe sans ciblage refusée", contexteSansCible.arretee,
-    "Il faut choisir un mode de ciblage.")
-attendu("sans ciblage aucun PA n'est débité", E.Gauge(moi, "pa").current, paAvantSansCible)
-attendu("sans ciblage la suite ne part pas", suiteSansCible, false)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
