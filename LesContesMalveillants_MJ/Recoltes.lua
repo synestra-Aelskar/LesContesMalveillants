@@ -42,7 +42,9 @@ local function Identifiant()
 end
 
 local function Canal()
-    return LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    -- Tout le monde (Reseau.TOUS), et pas seulement le groupe : voir
+    -- Core/Presence.lua et le 20 octobre 2026.
+    return LCM.Reseau.Diffusable()
 end
 
 -- ===== Les definitions =====================================================
@@ -162,7 +164,7 @@ function Recoltes.Diffuser(defId, canal, cible)
     local point = Recoltes.Definition(defId)
     if not point then return false end
     canal = canal or Canal()
-    if not canal then return false, "hors groupe : le point est posé, mais personne ne le voit." end
+    if not canal then return false, "personne à qui l'envoyer : le point est posé, mais ni canal ni groupe ne repond." end
     return LCM.Reseau.Envoyer(S.definition, R.Paquet(Publique(point), Recoltes.Points(defId)),
         canal, cible, { etale = true })
 end
@@ -305,12 +307,12 @@ end
 LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.demande, function(expediteur)
         if expediteur == Moi() then return end
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         Recoltes.Renvoyer(expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.prendre, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local id = tostring(donnees.i or "")
         local lots, raison = Recoltes.Accorder(id, expediteur)
         if lots then
@@ -330,17 +332,17 @@ LCM.WhenReady(function()
     end)
 
     LCM.Reseau.Ecouter(S.echec, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         Recoltes.Echec(donnees.i, expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.rendre, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         Recoltes.Restituer(donnees.i, expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.confirmer, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         Recoltes.Confirmer(donnees.i, expediteur)
     end)
 
@@ -349,7 +351,7 @@ LCM.WhenReady(function()
     -- ce qu'il a cite — meme d'un point deja pris ou retire, sinon il le
     -- redirait a chaque rencontre.
     LCM.Reseau.Ecouter(S.signaler, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local cites, touches = {}, {}
         local echecs = {}
         local canal = Canal()

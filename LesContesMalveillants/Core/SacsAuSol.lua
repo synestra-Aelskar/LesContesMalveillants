@@ -58,7 +58,11 @@ local function Texte(v) return (tostring(v or ""):gsub("^%s+", ""):gsub("%s+$", 
 local function Court(nom) return (tostring(nom or ""):match("^[^-]+")) or "" end
 local function Maintenant() return (GetTime and GetTime()) or 0 end
 local function Horloge() return (time and time()) or 0 end
-local function Canal() return LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe() end
+-- Tout le monde, et pas seulement le groupe : le canal d'addon que
+-- Core/Presence.lua rejoint (silencieux, hors des fenetres de discussion), le
+-- groupe en repli. Un joueur hors du raid ne recevait rien, et celui qui y
+-- entrait devait recharger (le MJ, 20 octobre 2026).
+local function Canal() return LCM.Reseau.Diffusable() end
 
 -- ===== Le paquet ===========================================================
 
@@ -176,6 +180,14 @@ local function Demander()
     return true
 end
 Sol.Demander = Demander
+
+-- Le canal de l'addon n'existe pas encore a la connexion : des qu'il repond,
+-- on redemande (Core/Presence.lua, 20 octobre 2026).
+LCM.WhenReady(function()
+    if LCM.Presence and LCM.Presence.QuandCanal then
+        LCM.Presence.QuandCanal(function() Demander() end)
+    end
+end)
 
 -- Plus recente : la version, puis le plus petit nom de gardien.
 local function PlusRecent(a, b)
@@ -489,7 +501,7 @@ LCM.WhenReady(function()
     if not (LCM.Reseau and LCM.Reseau.Ecouter) then return end
 
     LCM.Reseau.Ecouter(S.etat, function(expediteur, donnees)
-        if expediteur == Moi() or not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if expediteur == Moi() or not LCM.Reseau.Connu(expediteur) then return end
         local sol = Sol.Lire(donnees)
         if not sol then return end
         if Sol.morts[sol.id] then
@@ -520,7 +532,7 @@ LCM.WhenReady(function()
     end)
 
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local id = Texte(donnees.i)
         if id ~= "" and not Sol.morts[id] then
             endormis[id] = nil
@@ -534,7 +546,7 @@ LCM.WhenReady(function()
     -- n'a pas du tout, seul le gardien le lui envoie, pour ne pas l'inonder.
     -- Un sac qu'il croit au sol mais qui est parti, on le lui redit.
     LCM.Reseau.Ecouter(S.demande, function(expediteur, donnees)
-        if expediteur == Moi() or not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if expediteur == Moi() or not LCM.Reseau.Connu(expediteur) then return end
         local siennes = {}
         for id, v in tostring(donnees and donnees.l or ""):gmatch("([^:,]+):(%d+)") do siennes[id] = tonumber(v) end
         for id, sol in pairs(Sol.sacs) do

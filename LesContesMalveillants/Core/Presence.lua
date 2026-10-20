@@ -139,11 +139,38 @@ end
 function Presence.Rejoindre()
     local id = Presence.Canal()
     if id then return id end
-    local rejoindre = JoinChannelByName or (C_ChatInfo and C_ChatInfo.JoinChannelByName)
+    -- Un canal TEMPORAIRE ne s'ajoute a aucune fenetre de discussion : rien ne
+    -- s'affiche, pas meme l'avis d'arrivee. L'ancien chemin reste en repli, et
+    -- Cacher avec lui : un canal deja rejoint autrement doit sortir des
+    -- fenetres (20 octobre 2026).
+    local rejoindre = JoinTemporaryChannel
+        or (C_ChatInfo and C_ChatInfo.JoinTemporaryChannel)
+        or JoinChannelByName
+        or (C_ChatInfo and C_ChatInfo.JoinChannelByName)
     if not rejoindre then return nil end
     pcall(rejoindre, Presence.CANAL)
     Cacher()
-    return Presence.Canal()
+    local nouveau = Presence.Canal()
+    if nouveau then Presence.Pret() end
+    return nouveau
+end
+
+-- ===== « Le canal repond » =================================================
+-- Le canal n'existe pas encore a la connexion. Ce qui a besoin de parler a
+-- tout le monde des qu'il est la — demander aux MJ leurs coffres, leurs
+-- points, leurs etals — s'inscrit ici plutot que de deviner le moment.
+Presence.attentes = {}
+function Presence.QuandCanal(fn)
+    if type(fn) ~= "function" then return end
+    Presence.attentes[#Presence.attentes + 1] = fn
+    -- Deja rejoint : on ne fait pas attendre l'inscrit jusqu'au prochain
+    -- evenement de canal.
+    if Presence.Canal() then pcall(fn) end
+end
+
+-- Appelee a chaque fois que le canal devient (ou redevient) disponible.
+function Presence.Pret()
+    for _, fn in ipairs(Presence.attentes) do pcall(fn) end
 end
 
 -- ===== Le ping =============================================================
@@ -188,6 +215,9 @@ LCM.On("CHAT_MSG_CHANNEL_NOTICE", function(notice, _, _, _, _, _, _, _, nomCanal
     if (notice == "YOU_JOINED" or notice == "YOU_CHANGED") and tostring(nomCanal or "") == Presence.CANAL then
         Cacher()
         Presence.Demander(true)
+        -- Et tout ce qui attendait le canal parle maintenant : « coucou, je
+        -- suis la — qui a des coffres, des points, des etals pour moi ? »
+        Presence.Pret()
     end
 end)
 

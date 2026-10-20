@@ -300,9 +300,16 @@ function Coffres.Ouvrir(id, edition)
     return Coffres.Envoyer(edition and "editer" or "ouvrir")
 end
 
+-- Tout le monde, et pas seulement le groupe : le canal d'addon que
+-- Core/Presence.lua rejoint (silencieux, hors des fenetres de discussion), le
+-- groupe en repli. Un joueur hors du raid ne recevait rien, et celui qui y
+-- entrait devait recharger (le MJ, 20 octobre 2026).
+--
+-- « Coucou, je suis la » : a l'arrivee, on demande leurs coffres a ceux qui en
+-- ont pose, et ils repondent en prive (MJ/Coffres.lua).
 function Coffres.Demander()
     if LCM.IsMaster() then return end
-    LCM.Reseau.Envoyer(S.demande, {}, LCM.Combat.CanalGroupe())
+    LCM.Reseau.Envoyer(S.demande, {}, LCM.Reseau.TOUS)
 end
 
 Positionner = function()
@@ -340,6 +347,13 @@ Positionner = function()
     if next(Coffres.points) then Coffres.horloge:Show() else Coffres.horloge:Hide() end
 end
 
+-- Le canal n'existe pas encore a la connexion : on redemande des qu'il repond.
+LCM.WhenReady(function()
+    if LCM.Presence and LCM.Presence.QuandCanal then
+        LCM.Presence.QuandCanal(function() Coffres.Demander() end)
+    end
+end)
+
 LCM.WhenReady(function()
     local saved = LCM.db and LCM.db.coffres
     for id, d in pairs(type(saved) == "table" and saved.definitions or {}) do Coffres.definitions[id] = d end
@@ -348,7 +362,7 @@ LCM.WhenReady(function()
     end
     Positionner()
     LCM.Reseau.Ecouter(S.definition, function(expediteur, data)
-        if expediteur == Moi() or not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if expediteur == Moi() or not LCM.Reseau.Connu(expediteur) then return end
         local def, points = Coffres.Lire(data)
         if def then Coffres.Connaitre(def, points, expediteur) end
     end)
@@ -356,12 +370,12 @@ LCM.WhenReady(function()
     -- gardien d'un sac au sol si c'est le notre, sinon au MJ des coffres. Le
     -- compagnon MJ l'ecoutait lui-meme et aurait ecrase un joueur gardien.
     LCM.Reseau.Ecouter(S.action, function(expediteur, data)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         if LCM.SacsAuSol and LCM.SacsAuSol.Traiter(expediteur, data) then return end
         if LCM.CoffresMJ then LCM.CoffresMJ.Traiter(expediteur, data) end
     end)
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, data)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         if data.i then Coffres.Oublier(data.i) end
     end)
     LCM.Reseau.Ecouter(S.etat, function(expediteur, data)
@@ -374,7 +388,7 @@ LCM.WhenReady(function()
         if Coffres.onReponse then pcall(Coffres.onReponse, expediteur, data) end
     end)
     LCM.Reseau.Ecouter(S.demande, function(expediteur)
-        if not LCM.IsMaster() or not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.IsMaster() or not LCM.Reseau.Connu(expediteur) then return end
         LCM.CoffresMJ.Renvoyer(expediteur)
     end)
     if not LCM.IsMaster() then Coffres.Demander() end

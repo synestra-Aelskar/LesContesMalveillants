@@ -143,6 +143,18 @@ local function Construire()
     p.compte:SetPoint("LEFT", p.poser, "RIGHT", 12, 0)
     p.toutRetirer = UI.Bouton(p, "Tout retirer", 110, 22, function() f:ToutRetirer() end)
     p.toutRetirer:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, -56)
+    -- Forcer l'envoi : tout ce que j'ai pose repart a tous ceux qui ont
+    -- l'addon (canal de Core/Presence.lua). De quoi rattraper un joueur qui
+    -- arrive sans rien, sans rien deplacer ni reenregistrer (20 octobre 2026).
+    p.renvoyer = UI.Bouton(p, "Renvoyer à tous", 130, 22, function()
+        local n = tonumber(Marchands.Renvoyer()) or 0
+        if n == 0 then
+            LCM.Alerte("rien à renvoyer : aucun emplacement posé, ou personne à qui l'envoyer.")
+            return
+        end
+        LCM.Ok(string.format("marchand(s) renvoyé(s) à tous : %d.", tonumber(n) or 0))
+    end)
+    p.renvoyer:SetPoint("RIGHT", p.toutRetirer, "LEFT", -8, 0)
     p.zone = UI.Defilement(p)
     p.zone:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -94)
     p.zone:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -10, 0)

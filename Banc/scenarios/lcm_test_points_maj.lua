@@ -64,7 +64,9 @@ attendu("pose", LCM.MarchandsMJ.Compte("etal_maj"), 1)
 avant = #__envois
 LCM.Brouillons.Enregistrer("points", Vendeur("ecu_maj"), false)
 local envoi, paquet = DernierEnvoi(SM.definition, avant)
-attendu("rediffuse sans le reposer", envoi and envoi.canal, "PARTY")
+-- Sur le canal de l'addon, et non celui du groupe : un joueur hors du raid ne
+-- recevait pas la correction (le MJ, 20 octobre 2026).
+attendu("rediffuse sans le reposer", envoi and envoi.canal, "CHANNEL")
 attendu("  dans la nouvelle monnaie", paquet and paquet.o[1].f, "3*devises/ecu_maj")
 attendu("  toujours a la meme place", LCM.MarchandsMJ.Compte("etal_maj"), 1)
 attendu("le prix lu chez soi suit aussi",

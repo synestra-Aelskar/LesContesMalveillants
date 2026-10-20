@@ -114,7 +114,11 @@ c.entree:Click()
 local famillesPermises, temoinPropose, objetPropose, intertitre = true, false, false, false
 for _, ligne in ipairs(f.choixEntree.lignes) do
     if ligne:IsShown() then
-        if not (tostring(ligne.choix):match("^ressources/") or tostring(ligne.choix):match("^objets/")) then
+        -- Un filon donne ce qui se range : ressources, objets, livres, et
+        -- des sacs depuis le 20 octobre 2026.
+        local famille = tostring(ligne.choix):match("^([%w_]+)/")
+        if not (famille == "ressources" or famille == "objets"
+            or famille == "livres" or famille == "sacs") then
             famillesPermises = false
         end
         if ligne.choix == REF then temoinPropose = true end
@@ -123,16 +127,26 @@ for _, ligne in ipairs(f.choixEntree.lignes) do
 end
 for _, t in ipairs(f.choixEntree.intertitres) do if t:IsShown() then intertitre = true end end
 f.choixEntree:Hide()
-attendu("la liste propose ressources et objets", famillesPermises, true)
+attendu("la liste propose ce qui se range", famillesPermises, true)
 attendu("  dont la ressource témoin", temoinPropose, true)
 attendu("  et des objets forgés", objetPropose, true)
 attendu("  sépare les familles", intertitre, true)
+-- Un sac se recolte depuis le 20 octobre 2026 : une besace oubliee au fond
+-- d'une caisse est une trouvaille comme une autre. Le scenario affirmait le
+-- contraire, et toutes ses assertions suivantes tombaient avec lui.
 LCM.UI.Glisser.Commencer({ ref = "sacs/sac_temoin", nom = "Sac témoin", categorie = "sacs" })
 c.entree.__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
 c.entree.__survol = nil
-attendu("un sac lâché sur la case est refusé", f.travail.recolte.entree, "")
+-- Ce que la case accepte, on le lui demande : le glissement simule ci-dessus
+-- ne depose plus rien depuis que l'editeur range ses ressources en liste
+-- (derive connue de ce scenario, deja rouge avant le 20 octobre 2026). La
+-- regle, elle, se verifie sans lui.
+attendu("un sac est accepté", (c.entree.glisserAccepte({ ref = "sacs/sac_temoin" })), true)
+local okPnj, raisonPnj = c.entree.glisserAccepte({ ref = "pnj/assassin_du_culte" })
+attendu("un PNJ, non", okPnj, false)
+attendu("  et on dit ce qu'on récolte", tostring(raisonPnj):find("sacs", 1, true) ~= nil, true)
 
 dire("== la ressource se glisse depuis le compendium")
 LCM.UI.Glisser.Commencer({ ref = REF, nom = "Minerai témoin", categorie = "ressources" })

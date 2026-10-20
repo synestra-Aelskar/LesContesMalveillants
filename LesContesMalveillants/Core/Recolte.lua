@@ -591,7 +591,7 @@ end
 local function Court(nom) return (tostring(nom or ""):match("^([^%-]+)")) end
 
 function Recolte.EnLigne(nom)
-    if not (LCM.Reseau and LCM.Reseau.DansLeGroupe(nom)) then return false end
+    if not (LCM.Reseau and LCM.Reseau.Connu(nom)) then return false end
     if not (UnitIsConnected and GetNumGroupMembers and UnitName) then return true end
     local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
     for index = 1, GetNumGroupMembers() or 0 do
@@ -727,7 +727,7 @@ end
 -- que le groupe se fait connaitre (GROUP_ROSTER_UPDATE).
 local demandeEnSuspens = false
 function Recolte.Demander()
-    local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    local canal = LCM.Reseau.Diffusable()
     if not canal then
         demandeEnSuspens = true
         return false
@@ -782,7 +782,7 @@ LCM.WhenReady(function()
 
     LCM.Reseau.Ecouter(S.definition, function(expediteur, donnees)
         if expediteur == Moi() then return end
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local definition, points = Recolte.Lire(donnees)
         if definition then Recolte.Connaitre(definition, points, expediteur) end
         -- Il est la : c'est le moment de lui dire ce qu'on a pris sans lui.
@@ -812,7 +812,7 @@ LCM.WhenReady(function()
     end)
 
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local id, defId = Texte(donnees.i), Texte(donnees.d)
         -- Seul celui qui a pose peut retirer.
         if id ~= "" then
@@ -855,6 +855,14 @@ LCM.WhenReady(function()
 
     -- Le MJ n'a rien a demander : c'est lui qui detient les points.
     if not LCM.IsMaster() then Recolte.Demander() end
+end)
+
+-- Le canal de l'addon n'existe pas encore a la connexion : des qu'il repond,
+-- on redemande (Core/Presence.lua, 20 octobre 2026).
+LCM.WhenReady(function()
+    if LCM.Presence and LCM.Presence.QuandCanal then
+        LCM.Presence.QuandCanal(function() if not LCM.IsMaster() then Recolte.Demander() end end)
+    end
 end)
 
 LCM.On("GROUP_JOINED", function()

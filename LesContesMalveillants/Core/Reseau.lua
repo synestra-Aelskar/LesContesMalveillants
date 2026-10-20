@@ -82,8 +82,22 @@ end
 -- Une cle qui n'est QUE des chiffres redevient un indice de tableau : sans ca,
 -- `raretes` serait une table a cles « 1 », « 2 », qu'`ipairs` ne parcourt pas.
 --
+-- « true » et « false » redeviennent des BOOLEENS. L'encodeur ecrit tout en
+-- texte ; le decodeur rendait donc la chaine « false », qui est VRAIE en Lua.
+-- Un coffre verrouille n'offrait aucun bouton de tentative au joueur distant
+-- (`e.f == true` etait faux), un coffre ouvert ne montrait pas son contenu, et
+-- surtout un refus du proprietaire (`ok = false`) se lisait comme une reussite
+-- — on rangeait l'objet qu'on venait de se voir refuser (20 octobre 2026).
+-- Le proprietaire, lui, ne voyait rien : son etat ne passe pas par le reseau.
+--
+-- Un champ de TEXTE qui vaudrait exactement « true » devient donc un booleen.
+-- Aucun n'existe — un libelle, un nom, une description ne valent pas cela — et
+-- le prix de l'inverse se compte en refus avales en silence.
+--
 -- L'encodeur n'a PAS change : un ancien emetteur et un nouveau produisent le
 -- meme texte, donc les deux machines peuvent ne pas etre a jour en meme temps.
+-- Un lecteur d'une version precedente lit encore « true » : tous ecrivaient
+-- deja `x == true or x == "true"`.
 function Reseau.Decoder(texte)
     local donnees = {}
     for morceau in tostring(texte or ""):gmatch("[^;]+") do
@@ -101,6 +115,8 @@ function Reseau.Decoder(texte)
                 end
                 precedent = k
             end
+            if valeur == "true" then valeur = true
+            elseif valeur == "false" then valeur = false end
             if precedent ~= nil then table_[precedent] = valeur end
         end
     end
@@ -169,9 +185,40 @@ end
 -- Combien de morceaux attendent encore de partir.
 function Reseau.FileEnvoi() return #file end
 
+-- ===== Le canal de tout le monde ===========================================
+-- Un message d'addon ne part qu'au groupe, a la guilde, a un nom precis... ou
+-- a un CANAL de discussion. L'addon en rejoint un, silencieux, pour sa
+-- presence (Core/Presence.lua) : c'est par la qu'on joint tous ceux qui ont
+-- l'addon, qu'ils soient du groupe ou non.
+--
+-- `TOUS` se passe comme un canal ordinaire a Envoyer, qui le resout au moment
+-- de l'envoi : le canal de l'addon s'il est rejoint, le groupe sinon. Les
+-- appelants n'ont donc pas a connaitre l'index du canal, et leurs gardes
+-- « si j'ai un canal » gardent leur sens.
+Reseau.TOUS = "TOUS"
+
+-- Le canal et sa cible, ou nil si on est vraiment seul.
+function Reseau.CanalTous()
+    local id = LCM.Presence and LCM.Presence.Canal and LCM.Presence.Canal()
+    if id then return "CHANNEL", id end
+    local groupe = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    if groupe then return groupe, nil end
+    return nil
+end
+
+-- `TOUS` quand il y a quelqu'un a joindre, nil sinon : de quoi ecrire
+-- `local canal = Reseau.Diffusable() ; if canal then ... end`.
+function Reseau.Diffusable()
+    return (Reseau.CanalTous()) and Reseau.TOUS or nil
+end
+
 -- Reseau.Envoyer("sort", { ... }, "WHISPER", "Nytherah-Apertus")
 -- `options.etale` : au-dela d'une rafale, le reste part a cadence fixe.
 function Reseau.Envoyer(sujet, donnees, canal, cible, options)
+    if canal == Reseau.TOUS then
+        canal, cible = Reseau.CanalTous()
+        if not canal then return false end
+    end
     canal = canal or "RAID"
     local charge = tostring(sujet) .. "|" .. Reseau.Encoder(donnees)
     compteur = (compteur % 999) + 1
@@ -202,6 +249,10 @@ end
 
 -- ===== Reception ===========================================================
 
+-- L'origine du message en cours de distribution. Les crochets la lisent par
+-- Reseau.Origine() ; elle ne vaut que le temps de l'appel.
+local origine = nil
+
 -- Ce nom est-il dans mon groupe ? C'est la seule verification d'origine qu'on
 -- puisse faire d'un message : un client modifie dit ce qu'il veut, y compris
 -- qu'il est maitre du jeu. Elle vaut ce qu'elle vaut — on ne reçoit que de
@@ -225,13 +276,35 @@ function Reseau.DansLeGroupe(nom)
     return false
 end
 
+-- D'ou vient le message qu'on est en train de traiter : « CHANNEL »,
+-- « PARTY », « RAID », « WHISPER »... Nil hors reception.
+function Reseau.Origine() return origine end
+
+-- L'origine qu'on accepte pour ce qui se partage avec tout le monde (les
+-- coffres, les points de recolte, les vendeurs, les sacs au sol).
+--
+-- Le CANAL de l'addon suffit : on n'y entre pas par hasard, et seul un addon
+-- y parle. C'est la meme garantie que le groupe — c'est-a-dire aucune contre
+-- un client modifie — et elle tient a la meme chose : on AFFICHE toujours qui
+-- a envoye quoi, pour que la triche se voie.
+--
+-- Le groupe et la presence confirmee restent acceptes : un chuchotement de
+-- reponse n'a pas d'autre marque que son expediteur.
+function Reseau.Connu(nom)
+    if origine == "CHANNEL" then return true end
+    if Reseau.DansLeGroupe(nom) then return true end
+    local P = LCM.Presence
+    return (P and P.Confirmee and P.Confirmee(nom)) == true
+end
+
 function Reseau.Ecouter(sujet, handler)
     if type(handler) ~= "function" then return end
     handlers[tostring(sujet)] = handler
 end
 
 -- Rendue publique pour le banc : jouer un message recu sans passer par WoW.
-function Reseau.Recevoir(expediteur, message)
+-- `provenance` est le type de distribution de WoW (« CHANNEL », « PARTY »...).
+function Reseau.Recevoir(expediteur, message, provenance)
     local id, rang, total, morceau = tostring(message or ""):match("^(%d+):(%d+):(%d+):(.*)$")
     if not id then return false end
     rang, total = tonumber(rang), tonumber(total)
@@ -254,7 +327,9 @@ function Reseau.Recevoir(expediteur, message)
     if not sujet then return false end
     local handler = handlers[sujet]
     if not handler then return false end
+    origine = provenance
     local ok, erreur = pcall(handler, expediteur, Reseau.Decoder(corps))
+    origine = nil
     if not ok then LCM.Erreur(string.format("message « %s » : %s", sujet, tostring(erreur))) end
     return true
 end
@@ -267,10 +342,10 @@ function Reseau.EnAttente()
     return nombre
 end
 
-LCM.On("CHAT_MSG_ADDON", function(prefixe, message, _, expediteur)
+LCM.On("CHAT_MSG_ADDON", function(prefixe, message, provenance, expediteur)
     if prefixe ~= Reseau.PREFIXE then return end
     if expediteur == LCM.PlayerId() then return end
-    Reseau.Recevoir(expediteur, message)
+    Reseau.Recevoir(expediteur, message, provenance)
 end)
 
 LCM.WhenReady(function()

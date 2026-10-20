@@ -85,7 +85,9 @@ __groupe({ LCM.PlayerId(), "Claydenn-Apertus", "Nytherah-Apertus",
 __declencher("GROUP_ROSTER_UPDATE")
 partis = Envois(DEF, avant)
 attendu("un seul envoi", #partis, 1)
-attendu("  au raid", partis[1] and partis[1].canal, "RAID")
+-- Un seul envoi, et sur le canal de l'addon : il porte a tous ceux qui l'ont,
+-- raid ou pas (20 octobre 2026).
+attendu("  sur le canal de l'addon", partis[1] and partis[1].canal, "CHANNEL")
 
 dire("== le MJ se connecte : ceux déjà là reçoivent tout")
 -- Le joueur deja connecte n'a pas a se reconnecter : le MJ, des qu'il est

@@ -120,7 +120,10 @@ f.placement.poser:Click()
 attendu("un emplacement", MJ.Compte("etal_temoin"), 1)
 attendu("  listé", f.placement.compte:GetText(), "1 emplacement(s)")
 local envoi, paquet = DernierEnvoi(S.definition, avant)
-attendu("diffusé au groupe tout de suite", envoi and envoi.canal, "PARTY")
+-- Sur le canal de l'addon, et non celui du groupe : un joueur hors du raid ne
+-- recevait rien (le MJ, 20 octobre 2026). Le groupe reste le repli.
+attendu("diffusé sur le canal de l'addon tout de suite", envoi and envoi.canal, "CHANNEL")
+attendu("  a l'index du canal", envoi and envoi.cible, LCM.Presence.Canal())
 attendu("  avec ses deux articles", paquet and paquet.o and paquet.o[2] ~= nil, true)
 attendu("  et son rachat", paquet and paquet.b and paquet.b[1] and paquet.b[1].e, HERBE)
 attendu("  jamais au-delà de 255 octets", __plusGrosEnvoi() <= 255, true)

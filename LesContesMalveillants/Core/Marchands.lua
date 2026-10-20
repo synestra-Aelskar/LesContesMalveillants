@@ -471,7 +471,7 @@ end
 -- le groupe se fasse connaitre : meme piege que la recolte.
 local demandeEnSuspens = false
 function Marchands.Demander()
-    local canal = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    local canal = LCM.Reseau.Diffusable()
     if not canal then
         demandeEnSuspens = true
         return false
@@ -487,14 +487,14 @@ LCM.WhenReady(function()
 
     LCM.Reseau.Ecouter(S.definition, function(expediteur, donnees)
         if expediteur == Moi() then return end
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local definition, points = Marchands.Lire(donnees)
         if definition then Marchands.Connaitre(definition, points, expediteur) end
         Marchands.Signaler(expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.retrait, function(expediteur, donnees)
-        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        if not LCM.Reseau.Connu(expediteur) then return end
         local id, defId = Texte(donnees.i), Texte(donnees.d)
         if id ~= "" then
             local p = Marchands.points[id]
@@ -554,6 +554,14 @@ LCM.WhenReady(function()
     end)
 
     if not LCM.IsMaster() then Marchands.Demander() end
+end)
+
+-- Le canal de l'addon n'existe pas encore a la connexion : des qu'il repond,
+-- on redemande (Core/Presence.lua, 20 octobre 2026).
+LCM.WhenReady(function()
+    if LCM.Presence and LCM.Presence.QuandCanal then
+        LCM.Presence.QuandCanal(function() if not LCM.IsMaster() then Marchands.Demander() end end)
+    end
 end)
 
 LCM.On("GROUP_JOINED", function()

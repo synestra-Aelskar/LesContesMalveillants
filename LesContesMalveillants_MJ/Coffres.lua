@@ -7,7 +7,11 @@ if not LCM then return end
 local Coffres = {}
 LCM.CoffresMJ = Coffres
 local C, S, R = LCM.Coffres, LCM.Coffres.SUJETS, LCM.Recolte
-local function Canal() return LCM.Combat and LCM.Combat.CanalGroupe() end
+-- Tout le monde, et pas seulement le groupe : le canal d'addon que
+-- Core/Presence.lua rejoint (silencieux, hors des fenetres de discussion), le
+-- groupe en repli. Un joueur hors du raid ne recevait rien, et celui qui y
+-- entrait devait recharger (le MJ, 20 octobre 2026).
+local function Canal() return LCM.Reseau.Diffusable() end
 local function Magasin()
     LCM.EnsureDatabase()
     LCM.db.coffresMJ = type(LCM.db.coffresMJ) == "table" and LCM.db.coffresMJ or {}
