@@ -218,12 +218,20 @@ function Coffres.Traiter(expediteur, req)
         if extra.action == nil then extra.action = req.a end
         Envoyer(expediteur, p, ok, extra)
     end
-    local editionMJ = req.edition == true and LCM.IsMaster()
-        and expediteur == LCM.PlayerId()
-    -- Un ajout depuis le compendium CREE un exemplaire : il reste reserve au
-    -- MJ, et a sa propre machine. Il demandait en plus le mode edition, donc un
-    -- coffre pose par soi-meme et hors du sol (19 octobre 2026).
-    local compendiumMJ = LCM.IsMaster() and expediteur == LCM.PlayerId()
+    -- L'edition venait forcement de MA machine : un autre MJ se faisait
+    -- repondre « edition reservee au MJ » sur un coffre que j'avais pose (le
+    -- MJ, 20 octobre 2026). Editer est un geste de MJ, pas un privilege de
+    -- proprietaire.
+    --
+    -- On ne PROUVE pas qu'un expediteur est MJ : aucun message ne le peut, et
+    -- les brouillons de contenu, qu'un autre MJ redefinit deja, reposent sur
+    -- la meme confiance. Ce qui tient : la demande vient de quelqu'un de connu
+    -- (Core/Coffres.lua le verifie avant d'appeler ici), et c'est MOI qui
+    -- arbitre et qui sauvegarde.
+    local editionMJ = req.edition == true
+    -- Un ajout depuis le compendium CREE un exemplaire : geste de MJ, en mode
+    -- edition ou sur sa propre machine (19 puis 20 octobre 2026).
+    local compendiumMJ = editionMJ or (LCM.IsMaster() and expediteur == LCM.PlayerId())
     if req.a == "ajouter_compendium" and not compendiumMJ then
         Repondre(false, { msg = "sortir un objet du compendium est un geste du maître du jeu." })
         return

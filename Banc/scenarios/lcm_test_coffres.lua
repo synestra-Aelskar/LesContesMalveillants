@@ -401,5 +401,94 @@ attendu("placement retiré du magasin MJ", MJ.Points("coffre_temoin")[1], nil)
 attendu("placement retiré du client local", C.points[id], nil)
 attendu("fenêtre du coffre refermée", coffreUI:IsShown(), false)
 
+dire("== n'importe quel MJ edite le contenu d'un coffre (le MJ, 20 octobre 2026)")
+-- Le mode edition etait reserve au MJ qui avait POSE le coffre. A deux MJ sur
+-- une phase, l'autre ne pouvait rien garnir — alors que sortir un objet du
+-- compendium est deja reconnu comme un geste de MJ (12 octobre 2026).
+local dAutre = { id = "coffre_d_un_autre", label = "Coffre de Syn", auteur = "Syn-Apertus",
+    coffre = { places = 4, verrous = 0, reset = false, objets = {}, expertises = {}, outils = {} } }
+local pAutre = { id = "coffre_d_un_autre_1", x = 100, y = 200, z = 0, source = "gps",
+    carte = LCM.Recolte.Carte() }
+local defAutre, pointsAutre = C.Lire(LCM.Reseau.Decoder(LCM.Reseau.Encoder(C.Paquet(dAutre, { pAutre }))))
+C.Connaitre(defAutre, pointsAutre, "Syn-Apertus")
+attendu("le coffre d'un autre MJ est connu", C.definitions.coffre_d_un_autre ~= nil, true)
+attendu("  et je n'en suis pas l'auteur", C.definitions.coffre_d_un_autre.auteur, "Syn-Apertus")
+local ouvert, pourquoi = C.Ouvrir(pAutre.id, true)
+attendu("je peux l'ouvrir en édition", ouvert, true)
+if not ouvert then dire("     raison du refus :", tostring(pourquoi)) end
+attendu("  et l'édition est bien active", C.edition, true)
+LCM.UI.Coffre.frame:Hide()
+
+-- Un joueur, lui, n'edite rien.
+LCM.BasculerModeJoueur(true)
+local refuse, raisonJoueur = C.Ouvrir(pAutre.id, true)
+attendu("un joueur ne peut pas éditer", refuse, false)
+attendu("  et on dit pourquoi", tostring(raisonJoueur):find("maître du jeu", 1, true) ~= nil, true)
+LCM.BasculerModeJoueur(false)
+
+-- Un sac lache au sol n'a pas de MJ auteur mais un gardien : son contenu
+-- appartient a quelqu'un, il reste hors de cette porte.
+C.definitions.coffre_d_un_autre.sol = true
+local refuseSol, raisonSol = C.Ouvrir(pAutre.id, true)
+attendu("un sac au sol ne s'édite pas", refuseSol, false)
+attendu("  et on dit pourquoi", tostring(raisonSol):find("appartient", 1, true) ~= nil, true)
+C.definitions.coffre_d_un_autre.sol = nil
+
+dire("== et le propriétaire arbitre la demande de l'autre MJ")
+-- C'est l'autre moitie : meme ouverte chez l'editeur, l'edition se faisait
+-- repondre « edition reservee au MJ », parce que la demande ne venait pas de
+-- la machine du proprietaire.
+-- Le coffre a six places, deja garni de sept herbes : de quoi verifier
+-- aussi qu un ajout EPAISSIT la pile au lieu d ouvrir une case.
+local idGarni = MJ.Placer("coffre_garni_temoin")
+attendu("un coffre posé par moi", idGarni ~= nil, true)
+local pGarni = MJ.Points("coffre_garni_temoin")[1]
+-- La reponse a un AUTRE MJ part en chuchotement : `onReponse` ne sert qu'aux
+-- reponses a soi-meme (MJ/Coffres.lua, Envoyer).
+-- Recollee : un etat de coffre garni depasse les 255 octets, et le reseau le
+-- decoupe. Lire le premier morceau seul rendait une table tronquee.
+local function DerniereReponse()
+    for i = #__envois, 1, -1 do
+        local id, rang, total, corps =
+            tostring(__envois[i].message or ""):match("^(%d+):(%d+):(%d+):(.*)$")
+        if corps and rang == "1" and corps:sub(1, #C.SUJETS.etat + 1) == C.SUJETS.etat .. "|" then
+            local morceaux = { corps:sub(#C.SUJETS.etat + 2) }
+            for j = i + 1, #__envois do
+                local id2, rang2 = tostring(__envois[j].message or ""):match("^(%d+):(%d+):")
+                if id2 == id and tonumber(rang2) and tonumber(rang2) > 1 then
+                    morceaux[tonumber(rang2)] = tostring(__envois[j].message):match("^%d+:%d+:%d+:(.*)$")
+                end
+            end
+            if #morceaux == tonumber(total) then
+                return LCM.Reseau.Decoder(table.concat(morceaux)), __envois[i].cible
+            end
+        end
+    end
+    return {}
+end
+local function Herbes()
+    for _, o in ipairs(pGarni.objets or {}) do
+        if o.entree == "ressources/herbe_coffre" then return o.quantite end
+    end
+    return 0
+end
+
+MJ.Traiter("Syn-Apertus", { i = idGarni, a = "editer", edition = true })
+local reponse, pour = DerniereReponse()
+attendu("l'édition d'un autre MJ est acceptée", reponse.ok, true)
+attendu("  et la réponse lui revient", pour, "Syn-Apertus")
+attendu("le coffre en portait déjà sept", Herbes(), 7)
+MJ.Traiter("Syn-Apertus", { i = idGarni, a = "ajouter_compendium",
+    e = "ressources/herbe_coffre", q = 5, edition = true })
+attendu("il peut garnir depuis le compendium", Herbes(), 12)
+if Herbes() ~= 12 then dire("     refus :", tostring(DerniereReponse().msg)) end
+-- Sans le mode edition, une demande venue d'ailleurs reste refusee : c'est
+-- elle qui marque le geste de MJ.
+MJ.Traiter("Bily-Apertus", { i = idGarni, a = "ajouter_compendium",
+    e = "ressources/herbe_coffre", q = 99 })
+attendu("sans édition, un inconnu ne garnit rien", Herbes(), 12)
+attendu("  et le refus est dit",
+    tostring(DerniereReponse().msg):find("maître du jeu", 1, true) ~= nil, true)
+
 if ko > 0 then error(tostring(ko) .. " vérification(s) en échec") end
 dire("TOUT PASSE")

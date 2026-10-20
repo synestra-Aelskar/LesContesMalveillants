@@ -283,8 +283,16 @@ function Coffres.Ouvrir(id, edition)
     local p = Coffres.points[tostring(id or "")]
     local d = p and Coffres.definitions[p.def]
     if not d then return false, "coffre inconnu." end
-    if edition and (not LCM.IsMaster() or d.auteur ~= Moi() or d.sol) then
-        return false, "seul le MJ propriétaire peut éditer ce coffre."
+    -- N'IMPORTE QUEL MJ edite le contenu d'un coffre, pas seulement celui qui
+    -- l'a pose (le MJ, 20 octobre 2026) : a deux MJ sur une phase, l'autre ne
+    -- pouvait rien garnir. Le geste passe toujours par le proprietaire, qui
+    -- arbitre et sauvegarde (MJ/Coffres.lua).
+    --
+    -- Un sac lache au sol reste dehors : il n'a pas de MJ auteur mais un
+    -- gardien, et son contenu appartient a quelqu'un.
+    if edition and (not LCM.IsMaster() or d.sol) then
+        return false, d.sol and "un sac au sol ne s'édite pas : il appartient à quelqu'un."
+            or "l'édition d'un coffre est réservée au maître du jeu."
     end
     if not edition and Coffres.Proche() ~= p then
         if not GPSFrais() and Coffres.ProcheHorizontal() == p then
