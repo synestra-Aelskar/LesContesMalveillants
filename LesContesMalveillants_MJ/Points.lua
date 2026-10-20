@@ -24,6 +24,8 @@ local function IconePropre(valeur)
     return icone
 end
 
+local ObjetsLaisses = {}
+
 LCM.Points = LCM.Registre({
     nom = "point", prefixe = "Points",
     construire = function(definition, element, Erreur)
@@ -63,17 +65,38 @@ LCM.Points = LCM.Registre({
             -- pas dependre de l'ordre dans lequel les fichiers arrivent.
             local familles = { objets = true, livres = true, ressources = true,
                                accessoires_camping = true, sacs = true, devises = true }
-            local presents = {}
-            for _, objet in ipairs(type(c.objets) == "table" and c.objets or {}) do
+            -- Un objet supprime du compendium ne fait plus tomber le coffre
+            -- entier : sa ligne est laissee de cote, et on le dit. Avant, le
+            -- coffre disparaissait au /reload avec tout le reste de son
+            -- contenu, sans qu'on comprenne pourquoi (20 octobre 2026). Il ne
+            -- tombe que si TOUS ses objets ont disparu : il n'aurait plus rien
+            -- de ce que le MJ y avait mis.
+            local presents, inconnus = {}, {}
+            local lignes = type(c.objets) == "table" and c.objets or {}
+            for _, objet in ipairs(lignes) do
                 local ref = tostring(objet.entree or "")
                 local famille = ref:match("^([%w_]+)/")
                 local quantite = math.max(1, math.floor(tonumber(objet.quantite) or 1))
-                if not familles[famille or ""] or not LCM.Compendium.Resoudre(ref) then
-                    Erreur(element.id .. " : objet de coffre inconnu (" .. ref .. ")")
-                end
                 if presents[ref] then Erreur(element.id .. " : objet de coffre répété (" .. ref .. ")") end
                 presents[ref] = true
-                coffre.objets[#coffre.objets + 1] = { entree = ref, quantite = quantite }
+                if not familles[famille or ""] or not LCM.Compendium.Resoudre(ref) then
+                    inconnus[#inconnus + 1] = ref
+                else
+                    coffre.objets[#coffre.objets + 1] = { entree = ref, quantite = quantite }
+                end
+            end
+            if #lignes > 0 and #coffre.objets == 0 then
+                Erreur(element.id .. " : tous les objets du coffre sont inconnus ("
+                    .. table.concat(inconnus, ", ") .. ")")
+            elseif #inconnus > 0 then
+                -- Une definition se relit plusieurs fois au chargement : on ne
+                -- le dit qu'une fois.
+                local message = string.format("coffre « %s » : %d objet(s) inconnu(s) laissé(s) de côté (%s).",
+                    tostring(definition.label or element.id), #inconnus, table.concat(inconnus, ", "))
+                if not ObjetsLaisses[message] then
+                    ObjetsLaisses[message] = true
+                    LCM.Alerte(message)
+                end
             end
             for _, methode in ipairs(type(c.expertises) == "table" and c.expertises or {}) do
                 local id = tostring(methode.id or "")

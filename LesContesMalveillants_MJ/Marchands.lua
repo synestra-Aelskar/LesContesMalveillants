@@ -122,7 +122,7 @@ local function Rafraichir(defId)
     local point = Marchands.Definition(defId)
     if point then M.Connaitre(Publique(point), Marchands.Points(defId), Moi())
     else M.OublierDefinition(defId) end
-    if Marchands.onChange then pcall(Marchands.onChange, defId) end
+    if Marchands.onChange then LCM.Proteger("marchand", Marchands.onChange, defId) end
 end
 
 function Marchands.Diffuser(defId, canal, cible)

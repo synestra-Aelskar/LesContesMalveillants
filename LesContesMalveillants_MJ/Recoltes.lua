@@ -207,7 +207,7 @@ local function Rafraichir(defId)
     local point = Recoltes.Definition(defId)
     if point then R.Connaitre(Publique(point), Recoltes.Points(defId, true), Moi())
     else R.OublierDefinition(defId) end
-    if Recoltes.onChange then pcall(Recoltes.onChange, defId) end
+    if Recoltes.onChange then LCM.Proteger("récolte", Recoltes.onChange, defId) end
 end
 
 function Recoltes.Diffuser(defId, canal, cible)

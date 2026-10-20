@@ -57,8 +57,8 @@ local function Envoyer(expediteur, p, ok, extra)
     for k, v in pairs(extra or {}) do data[k] = v end
     if expediteur == LCM.PlayerId() then
         C.etat = data
-        if C.onChange then pcall(C.onChange) end
-        if C.onReponse then pcall(C.onReponse, expediteur, data) end
+        if C.onChange then LCM.Proteger("coffre", C.onChange) end
+        if C.onReponse then LCM.Proteger("coffre (réponse)", C.onReponse, expediteur, data) end
     else
         LCM.Reseau.Envoyer(S.etat, data, "WHISPER", expediteur)
     end
@@ -201,7 +201,7 @@ local function MettreAJour(p)
     local canal = Canal()
     if p.id == C.courant and LCM.PlayerId() == (C.definitions[p.def] or {}).auteur then
         C.etat = Etat(p)
-        if C.onChange then pcall(C.onChange) end
+        if C.onChange then LCM.Proteger("coffre", C.onChange) end
     end
     if canal then
         local data = Etat(p)
