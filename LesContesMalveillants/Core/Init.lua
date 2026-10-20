@@ -78,6 +78,20 @@ function LCM.EnsureDatabase()
     db.version = tonumber(db.version) or DB_VERSION
     db.settings = type(db.settings) == "table" and db.settings or {}
 
+    -- Nettoyage du prototype de curseur retire : remettre la taille native
+    -- sauvegardee avant le test, une seule fois au prochain chargement.
+    local tailleCurseur = db.settings.curseurTestTailleInitiale
+    if tailleCurseur == nil and db.settings.curseurTestActif then
+        tailleCurseur = "-1"
+    end
+    if tailleCurseur ~= nil and C_CVar and C_CVar.SetCVar then
+        local ok = pcall(C_CVar.SetCVar, "cursorSizePreferred", tailleCurseur)
+        if ok then
+            db.settings.curseurTestTailleInitiale = nil
+            db.settings.curseurTestActif = nil
+        end
+    end
+
     local charDb = _G.LCM_CharDB
     charDb.version = tonumber(charDb.version) or DB_VERSION
 

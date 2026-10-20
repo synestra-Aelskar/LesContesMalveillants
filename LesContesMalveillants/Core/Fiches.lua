@@ -70,7 +70,10 @@ local ANNEXES = {
     etatsTemporaires = "et",
     apprentissages = "a",
     equipement = "eq",
+    -- L'ancien etat, au nom du modele : celui qu'envoie encore une fiche
+    -- d'avant le 20 octobre 2026. L'etat vit maintenant sur l'exemplaire porte.
     usureArmure = "u",
+    exemplairesEquipes = "xe",
     bourse = "bo",
     xp = "xp",
 }

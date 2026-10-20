@@ -22,6 +22,9 @@ LCM._masterCompanion = true
 
 local moi = LCM.Entities.Self()
 local O, E = LCM.Objets, LCM.Equilibrage
+-- L'etat et les vies sont ceux de l'EXEMPLAIRE (20 octobre 2026), plus du
+-- modele : on lit celui qu'on porte.
+local function X(id) return O.ExemplaireAUser(moi, id) end
 
 dire("== la rarete donne les vies")
 -- Le bareme est lu par la COULEUR du titre : les jeux d'equilibrage nomment
@@ -51,24 +54,24 @@ dire("== a zero d'etat, l'objet se brise au lieu d'etre detruit")
 local bleu = "essai_rarete_3"
 attendu("equipe", O.Placer(moi, bleu), true)
 local maxi = O.EtatMax(bleu)
-attendu("il a une vie", (O.Vies(moi, O.Get(bleu))), 1)
+attendu("il a une vie", (O.Vies(moi, O.Get(bleu), X(bleu))), 1)
 local _, detruit, brise = O.Encaisser(moi, bleu, maxi)
 attendu("il n'est PAS detruit", detruit, false)
 attendu("il s'est brise", brise, true)
 attendu("il est toujours porte", O.Porte(moi, bleu), true)
-attendu("il ne lui reste plus de vie", (O.Vies(moi, O.Get(bleu))), 0)
-attendu("et son etat est a zero", maxi - O.Usure(moi, bleu), 0)
+attendu("il ne lui reste plus de vie", (O.Vies(moi, O.Get(bleu), X(bleu))), 0)
+attendu("et son etat est a zero", maxi - O.Usure(moi, bleu, X(bleu)), 0)
 
 -- Encaisser encore ne coute PAS une seconde vie : on ne perd une vie qu'en
 -- TOMBANT a zero, pas a chaque coup une fois qu'on y est.
 local _, detruit2 = O.Encaisser(moi, bleu, 5)
 attendu("un coup de plus ne detruit pas", detruit2, false)
-attendu("et ne reprend pas de vie", (O.Vies(moi, O.Get(bleu))), 0)
+attendu("et ne reprend pas de vie", (O.Vies(moi, O.Get(bleu), X(bleu))), 0)
 
 dire("== reparer le rend utile, mais ne rend pas la vie")
 O.Encaisser(moi, bleu, -maxi)
-attendu("repare a neuf", maxi - O.Usure(moi, bleu), maxi)
-attendu("la vie perdue reste perdue", (O.Vies(moi, O.Get(bleu))), 0)
+attendu("repare a neuf", maxi - O.Usure(moi, bleu, X(bleu)), maxi)
+attendu("la vie perdue reste perdue", (O.Vies(moi, O.Get(bleu), X(bleu))), 0)
 
 dire("== sans vie, le prochain zero le detruit")
 local _, detruit3 = O.Encaisser(moi, bleu, maxi)
@@ -76,7 +79,7 @@ attendu("detruit", detruit3, true)
 attendu("et retire", O.Porte(moi, bleu), false)
 -- Detruit, il n'a plus d'histoire : un exemplaire neuf repart entier.
 O.Placer(moi, bleu)
-attendu("un exemplaire neuf a toutes ses vies", (O.Vies(moi, O.Get(bleu))), 1)
+attendu("un exemplaire neuf a toutes ses vies", (O.Vies(moi, O.Get(bleu), X(bleu))), 1)
 O.Enlever(moi, bleu)
 
 dire("== un rose meurt au premier zero, un noir jamais")
@@ -102,19 +105,19 @@ O.Add({ id = "essai_apport", label = "Lame d'essai", categorie = "arme",
         couleurTitre = "BF4DFF", etat = { max = 10 }, bonus = { force = 10 } })
 O.Placer(moi, "essai_apport")
 local objet = O.Get("essai_apport")
-attendu("neuve : tout", O.ApportSelonEtat(moi, objet, 10), 10)
+attendu("neuve : tout", O.ApportSelonEtat(moi, objet, 10, X("essai_apport")), 10)
 O.Encaisser(moi, "essai_apport", 2)          -- 8/10, soit 80 %
-attendu("a 80 % : huit", O.ApportSelonEtat(moi, objet, 10), 8)
+attendu("a 80 % : huit", O.ApportSelonEtat(moi, objet, 10, X("essai_apport")), 8)
 attendu("et la fiche le voit", LCM.Effets.Bonus(moi, "force"), 8)
 -- ARRONDI AU SUPERIEUR : 5 x 0,7 = 3,5 donne 4, pas 3.
 O.Encaisser(moi, "essai_apport", 1)          -- 7/10
-attendu("a 70 %, 5 donne 4 (arrondi au superieur)", O.ApportSelonEtat(moi, objet, 5), 4)
-attendu("et 10 donne 7", O.ApportSelonEtat(moi, objet, 10), 7)
+attendu("a 70 %, 5 donne 4 (arrondi au superieur)", O.ApportSelonEtat(moi, objet, 5, X("essai_apport")), 4)
+attendu("et 10 donne 7", O.ApportSelonEtat(moi, objet, 10, X("essai_apport")), 7)
 -- Un MALUS suit la meme pente, sinon s'abimer rendrait meilleur.
-attendu("un malus faiblit aussi", O.ApportSelonEtat(moi, objet, -4), -3)
+attendu("un malus faiblit aussi", O.ApportSelonEtat(moi, objet, -4, X("essai_apport")), -3)
 -- Brise : il n'apporte plus rien tant qu'on ne l'a pas repare.
 O.Encaisser(moi, "essai_apport", 10)
-attendu("brise : plus rien", O.ApportSelonEtat(moi, objet, 10), 0)
+attendu("brise : plus rien", O.ApportSelonEtat(moi, objet, 10, X("essai_apport")), 0)
 attendu("la fiche non plus", LCM.Effets.Bonus(moi, "force"), 0)
 O.Encaisser(moi, "essai_apport", -10)
 attendu("repare : tout revient", LCM.Effets.Bonus(moi, "force"), 10)
@@ -133,9 +136,9 @@ dire("== un objet brise se voit")
 -- a tenir a jour, donc rien qui puisse mentir apres une reparation.
 local violet = O.Get("essai_apport")
 O.Encaisser(moi, "essai_apport", -O.EtatMax(violet))
-attendu("neuf : pas brise", O.EstBrise(moi, violet), false)
+attendu("neuf : pas brise", O.EstBrise(moi, violet, X("essai_apport")), false)
 O.Encaisser(moi, "essai_apport", O.EtatMax(violet))
-attendu("a zero : brise", O.EstBrise(moi, violet), true)
+attendu("a zero : brise", O.EstBrise(moi, violet, X("essai_apport")), true)
 attendu("mais toujours porte", O.Porte(moi, "essai_apport"), true)
 
 -- Sur la fiche : la marque devant le nom, le nom en rouge, l'icone teintee.
@@ -158,7 +161,7 @@ attendu("l'icone est teintee de rouge",
 
 -- Repare au-dessus de zero : la marque s'en va toute seule.
 O.Encaisser(moi, "essai_apport", -1)
-attendu("repare : plus brise", O.EstBrise(moi, violet), false)
+attendu("repare : plus brise", O.EstBrise(moi, violet, X("essai_apport")), false)
 cont:Actualiser(moi)
 attendu("la marque a disparu",
     __sansCouleur(porte.nom:GetText()):find("BRISÉ") ~= nil, false)

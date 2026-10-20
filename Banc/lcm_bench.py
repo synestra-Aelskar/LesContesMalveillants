@@ -242,6 +242,18 @@ local function NouvelleRegion(kind, parent)
     function r:GetPoint(i) local p = self.__points[i or 1] if p then return unpack(p) end end
     function r:GetNumPoints() return #self.__points end
     function r:GetParent() return self.parent end
+    -- Changer de parent : le cadre quitte la liste des enfants de l'ancien
+    -- (sa visibilite suit desormais le nouveau).
+    function r:SetParent(parent)
+        local ancien = self.parent
+        if ancien and ancien.__children then
+            for i, enfant in ipairs(ancien.__children) do
+                if enfant == self then table.remove(ancien.__children, i) break end
+            end
+        end
+        self.parent = parent
+        if parent and parent.__children then parent.__children[#parent.__children + 1] = self end
+    end
     function r:SetSize(w, h) self.__w, self.__h = w, h end
     function r:SetWidth(w) self.__w = w end
     function r:SetHeight(h) self.__h = h end
@@ -492,6 +504,13 @@ local function NouveauCadre(kind, nom, parent, template)
         local fn = self.__scripts.OnClick
         if fn then fn(self, bouton or "LeftButton") end
     end
+    -- Un double-clic, comme dans le jeu : le premier clic passe par OnClick,
+    -- le second par OnDoubleClick (et pas une seconde fois par OnClick).
+    function f:DoubleClick(bouton)
+        self:Click(bouton)
+        local fn = self.__scripts.OnDoubleClick
+        if fn then fn(self, bouton or "LeftButton") end
+    end
     function f:Molette(delta)
         local fn = self.__scripts.OnMouseWheel
         if fn then fn(self, delta) end
@@ -633,6 +652,40 @@ __touches = {}
 -- Boutons de souris tenus : __souris = { LeftButton = true }.
 __souris = {}
 function IsMouseButtonDown(b) return __souris[b or "LeftButton"] == true end
+
+-- Raccourcis clavier. __raccourcis tient ceux du joueur (touche -> action),
+-- comme les a enregistres WoW ; les surcharges d'un addon passent par-dessus
+-- sans les modifier, et disparaissent avec leur proprietaire.
+__raccourcis = { B = "OPENALLBAGS", F12 = "TOGGLEBACKPACK", ["SHIFT-B"] = "TOGGLEBACKPACK",
+                 F11 = "TOGGLEBAG1", F10 = "TOGGLEBAG2", F9 = "TOGGLEBAG3", F8 = "TOGGLEBAG4",
+                 I = "TOGGLEGROUPFINDER", L = "TOGGLEQUESTLOG" }
+local surcharges = {}
+function GetBindingKey(action)
+    local touches = {}
+    for touche, a in pairs(__raccourcis) do if a == action then touches[#touches + 1] = touche end end
+    table.sort(touches)
+    return unpack(touches)
+end
+function GetBindingAction(touche)
+    for _, liste in pairs(surcharges) do
+        if liste[touche] then return liste[touche] end
+    end
+    return __raccourcis[touche] or ""
+end
+function SetOverrideBinding(proprio, _, touche, action)
+    surcharges[proprio] = surcharges[proprio] or {}
+    surcharges[proprio][touche] = action
+end
+function SetOverrideBindingClick(proprio, prioritaire, touche, bouton, souris)
+    SetOverrideBinding(proprio, prioritaire, touche, bouton and ("CLICK " .. bouton .. ":" .. (souris or "LeftButton")))
+end
+function ClearOverrideBindings(proprio) surcharges[proprio] = nil end
+
+-- Les sons : rien ne sort, mais un scenario lit ce qui a ete joue
+-- (__sons, dans l'ordre : { id, canal }). Les identifiants sont ceux du jeu.
+SOUNDKIT = { IG_BACKPACK_OPEN = 862, IG_BACKPACK_CLOSE = 863, IG_SPELLBOOK_TURNPAGE = 836 }
+__sons = {}
+function PlaySound(id, canal) __sons[#__sons + 1] = { id = id, canal = canal } return true, #__sons end
 
 -- Selecteur de couleur du jeu : le scenario lit ce qui a ete demande et
 -- peut rappeler swatchFunc pour simuler un choix.

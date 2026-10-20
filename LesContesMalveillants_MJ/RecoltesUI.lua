@@ -184,6 +184,29 @@ local function Construire()
     c.nom:SetMaxLetters(80)
     c.nom:SetPoint("TOPLEFT", c, "TOPLEFT", 110, 0)
 
+    -- Regler UN point pose (20 octobre 2026) : le meme formulaire, mais ce
+    -- qu'on enregistre ne va qu'a ce point-la. Le bandeau le dit, a la place
+    -- du nom — qui est celui du modele et ne se change pas d'ici.
+    c.bandeau = CreateFrame("Frame", nil, c)
+    c.bandeau:SetPoint("TOPLEFT", c, "TOPLEFT", 0, 2)
+    c.bandeau:SetPoint("TOPRIGHT", c, "TOPRIGHT", 0, 2)
+    c.bandeau:SetHeight(26)
+    c.bandeau:SetFrameLevel(c:GetFrameLevel() + 5)
+    c.bandeau:EnableMouse(true)
+    c.bandeau.fond = UI.Aplat(c.bandeau, { 0.55, 0.39, 0.12, 0.92 })
+    c.bandeau.fond:SetAllPoints(c.bandeau)
+    c.bandeau.texte = UI.Texte(c.bandeau, "", UI.C.titre, "GameFontNormalSmall")
+    c.bandeau.texte:SetPoint("LEFT", c.bandeau, "LEFT", 8, 0)
+    c.bandeau.texte:SetJustifyH("LEFT")
+    c.bandeau.retour = UI.Bouton(c.bandeau, "Retour au modèle", 130, 20, function()
+        f:ChangerModele(function() f:Choisir(f.pointId) end)
+    end)
+    c.bandeau.retour:SetPoint("RIGHT", c.bandeau, "RIGHT", -4, 0)
+    c.bandeau.rendre = UI.Bouton(c.bandeau, "Tout activer", 110, 20, function() f:ToutActiver() end)
+    c.bandeau.rendre:SetPoint("RIGHT", c.bandeau.retour, "LEFT", -6, 0)
+    c.bandeau.texte:SetPoint("RIGHT", c.bandeau.rendre, "LEFT", -8, 0)
+    c.bandeau:Hide()
+
     c.pages = UI.PagesFormulaire(c, { "Contenu récolté", "Conditions de récolte" })
     Libelle(c.pages[1], "Ressources et objets — clique sur une ligne pour la régler", 0, -2)
     c.tableau = CreateFrame("Frame", nil, c.pages[1])
@@ -207,6 +230,11 @@ local function Construire()
     TitreColonne("QUANTITÉ", 155, 161)
     TitreColonne("CHANCE %", 316, 60)
     TitreColonne("REPOUSSE (min)", 376, 98)
+    -- La colonne de droite : l'allumage d'une ligne, sur un point pose.
+    c.titreActif = Libelle(c.entete, "ACTIF", 474, -6)
+    c.titreActif:SetWidth(70)
+    c.titreActif:SetJustifyH("CENTER")
+    c.titreActif:Hide()
     for _, x in ipairs({ 31, 155, 316, 376, 474 }) do
         local trait = UI.Filet(c.entete, false, true)
         trait:SetPoint("TOPLEFT", c.entete, "TOPLEFT", x, 0)
@@ -381,6 +409,7 @@ local function Construire()
 
     function f:Choisir(id)
         self.pointId = id
+        self.poseRegle = nil
         local point = self:Point()
         self.creationNeuve = point == nil
         self.travail = Travail(point)
@@ -481,7 +510,9 @@ local function Construire()
                 ligne.repousseResume:SetJustifyH("CENTER")
                 ligne.retirer = CreateFrame("Button", nil, ligne)
                 ligne.retirer:SetSize(24, 22)
-                ligne.retirer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 477, -3)
+                -- Au bout de la ligne : la colonne de droite garde sa place
+                -- pour la case « Actif » d'un point pose.
+                ligne.retirer:SetPoint("TOPRIGHT", ligne, "TOPRIGHT", -8, -3)
                 ligne.retirer.label = UI.Texte(ligne.retirer, "×", UI.C.discret, "GameFontNormalSmall")
                 ligne.retirer.label:SetAllPoints(ligne.retirer)
                 ligne.retirer.label:SetJustifyH("CENTER")
@@ -494,6 +525,13 @@ local function Construire()
                     f.ressourceOuverte = nil
                     f:Remplir()
                 end)
+                -- Sur un point pose : la ligne s'allume ou s'eteint ici. Le
+                -- catalogue, lui, ne change que dans le modele.
+                ligne.actif = UI.Case(ligne, "", function(coche)
+                    local courant = f.travail.recolte.ressources[ligne.index]
+                    if courant then courant.actif = coche f:Remplir() end
+                end)
+                ligne.actif:SetPoint("TOPLEFT", ligne, "TOPLEFT", 500, -6)
 
                 ligne.detail = CreateFrame("Frame", nil, ligne)
                 ligne.detail:SetPoint("TOPLEFT", ligne, "TOPLEFT", 0, -PAS)
@@ -567,6 +605,14 @@ local function Construire()
             end
 
             ligne.index = index
+            -- Point pose : la case d'allumage, pas de croix ni de « Changer… »,
+            -- et une ligne eteinte se voit eteinte.
+            local surPoint = self.poseRegle ~= nil
+            ligne.actif:SetShown(surPoint)
+            ligne.actif:Cocher(lot.actif == true)
+            ligne.retirer:SetShown(not surPoint)
+            ligne.choix:SetShown(not surPoint)
+            ligne:SetAlpha((surPoint and not lot.actif) and 0.45 or 1)
             local entree = LCM.Compendium.Resoudre(lot.entree)
             ligne.nom:SetText((entree and entree.label) or lot.entree or "")
             ligne.icone:SetTexture((entree and entree.icone)
@@ -623,7 +669,9 @@ local function Construire()
         c.ajouter:SetPoint("TOPLEFT", c.zoneRessources.contenu, "TOPLEFT", 0, -y)
         c.ajouter:SetPoint("TOPRIGHT", c.zoneRessources.contenu, "TOPRIGHT", 0, -y)
         if #ressources == 0 then c.entree = c.ajouter end
-        local hauteur = y + PAS
+        -- On n'ajoute pas de ligne a un point pose : il choisit dans son modele.
+        c.ajouter:SetShown(self.poseRegle == nil)
+        local hauteur = y + (self.poseRegle and 0 or PAS)
         local visible = math.min(hauteur, 280)
         c.zoneRessources:SetHeight(visible)
         c.zoneRessources:Regler(hauteur)
@@ -748,6 +796,23 @@ local function Construire()
         local r = t.recolte
         r.entree = r.ressources[1] and r.ressources[1].entree or ""
         c.nom:SetText(t.label or "")
+        -- Un point pose ne regle que son contenu : les conditions (metiers,
+        -- DD, rayon, limite) restent celles du modele.
+        local pose = self.poseRegle and Recoltes.Pose(self.poseRegle)
+        c.bandeau:SetShown(pose ~= nil)
+        if pose then
+            local actives = 0
+            for _, lot in ipairs(r.ressources) do if lot.actif then actives = actives + 1 end end
+            c.bandeau.texte:SetText(string.format("Point posé de « %s » — coche ce que CE point donne (%d/%d)",
+                t.label or "?", actives, #r.ressources))
+            c.pages:Choisir(1)
+        end
+        c.pages.boutons[2]:SetShown(pose == nil)
+        c.titreActif:SetShown(pose ~= nil)
+        -- Le libelle du modele (celui de UI.AtelierInteractions), retenu avant
+        -- qu'on le change.
+        self.libelleEnregistrer = self.libelleEnregistrer or c.enregistrer.label:GetText()
+        c.enregistrer.label:SetText(pose and "Enregistrer ce point" or self.libelleEnregistrer)
         self:AfficherRessources()
         c.infini:Cocher(tonumber(r.limite) == 0)
         c.limite:SetText(tostring(tonumber(r.limite) == 0 and 1 or (r.limite or 1)))
@@ -820,6 +885,7 @@ local function Construire()
     end
 
     function f:Enregistrer()
+        if self.poseRegle then return self:EnregistrerPose() end
         local recolte, raison, index = self:Valider()
         if not recolte then
             c.pages:Choisir(index and 1 or 2)
@@ -843,6 +909,75 @@ local function Construire()
         if Recoltes.onChange then Recoltes.onChange(id) end
         LCM.Ok(string.format("Point de récolte « %s » enregistré.", self.travail.label))
         self:Choisir(id)
+    end
+
+    -- Ouvrir un point POSE pour regler ce qu'il donne : on part de sa liste a
+    -- lui, ou de celle du modele s'il n'en a pas encore.
+    function f:ReglerPose(poseId)
+        local pose = Recoltes.Pose(poseId)
+        if not pose then LCM.Alerte("ce point de récolte n'a pas été posé par toi.") return false end
+        if not Recoltes.Definition(pose.def) then LCM.Alerte("le modèle de ce point n'existe plus.") return false end
+        local function Ouvrir()
+            self:Choisir(pose.def)
+            self.poseRegle = poseId
+            -- Chaque ligne du modele, avec le reglage de CE point. Un point pose
+            -- avant les lignes (sans `lignes`) donnait tout son modele : tout
+            -- est allume, rien ne change tant qu'on n'enregistre pas.
+            for _, lot in ipairs(self.travail.recolte.ressources) do
+                local regle = type(pose.lignes) == "table" and pose.lignes[lot.entree]
+                if pose.lignes == nil then
+                    lot.actif = true
+                elseif type(regle) == "table" then
+                    for champ, valeur in pairs(regle) do lot[champ] = valeur end
+                    lot.actif = regle.actif == true
+                else
+                    lot.actif = false
+                end
+            end
+            self.referenceTravail = LCM.Copie(self.travail)
+            self.ressourceIndex, self.ressourceOuverte = 1, nil
+            self:Onglet("creation")
+            self:Remplir()
+        end
+        if self:IsShown() then self:ChangerModele(Ouvrir) else self:Montrer(); Ouvrir() end
+        return true
+    end
+
+    -- Les memes verifications que le modele : ce sont les memes lignes.
+    function f:EnregistrerPose()
+        local recolte, raison, index = self:Valider()
+        if not recolte then
+            if index then
+                self.ressourceIndex, self.ressourceOuverte = index, index
+                self:AfficherRessources()
+            end
+            c.erreur:SetText(raison)
+            LCM.Alerte(raison)
+            return
+        end
+        -- Valider rend des lignes propres ; l'allumage vient du travail, rang
+        -- pour rang.
+        local lignes = {}
+        for index, lot in ipairs(recolte.ressources) do
+            local regle = { actif = self.travail.recolte.ressources[index].actif == true }
+            for champ, valeur in pairs(lot) do if champ ~= "entree" then regle[champ] = valeur end end
+            lignes[lot.entree] = regle
+        end
+        local ok, erreur = Recoltes.Regler(self.poseRegle, lignes)
+        if not ok then c.erreur:SetText(erreur) LCM.Alerte(tostring(erreur)) return end
+        c.erreur:SetText("")
+        self.referenceTravail = LCM.Copie(self.travail)
+        LCM.Ok("Point de récolte réglé : il repart plein, avec ce que tu as coché.")
+        self:Remplir()
+        self:Afficher()
+    end
+
+    -- Tout allumer d'un coup, tel que le modele le regle. Rien n'est
+    -- enregistre avant « Enregistrer ce point ».
+    function f:ToutActiver()
+        if not self.poseRegle then return end
+        for _, lot in ipairs(self.travail.recolte.ressources) do lot.actif = true end
+        self:Remplir()
     end
 
     function f:Supprimer()
@@ -915,6 +1050,17 @@ local function Construire()
                     self:Afficher()
                 end)
                 l.retirer:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+                l.contenu = UI.Bouton(l, "Contenu…", 76, 20, function(b)
+                    self:ReglerPose(b:GetParent().poseId)
+                end)
+                l.contenu:SetPoint("RIGHT", l.retirer, "LEFT", -6, 0)
+                -- Comme sur un coffre pose : y aller.
+                l.teleporter = UI.Bouton(l, "S'y téléporter", 112, 20, function(b)
+                    local ok, raison = Recoltes.Teleporter(b:GetParent().poseId)
+                    if not ok then LCM.Alerte(tostring(raison)) end
+                end)
+                l.teleporter:SetPoint("RIGHT", l.contenu, "LEFT", -6, 0)
+                l.texte:SetPoint("RIGHT", l.teleporter, "LEFT", -6, 0)
                 p.lignes[rang] = l
             end
             l.poseId = pose.id
@@ -932,6 +1078,11 @@ local function Construire()
                 or not pose.actif and (pose.retour and "|cffe0c060En régénération|r"
                     or "|cff9d9d9dÉpuisé|r")
                 or "|cff7fd07fCréé|r"
+            if pose.vide then
+                statut = "|cffe0c060À régler : rien d'activé|r"
+            elseif pose.lignes then
+                statut = statut .. string.format("  |cff9d9d9d(%d ressource(s))|r", #(pose.ressources or {}))
+            end
             l.texte:SetText(string.format("#%d   %s   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1, statut,
                 pose.x, pose.y, pose.z and string.format("%.1f", pose.z) or "Z ?",
                 tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "",
@@ -1030,6 +1181,13 @@ LCM.WhenReady(function()
     -- L'entree « Ressources » du menu ouvre cette fenetre. Posee apres
     -- MJ/PointsUI.lua, cette liaison remplace l'ancien editeur a offres.
     UI.Menu.Lier("ressources", function() Ecran.Basculer() end)
+    -- En jeu, devant un point qu'on a pose : clic droit sur « Récolter ».
+    if UI.Recolte then
+        UI.Recolte.Regler = function(poseId)
+            local f = Ecran.Fenetre()
+            if f then f:ReglerPose(poseId) end
+        end
+    end
     Recoltes.onChange = function()
         local f = Ecran.frame
         if f and f:IsShown() then f:Afficher() end

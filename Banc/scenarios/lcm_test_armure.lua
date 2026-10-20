@@ -20,6 +20,16 @@ local O, A = LCM.Objets, LCM.Actions
 -- Placer / Enlever : les gestes bruts, sans passer par les sacs (ce scenario
 -- parle de la jauge, lcm_test_equipement.lua des sacs).
 local moi = LCM.Entities.Self()
+-- L'usure est celle de l'EXEMPLAIRE porte, plus celle du modele (20 octobre
+-- 2026) : six kits ou deux capuches identiques ne partagent plus un compteur.
+-- On lit donc la piece portee de ce modele.
+local function U(id)
+    local objet = O.Get(id)
+    for rang, porte in ipairs(O.Ids(moi, objet.categorie)) do
+        if porte == id then return O.Usure(moi, id, O.ExemplairePorte(moi, objet.categorie, rang)) end
+    end
+    return 0
+end
 
 dire("== la valeur d'une piece")
 local tshirt = O.Add({ id = "tshirt_d_essai", label = "T-shirt", categorie = "equipement" })
@@ -62,30 +72,32 @@ attendu("#armure n'est plus inconnu", #inconnus, 0)
 local ctx = { entity = moi, journal = {} }
 A.Repartir(ctx, cases, { 0, 2, 3 }, "-")
 attendu("encaisse", Jauge(moi), "5/" .. totalArmure)
-attendu("le t-shirt a pris deux points", O.Usure(moi, "tshirt_d_essai"), 2)
+attendu("le t-shirt a pris deux points", U("tshirt_d_essai"), 2)
 attendu("le journal le dit", ctx.journal[1], "Réparti : T-shirt -2, Plastron -3")
 cases = A.Zones(moi, { "#armure" })
 attendu("une piece entamee n'absorbe plus que le reste", cases[2].plafond, etatT - 2)
 
 dire("== chaque piece garde son usure")
-O.Enlever(moi, "plastron_d_essai")
+-- Elle la porte avec elle : retiree, l'exemplaire emporte son usure, et c'est
+-- LUI qu'on remet. Un plastron neuf du meme modele serait neuf.
+local _, exPlastron = O.Enlever(moi, "plastron_d_essai")
 attendu("sans le plastron", Jauge(moi), "2/" .. etatT)
-attendu("son usure reste retenue", O.Usure(moi, "plastron_d_essai"), 3)
-O.Placer(moi, "plastron_d_essai")
+attendu("son usure reste retenue", O.Usure(moi, "plastron_d_essai", exPlastron), 3)
+O.Placer(moi, "plastron_d_essai", exPlastron)
 attendu("remis, toujours abime", Jauge(moi), "5/" .. totalArmure)
 
 dire("== reparer")
 A.Repartir({ entity = moi, journal = {} }, A.Zones(moi, { "#armure" }), { 0, 0, 1 }, "+")
-attendu("un gain repare", O.Usure(moi, "plastron_d_essai"), 2)
+attendu("un gain repare", U("plastron_d_essai"), 2)
 LCM.Entities.SetGauge(moi, "armure_portee", 6)
 -- L'ordre dans lequel les pieces prennent les points n'est pas ce qu'on
 -- verifie ici : c'est que le total pose sur la fiche se retrouve bien reparti
 -- sur les pieces, sans rien perdre.
 attendu("le + de la fiche se repartit sur les pieces",
-    O.Usure(moi, "plastron_d_essai") + O.Usure(moi, "tshirt_d_essai"), 6)
+    U("plastron_d_essai") + U("tshirt_d_essai"), 6)
 LCM.Entities.SetGauge(moi, "armure_portee", 1)
 attendu("le - repare la derniere touchee d'abord",
-    O.Usure(moi, "plastron_d_essai") .. "/" .. O.Usure(moi, "tshirt_d_essai"), "0/1")
+    U("plastron_d_essai") .. "/" .. U("tshirt_d_essai"), "0/1")
 LCM.Entities.SetGauge(moi, "armure_portee", 0)
 attendu("R : tout est repare", Jauge(moi), "0/" .. totalArmure)
 attendu("et la sauvegarde n'en garde rien", moi.usureArmure, nil)
@@ -99,10 +111,10 @@ local lignes = f.pages.equipement.blocs[1].conteneur.emplacements
 -- La ligne annonce l'ETAT puis la valeur d'armure de la piece.
 attendu("le t-shirt entame", lignes[1].effets:GetText(),
     string.format("État %d / %d  ·  Armure %d",
-        etatT - O.Usure(moi, "tshirt_d_essai"), etatT, O.Armure(tshirt)))
+        etatT - U("tshirt_d_essai"), etatT, O.Armure(tshirt)))
 attendu("le plastron aussi", lignes[2].effets:GetText(),
     string.format("État %d / %d  ·  Armure %d",
-        etatP - O.Usure(moi, "plastron_d_essai"), etatP, O.Armure(plastron)))
+        etatP - U("plastron_d_essai"), etatP, O.Armure(plastron)))
 LCM.Entities.SetGauge(moi, "armure_portee", 0)
 f.pages.equipement.blocs[1].conteneur:Actualiser(moi)
 attendu("neuf : son etat entier", lignes[1].effets:GetText(),

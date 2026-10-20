@@ -233,6 +233,12 @@ local function SurOui(qui)
     if attente and attente.devise then
         local ok, raison = Echange.Monnayer(attente.devise, attente.combien)
         if not ok and raison then Refuser(raison) end
+    elseif attente and attente.lot then
+        -- Une selection de l'inventaire (20 octobre 2026) : tout se pose.
+        for _, objet in ipairs(attente.lot) do
+            local ok, raison = Echange.Offrir(objet)
+            if not ok and raison then Refuser(raison) end
+        end
     elseif attente then
         Echange.Offrir(attente)
     end

@@ -52,6 +52,20 @@ end
 
 local function Peindre(fs, c) fs:SetTextColor(c[1], c[2], c[3]) end
 
+-- Le son des sacs de WoW (ContainerFrame les joue a l'ouverture et a la
+-- fermeture d'un sac) : nos sacs s'ouvrent comme les siens (20 octobre 2026).
+-- Sur le canal SFX, celui que le joueur regle pour les bruits d'interface.
+-- Un sac dont l'emplacement s'est vide se referme dans son propre OnShow : il
+-- n'a alors rien ouvert, et ne doit pas sonner l'ouverture apres la fermeture.
+local function Sonner(f)
+    f:HookScript("OnShow", function()
+        if f:IsShown() and PlaySound and SOUNDKIT then PlaySound(SOUNDKIT.IG_BACKPACK_OPEN, "SFX") end
+    end)
+    f:HookScript("OnHide", function()
+        if PlaySound and SOUNDKIT then PlaySound(SOUNDKIT.IG_BACKPACK_CLOSE, "SFX") end
+    end)
+end
+
 local function Entite() return LCM.Entities.Self() end
 
 -- Les six emplacements d'affilee : deux sacs puis quatre sacoches. L'onglet a
@@ -401,6 +415,272 @@ local function MenuObjet(ancre, onglet, index, place, extras)
     UI.MenuContexte():Ouvrir(ancre, options)
 end
 
+-- ===== La selection ========================================================
+-- Comme dans l'explorateur de Windows (20 octobre 2026) : un clic met une
+-- case en surbrillance, Ctrl + clic en ajoute ou en retire une, Maj + clic
+-- prend tout ce qui va de la case en surbrillance a celle qu'on clique. Le
+-- double-clic, lui, ouvre l'objet — c'etait le clic simple avant.
+--
+-- La selection n'appartient a aucune fenetre : on clique dans le sac A, Ctrl
+-- + clic dans B, C et D, et les quatre restent choisies. Glisser l'une les
+-- emmene toutes ; le clic droit les deplace, les donne ou les detruit
+-- ensemble (Inv.DeplacerGroupe, Inv.ViderGroupe : tout ou rien).
+--
+-- Chaque case retient ce qu'on y a VU (`ref`) : une case qui s'est videe ou
+-- remplie d'autre chose sort d'elle-meme de la selection. On ne deplace jamais
+-- un objet qui n'est plus la.
+
+local Selection = { cases = {}, ancre = nil }
+Ecran.Selection = Selection
+
+local function Cle(onglet, index, case) return onglet .. ":" .. index .. ":" .. case end
+
+-- Toutes les cases occupees, dans l'ordre ou l'inventaire les montre : les
+-- onglets, leurs emplacements, puis les cases. C'est la ligne que parcourt
+-- Maj + clic, d'un sac a l'autre.
+local function CasesDansLOrdre(entity)
+    local out = {}
+    for _, categorie in ipairs(Inv.categories) do
+        for index = 1, Inv.Capacite(categorie.id) do
+            local e = Inv.Emplacement(entity, categorie.id, index)
+            for case = 1, (Inv.Contenant(e) and Inv.Cases(e) or 0) do
+                local c = Inv.Case(e, case)
+                if c then out[#out + 1] = { onglet = categorie.id, index = index, case = case, ref = c.ref } end
+            end
+        end
+    end
+    return out
+end
+
+-- Oublie ce qui a change depuis qu'on l'a choisi.
+local function Nettoyer()
+    local entity = Entite()
+    for cle, s in pairs(Selection.cases) do
+        local c = Inv.Case(Inv.Emplacement(entity, s.onglet, s.index), s.case)
+        if not (c and c.ref == s.ref) then Selection.cases[cle] = nil end
+    end
+    if Selection.ancre and not Selection.cases[Selection.ancre] then Selection.ancre = nil end
+end
+
+-- Cette case est-elle choisie, et tient-elle toujours ce qu'on y a vu ?
+function Selection.Marque(onglet, index, case, ref)
+    local s = Selection.cases[Cle(onglet, index, case)]
+    return s ~= nil and ref ~= nil and s.ref == ref
+end
+
+-- La selection, dans l'ordre de l'inventaire ; `tete` (une case) passe devant.
+function Selection.Liste(tete)
+    Nettoyer()
+    local out = {}
+    for _, s in ipairs(CasesDansLOrdre(Entite())) do
+        if Selection.cases[Cle(s.onglet, s.index, s.case)] then out[#out + 1] = s end
+    end
+    if tete then
+        for i, s in ipairs(out) do
+            if s.onglet == tete.onglet and s.index == tete.index and s.case == tete.case then
+                table.insert(out, 1, table.remove(out, i))
+                break
+            end
+        end
+    end
+    return out
+end
+
+function Selection.Nombre()
+    Nettoyer()
+    local n = 0
+    for _ in pairs(Selection.cases) do n = n + 1 end
+    return n
+end
+
+function Selection.Vider()
+    Selection.cases, Selection.ancre = {}, nil
+end
+
+-- Plusieurs cases choisies, dont celle-ci : les gestes valent pour toutes.
+function Selection.Groupe(onglet, index, case)
+    return Selection.cases[Cle(onglet, index, case)] ~= nil and Selection.Nombre() > 1
+end
+
+-- Un clic gauche sur une case. Les touches tenues disent lequel des trois.
+function Selection.Cliquer(onglet, index, case)
+    local c = Inv.Case(Inv.Emplacement(Entite(), onglet, index), case)
+    local ctrl = IsControlKeyDown and IsControlKeyDown()
+    local maj = IsShiftKeyDown and IsShiftKeyDown()
+    local cle = Cle(onglet, index, case)
+    Nettoyer()
+    if not c then
+        -- Une case vide : un clic simple deselectionne tout, comme cliquer
+        -- dans le blanc d'un dossier. Avec une touche, on ne perd rien.
+        if not (ctrl or maj) then Selection.Vider() end
+    elseif ctrl then
+        if Selection.cases[cle] then
+            Selection.cases[cle] = nil
+        else
+            Selection.cases[cle] = { onglet = onglet, index = index, case = case, ref = c.ref }
+        end
+        Selection.ancre = cle
+    elseif maj and Selection.ancre then
+        -- De l'ancre a cette case, dans l'ordre de l'inventaire. L'ancre ne
+        -- bouge pas : un second Maj + clic refait la plage depuis elle.
+        local ordre = CasesDansLOrdre(Entite())
+        local debut, fin
+        for i, s in ipairs(ordre) do
+            local k = Cle(s.onglet, s.index, s.case)
+            if k == Selection.ancre then debut = i end
+            if k == cle then fin = i end
+        end
+        if debut and fin then
+            if debut > fin then debut, fin = fin, debut end
+            Selection.cases = {}
+            for i = debut, fin do
+                local s = ordre[i]
+                Selection.cases[Cle(s.onglet, s.index, s.case)] = s
+            end
+        end
+    else
+        Selection.cases = { [cle] = { onglet = onglet, index = index, case = case, ref = c.ref } }
+        Selection.ancre = cle
+    end
+    Ecran.Actualiser()
+end
+
+-- Le glissement d'une selection : il porte toutes les cases, celle qu'on a
+-- prise en tete. Sans reference ni `retirer` : seules les cases et les
+-- emplacements de sacs savent le recevoir — une autre cible (la fiche, un
+-- coffre) n'en prendrait qu'un, et laisserait croire qu'elle a pris le reste.
+local function GlisserSelection(objet)
+    local o = objet.origine
+    objet.groupe = Selection.Liste({ onglet = o.onglet, index = o.index, case = o.case })
+    objet.nom = string.format("%d objets", #objet.groupe)
+    objet.ref, objet.element, objet.retirer, objet.rendre, objet.exemplaires = nil, nil, nil, nil, nil
+    return objet
+end
+
+-- Le glissement qui part d'une case : la selection si cette case en fait
+-- partie avec d'autres, sinon la case seule (ou sa scission, Maj + glisser).
+local function GlisserDepuis(onglet, index, case)
+    local objet = ObjetDeCase(onglet, index, case)
+    if not objet then return nil end
+    if Selection.Groupe(onglet, index, case) then return GlisserSelection(objet) end
+    return GlisserPile(objet)
+end
+
+local function AccepteGroupe(objet, vers)
+    return Inv.PeutDeplacerGroupe(Entite(), objet.groupe, vers)
+end
+
+local function DeposerGroupe(objet, vers)
+    local ok, raison = Inv.DeplacerGroupe(Entite(), objet.groupe, vers)
+    if not ok then Refuser(raison) return end
+    Selection.Vider()
+    Ecran.Actualiser()
+end
+
+-- Les noms de la selection, pour la question : « Minerai x3, Capuche… ».
+local function Noms(liste)
+    local noms = {}
+    for i, s in ipairs(liste) do
+        if i > 6 then noms[#noms + 1] = "…" break end
+        local c = Inv.Case(Inv.Emplacement(Entite(), s.onglet, s.index), s.case)
+        local element = c and LCM.Compendium.Resoudre(c.ref)
+        local q = c and tonumber(c.quantite) or 1
+        noms[#noms + 1] = (element and element.label or tostring(s.ref)) .. (q > 1 and (" x" .. q) or "")
+    end
+    return table.concat(noms, ", ")
+end
+
+local confirmationGroupe
+local function JeterSelection(liste)
+    confirmationGroupe = confirmationGroupe or UI.Confirmer(UIParent, "", "Détruire")
+    Ecran.confirmationGroupe = confirmationGroupe
+    confirmationGroupe:Demander(string.format("Détruire %d objets ?\n%s\nOn ne les récupère pas.",
+        #liste, Noms(liste)), function()
+        local ok, raison = Inv.ViderGroupe(Entite(), liste)
+        if not ok then Refuser(raison) return end
+        LCM.Info(string.format("%d objets détruits.", raison))
+        Selection.Vider()
+        Ecran.Actualiser()
+    end)
+end
+
+-- Le menu d'une selection : les memes gestes qu'un objet, pour toutes.
+local function MenuSelection(ancre, tete)
+    local liste = Selection.Liste(tete)
+    local entity = Entite()
+    local options = {}
+    -- Deplacer > : vers chaque sac porte qui n'est pas celui de TOUTES.
+    local cibles = {}
+    for _, categorie in ipairs(Inv.categories) do
+        for i = 1, Inv.Capacite(categorie.id) do
+            local contenant = Inv.Contenant(Inv.Emplacement(entity, categorie.id, i))
+            if contenant then
+                local onglet, index = categorie.id, i
+                cibles[#cibles + 1] = { label = contenant.element and contenant.element.label or contenant.id,
+                    action = function()
+                        local ok, raison = Inv.DeplacerGroupe(Entite(), liste, { onglet = onglet, index = index })
+                        if not ok then Refuser(raison) return end
+                        Selection.Vider()
+                        Ecran.Actualiser()
+                    end }
+            end
+        end
+    end
+    if #cibles > 0 then options[#options + 1] = { label = "Déplacer >", sous = cibles } end
+    -- Échanger > : tout part dans le meme echange.
+    local donner = LCM.Echange and LCM.Echange.Ecran and LCM.Echange.Ecran.Donner
+    if donner then
+        local qui = {}
+        for _, nom in ipairs(Destinataires()) do
+            qui[#qui + 1] = { label = nom, action = function()
+                local lot = {}
+                for _, s in ipairs(liste) do
+                    local objet = ObjetDeCase(s.onglet, s.index, s.case)
+                    if objet then lot[#lot + 1] = objet end
+                end
+                donner(nom, { lot = lot, nom = string.format("%d objets", #lot) })
+                Selection.Vider()
+                Ecran.Actualiser()
+            end }
+        end
+        options[#options + 1] = #qui > 0 and { label = "Échanger >", sous = qui }
+            or { label = "Échanger", action = function()
+                Refuser("personne à qui les donner : cible un joueur ou forme un groupe.")
+            end }
+    end
+    options[#options + 1] = { label = string.format("Détruire (%d)", #liste), action = function() JeterSelection(liste) end }
+    UI.MenuContexte():Ouvrir(ancre, options)
+end
+Ecran.MenuSelection = MenuSelection
+
+-- Le clic droit sur une case : le menu de la selection si elle en fait
+-- partie, sinon celui de l'objet seul — et la case devient la selection, pour
+-- qu'on voie de quoi parle le menu.
+local function MenuDeCase(ancre, onglet, index, case, extras)
+    if Selection.Groupe(onglet, index, case) then
+        MenuSelection(ancre, { onglet = onglet, index = index, case = case })
+        return
+    end
+    local c = Inv.Case(Inv.Emplacement(Entite(), onglet, index), case)
+    if c and not Selection.Marque(onglet, index, case, c.ref) then
+        Selection.cases = { [Cle(onglet, index, case)] = { onglet = onglet, index = index, case = case, ref = c.ref } }
+        Selection.ancre = Cle(onglet, index, case)
+        Ecran.Actualiser()
+    end
+    MenuObjet(ancre, onglet, index, case, extras)
+end
+
+-- La surbrillance d'une case choisie : posee une fois a la creation, montree
+-- ou cachee a chaque rafraichissement.
+local function Surbrillance(cadre)
+    cadre.choisie = UI.Aplat(cadre, { 0.95, 0.78, 0.30, 0.22 }, "ARTWORK")
+    cadre.choisie:SetAllPoints(cadre)
+    cadre.choisie:Hide()
+end
+
+-- Un autre personnage : d'autres sacs, plus rien de choisi.
+LCM.Entities.EcouterSoi(function() Selection.Vider() end)
+
 -- Ce que porte un emplacement (un sac, une sacoche, l'objet d'une ceinture),
 -- sous la forme d'un glissement : il quitte l'emplacement s'il est vide, et y
 -- revient. Nil pour une ceinture nue : ses cases de base ne partent pas.
@@ -449,7 +729,9 @@ if UI.Glisser then
     UI.Glisser.DansLeVide = function(objet)
         if Creation(objet) or not objet.origine then return false end
         -- Une pile qu'on scinde, lachee hors d'une case : on n'en fait rien.
-        if objet.scinder then return false end
+        -- Une selection non plus : elle se range dans un sac, ou se detruit
+        -- par le clic droit.
+        if objet.scinder or objet.groupe then return false end
         local foci = (GetMouseFoci and GetMouseFoci())
             or (GetMouseFocus and { GetMouseFocus() }) or {}
         local focus = foci[1]
@@ -517,6 +799,8 @@ local function Carte(f)
         -- possede deja — et en aurait range un sans debiter la bourse
         -- (19 octobre 2026, le jour ou le fantome a recu une reference).
         if DeLaBourse(objet) then return AccepteBourseSac(objet, c.onglet, c.index) end
+        -- Une selection lachee sur un sac porte : tout y entre.
+        if objet.groupe then return AccepteGroupe(objet, { onglet = c.onglet, index = c.index }) end
         if Reorganise(objet) then
             if MemeEmplacement(objet) then return true end
             local depart, arrivee = Inv.Get(objet.origine.onglet), Inv.Get(c.onglet)
@@ -574,6 +858,7 @@ local function Carte(f)
             end
             return
         end
+        if objet.groupe then DeposerGroupe(objet, { onglet = c.onglet, index = c.index }) return end
         if Reorganise(objet) then
             if MemeEmplacement(objet) then return end
             local o = objet.origine
@@ -681,6 +966,7 @@ local function Construire()
     f:HookScript("OnSizeChanged", function() if not f.enRedimension then f:Rafraichir() end end)
     f:HookScript("OnShow", function() f:Rafraichir() end)
     f:HookScript("OnHide", function() f.choix:Hide() end)
+    Sonner(f)
 
     -- La colonne de gauche : les six emplacements, deux sacs puis quatre
     -- sacoches, chacun avec son nom et ce qu'il porte.
@@ -743,6 +1029,7 @@ local function Construire()
                 l.nom:SetWordWrap(false)
                 l.survol = UI.Aplat(l, UI.C.survol, "HIGHLIGHT")
                 l.survol:SetAllPoints(l)
+                Surbrillance(l)
                 -- On y depose une entree glissee du compendium, comme dans la
                 -- fenetre d'un sac. Il manquait : c'est pourtant la que le MJ
                 -- regarde le contenu, et le glisser y etait refuse sans un mot.
@@ -768,6 +1055,10 @@ local function Construire()
                         return AccepteScission(objet, ici,
                             { onglet = l.place.onglet, index = l.place.index, case = l.case })
                     end
+                    if objet.groupe then
+                        if not l.place then return false, "aucun sac ici." end
+                        return AccepteGroupe(objet, { onglet = l.place.onglet, index = l.place.index, case = l.case })
+                    end
                     if not Inv.Contenant(ici) then return false, "aucun sac ici." end
                     if MemeCase(objet) then return true end
                     local vers = { onglet = l.place.onglet, index = l.place.index, case = l.case }
@@ -784,6 +1075,7 @@ local function Construire()
                         DeposerScission(objet, vers)
                         return
                     end
+                    if objet.groupe then DeposerGroupe(objet, vers) return end
                     local ici = Inv.Emplacement(Entite(), l.place.onglet, l.place.index)
                     if Empilable(objet, ici, vers) then Empiler(objet, vers) return end
                     if MemeCase(objet) then return end
@@ -819,40 +1111,51 @@ local function Construire()
                     -- (12 octobre 2026). C'est la DESTINATION qui dit ce
                     -- qu'elle autorise, pas la main qui prend.
                     if not self.place then return end
-                    local objet = GlisserPile(ObjetDeCase(self.place.onglet, self.place.index, self.case))
+                    local objet = GlisserDepuis(self.place.onglet, self.place.index, self.case)
                     if objet then UI.Glisser.Commencer(objet) end
                 end)
                 l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
-                -- Clic gauche : voir ; clic droit : Voir, Échanger, Jeter.
+                -- Clic : choisir (Ctrl, Maj : plusieurs) ; double-clic : voir ;
+                -- clic droit : Voir, Échanger, Jeter — ou les gestes de la
+                -- selection.
                 l:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                 l:SetScript("OnClick", function(self, bouton)
                     if not self.place then return end
+                    if bouton == "RightButton" then
+                        local ici = Inv.Emplacement(Entite(), self.place.onglet, self.place.index)
+                        if not (ici and Inv.Case(ici, self.case)) then return end
+                        MenuDeCase(self, self.place.onglet, self.place.index, self.case)
+                    else
+                        Selection.Cliquer(self.place.onglet, self.place.index, self.case)
+                    end
+                end)
+                l:SetScript("OnDoubleClick", function(self, bouton)
+                    if bouton ~= "LeftButton" or not self.place then return end
                     local ici = Inv.Emplacement(Entite(), self.place.onglet, self.place.index)
                     local c = ici and Inv.Case(ici, self.case)
-                    if not c then return end
-                    if bouton == "RightButton" then
-                        MenuObjet(self, self.place.onglet, self.place.index, self.case)
-                    else
-                        LireOuVoir(c.ref, f)
-                    end
+                    if c then LireOuVoir(c.ref, f) end
                 end)
                 self.lignes[n] = l
             end
             l.place, l.case = place, n
             local c = Inv.Case(e, n)
             local element = c and LCM.Compendium.Resoudre(c.ref)
+            l.choisie:SetShown(c ~= nil and place ~= nil and Selection.Marque(place.onglet, place.index, n, c.ref))
             l.icone:SetTexture(element and element.icone or VIDE)
             if element then
                 local quantite = tonumber(c.quantite) or 1
                 -- Brise : icone rouge et « [BRISÉ] » devant le nom. On le voit
                 -- dans le sac comme sur la fiche, sans ouvrir la carte.
-                local brise = UI.ObjetBrise(entity, element)
+                -- L'etat de CET objet : pour une pile, celui qui servira le
+                -- premier (le plus entame).
+                local exemplaire = LCM.Objets.ExemplaireDePile(c)
+                local brise = UI.ObjetBrise(entity, element, exemplaire)
                 local marque = brise and (UI.MARQUE_BRISE .. " ") or ""
                 l.nom:SetText(marque .. (quantite > 1
                     and (element.label .. "  x" .. quantite) or element.label))
                 Peindre(l.nom, brise and UI.C.plein or UI.C.texte)
                 UI.TeinterBrise(l.icone, brise)
-                local etat, reste, plein = UI.EtatObjet(entity, element)
+                local etat, reste, plein = UI.EtatObjet(entity, element, exemplaire)
                 l.etat:SetText(etat or "")
                 if etat then Peindre(l.etat, UI.CouleurEtat(reste, plein)) end
             else
@@ -1070,6 +1373,7 @@ local function NouvelleCase(s, n)
     b.etat:SetJustifyH("RIGHT")
     b.survol = UI.Aplat(b, { 0.80, 0.70, 0.40, 0.12 }, "HIGHLIGHT")
     b.survol:SetAllPoints(b)
+    Surbrillance(b)
     UI.Glisser.Cible(b, function(objet)
         if Creation(objet) and not LCM.IsMaster() then
             return false, "sortir un objet du compendium est un geste du maître du jeu."
@@ -1080,6 +1384,9 @@ local function NouvelleCase(s, n)
         end
         if objet.scinder then
             return AccepteScission(objet, e, { onglet = s.onglet, index = s.index, case = b.index })
+        end
+        if objet.groupe then
+            return AccepteGroupe(objet, { onglet = s.onglet, index = s.index, case = b.index })
         end
         -- Reposer un objet sur sa propre case n'est pas une erreur : c'est un
         -- glissement qu'on annule. On accepte, et le depot ne fera rien.
@@ -1101,6 +1408,7 @@ local function NouvelleCase(s, n)
             DeposerScission(objet, vers)
             return
         end
+        if objet.groupe then DeposerGroupe(objet, vers) return end
         if Empilable(objet, s:Emplacement(), vers) then Empiler(objet, vers) return end
         local entite = Entite()
         if objet.origine and objet.origine.onglet == s.onglet
@@ -1128,7 +1436,7 @@ local function NouvelleCase(s, n)
     b:SetScript("OnDragStart", function(self)
         -- Son propre sac : on y prend ce qu'on veut. C'est la destination qui
         -- juge (12 octobre 2026).
-        local objet = GlisserPile(ObjetDeCase(s.onglet, s.index, self.index))
+        local objet = GlisserDepuis(s.onglet, s.index, self.index)
         if objet then UI.Glisser.Commencer(objet) end
     end)
     -- Pas d'OnUpdate ici : c'est le fantome du kit qui bat la mesure, suit la
@@ -1136,6 +1444,11 @@ local function NouvelleCase(s, n)
     -- deux fois par image.
     b:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
     b:SetScript("OnClick", function(self, bouton) s:CliquerCase(self, bouton) end)
+    b:SetScript("OnDoubleClick", function(self, bouton)
+        if bouton ~= "LeftButton" then return end
+        local c = Inv.Case(s:Emplacement(), self.index)
+        if c then LireOuVoir(c.ref, s) end
+    end)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         local c = Inv.Case(s:Emplacement(), self.index)
@@ -1145,7 +1458,8 @@ local function NouvelleCase(s, n)
             if element and element.description ~= "" then
                 GameTooltip:AddLine(element.description, 0.8, 0.75, 0.62, true)
             end
-            GameTooltip:AddLine("Clic gauche : voir. Clic droit : options.", 0.55, 0.55, 0.55)
+            GameTooltip:AddLine("Clic : choisir (Ctrl, Maj : plusieurs). Double-clic : voir. Clic droit : options.",
+                0.55, 0.55, 0.55, true)
         else
             GameTooltip:SetText(self.devise and "Emplacement devise" or "Emplacement", 1, 0.82, 0)
             if LCM.IsMaster() then GameTooltip:AddLine("Glisse une entrée depuis le compendium.", 0.55, 0.55, 0.55) end
@@ -1181,6 +1495,7 @@ local function ConstruireSac(onglet, index)
     s:HookScript("OnSizeChanged", function() if not s.enRedimension then s:Rafraichir() end end)
     s:HookScript("OnShow", function() s:Rafraichir() end)
     s:HookScript("OnHide", function() s.choix:Hide() end)
+    Sonner(s)
 
     function s:Emplacement() return Inv.Emplacement(Entite(), self.onglet, self.index) end
 
@@ -1204,6 +1519,7 @@ local function ConstruireSac(onglet, index)
             b.devise = Inv.EstCaseDevise(e, n)
             local c = Inv.Case(e, n)
             local element = c and LCM.Compendium.Resoudre(c.ref)
+            b.choisie:SetShown(c ~= nil and Selection.Marque(self.onglet, self.index, n, c.ref))
             b:ClearAllPoints()
             b.icone:ClearAllPoints()
             b.nom:ClearAllPoints()
@@ -1228,13 +1544,14 @@ local function ConstruireSac(onglet, index)
                 -- L'etat au bout, puis la quantite a sa gauche : le nom
                 -- s'arrete avant les deux.
                 b.etat:SetPoint("RIGHT", b, "RIGHT", -8, 0)
-                local etat, reste, plein = c and element and UI.EtatObjet(Entite(), element) or nil
+                local exemplaire = c and LCM.Objets.ExemplaireDePile(c)
+                local etat, reste, plein = c and element and UI.EtatObjet(Entite(), element, exemplaire) or nil
                 b.etat:SetText(etat or "")
                 if etat then
                     b.etat:SetTextColor(unpack(UI.CouleurEtat(reste, plein)))
                 end
                 b.etat:Show()
-                local brise = c and element and UI.ObjetBrise(Entite(), element) or false
+                local brise = c and element and UI.ObjetBrise(Entite(), element, exemplaire) or false
                 b.nom:SetPoint("LEFT", b.icone, "RIGHT", 8, 0)
                 b.nom:SetPoint("RIGHT", b.etat, "LEFT", -34, 0)
                 b.nom:SetText(c and ((brise and (UI.MARQUE_BRISE .. " ") or "")
@@ -1247,7 +1564,7 @@ local function ConstruireSac(onglet, index)
                 b.icone:SetTexture(element and element.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
                 -- La teinte se repose a CHAQUE passage : une case qui garde la
                 -- sienne la donnerait a l'objet suivant.
-                UI.TeinterBrise(b.icone, element and UI.ObjetBrise(Entite(), element) or false)
+                UI.TeinterBrise(b.icone, element and UI.ObjetBrise(Entite(), element, LCM.Objets.ExemplaireDePile(c)) or false)
                 b.icone:Show()
                 b.fond:SetColorTexture(0, 0, 0, 0.28)
                 -- Une devise montre toujours son nombre ; le reste, a partir de deux.
@@ -1325,13 +1642,15 @@ local function ConstruireSac(onglet, index)
             end
             -- « Supprimer » (MJ, sans confirmation) laisse la place a « Jeter »,
             -- pour tout le monde et confirme : deux entrees pour le meme geste.
-            MenuObjet(b, self.onglet, self.index, b.index, options)
+            -- Si la case fait partie d'une selection, ce sont les gestes de
+            -- la selection.
+            MenuDeCase(b, self.onglet, self.index, b.index, options)
             return
         end
-        if c then
-            -- Un sac range dans un sac : comme dans le template, on le voit.
-            LireOuVoir(c.ref, self)
-        end
+        -- Le clic choisit (Ctrl, Maj : plusieurs) ; voir, c'est le
+        -- double-clic (20 octobre 2026). Un sac range dans un sac se voit
+        -- de meme.
+        Selection.Cliquer(self.onglet, self.index, b.index)
         -- Une case vide ne propose plus de liste au clic (3 octobre 2026) :
         -- on ne se donne pas un objet a la volee. Le MJ le glisse depuis le
         -- compendium.

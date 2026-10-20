@@ -27,8 +27,11 @@ local Objets = LCM.Catalogue({
     -- bornent (« une seule cape »), pas l'identifiant (10 octobre 2026).
     doublons = true,
     -- Ce qu'une piece apporte suit son etat : voir Objets.ApportSelonEtat.
-    apport = function(entity, objet, montant)
-        return LCM.Objets.ApportSelonEtat(entity, objet, montant)
+    -- `rang` est sa place parmi les objets portes (Effets.Apport) : deux
+    -- capuches identiques n'ont pas le meme etat.
+    apport = function(entity, objet, montant, rang)
+        return LCM.Objets.ApportSelonEtat(entity, objet, montant,
+            LCM.Objets.ExemplaireAuRangPorte(entity, rang))
     end,
     etatDefaut = function() return LCM.Equilibrage.forge.etatObjet.base end,
     categories = {
@@ -98,12 +101,15 @@ Objets.Equipes = Objets.Portes
 -- On le DEDUIT de l'etat au lieu de le ranger quelque part : un drapeau de plus
 -- serait un drapeau a tenir a jour, et il finirait par mentir apres une
 -- reparation faite ailleurs.
-function Objets.EstBrise(entity, objet)
+--
+-- `exemplaire` : CET objet-la (voir « Etat des objets »). Sans lui, on parle
+-- d'un exemplaire neuf.
+function Objets.EstBrise(entity, objet, exemplaire)
     if type(objet) ~= "table" then objet = Objets.Get(objet) end
     if not objet then return false end
     local maximum = Objets.EtatMax(objet)
     if not maximum or maximum <= 0 then return false end
-    return (maximum - Objets.Usure(entity, objet.id)) <= 0
+    return (maximum - Objets.Usure(entity, objet.id, exemplaire)) <= 0
 end
 
 -- ===== Ce qu'un objet apporte encore =======================================
@@ -117,12 +123,12 @@ end
 --
 -- Brise (zero d'etat) : il n'apporte plus rien. Il reste porte, et la case
 -- qu'il occupe ne donne rien tant qu'on ne l'a pas repare.
-function Objets.ApportSelonEtat(entity, objet, montant)
+function Objets.ApportSelonEtat(entity, objet, montant, exemplaire)
     montant = tonumber(montant) or 0
     if montant == 0 then return 0 end
     local maximum = Objets.EtatMax(objet)
     if not maximum or maximum <= 0 then return montant end
-    local reste = math.max(0, maximum - Objets.Usure(entity, objet.id))
+    local reste = math.max(0, maximum - Objets.Usure(entity, objet.id, exemplaire))
     if reste >= maximum then return montant end
     if reste <= 0 then return 0 end
     local brut = math.abs(montant) * reste / maximum
@@ -251,17 +257,26 @@ function Objets.CandidatsPossedes(entity, categorieId)
     return out
 end
 
--- ===== Etat des objets portes ==============================================
--- Toute arme, armure ou accessoire porte possede son propre etat. La valeur
+-- ===== Etat des objets =====================================================
+-- Toute arme, armure, accessoire ou outil possede son propre etat. La valeur
 -- maximale vient de la jauge `etat` definie par la Forge ; une ancienne entree
--- qui n'en a pas encore recu part du defaut d'equilibrage. L'usure suit
--- l'objet quand on le range puis le reequipe.
+-- qui n'en a pas encore recu part du defaut d'equilibrage.
 --
---     entity.usureArmure = { tshirt_de_lin = 1 }
+-- L'etat est celui de L'EXEMPLAIRE, pas du modele (20 octobre 2026) : il vit
+-- sur lui (Core/Exemplaires.lua, `usure` et `viesPerdues`) et le suit partout
+-- — d'un sac a l'autre, sur soi, dans un coffre, dans un echange. Six kits de
+-- crochetage, sept capuches identiques : chacun s'use, se brise et se detruit
+-- seul, et un objet detruit emporte son etat avec lui.
 --
--- Le nom historique `usureArmure` est conserve dans la sauvegarde et dans le
--- paquet de fiche pour rester compatible avec les personnages existants. Il
--- contient maintenant l'usure de TOUS les objets portes.
+-- Avant, il etait range sur le personnage, au nom du modele :
+--
+--     entity.usureArmure = { kit_de_crochetage = 7 }   entity.viesObjet = { … }
+--
+-- Tous les exemplaires partageaient donc un compteur, et « Détruire » ne
+-- l'effacait pas : le kit suivant heritait de l'usure et des vies perdues du
+-- precedent. Ces tables ne servent plus qu'a lire une fiche qui ne les a pas
+-- encore quittees (Objets.MigrerEtats), celle d'un joueur dont l'addon n'est
+-- pas a jour par exemple, recue par le reseau.
 
 local CATEGORIE_ARMURE = "equipement"
 
@@ -304,63 +319,213 @@ function Objets.ViesIllimitees(objet)
     return Objets.ViesMax(objet) == nil
 end
 
--- Combien il en a DEJA perdu. Range comme l'usure : sur le personnage, pas sur
--- l'objet — deux exemplaires du meme modele ne se brisent pas ensemble.
-function Objets.ViesPerdues(entity, id)
-    local vies = type(entity) == "table" and entity.viesObjet
-    return type(vies) == "table" and math.max(0, math.floor(tonumber(vies[tostring(id)]) or 0)) or 0
+-- ===== Lire l'etat d'un exemplaire =========================================
+
+-- Ce que l'ancien rangement retient pour ce modele, ou nil s'il n'en dit rien.
+local function Ancien(entity, cle, id)
+    local t = type(entity) == "table" and entity[cle]
+    if type(t) ~= "table" or t[tostring(id)] == nil then return nil end
+    local valeur = t[tostring(id)]
+    return math.max(0, math.floor(tonumber(valeur) or 0))
+end
+
+local function Compte(exemplaire, cle)
+    return type(exemplaire) == "table" and math.max(0, math.floor(tonumber(exemplaire[cle]) or 0)) or 0
+end
+
+-- Ce que cet exemplaire a perdu d'etat. Lecture seule : rien n'est ecrit ici,
+-- pas meme la conversion d'un ancien bareme (elle se fait a la migration).
+function Objets.Usure(entity, id, exemplaire)
+    id = tostring(id)
+    local ancien = Ancien(entity, "usureArmure", id)
+    if ancien then
+        local objet = Objets.Get(id)
+        local avant = objet and type(objet.etat) == "table" and objet.etat.ancienMax
+        if ancien > 0 and avant and avant > 0
+            and not (type(entity.usureArmureMigree) == "table" and entity.usureArmureMigree[id]) then
+            ancien = math.min(Objets.EtatMax(objet), math.floor(ancien * Objets.EtatMax(objet) / avant + 0.5))
+        end
+        return ancien
+    end
+    return Compte(exemplaire, "usure")
+end
+
+-- Combien de vies cet exemplaire a DEJA perdues.
+function Objets.ViesPerdues(entity, id, exemplaire)
+    return Ancien(entity, "viesObjet", id) or Compte(exemplaire, "viesPerdues")
 end
 
 -- Ce qu'il lui reste, et son maximum. `nil, nil` pour les illimitees.
-function Objets.Vies(entity, objet)
+function Objets.Vies(entity, objet, exemplaire)
     if type(objet) ~= "table" then objet = Objets.Get(objet) end
     if not objet then return 0, 0 end
     local maximum = Objets.ViesMax(objet)
     if maximum == nil then return nil, nil end
-    return math.max(0, maximum - Objets.ViesPerdues(entity, objet.id)), maximum
+    return math.max(0, maximum - Objets.ViesPerdues(entity, objet.id, exemplaire)), maximum
 end
 
-local function PerdreUneVie(entity, id)
-    entity.viesObjet = type(entity.viesObjet) == "table" and entity.viesObjet or {}
-    entity.viesObjet[tostring(id)] = Objets.ViesPerdues(entity, id) + 1
+-- ===== Quel exemplaire =====================================================
+
+-- L'exemplaire porte a ce rang de cette categorie. Lecture seule : un objet
+-- pose avant les exemplaires n'en a pas, et il est neuf.
+function Objets.ExemplairePorte(entity, categorie, rang)
+    local t = type(entity) == "table" and entity.exemplairesEquipes
+    local liste = type(t) == "table" and t[categorie]
+    return type(liste) == "table" and liste[rang] or nil
 end
 
-local function OublierLesVies(entity, id)
-    if type(entity.viesObjet) ~= "table" then return end
-    entity.viesObjet[tostring(id)] = nil
-    if next(entity.viesObjet) == nil then entity.viesObjet = nil end
-end
-
-function Objets.Usure(entity, id)
-    local usure = type(entity) == "table" and entity.usureArmure
-    id = tostring(id)
-    local valeur = type(usure) == "table" and math.max(0, math.floor(tonumber(usure[id]) or 0)) or 0
-    local objet = Objets.Get(id)
-    local ancien = objet and type(objet.etat) == "table" and objet.etat.ancienMax
-    if valeur > 0 and ancien and ancien > 0
-        and not (type(entity.usureArmureMigree) == "table" and entity.usureArmureMigree[id]) then
-        valeur = math.min(Objets.EtatMax(objet),
-            math.floor(valeur * Objets.EtatMax(objet) / ancien + 0.5))
-        usure[id] = valeur
-        entity.usureArmureMigree = type(entity.usureArmureMigree) == "table" and entity.usureArmureMigree or {}
-        entity.usureArmureMigree[id] = true
+-- Le n-ieme objet porte, toutes categories confondues, dans l'ordre ou les
+-- effets les parcourent (C.Portes) : sa categorie et son rang.
+local function PorteAuRang(entity, n)
+    n = tonumber(n)
+    if not n then return nil end
+    for _, categorie in ipairs(Objets.CATEGORIES) do
+        local ids = Objets.Ids(entity, categorie.id)
+        local compte = 0
+        for _, id in ipairs(ids) do if Objets.Get(id) then compte = compte + 1 end end
+        if n <= compte then
+            local vus = 0
+            for rang, id in ipairs(ids) do
+                if Objets.Get(id) then
+                    vus = vus + 1
+                    if vus == n then return categorie.id, rang end
+                end
+            end
+        end
+        n = n - compte
     end
-    return valeur
 end
 
--- Tous les objets portes, dans l'ordre des categories et des emplacements.
--- `reste` est l'etat actuel ; a zero, l'objet est detruit et retire.
+function Objets.ExemplaireAuRangPorte(entity, n)
+    local categorie, rang = PorteAuRang(entity, n)
+    return categorie and Objets.ExemplairePorte(entity, categorie, rang) or nil
+end
+
+-- Le PLUS ENTAME d'une liste d'exemplaires : c'est lui qui sert le premier
+-- (20 octobre 2026). On finit un kit avant d'en ouvrir un neuf, au lieu d'user
+-- toute la pile d'un cran. A usure egale, le premier de la liste.
+-- `utilisable` : les brises sont ecartes, ils n'ont plus rien a donner.
+-- Rend l'indice dans la liste, ou nil.
+local function PlusEntame(objet, liste, utilisable)
+    local maximum = Objets.EtatMax(objet)
+    local choisi, pire
+    for i = 1, #liste do
+        local u = Compte(liste[i], "usure")
+        local brise = maximum > 0 and u >= maximum
+        if not (utilisable and brise) and (not pire or u > pire) then choisi, pire = i, u end
+    end
+    return choisi
+end
+
+local function LePremierAServir(objet, liste)
+    return PlusEntame(objet, liste, true) or PlusEntame(objet, liste, false)
+end
+
+-- Ce que montre une pile : l'exemplaire qui servira le premier. Une pile
+-- d'avant les exemplaires n'en a pas : nil, elle est neuve.
+function Objets.ExemplaireDePile(pile)
+    local liste = type(pile) == "table" and type(pile.exemplaires) == "table" and pile.exemplaires
+    if not liste or #liste == 0 then return nil end
+    local objet = Objets.Get(tostring(pile.ref or ""):match("^objets/(.+)$") or "")
+    if not objet then return liste[1] end
+    return liste[LePremierAServir(objet, liste)]
+end
+
+-- Parmi ceux qu'on PORTE de ce modele, le rang de celui qui servira le
+-- premier. Nil si on n'en porte aucun.
+local function RangPorteAServir(entity, objet)
+    local rangs, liste = {}, {}
+    for rang, id in ipairs(Objets.Ids(entity, objet.categorie)) do
+        if id == objet.id then
+            rangs[#rangs + 1] = rang
+            liste[#liste + 1] = Objets.ExemplairePorte(entity, objet.categorie, rang) or {}
+        end
+    end
+    if #rangs == 0 then return nil end
+    return rangs[LePremierAServir(objet, liste)]
+end
+
+-- L'exemplaire qu'un outil employerait : celui qu'on porte d'abord, sinon le
+-- premier a servir dans les sacs. Lecture seule — pour dire ce qu'il apporte
+-- avant de s'en servir.
+function Objets.ExemplaireAUser(entity, id)
+    local objet = Objets.Get(id)
+    if not objet then return nil end
+    local rang = RangPorteAServir(entity, objet)
+    if rang then return Objets.ExemplairePorte(entity, objet.categorie, rang) end
+    local liste = {}
+    for _, p in ipairs(LCM.Inventaire.Piles(entity, Ref(objet.id))) do
+        local exemplaires = type(p.pile.exemplaires) == "table" and p.pile.exemplaires or {}
+        for _, e in ipairs(exemplaires) do liste[#liste + 1] = e end
+    end
+    local i = LePremierAServir(objet, liste)
+    return i and liste[i] or nil
+end
+
+-- ===== Reprise de l'ancien rangement =======================================
+-- Les compteurs au nom du modele passent sur les exemplaires, une fois, dans
+-- un geste d'ecriture (au chargement, ou avant d'user un objet) — jamais dans
+-- un accesseur.
+--
+-- CHAQUE exemplaire possede du modele recoit l'ancien compteur : c'est l'etat
+-- que la fiche affichait pour tous, et en donner un neuf a certains serait une
+-- reparation gratuite. A partir de la, chacun suit son chemin.
+--
+-- Un modele inconnu de cette version garde son entree : on n'efface pas ce
+-- qu'on ne sait pas relire.
+function Objets.MigrerEtats(entity)
+    if type(entity) ~= "table" then return end
+    local ids = {}
+    for _, cle in ipairs({ "usureArmure", "viesObjet" }) do
+        for id in pairs(type(entity[cle]) == "table" and entity[cle] or {}) do ids[tostring(id)] = true end
+    end
+    for id in pairs(ids) do
+        local objet = Objets.Get(id)
+        if objet then
+            local usure = math.min(Objets.EtatMax(objet), Objets.Usure(entity, id))
+            local perdues = Ancien(entity, "viesObjet", id) or 0
+            local function Poser(e)
+                e.usure = usure > 0 and usure or nil
+                e.viesPerdues = perdues > 0 and perdues or nil
+            end
+            for rang, porte in ipairs(Objets.Ids(entity, objet.categorie)) do
+                if porte == objet.id then Poser(EquipesPourEcrire(entity, objet.categorie)[rang]) end
+            end
+            for _, p in ipairs(LCM.Inventaire.Piles(entity, Ref(objet.id))) do
+                for _, e in ipairs(LCM.Exemplaires.Assurer(p.pile)) do Poser(e) end
+            end
+            for _, cle in ipairs({ "usureArmure", "viesObjet", "usureArmureMigree" }) do
+                if type(entity[cle]) == "table" then
+                    entity[cle][id] = nil
+                    if next(entity[cle]) == nil then entity[cle] = nil end
+                end
+            end
+        end
+    end
+end
+
+LCM.WhenReady(function()
+    for _, entity in pairs(type(LCM.db.entities) == "table" and LCM.db.entities or {}) do
+        Objets.MigrerEtats(entity)
+    end
+end)
+
+-- ===== Les objets portes ===================================================
+
+-- Tous les objets portes, dans l'ordre des categories et des emplacements,
+-- chacun avec son rang et son exemplaire. `reste` est l'etat actuel.
 function Objets.EquipementsEtat(entity)
     local out = {}
     for _, categorie in ipairs(Objets.CATEGORIES) do
-        for _, id in ipairs(Objets.Ids(entity, categorie.id)) do
+        for rang, id in ipairs(Objets.Ids(entity, categorie.id)) do
             local objet = Objets.Get(id)
             if objet then
+                local exemplaire = Objets.ExemplairePorte(entity, categorie.id, rang)
                 local valeur = Objets.EtatMax(objet)
-                local usure = math.min(valeur, Objets.Usure(entity, id))
+                local usure = math.min(valeur, Objets.Usure(entity, id, exemplaire))
                 out[#out + 1] = { id = objet.id, label = objet.label, categorie = objet.categorie,
-                                  objet = objet, valeur = valeur, usure = usure,
-                                  reste = valeur - usure }
+                                  objet = objet, rang = rang, exemplaire = exemplaire,
+                                  valeur = valeur, usure = usure, reste = valeur - usure }
             end
         end
     end
@@ -393,79 +558,82 @@ function Objets.Protection(entity)
     return { current = encaisse, max = total }
 end
 
--- Un objet encaisse `n` points (negatif : on le repare), borne entre neuf et
--- detruit.
+-- ===== User un exemplaire ==================================================
+-- Un exemplaire encaisse `n` points (negatif : on le repare), borne entre
+-- neuf et detruit.
 --
--- A zero d'etat il se BRISE : il perd une vie et reste porte, reparable. C'est
+-- A zero d'etat il se BRISE : il perd une vie et reste la, reparable. C'est
 -- seulement quand il tombe a zero sans vie qu'il est detruit et retire, sans
 -- revenir dans le sac (9 octobre 2026 : avant, le premier zero le detruisait,
--- ce qui etait trop dur).
+-- ce qui etait trop dur). Detruit, il part avec son etat : un exemplaire neuf
+-- du meme modele repart avec toutes ses vies.
 --
 -- `apres > avant` garde le compte juste : on ne perd une vie qu'en TOMBANT a
 -- zero, pas a chaque coup encaisse une fois qu'on y est.
 --
 -- Renvoie la variation d'usure, le verdict de destruction, et si une vie vient
 -- d'etre perdue.
-local function Encaisser(entity, id, n, depuisSac)
-    local objet = Objets.Get(id)
-    local dansSac = depuisSac and LCM.Inventaire and LCM.Inventaire.Chercher
-        and LCM.Inventaire.Chercher(entity, "objets/" .. tostring(id)) ~= nil
-    if type(entity) ~= "table" or not objet
-            or (depuisSac and not dansSac) or (not depuisSac and not Objets.Porte(entity, objet.id)) then
-        return 0, false
-    end
+local function Encaisser(entity, objet, exemplaire, n, detruire)
     local maximum = Objets.EtatMax(objet)
-    local avant = Objets.Usure(entity, objet.id)
+    local avant = Compte(exemplaire, "usure")
     local apres = math.max(0, math.min(maximum, avant + math.floor(tonumber(n) or 0)))
     local aZero = maximum > 0 and apres >= maximum and apres > avant
     local detruit, briseMaintenant = false, false
     if aZero then
-        local restantes = Objets.Vies(entity, objet)
+        local restantes = Objets.Vies(entity, objet, exemplaire)
         if restantes == nil then
             -- Illimitees : il se brise, on ne compte rien, il n'est jamais
             -- detruit.
             briseMaintenant = true
         elseif restantes > 0 then
-            PerdreUneVie(entity, objet.id)
+            exemplaire.viesPerdues = Compte(exemplaire, "viesPerdues") + 1
             briseMaintenant = true
         else
             detruit = true
         end
     end
-    if apres == 0 then
-        if type(entity.usureArmure) == "table" then
-            entity.usureArmure[objet.id] = nil
-            if next(entity.usureArmure) == nil then entity.usureArmure = nil end
-        end
-    else
-        entity.usureArmure = type(entity.usureArmure) == "table" and entity.usureArmure or {}
-        entity.usureArmure[objet.id] = apres
-    end
-    if detruit then
-        if depuisSac then
-            LCM.Inventaire.Prendre(entity, "objets/" .. objet.id)
-        else
-            Objets.Enlever(entity, objet.id)
-        end
-        if type(entity.usureArmure) == "table" then
-            entity.usureArmure[objet.id] = nil
-            if next(entity.usureArmure) == nil then entity.usureArmure = nil end
-        end
-        -- Detruit, il n'a plus d'histoire : un exemplaire neuf du meme modele
-        -- repart avec toutes ses vies.
-        OublierLesVies(entity, objet.id)
-    end
+    exemplaire.usure = apres > 0 and apres or nil
+    if detruit then detruire() end
     return apres - avant, detruit, briseMaintenant
 end
 
-function Objets.Encaisser(entity, id, n)
-    return Encaisser(entity, id, n, false)
+-- Un objet PORTE. `rang` dit lequel quand on en porte plusieurs identiques
+-- (une piece touchee, une ligne de la fiche) ; sans lui, celui qui sert le
+-- premier.
+function Objets.Encaisser(entity, id, n, rang)
+    local objet = Objets.Get(id)
+    if type(entity) ~= "table" or not objet then return 0, false end
+    Objets.MigrerEtats(entity)
+    local ids = Objets.Ids(entity, objet.categorie)
+    if rang then
+        if ids[rang] ~= objet.id then return 0, false end
+    else
+        rang = RangPorteAServir(entity, objet)
+        if not rang then return 0, false end
+    end
+    local exemplaire = EquipesPourEcrire(entity, objet.categorie)[rang]
+    return Encaisser(entity, objet, exemplaire, n, function()
+        Objets.Enlever(entity, objet.id, exemplaire.id)
+    end)
 end
 
 -- Un outil employe directement depuis un sac s'use lui aussi. Il n'est pas
 -- equipe pour autant et ne quitte le sac que si sa derniere vie est detruite.
+-- C'est le plus entame qui sert, ou qu'il soit dans les sacs.
 function Objets.UserInventaire(entity, id, n)
-    return Encaisser(entity, id, n, true)
+    local objet = Objets.Get(id)
+    if type(entity) ~= "table" or not objet then return 0, false end
+    Objets.MigrerEtats(entity)
+    local ref = Ref(objet.id)
+    local tous = {}
+    for _, p in ipairs(LCM.Inventaire.Piles(entity, ref)) do
+        for _, e in ipairs(LCM.Exemplaires.Assurer(p.pile)) do tous[#tous + 1] = e end
+    end
+    if #tous == 0 then return 0, false end
+    local exemplaire = tous[LePremierAServir(objet, tous)]
+    return Encaisser(entity, objet, exemplaire, n, function()
+        LCM.Inventaire.RetirerExemplaire(entity, ref, exemplaire.id)
+    end)
 end
 
 -- Porte la jauge a `encaisse` en repartissant l'ecart sur les pieces portees :
@@ -478,12 +646,12 @@ function Objets.PorterProtection(entity, encaisse)
     if ecart > 0 then
         for i = 1, #pieces do
             if ecart == 0 then break end
-            ecart = ecart - Objets.Encaisser(entity, pieces[i].id, math.min(ecart, pieces[i].reste))
+            ecart = ecart - Objets.Encaisser(entity, pieces[i].id, math.min(ecart, pieces[i].reste), pieces[i].rang)
         end
     elseif ecart < 0 then
         for i = #pieces, 1, -1 do
             if ecart == 0 then break end
-            ecart = ecart - Objets.Encaisser(entity, pieces[i].id, math.max(ecart, -pieces[i].usure))
+            ecart = ecart - Objets.Encaisser(entity, pieces[i].id, math.max(ecart, -pieces[i].usure), pieces[i].rang)
         end
     end
     return true

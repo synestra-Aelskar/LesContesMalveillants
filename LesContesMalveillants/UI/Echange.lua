@@ -309,7 +309,12 @@ function Ecran.Donner(qui, objet)
         end
     end
     if E.courant and E.courant.ouverte and E.courant.qui == qui then
-        local ok, raison = E.Offrir(objet)
+        -- Une selection (`lot`) pose chacun de ses objets.
+        local tous, ok, raison = type(objet) == "table" and objet.lot or { objet }, true, nil
+        for _, o in ipairs(tous) do
+            local pose, pourquoi = E.Offrir(o)
+            if not pose then ok, raison = false, raison or pourquoi end
+        end
         if not ok and raison then LCM.Alerte(tostring(raison)) end
         return ok
     end

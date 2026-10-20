@@ -82,7 +82,10 @@ LCM.Roll.Des = function(a, b)
     return vraiDes(a, b)
 end
 __position(100, 200, 0)
+-- Un point pose part tout eteint (20 octobre 2026) : on allume tout son
+-- modele, ce que ce scenario recolte.
 local id = Rs.Placer(def.id)
+Rs.Allumer(id)
 attendu("point posé", id ~= nil, true)
 local p = LCM.db.recoltes[id]
 local function tirer(valeurs)
@@ -117,6 +120,7 @@ c.enregistrer:Click()
 local infini = f:Point()
 horloge = 3000
 local id2 = Rs.Placer(infini.id)
+Rs.Allumer(id2)
 local p2 = LCM.db.recoltes[id2]
 file = { 1, 1, 2 }
 local premiere = Rs.Accorder(id2, LCM.PlayerId())
@@ -142,6 +146,7 @@ local function Combien(ref)
 end
 __position(200, 300, 0)
 local id3 = Rs.Placer(infini.id)
+Rs.Allumer(id3)
 file = { 2, 1, 2 }
 local ok = R.Tenter(id3)
 attendu("récolte multi ressource acceptée", ok, true)

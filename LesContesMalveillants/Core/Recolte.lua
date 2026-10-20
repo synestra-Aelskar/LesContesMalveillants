@@ -128,12 +128,31 @@ function Recolte.Ressources(definition)
         chance = 100, regeneration = false } }
 end
 
+-- Ce que CE point donne : sa propre liste si le MJ l'a reglee une fois pose
+-- (20 octobre 2026), sinon celle de son modele. Le modele « Récolter du
+-- minerai » donne le point de depart ; un filon en particulier peut etre plus
+-- riche, ou ne donner que du cuivre, sans toucher aux autres.
+-- Une liste vide est un point TOUT ETEINT : il ne donne rien (MJ/Recoltes.lua,
+-- Effectives). Sans liste, c'est le modele entier.
+function Recolte.RessourcesDuPoint(point, definition)
+    if type(point) == "table" and type(point.ressources) == "table" then
+        return point.ressources
+    end
+    return Recolte.Ressources(definition)
+end
+
+-- Un point que le MJ doit encore regler : rien ne s'y recolte, mais celui qui
+-- l'a pose doit le trouver en marchant dessus, pour l'ouvrir.
+local function ARegler(p)
+    return p.vide == true and LCM.IsMaster and LCM.IsMaster()
+end
+
 -- L'etat appartient au point pose, jamais a sa definition partagee.
 function Recolte.Disponible(point, definition, maintenant)
     maintenant = maintenant or (time and time()) or 0
     if (tonumber(definition.limite) or 1) > 0
         and (tonumber(point.usages) or 0) >= (tonumber(definition.limite) or 1) then return false end
-    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+    for index, ressource in ipairs(Recolte.RessourcesDuPoint(point, definition)) do
         local prochain = point.prochain and tonumber(point.prochain[index])
         local consomme = point.consomme and point.consomme[index]
         if ressource.regeneration then
@@ -147,7 +166,7 @@ function Recolte.Epuise(point, definition)
     if tonumber(definition.limite) == 0 then return false end
     if (tonumber(definition.limite) or 1) > 0
         and (tonumber(point.usages) or 0) >= (tonumber(definition.limite) or 1) then return true end
-    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+    for index, ressource in ipairs(Recolte.RessourcesDuPoint(point, definition)) do
         if ressource.regeneration or not (point.consomme and point.consomme[index]) then
             return false
         end
@@ -163,7 +182,7 @@ function Recolte.Tirer(point, definition, maintenant)
     local lots, consomme, prochain = {}, {}, {}
     for i, v in pairs(point.consomme or {}) do consomme[i] = v end
     for i, v in pairs(point.prochain or {}) do prochain[i] = v end
-    for index, ressource in ipairs(Recolte.Ressources(definition)) do
+    for index, ressource in ipairs(Recolte.RessourcesDuPoint(point, definition)) do
         local disponible = ressource.regeneration
             and (not prochain[index] or prochain[index] <= maintenant)
             or (not ressource.regeneration and not consomme[index])
@@ -231,18 +250,56 @@ function Recolte.Deplier(texte)
     return out
 end
 
--- Le paquet d'une definition, cles courtes : il part une fois par MJ et par
--- joueur, mais il porte tous ses points.
-function Recolte.Paquet(definition, points)
-    local ressources = {}
-    for _, ressource in ipairs(Recolte.Ressources(definition)) do
-        ressources[#ressources + 1] = {
+-- Une liste de ressources telle qu'elle voyage : avec la definition de chaque
+-- objet ou livre, que le joueur n'a peut-etre pas encore.
+local function PlierRessources(liste)
+    local out = {}
+    for _, ressource in ipairs(liste) do
+        out[#out + 1] = {
             entree = ressource.entree, min = ressource.min, max = ressource.max,
             chance = ressource.chance, aleatoire = ressource.aleatoire,
             regeneration = ressource.regeneration, minutes = ressource.minutes,
             definition = (LCM.Livres and LCM.Livres.Definition(ressource.entree))
                 or (LCM.Echange and LCM.Echange.DefinitionObjet(ressource.entree)) or nil,
         }
+    end
+    return out
+end
+
+local function LireRessources(liste)
+    local out = {}
+    for _, r in ipairs(liste) do
+        local entree = Texte(r.entree)
+        if type(r.definition) == "table" then
+            if entree:match("^livres/") and LCM.Livres then
+                LCM.Livres.Importer(entree, r.definition)
+            elseif LCM.Echange and LCM.Echange.ImporterObjetPartage then
+                LCM.Echange.ImporterObjetPartage({ ref = entree, definition = r.definition })
+            end
+        end
+        out[#out + 1] = {
+            entree = entree, min = tonumber(r.min) or 1,
+            max = tonumber(r.max) or tonumber(r.min) or 1,
+            chance = tonumber(r.chance) or 100,
+            aleatoire = r.aleatoire == true or r.aleatoire == "true",
+            regeneration = r.regeneration == true or r.regeneration == "true",
+            minutes = tonumber(r.minutes) or 0,
+        }
+    end
+    return out
+end
+
+-- Le paquet d'une definition, cles courtes : il part une fois par MJ et par
+-- joueur, mais il porte tous ses points. `o` : la liste propre des points
+-- que le MJ a regles un par un, par identifiant de point.
+function Recolte.Paquet(definition, points)
+    local ressources = PlierRessources(Recolte.Ressources(definition))
+    local propres
+    for _, p in ipairs(points or {}) do
+        if type(p.ressources) == "table" and p.ressources[1] then
+            propres = propres or {}
+            propres[p.id] = PlierRessources(p.ressources)
+        end
     end
     return {
         i = definition.id, n = definition.label, e = definition.entree,
@@ -251,6 +308,7 @@ function Recolte.Paquet(definition, points)
         p = Recolte.Plier(points), l = definition.limite,
         u = ressources, v = definition.metiers,
         f = definition.echecConsomme and true or nil,
+        o = propres,
     }
 end
 
@@ -260,27 +318,7 @@ function Recolte.Lire(paquet)
     if id == "" then return nil end
     local mini = math.max(1, math.floor(tonumber(paquet.a) or 1))
     local ressources
-    if type(paquet.u) == "table" then
-        ressources = {}
-        for _, r in ipairs(paquet.u) do
-            local entree = Texte(r.entree)
-            if type(r.definition) == "table" then
-                if entree:match("^livres/") and LCM.Livres then
-                    LCM.Livres.Importer(entree, r.definition)
-                elseif LCM.Echange and LCM.Echange.ImporterObjetPartage then
-                    LCM.Echange.ImporterObjetPartage({ ref = entree, definition = r.definition })
-                end
-            end
-            ressources[#ressources + 1] = {
-                entree = entree, min = tonumber(r.min) or 1,
-                max = tonumber(r.max) or tonumber(r.min) or 1,
-                chance = tonumber(r.chance) or 100,
-                aleatoire = r.aleatoire == true or r.aleatoire == "true",
-                regeneration = r.regeneration == true or r.regeneration == "true",
-                minutes = tonumber(r.minutes) or 0,
-            }
-        end
-    end
+    if type(paquet.u) == "table" then ressources = LireRessources(paquet.u) end
     local metiers
     if type(paquet.v) == "table" then
         metiers = {}
@@ -304,7 +342,15 @@ function Recolte.Lire(paquet)
         rayon = tonumber(paquet.r), limite = tonumber(paquet.l) or 1,
         ressources = ressources,
         echecConsomme = paquet.f == true or paquet.f == "true",
-    }, Recolte.Deplier(paquet.p)
+    }, (function()
+        local points = Recolte.Deplier(paquet.p)
+        if type(paquet.o) == "table" then
+            for _, p in ipairs(points) do
+                if type(paquet.o[p.id]) == "table" then p.ressources = LireRessources(paquet.o[p.id]) end
+            end
+        end
+        return points
+    end)()
 end
 
 -- ===== La sauvegarde =======================================================
@@ -426,7 +472,7 @@ function Recolte.Proche(positions)
     local meilleur, meilleureDistance
     for _, p in pairs(Recolte.points) do
         local definition = Recolte.definitions[p.def]
-        if definition and p.carte == carte and Recolte.Disponible(p, definition) then
+        if definition and p.carte == carte and (Recolte.Disponible(p, definition) or ARegler(p)) then
             local source = p.source or "?"
             -- De quoi juger si un `.gps` vaut la peine (DeplacementForce.GPSAPortee).
             if source == "gps" then
@@ -461,7 +507,7 @@ function Recolte.ProcheHorizontal()
         local definition = Recolte.definitions[p.def]
         local px, py = tonumber(p.x), tonumber(p.y)
         if definition and p.carte == carte and p.source ~= "carte" and px and py
-            and Recolte.Disponible(p, definition) then
+            and (Recolte.Disponible(p, definition) or ARegler(p)) then
             local distance = math.sqrt((x - px)^2 + (y - py)^2)
             if distance <= Recolte.Rayon(definition) and (not distanceMin or distance < distanceMin) then
                 meilleur, distanceMin = p, distance

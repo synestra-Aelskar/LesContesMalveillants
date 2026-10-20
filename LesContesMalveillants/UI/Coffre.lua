@@ -144,11 +144,44 @@ local function BonusObjet(entity, ref, expertise)
     if not (element and element.bonus) then return 0 end
     local montant = tonumber(element.bonus[expertise]) or 0
     if montant ~= 0 and LCM.Objets and LCM.Objets.ApportSelonEtat then
-        montant = LCM.Objets.ApportSelonEtat(entity, element, montant)
+        -- L'etat de l'exemplaire qui servira : on porte, ou le plus entame
+        -- des sacs.
+        local exemplaire = LCM.Objets.ExemplaireAUser and element.id and LCM.Objets.ExemplaireAUser(entity, element.id)
+        montant = LCM.Objets.ApportSelonEtat(entity, element, montant, exemplaire)
     end
     return tonumber(montant) or 0
 end
 Ecran.BonusObjet = BonusObjet
+
+-- Les OUTILS de cette expertise que le personnage a dans ses sacs : un objet
+-- de categorie « outil » qui lui donne un bonus (un kit de crochetage pour
+-- Crochetage). Un par modele, le meilleur bonus d'abord — a etat egal, le
+-- plus utile en tete (20 octobre 2026 : ils se proposent tout seuls, au lieu
+-- d'aller les chercher et de les glisser un a un).
+local function OutilsDeLExpertise(entity, expertise)
+    local vus, out = {}, {}
+    for _, categorie in ipairs(LCM.Inventaire.categories) do
+        for i = 1, LCM.Inventaire.Capacite(categorie.id) do
+            local e = LCM.Inventaire.Emplacement(entity, categorie.id, i)
+            for _, item in pairs(e and e.cases or {}) do
+                local ref = type(item) == "table" and item.ref
+                local id = ref and tostring(ref):match("^objets/(.+)$")
+                local objet = id and LCM.Objets.Get(id)
+                if objet and not vus[ref] and objet.categorie == "outil"
+                    and (tonumber(objet.bonus and objet.bonus[expertise]) or 0) > 0 then
+                    vus[ref] = true
+                    out[#out + 1] = { ref = ref, element = objet, bonus = BonusObjet(entity, ref, expertise) }
+                end
+            end
+        end
+    end
+    table.sort(out, function(a, b)
+        if a.bonus ~= b.bonus then return a.bonus > b.bonus end
+        return tostring(a.element.label) < tostring(b.element.label)
+    end)
+    return out
+end
+Ecran.OutilsDeLExpertise = OutilsDeLExpertise
 
 local function ChanceExpertise(expertise, bonus, dd, entity)
     local champ = LCM.Schema.Field(expertise)
@@ -328,13 +361,14 @@ local function Construire()
             :Proposer(f.choixExpertise, options, function(id)
                 f.expertise = id
                 for _, o in ipairs(options) do if o.id == id then f.choixExpertise.label:SetText(o.label) end end
+                f:ProposerOutils()
                 f:MettreAJourTentative()
             end)
     end)
     f.choixExpertise:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -42)
 
     f.aidesTitre = UI.Texte(f.contenu,
-        "Objets pour s’aider — glisse jusqu’à 6 objets depuis ton inventaire.",
+        "Objets pour s’aider — tes outils sont proposés. Clic : en ajouter ; clic droit : retirer.",
         UI.C.discret, "GameFontNormalSmall")
     f.aidesTitre:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 0, -76)
     f.aides, f.aideCases = {}, {}
@@ -342,7 +376,7 @@ local function Construire()
         local b = CreateFrame("Button", nil, f.contenu)
         b:SetSize(46, 46)
         b:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", (index - 1) * 54, -96)
-        b:RegisterForClicks("RightButtonUp")
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         b.fond = UI.Aplat(b, { 0, 0, 0, 0.24 }); b.fond:SetAllPoints(b)
         UI.BordureFine(b, 0.30)
         b.icone = b:CreateTexture(nil, "ARTWORK")
@@ -356,6 +390,8 @@ local function Construire()
             if bouton == "RightButton" and f.aides[self.index] then
                 f.aides[self.index] = nil
                 f:MettreAJourTentative()
+            elseif bouton == "LeftButton" then
+                f:ChoisirAide(self)
             end
         end)
         b:SetScript("OnEnter", function(self)
@@ -400,6 +436,67 @@ local function Construire()
         for _, methode in ipairs((d and d.coffre and d.coffre.expertises) or {}) do
             if methode.id == self.expertise then return methode end
         end
+    end
+
+    -- Les outils de l'expertise choisie remplacent ce qui etait pose : ceux
+    -- d'une autre expertise n'y apporteraient rien. Un exemplaire de chaque
+    -- modele — en poser deux du meme reste un choix, par le clic.
+    function f:ProposerOutils()
+        self.aides = {}
+        local methode = self:MethodeCourante()
+        if not methode or methode.id == C.METHODE_CLEF then return end
+        for i, outil in ipairs(OutilsDeLExpertise(LCM.Entities.Self(), methode.id)) do
+            if i > #self.aideCases then break end
+            self.aides[i] = { ref = outil.ref, element = outil.element }
+        end
+    end
+
+    -- Un clic sur une case : la liste de ce qu'on peut y poser, sans glisser.
+    -- Les outils de l'expertise d'abord, puis tout objet des sacs qui lui
+    -- donne un bonus. Ce qu'on a deja pose autant de fois qu'on le possede
+    -- n'y est plus.
+    function f:ChoisirAide(case)
+        local methode = self:MethodeCourante()
+        if not methode or methode.id == C.METHODE_CLEF then
+            LCM.Alerte("choisis d’abord une expertise.")
+            return
+        end
+        local entity = LCM.Entities.Self()
+        local poses = {}
+        for i, aide in pairs(self.aides) do
+            if i ~= case.index then poses[aide.ref] = (poses[aide.ref] or 0) + 1 end
+        end
+        local options, vus = {}, {}
+        local function Ajouter(ref, element, groupe)
+            if vus[ref] or (poses[ref] or 0) >= SacTotal(entity, ref) then return end
+            vus[ref] = true
+            options[#options + 1] = { id = ref, groupe = groupe, label = string.format("%s  (%+d)",
+                element.label, BonusObjet(entity, ref, methode.id)) }
+        end
+        for _, outil in ipairs(OutilsDeLExpertise(entity, methode.id)) do Ajouter(outil.ref, outil.element, "Outils") end
+        for _, categorie in ipairs(LCM.Inventaire.categories) do
+            for i = 1, LCM.Inventaire.Capacite(categorie.id) do
+                local e = LCM.Inventaire.Emplacement(entity, categorie.id, i)
+                for _, item in pairs(e and e.cases or {}) do
+                    local id = type(item) == "table" and tostring(item.ref or ""):match("^objets/(.+)$")
+                    local objet = id and LCM.Objets.Get(id)
+                    if objet and (tonumber(objet.bonus and objet.bonus[methode.id]) or 0) ~= 0 then
+                        Ajouter(item.ref, objet, "Autres objets")
+                    end
+                end
+            end
+        end
+        if #options == 0 then
+            LCM.Alerte(string.format("rien dans tes sacs n’aide en %s.", NomMethode(methode.id)))
+            return
+        end
+        -- Creee une fois : UI.Choix fabrique une fenetre a chaque appel.
+        self.choixAide = self.choixAide or UI.Choix("coffre_aide", "Poser pour s’aider")
+        self.choixAide:Proposer(case, options, function(ref)
+            local id = tostring(ref):match("^objets/(.+)$")
+            self.aides[case.index] = { ref = ref, element = id and LCM.Objets.Get(id) }
+            self:MettreAJourTentative()
+        end)
     end
 
     function f:BonusAides(methode)

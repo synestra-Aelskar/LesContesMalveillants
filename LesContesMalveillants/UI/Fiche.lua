@@ -1436,14 +1436,17 @@ local function Emplacement(conteneur, c)
             -- L'etat DEVANT le nom : « (8/12) Rempart de guerre ». Il n'etait
             -- lisible que dans la carte au survol, alors que c'est en regardant
             -- ce qu'on porte qu'on veut savoir ce qui tient encore.
-            local vies, _, _, couleurVies = UI.ViesObjet(conteneur.entity, element)
+            -- CET exemplaire : deux capuches identiques n'ont pas le meme etat.
+            local exemplaire = LCM.Objets.ExemplairePorte
+                and LCM.Objets.ExemplairePorte(conteneur.entity, element.categorie, self.rangPorte)
+            local vies, _, _, couleurVies = UI.ViesObjet(conteneur.entity, element, exemplaire)
             self.vies.texte:SetText(vies or "")
             if couleurVies then
                 self.vies.texte:SetTextColor(couleurVies[1], couleurVies[2], couleurVies[3])
             end
             self.vies:SetShown(vies ~= nil)
-            local etat, reste, plein = UI.EtatObjet(conteneur.entity, element)
-            local brise = UI.ObjetBrise(conteneur.entity, element)
+            local etat, reste, plein = UI.EtatObjet(conteneur.entity, element, exemplaire)
+            local brise = UI.ObjetBrise(conteneur.entity, element, exemplaire)
             local marque = brise and (UI.MARQUE_BRISE .. " ") or ""
             if etat then
                 self.nom:SetText(string.format("|cff%s(%s)|r %s%s",
@@ -1458,7 +1461,7 @@ local function Emplacement(conteneur, c)
             -- L'etat forge suit chaque arme, armure et accessoire. L'afficher
             -- ici rend visible ce que le dispatch de degats peut casser.
             local maximum = LCM.Objets.EtatMax(element)
-            local courant = math.max(0, maximum - LCM.Objets.Usure(conteneur.entity, element.id))
+            local courant = math.max(0, maximum - LCM.Objets.Usure(conteneur.entity, element.id, exemplaire))
             local infos = { string.format("État %d / %d", courant, maximum) }
             if element.armure then infos[#infos + 1] = string.format("Armure %d", element.armure) end
             local etat = table.concat(infos, "  ·  ")
@@ -1710,8 +1713,10 @@ function Lignes.conteneur(bloc, def, c)
                 ligne = Emplacement(self, c)
                 self.emplacements[index] = ligne
             end
-            ligne:Habiller(self.catalogue, portes[index], mj)
+            -- Le rang AVANT l'habillage : c'est lui qui dit quel exemplaire
+            -- montrer, et donc quel etat.
             ligne.rangPorte = index
+            ligne:Habiller(self.catalogue, portes[index], mj)
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             ligne:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)

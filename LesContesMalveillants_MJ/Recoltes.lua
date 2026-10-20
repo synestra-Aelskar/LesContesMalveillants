@@ -88,13 +88,60 @@ end
 -- Un point recolte reste au carnet, avec qui et quand : il n'est plus jamais
 -- envoye, et c'est lui qu'une future repousse remettra a CREE.
 
+-- ===== Ce qu'un point pose donne ===========================================
+-- Le MODELE est un catalogue : tout ce que ce genre de point PEUT donner
+-- (« Récolter la pierre » : huit pierres). Un point pose part TOUT ETEINT
+-- (20 octobre 2026) : le MJ l'ouvre (clic droit sur « Récolter ») et allume,
+-- ligne par ligne, ce que CE point donne, avec sa chance, sa quantite et sa
+-- repousse a lui.
+--
+--     p.lignes = { ["ressources/granit"] = { actif = true, chance = 100, min = 1, … } }
+--
+-- Par REFERENCE et non par rang : reordonner le modele ne melange pas les
+-- reglages. Une ligne que le modele n'a plus n'est plus rien ; une ligne
+-- ajoutee au modele arrive eteinte sur les points deja poses.
+--
+-- Un point pose avant ce jour n'a pas de `lignes` : il donne tout son
+-- modele, comme avant. On ne l'eteint pas dans le dos du MJ.
+
+local CHAMPS_LIGNE = { "min", "max", "aleatoire", "chance", "regeneration", "minutes" }
+
+function Recoltes.Effectives(p, recolte)
+    local modele = R.Ressources(recolte or {})
+    if type(p) ~= "table" or type(p.lignes) ~= "table" then return modele end
+    local out = {}
+    for _, lot in ipairs(modele) do
+        local regle = p.lignes[lot.entree]
+        if type(regle) == "table" and regle.actif == true then
+            local ligne = LCM.Copie(lot)
+            for _, champ in ipairs(CHAMPS_LIGNE) do
+                if regle[champ] ~= nil then ligne[champ] = regle[champ] end
+            end
+            out[#out + 1] = ligne
+        end
+    end
+    return out
+end
+
+-- Le point tel que la recolte le lit : une copie, avec son contenu effectif.
+local function Vue(p, point)
+    local vue = {}
+    for k, v in pairs(p) do vue[k] = v end
+    if type(p.lignes) == "table" then
+        vue.ressources = Recoltes.Effectives(p, point and point.recolte)
+        vue.vide = #vue.ressources == 0 or nil
+    end
+    return vue
+end
+
 -- Tout le carnet d'une definition, recoltes compris.
 function Recoltes.Carnet(defId)
     local out = {}
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
             local point = Recoltes.Definition(p.def)
-            local actif = point and R.Disponible(p, point.recolte) or false
+            local vue = Vue(p, point)
+            local actif = point and R.Disponible(vue, point.recolte) or false
             local retour
             if point and not actif and not p.statut then
                 for _, date in pairs(p.prochain or {}) do
@@ -108,6 +155,7 @@ function Recoltes.Carnet(defId)
                 source = p.source, carte = p.carte, quand = p.quand,
                 statut = p.statut or "cree", par = p.par, le = p.le,
                 usages = p.usages, consomme = p.consomme, prochain = p.prochain,
+                ressources = vue.ressources, vide = vue.vide, lignes = p.lignes,
                 actif = actif, retour = retour }
         end
     end
@@ -119,11 +167,13 @@ function Recoltes.Carnet(defId)
     return out
 end
 
--- Les points encore la : les seuls qu'on envoie.
-function Recoltes.Points(defId)
+-- Les points encore la : les seuls qu'on envoie. Un point tout eteint ne
+-- part a personne — il ne donne rien —, sauf au MJ lui-meme (`avecVides`),
+-- qui doit pouvoir le trouver en jeu pour le regler.
+function Recoltes.Points(defId, avecVides)
     local out = {}
     for _, p in ipairs(Recoltes.Carnet(defId)) do
-        if p.statut == "cree" then out[#out + 1] = p end
+        if p.statut == "cree" and (avecVides or not p.vide) then out[#out + 1] = p end
     end
     return out
 end
@@ -155,7 +205,7 @@ end
 -- propres points pour les essayer.
 local function Rafraichir(defId)
     local point = Recoltes.Definition(defId)
-    if point then R.Connaitre(Publique(point), Recoltes.Points(defId), Moi())
+    if point then R.Connaitre(Publique(point), Recoltes.Points(defId, true), Moi())
     else R.OublierDefinition(defId) end
     if Recoltes.onChange then pcall(Recoltes.onChange, defId) end
 end
@@ -186,11 +236,78 @@ function Recoltes.Placer(defId)
         return nil, "position indisponible : .gps demandé, reclique dans un instant."
     end
     local id = Identifiant()
+    -- La carte SERVEUR, quand la position vient de lui : c'est elle que
+    -- « S'y téléporter » donne a .worldport (comme les coffres).
+    local D = LCM.DeplacementForce
+    local mapid = source == "gps" and D and D.CarteGPS and tonumber(D.CarteGPS()) or nil
+    -- Tout eteint : le MJ allume ce que CE point donne (voir Effectives).
     Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
-        quand = (time and time()) or 0 }
+        mapid = mapid, quand = (time and time()) or 0, lignes = {} }
     Rafraichir(point.id)
     Recoltes.Diffuser(point.id)
     return id
+end
+
+-- Ce que CE point donne : un reglage par ligne du modele (voir Effectives).
+-- Le contenu change, donc le point repart plein : ce qui avait ete pris ou
+-- etait en repousse l'etait dans l'ancien contenu, et ses rangs ne veulent
+-- plus rien dire. Tout eteindre est permis : le point ne donne plus rien, et
+-- disparait chez les joueurs.
+function Recoltes.Regler(id, lignes)
+    id = tostring(id or "")
+    local p = Magasin()[id]
+    if not p then return false, "ce point n'existe plus." end
+    if p.statut == "attente" then return false, "une récolte est en cours sur ce point : réessaie dans un instant." end
+    if type(lignes) ~= "table" then return false, "réglage illisible." end
+    for entree, regle in pairs(lignes) do
+        if type(entree) ~= "string" or entree == "" or type(regle) ~= "table" then
+            return false, "une ligne n'a pas de ressource choisie."
+        end
+    end
+    p.lignes = LCM.Copie(lignes)
+    p.ressources = nil
+    p.consomme, p.prochain = nil, nil
+    if p.statut == "recolte" then p.statut, p.par, p.le = nil, nil, nil end
+    Rafraichir(p.def)
+    Recoltes.Diffuser(p.def)
+    return true
+end
+
+-- Tout allumer, tel que le modele le regle : le « Tout activer » du panneau,
+-- sans le panneau.
+function Recoltes.Allumer(id)
+    local p = Magasin()[tostring(id or "")]
+    local point = p and Recoltes.Definition(p.def)
+    if not point then return false, "ce point n'existe plus." end
+    local lignes = {}
+    for _, lot in ipairs(R.Ressources(point.recolte)) do lignes[lot.entree] = { actif = true } end
+    return Recoltes.Regler(id, lignes)
+end
+
+-- Aller au point, comme on va a un coffre pose (Coffres.Teleporter) : par
+-- .worldport, avec l'altitude, et la carte serveur quand on l'a retenue.
+-- Sans elle (un point pose avant), le serveur garde la carte ou l'on est.
+function Recoltes.Teleporter(id)
+    if not LCM.IsMaster() then return false, "réservé au maître du jeu." end
+    local p = Magasin()[tostring(id or "")]
+    if not p then return false, "point de récolte introuvable." end
+    local x, y, z, mapid = tonumber(p.x), tonumber(p.y), tonumber(p.z), tonumber(p.mapid)
+    if not x or not y or not z or p.source == "carte" then
+        return false, "coordonnées 3D indisponibles : replace ce point pour pouvoir t'y téléporter."
+    end
+    local function Coord(n) return (string.format("%.6f", n):gsub(",", ".")) end
+    local commande = ".worldport " .. Coord(x) .. " " .. Coord(y) .. " " .. Coord(z)
+    if mapid then commande = commande .. " " .. tostring(math.floor(mapid)) end
+    local D = LCM.DeplacementForce
+    if not (D and D.Commande and D.Commande(commande)) then
+        return false, "commande de téléportation non envoyée."
+    end
+    return true
+end
+
+-- Ce point est-il a moi (pose par ce MJ) ?
+function Recoltes.Pose(id)
+    return Magasin()[tostring(id or "")]
 end
 
 function Recoltes.Retirer(id)
@@ -228,7 +345,7 @@ function Recoltes.Accorder(id, par)
     if not p or p.statut then return nil, "ce point a déjà été récolté." end
     local point = Recoltes.Definition(p.def)
     if not point then return nil, "ce point ne donne plus rien." end
-    local lots, etat = R.Tirer(p, point.recolte)
+    local lots, etat = R.Tirer(Vue(p, point), point.recolte)
     if not lots then return nil, "ce point ne donne plus rien pour le moment." end
     p.prise = etat
     Marquer(id, "attente", par)
@@ -260,7 +377,7 @@ function Recoltes.Confirmer(id, par)
     end
     p.prise = nil
     local point = Recoltes.Definition(p.def)
-    if point and not R.Epuise(p, point.recolte) then
+    if point and not R.Epuise(Vue(p, point), point.recolte) then
         p.statut, p.par, p.le = nil, nil, nil
     else
         Marquer(id, "recolte", p.par)
@@ -277,15 +394,33 @@ function Recoltes.Echec(id, par, compte)
     if not p or p.statut then return false end
     local point = Recoltes.Definition(p.def)
     if not point or not point.recolte.echecConsomme
-        or not R.Disponible(p, point.recolte) then return false end
+        or not R.Disponible(Vue(p, point), point.recolte) then return false end
     local ancien = tonumber(p.usages) or 0
     p.usages = compte and math.max(ancien, math.floor(tonumber(compte) or ancien)) or ancien + 1
     if p.usages == ancien then return true end
-    if R.Epuise(p, point.recolte) then Marquer(id, "recolte", par) end
+    if R.Epuise(Vue(p, point), point.recolte) then Marquer(id, "recolte", par) end
     Rafraichir(p.def)
     Recoltes.Diffuser(p.def)
     return true
 end
+
+-- Le reglage par liste (le matin du 20 octobre 2026) devient des lignes
+-- allumees. Une fois, au chargement — jamais dans un accesseur.
+LCM.WhenReady(function()
+    for _, p in pairs(Magasin()) do
+        if type(p.ressources) == "table" and p.lignes == nil then
+            p.lignes = {}
+            for _, r in ipairs(p.ressources) do
+                if r.entree then
+                    local regle = { actif = true }
+                    for _, champ in ipairs(CHAMPS_LIGNE) do regle[champ] = r[champ] end
+                    p.lignes[r.entree] = regle
+                end
+            end
+            p.ressources = nil
+        end
+    end
+end)
 
 R.Arbitre = Recoltes.Accorder
 R.Restituer = Recoltes.Restituer

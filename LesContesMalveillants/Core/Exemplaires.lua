@@ -1,5 +1,10 @@
 -- Identite physique separee du modele : une pile porte une liste ordonnee
 -- d'exemplaires. Aucun de ces etats n'est copie dans le compendium.
+--
+-- L'etat d'un objet vit ICI, sur l'exemplaire (20 octobre 2026) : `usure`
+-- (ce qu'il a perdu d'etat) et `viesPerdues`, absents tant qu'il est neuf.
+-- Ils etaient sur le personnage, au nom du modele : six kits de crochetage
+-- partageaient un seul compteur, et un kit detruit le leguait au suivant.
 local _, LCM = ...
 local X = {}
 LCM.Exemplaires = X
@@ -45,6 +50,13 @@ function X.Lire(ref, quantite, liste)
             or type(e) ~= "table" or e.version ~= 1 or e.ref ~= ref
             or type(e.id) ~= "string" or e.id == "" or vus[e.id]
             or type(e.usages) ~= "table" then return nil, "exemplaire invalide ou répété." end
+        -- Son etat (Core/Objets.lua) : absent, il est neuf.
+        for _, cle in ipairs({ "usure", "viesPerdues" }) do
+            local n = e[cle]
+            if n ~= nil and (type(n) ~= "number" or n < 1 or n ~= math.floor(n)) then
+                return nil, "état d'exemplaire illisible."
+            end
+        end
         vus[e.id] = true
         for propriete, historique in pairs(e.usages) do
             if type(propriete) ~= "string" or type(historique) ~= "table" then

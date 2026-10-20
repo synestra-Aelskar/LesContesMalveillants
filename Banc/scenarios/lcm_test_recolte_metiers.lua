@@ -52,7 +52,10 @@ attendu("deux métiers transmis", #lu.metiers, 2)
 attendu("bonus transmis", lu.metiers[2].bonus, false)
 
 __position(100, 200, 0)
+-- Un point pose part tout eteint (20 octobre 2026) : on allume tout son
+-- modele, ce que ce scenario recolte.
 local pointId = LCM.Recoltes.Placer(f:Point().id)
+LCM.Recoltes.Allumer(pointId)
 attendu("point posé pour le joueur", pointId ~= nil, true)
 local prise, refusPrise = R.Tenter(pointId)
 attendu("récolte refusée sans métier", prise, false)

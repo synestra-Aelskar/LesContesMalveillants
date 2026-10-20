@@ -1214,6 +1214,20 @@ function UI.AtelierInteractions(f, nature)
         Placer(p.retirer, p, "BOTTOMLEFT", "BOTTOMLEFT", 0, 0)
         p.retirer:SetSize(170, 28)
     end
+    -- Forcer l'envoi aux joueurs : le filet de securite quand l'envoi
+    -- automatique n'est pas arrive. Il etait accroche a GAUCHE de « Retirer la
+    -- sélection » — que la ligne du dessus pose au bord gauche : il sortait du
+    -- panneau, sous la bibliotheque, invisible (20 octobre 2026). Il monte a
+    -- cote des onglets, ou on le voit depuis la configuration comme depuis le
+    -- placement.
+    if p.renvoyer then
+        p.renvoyer:SetParent(f.droite)
+        Placer(p.renvoyer, f.droite, "TOPRIGHT", "TOPRIGHT", 0, 0)
+        p.renvoyer:SetSize(150, 32)
+        p.renvoyer.label:SetText("Forcer la synchro")
+        UI.Bulle(p.renvoyer, "Forcer la synchro",
+            "Renvoie tout ce que tu as posé à tous ceux qui ont l'addon. À utiliser si un joueur ne le voit pas.")
+    end
     f.listeVide = UI.Texte(f.liste, "Aucun résultat.\nCrée un modèle ou modifie la recherche.", UI.C.discret)
     f.listeVide:SetPoint("TOPLEFT", f.liste, "TOPLEFT", 8, -20)
     f.listeVide:SetWidth(176)
@@ -2405,10 +2419,12 @@ UI.AIDE_VIES = "Vie de votre équipement. Une fois à zéro, l'objet sera brisé
     .. "lorsque son état atteindra 0 d'état. Sa vie baisse lorsqu'un équipement "
     .. "passe à 0 d'état."
 
-function UI.ViesObjet(entity, element)
+-- `exemplaire` : CET objet-la (Core/Objets.lua) ; chacun a son etat et ses
+-- vies. Sans lui, un exemplaire neuf.
+function UI.ViesObjet(entity, element, exemplaire)
     if not (LCM.Objets and type(element) == "table" and element.id) then return nil end
     if not LCM.Objets.Get(element.id) then return nil end
-    local restantes, maximum = LCM.Objets.Vies(entity, element)
+    local restantes, maximum = LCM.Objets.Vies(entity, element, exemplaire)
     -- Illimitees : rien a compter, et le signe le dit mieux qu'un chiffre.
     if restantes == nil then return "∞", nil, nil, UI.C.vert or { 0.42, 0.78, 0.42 } end
     local couleur = restantes > 0 and (UI.C.vert or { 0.42, 0.78, 0.42 }) or UI.C.plein
@@ -2421,10 +2437,10 @@ end
 UI.MARQUE_BRISE = "[BRISÉ]"
 UI.TEINTE_BRISE = { 1, 0.35, 0.35 }
 
-function UI.ObjetBrise(entity, element)
+function UI.ObjetBrise(entity, element, exemplaire)
     if not (LCM.Objets and type(element) == "table" and element.id) then return false end
     if not LCM.Objets.Get(element.id) then return false end
-    return LCM.Objets.EstBrise(entity, element)
+    return LCM.Objets.EstBrise(entity, element, exemplaire)
 end
 
 -- Pose ou retire la teinte rouge d'une icone. Toujours appelee, dans les deux
@@ -2441,12 +2457,12 @@ end
 
 -- Rend « 8/12 », l'etat courant et le maximum ; nil pour ce qui n'a pas
 -- d'etat (une ressource, une devise : on n'use pas une pomme).
-function UI.EtatObjet(entity, element)
+function UI.EtatObjet(entity, element, exemplaire)
     if not (LCM.Objets and type(element) == "table" and element.id) then return nil end
     if not LCM.Objets.Get(element.id) then return nil end
     local maximum = LCM.Objets.EtatMax(element)
     if not maximum or maximum <= 0 then return nil end
-    local courant = math.max(0, maximum - LCM.Objets.Usure(entity, element.id))
+    local courant = math.max(0, maximum - LCM.Objets.Usure(entity, element.id, exemplaire))
     return string.format("%d/%d", courant, maximum), courant, maximum
 end
 

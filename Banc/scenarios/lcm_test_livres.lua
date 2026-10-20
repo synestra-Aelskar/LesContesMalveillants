@@ -46,8 +46,10 @@ if ref then
     attendu("livre dans l'inventaire", depose, true)
     if not depose then print(tostring(raisonDepot)) end
     local sac = LCM.UI.Inventaires.OuvrirSac("sacs", 1)
-    sac.cases[1]:Click("LeftButton")
-    attendu("clic inventaire lance la lecture", LCM.UI.Livres.frame:IsShown(), true)
+    -- Le clic choisit la case depuis la selection multiple (20 octobre
+    -- 2026) : on lit au double-clic.
+    sac.cases[1]:DoubleClick("LeftButton")
+    attendu("double-clic inventaire lance la lecture", LCM.UI.Livres.frame:IsShown(), true)
     sac.cases[1]:Click("RightButton")
     local menu = LCM.UI.MenuContexte()
     local lirePropose = false

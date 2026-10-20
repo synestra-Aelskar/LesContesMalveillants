@@ -60,10 +60,12 @@ function Effets.Source(nom, portes, liste, apport)
 end
 
 -- Ce qu'un element d'une source donne sur un champ, module s'il y a lieu.
-local function Apport(source, entity, element, cible)
+-- `rang` : sa place dans `portes(entity)`. Deux objets identiques portes sont
+-- deux exemplaires, chacun avec son etat : le modele seul ne dit pas lequel.
+local function Apport(source, entity, element, cible, rang)
     local montant = element.bonus[cible] or 0
     if montant == 0 or not source.apport then return montant end
-    return source.apport(entity, element, montant) or 0
+    return source.apport(entity, element, montant, rang) or 0
 end
 Effets.Apport = Apport
 
@@ -71,8 +73,8 @@ Effets.Apport = Apport
 function Effets.Bonus(entity, fieldId)
     local total, cible = 0, tostring(fieldId)
     for _, source in ipairs(Effets.sources) do
-        for _, element in ipairs(source.portes(entity)) do
-            total = total + Apport(source, entity, element, cible)
+        for rang, element in ipairs(source.portes(entity)) do
+            total = total + Apport(source, entity, element, cible, rang)
         end
     end
     return total
@@ -89,8 +91,8 @@ function Effets.Detail(entity, fieldId)
     local cible, out = tostring(fieldId), {}
     for _, source in ipairs(Effets.sources) do
         local total, elements = 0, {}
-        for _, element in ipairs(source.portes(entity)) do
-            local montant = Apport(source, entity, element, cible)
+        for rang, element in ipairs(source.portes(entity)) do
+            local montant = Apport(source, entity, element, cible, rang)
             total = total + montant
             -- Un par un : « Traits +3 » ne dit pas lequel des traits le donne.
             if montant ~= 0 then

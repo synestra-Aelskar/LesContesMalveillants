@@ -3330,6 +3330,7 @@ function Actions.Zones(entity, tags)
     if voulus.bouclier or voulus.armure then
         for _, objet in ipairs(LCM.Objets.EquipementsEtat(entity)) do
             out[#out + 1] = { genre = "objet", id = objet.id, nom = objet.label, categorie = objet.categorie,
+                              rang = objet.rang,
                               courant = objet.reste, max = objet.valeur, plafond = objet.reste, tag = "#bouclier" }
         end
     end
@@ -3378,7 +3379,8 @@ function Actions.Repartir(ctx, cases, repartition, signe)
             if case.genre == "zone" then
                 if signe == "+" then LCM.Body.Heal(ctx.entity, case.id, n) else LCM.Body.Damage(ctx.entity, case.id, n) end
             elseif case.genre == "objet" or case.genre == "piece" then
-                local _, detruit = LCM.Objets.Encaisser(ctx.entity, case.id, signe == "+" and -n or n)
+                -- Le rang dit LAQUELLE de deux pieces identiques est touchee.
+                local _, detruit = LCM.Objets.Encaisser(ctx.entity, case.id, signe == "+" and -n or n, case.rang)
                 if detruit then case.detruit = true end
             else
                 local j = LCM.Entities.Gauge(ctx.entity, case.id)

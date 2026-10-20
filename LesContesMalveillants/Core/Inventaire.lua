@@ -816,6 +816,131 @@ function Inventaire.Prendre(entity, ref)
     return true, exemplaires and exemplaires[1]
 end
 
+-- Toutes les cases des sacs qui tiennent `ref`, dans l'ordre ou on les voit :
+-- { categorie, index, case, pile }. Lecture seule — une pile d'avant les
+-- exemplaires n'en recoit pas ici.
+function Inventaire.Piles(entity, ref)
+    local out = {}
+    if type(entity) ~= "table" then return out end
+    for _, categorie in ipairs(Inventaire.categories) do
+        for index = 1, Inventaire.Capacite(categorie.id) do
+            local emplacement = Inventaire.Emplacement(entity, categorie.id, index)
+            local total = emplacement and Inventaire.Cases(emplacement) or 0
+            for case = 1, total do
+                local c = Inventaire.Case(emplacement, case)
+                if type(c) == "table" and c.ref == ref then
+                    out[#out + 1] = { categorie = categorie.id, index = index, case = case, pile = c }
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- Sort CET exemplaire-la des sacs, pas le premier venu de sa pile : c'est lui
+-- qui vient d'etre detruit, ses voisins n'y sont pour rien. true, ou false et
+-- la raison s'il n'est plus dans aucun sac.
+function Inventaire.RetirerExemplaire(entity, ref, exemplaireId)
+    for _, p in ipairs(Inventaire.Piles(entity, ref)) do
+        local liste = type(p.pile.exemplaires) == "table" and p.pile.exemplaires or VIDE
+        for i, e in ipairs(liste) do
+            if type(e) == "table" and e.id == exemplaireId then
+                local quantite = tonumber(p.pile.quantite) or 1
+                if quantite > 1 then
+                    table.remove(liste, i)
+                    p.pile.quantite = quantite - 1
+                else
+                    Inventaire.Vider(entity, p.categorie, p.index, p.case)
+                end
+                return true
+            end
+        end
+    end
+    return false, "cet exemplaire n'est plus dans les sacs."
+end
+
+-- ===== Plusieurs cases d'un coup (la selection, 20 octobre 2026) ===========
+-- `sources` : { { onglet, index, case, ref }, ... } — ce que le joueur a
+-- selectionne, celle qu'il a glissee en tete. `ref` est ce qu'il a VU dans la
+-- case : si elle tient autre chose, ou plus rien, on ne bouge pas.
+--
+-- TOUT OU RIEN : le geste se joue d'abord sur une copie du personnage. Quatre
+-- objets pour deux places, c'est un refus qui le dit, pas deux objets ranges
+-- et deux laisses en route.
+
+local function LireSources(entity, sources)
+    local out = {}
+    for _, s in ipairs(sources) do
+        local c = Inventaire.Case(Inventaire.Emplacement(entity, s.onglet, s.index), s.case)
+        if not (type(c) == "table" and c.ref == s.ref) then
+            return nil, "un objet de la sélection n'est plus à sa place : rien n'a bougé."
+        end
+        out[#out + 1] = { source = s, pile = c }
+    end
+    return out
+end
+
+local function DeplacerGroupeSur(entity, sources, vers)
+    local e = Inventaire.Emplacement(entity, vers.onglet, vers.index)
+    local contenant = Inventaire.Contenant(e)
+    if not contenant then return false, "aucun sac ici." end
+    local lues, raison = LireSources(entity, sources)
+    if not lues then return false, raison end
+    -- Ce qui est deja dans ce sac y reste.
+    local lot = {}
+    for _, l in ipairs(lues) do
+        if not (l.source.onglet == vers.onglet and l.source.index == vers.index) then
+            lot[#lot + 1] = { source = l.source, ref = l.pile.ref, quantite = tonumber(l.pile.quantite) or 1,
+                              exemplaires = LCM.Copie(LCM.Exemplaires.Assurer(l.pile)) }
+        end
+    end
+    if #lot == 0 then return true, 0 end
+    -- Tout quitte sa place d'abord : deux objets qui changent de sac ne se
+    -- disputent pas une case qu'un troisieme s'apprete a liberer.
+    for _, o in ipairs(lot) do Inventaire.Vider(entity, o.source.onglet, o.source.index, o.source.case) end
+    for rang, o in ipairs(lot) do
+        local ok, pourquoi
+        -- Celle qu'on a lachee va dans la case visee, si elle est libre ; les
+        -- autres, la ou ce sac a de la place.
+        if rang == 1 and o.source == sources[1] and vers.case and not Inventaire.Case(e, vers.case) then
+            ok, pourquoi = Inventaire.Ranger(entity, vers.onglet, vers.index, vers.case, o.ref, o.quantite, o.exemplaires)
+        else
+            ok, pourquoi = Inventaire.Transvaser(entity, vers.onglet, vers.index, o.ref, o.quantite, o.exemplaires)
+        end
+        if not ok then
+            local nom = contenant.element and contenant.element.label or "ce sac"
+            if tostring(pourquoi):match("^pas assez de place") then
+                pourquoi = string.format("%d objets à ranger, et %s n'a pas la place pour tous", #lot, nom)
+            end
+            return false, tostring(pourquoi):gsub("%.$", "") .. " : rien n'a bougé."
+        end
+    end
+    return true, #lot
+end
+
+-- Ce que donnerait le deplacement, sans rien toucher.
+function Inventaire.PeutDeplacerGroupe(entity, sources, vers)
+    if type(entity) ~= "table" or type(sources) ~= "table" or #sources == 0 then return false, "rien à déplacer." end
+    return DeplacerGroupeSur(LCM.Copie(entity), sources, vers)
+end
+
+-- Range toute la selection dans le sac `vers` ({ onglet, index, case? }).
+-- true et combien ont change de sac, ou false et la raison.
+function Inventaire.DeplacerGroupe(entity, sources, vers)
+    local ok, raison = Inventaire.PeutDeplacerGroupe(entity, sources, vers)
+    if not ok then return false, raison end
+    return DeplacerGroupeSur(entity, sources, vers)
+end
+
+-- Detruit toute la selection. Si l'une des cases a change depuis qu'on l'a
+-- vue, on ne detruit RIEN : on ne jette jamais ce qui a pris sa place.
+function Inventaire.ViderGroupe(entity, sources)
+    local lues, raison = LireSources(entity, sources or {})
+    if not lues then return false, raison end
+    for _, l in ipairs(lues) do Inventaire.Vider(entity, l.source.onglet, l.source.index, l.source.case) end
+    return true, #lues
+end
+
 -- Prevoir ou ranger `quantite` d'une entree dans les CASES des sacs, sans rien
 -- ecrire. Rend le plan et ce qui ne tient pas.
 --

@@ -77,6 +77,57 @@ coffreUI.aideCases[1].glisserDepose({ ref = REF3, element = LCM.Objets.Get("aide
     origine = { case = 1 } })
 attendu("l'objet glissé reste dans l'inventaire", LCM.UI.Coffre.SacTotal(personnage, REF3), 1)
 attendu("son bonus est compté pour l'expertise", coffreUI:BonusAides(coffreUI:MethodeCourante()), 2)
+dire("== choisir l'expertise propose les outils des sacs")
+-- Plus besoin de les glisser un a un (20 octobre 2026) : les objets de
+-- categorie « outil » qui aident cette expertise se posent d'office, le
+-- meilleur bonus en tete, un par modele. Un objet qui n'est pas un outil
+-- (l'aide temoin, un accessoire) ne se pose pas tout seul.
+LCM.Objets.Add({ id = "kit_vue_bon", label = "Kit de vue (bon)", categorie = "outil", bonus = { vue = 3 } })
+LCM.Objets.Add({ id = "kit_vue_petit", label = "Kit de vue (petit)", categorie = "outil", bonus = { vue = 1 } })
+LCM.Objets.Add({ id = "kit_autre", label = "Kit d'autre chose", categorie = "outil", bonus = { force = 5 } })
+LCM.Inventaire.Deposer(personnage, "objets/kit_vue_petit", 2)
+LCM.Inventaire.Deposer(personnage, "objets/kit_vue_bon", 1)
+LCM.Inventaire.Deposer(personnage, "objets/kit_autre", 1)
+local aidesAvant = coffreUI.aides
+coffreUI.choixExpertise:Click()
+local popupExpertise = _G.LCM_Choix_coffre_expertise_ouverture
+local choisie = false
+for _, ligne in ipairs(popupExpertise.lignes) do
+    if ligne:IsShown() and ligne.choix == "vue" then ligne:Click(); choisie = true end
+end
+attendu("l'expertise se choisit dans la liste", choisie, true)
+local poses = {}
+for i = 1, 6 do poses[#poses + 1] = coffreUI.aides[i] and coffreUI.aides[i].ref:match("^objets/(.+)$") or "-" end
+attendu("les outils de l'expertise sont poses, le meilleur d'abord", table.concat(poses, ","),
+    "kit_vue_bon,kit_vue_petit,-,-,-,-")
+attendu("  et comptes dans le bonus", coffreUI:BonusAides(coffreUI:MethodeCourante()), 4)
+-- Un clic sur une case vide : la liste de ce qu'on peut y poser. Le bon kit
+-- n'y est plus : il est deja pose, et on n'en a qu'un.
+coffreUI.aideCases[3]:Click("LeftButton")
+local liste = {}
+for _, ligne in ipairs(coffreUI.choixAide.lignes) do
+    if ligne:IsShown() then liste[#liste + 1] = tostring(ligne.choix):match("^objets/(.+)$") end
+end
+attendu("clic sur une case : les objets qui aident", table.concat(liste, ","),
+    "kit_vue_petit,aide_temoin")
+-- Le second kit_vue_petit : on en possede deux.
+for _, ligne in ipairs(coffreUI.choixAide.lignes) do
+    if ligne:IsShown() and ligne.choix == "objets/kit_vue_petit" then ligne:Click() end
+end
+attendu("  on en pose un second", coffreUI.aides[3] and coffreUI.aides[3].ref, "objets/kit_vue_petit")
+coffreUI.aideCases[4]:Click("LeftButton")
+local encore = false
+for _, ligne in ipairs(coffreUI.choixAide.lignes) do
+    if ligne:IsShown() and ligne.choix == "objets/kit_vue_petit" then encore = true end
+end
+attendu("  pas un troisieme : on n'en a que deux", encore, false)
+coffreUI.choixAide:Hide()
+-- On reprend la suite du scenario la ou elle etait.
+for _, ref in ipairs({ "objets/kit_vue_bon", "objets/kit_autre" }) do LCM.Inventaire.Prendre(personnage, ref) end
+for _ = 1, 2 do LCM.Inventaire.Prendre(personnage, "objets/kit_vue_petit") end
+coffreUI.aides = aidesAvant
+coffreUI.expertise = "vue"
+
 LCM.Entities.SetGauge(personnage, "fatigue", 10)
 coffreUI:MettreAJourTentative()
 local ancienField = LCM.Roll.Field
@@ -86,6 +137,9 @@ LCM.Roll.Field = function(_, _, options)
     return { jets = { 13 }, garde = 13, valeur = 0, apport = 3, bonus = 0,
         modificateur = modificateurRecu, label = "Vue", total = 16 + modificateurRecu }
 end
+-- L'outil equipe est consomme a la fin : son exemplaire part avec son etat.
+-- On le retient avant, pour lire ce qui lui est arrive.
+local exOutil = LCM.Objets.ExemplaireAUser(personnage, "outil_temoin")
 coffreUI.forcer:Click()
 LCM.Roll.Field = ancienField
 local ok = p.ouvert == true
@@ -95,8 +149,11 @@ attendu("le score dépasse bien le DD 15", p.ouvert, true)
 attendu("la tentative dépense son coût en fatigue",
     LCM.Entities.Gauge(personnage, "fatigue").current, 7)
 attendu("l'outil consommable équipé est retiré", LCM.Objets.EstEquipe(personnage, "outil_temoin"), false)
-attendu("l'outil requis a perdu un point de durabilité", LCM.Objets.Usure(personnage, "outil_temoin"), 1)
-attendu("l'objet d'aide a perdu un point de durabilité", LCM.Objets.Usure(personnage, "aide_temoin"), 1)
+-- La durabilite est celle de l'exemplaire qui a servi (20 octobre 2026),
+-- plus celle du modele.
+local function UsureOutil(id) return LCM.Objets.Usure(personnage, id, LCM.Objets.ExemplaireAUser(personnage, id)) end
+attendu("l'outil requis a perdu un point de durabilité", LCM.Objets.Usure(personnage, "outil_temoin", exOutil), 1)
+attendu("l'objet d'aide a perdu un point de durabilité", UsureOutil("aide_temoin"), 1)
 attendu("l'objet d'aide n'a pas quitté le sac", LCM.UI.Coffre.SacTotal(personnage, REF3), 1)
 attendu("verrou ouvert", p.verrouille, false)
 attendu("ouverture conservée", p.ouvert, true)
@@ -348,6 +405,15 @@ editeur:Nouveau()
 editeur.nom:Saisir("Brouillon de coffre")
 attendu("onglet Création visible", editeur.creation:IsShown(), true)
 attendu("onglet Placement caché", editeur.placement:IsShown(), false)
+-- « Forcer la synchro » : accroche a gauche de « Retirer la sélection »,
+-- que la mise en page des ateliers pose au bord gauche, il sortait du
+-- panneau (20 octobre 2026). Il vit a cote des onglets, visible des deux.
+local renvoyer = editeur.placement.renvoyer
+attendu("Forcer la synchro est a cote des onglets", renvoyer:GetParent() == editeur.droite, true)
+attendu("  visible depuis la configuration", renvoyer:IsVisible(), true)
+local point, relatif = renvoyer:GetPoint(1)
+attendu("  en haut a droite", point == "TOPRIGHT" and relatif == editeur.droite and renvoyer:GetNumPoints() == 1, true)
+attendu("  sous son nom", renvoyer.label:GetText(), "Forcer la synchro")
 local function ChoisirDans(popup, id)
     for _, ligne in ipairs(popup.lignes) do
         if ligne:IsShown() and ligne.choix == id then ligne:Click(); return true end

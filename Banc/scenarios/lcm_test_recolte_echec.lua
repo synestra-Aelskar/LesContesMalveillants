@@ -35,7 +35,10 @@ local lu = R.Lire(LCM.Reseau.Decoder(LCM.Reseau.Encoder(paquet)))
 attendu("réglage transmis", lu.echecConsomme, true)
 
 __position(100, 200, 0)
+-- Un point pose part tout eteint (20 octobre 2026) : on allume tout son
+-- modele, ce que ce scenario recolte.
 local id = Rs.Placer(def.id)
+Rs.Allumer(id)
 local vraiDes = LCM.Roll.Des
 LCM.Roll.Des = function() return 1 end
 local ok, raison = R.Tenter(id)

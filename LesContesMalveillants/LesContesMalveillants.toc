@@ -138,3 +138,4 @@ UI\Constructeur.lua
 UI\Radial.lua
 UI\Menu.lua
 UI\Outils.lua
+UI\Raccourcis.lua
