@@ -1081,6 +1081,13 @@ export.
 
 ## Pour Claude
 
+### Fondations IC (20 octobre 2026)
+
+La forge d'objets dispose d'un budget IC indépendant et d'une conversion
+à sens unique vers les points classiques. Le catalogue de propriétés reste
+vide : aucun effet de combat n'est encore implémenté. Voir [IC.md](IC.md)
+pour les règles, le format, la compatibilité et les tests.
+
 Si tu fais travailler Claude sur ce dépôt, lis-lui `CLAUDE.md` — il contient les
 conventions du code, les pièges déjà rencontrés, et ce qu'il ne faut surtout pas
 faire. Claude Code le lit tout seul s'il est à la racine.

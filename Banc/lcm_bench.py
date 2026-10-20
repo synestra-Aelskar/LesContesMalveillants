@@ -85,6 +85,9 @@ end
 function GetNumGroupMembers() return #groupe end
 function IsInRaid() return enRaid end
 function IsInGroup() return enRaid or #groupe > 0 end
+function UnitGUID(unit)
+    if unit == "player" then return "Player-0000-00000001" end
+end
 function UnitName(unit)
     local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
     if index then
@@ -145,6 +148,7 @@ function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0
 -- temps, pas en attendant.
 local horloge = 1000
 function GetTime() return horloge end
+function time() return 1792440000 + math.floor(horloge) end
 function GetServerTime() return 1791936000 + math.floor(horloge) end
 function __temps(secondes) horloge = secondes end
 function __avancerTemps(secondes) horloge = horloge + secondes end

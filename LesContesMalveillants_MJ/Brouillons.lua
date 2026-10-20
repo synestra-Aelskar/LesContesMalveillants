@@ -283,11 +283,12 @@ function Brouillons.Enregistrer(famille, entree, creation)
     -- Les points de vente/recolte assemblent du contenu deja forge : ils
     -- n'ont ni cout ni jeu d'equilibrage propre a verifier.
     if famille ~= "points" then
-        local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf)
+        local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf, enReception)
         if not dansLeBareme then return false, horsBareme end
     end
 
     -- Restes de l'ancien modele, qui ne veulent plus rien dire.
+    if famille == "objets" then entree.ic = LCM.Copie(neuf.ic) end
     entree.brouillon, entree.remplacePublie = nil, nil
     Brouillons.Set(famille, entree)
     -- Ecrire une entree qu'on avait supprimee la fait revenir.
@@ -480,6 +481,10 @@ function Brouillons.Diffuser(famille, entree)
     -- `r = 1` : un MJ pas encore a jour refuserait sans lui de modifier une
     -- entree qu'il croit « publiee ».
     local donnees = { f = tostring(famille), r = 1, e = entree, s = identifiant }
+    -- Le transport historique aplatit les nombres/booleens en texte et perd
+    -- les tables vides. Garder les types des futurs parametres IC, comme la
+    -- base publique le fait deja pour les definitions completes.
+    if famille == "objets" and entree.ic then donnees.ic = LCM.Lien.Serialiser(entree.ic) end
     local trouve = false
     for nom in pairs(mjConnus) do
         trouve = true
@@ -561,6 +566,11 @@ LCM.WhenReady(function()
         local famille = tostring(donnees.f or "")
         local entree = donnees.e
         if type(entree) ~= "table" or not FamilleValide(famille) then return end
+        if famille == "objets" and donnees.ic then
+            local ic = LCM.Lien.Deserialiser(donnees.ic)
+            if type(ic) ~= "table" then LCM.Alerte("Données IC reçues illisibles."); return end
+            entree.ic = ic
+        end
         local identifiant = donnees.s and tostring(donnees.s) or nil
         local cleReception = CleReception(expediteur, identifiant)
         if cleReception and recus[cleReception] then

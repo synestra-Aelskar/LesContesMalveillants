@@ -135,7 +135,10 @@ local Forge = LCM.Registre({
                 end
             end
             element.raretes[index] = { id = rid, label = nom, points = points,
-                couleur = couleur, coutTrait = coutTrait }
+                couleur = couleur, coutTrait = coutTrait, palierIC = LCM.IC.Palier({id=rid,palierIC=r.palierIC}) }
+            if r.palierIC ~= nil and LCM.IC.Pool(r.palierIC) == nil then
+                Erreur(id .. " : palier IC inconnu pour " .. nom)
+            end
         end
 
         -- Les reglages par statistique. Un reglage vide ne se retient pas :
@@ -292,7 +295,7 @@ local function Remboursement(categorie)
     return tonumber(regle.remboursement) or 0.5
 end
 
-function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
+function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet, ic)
     valeurs = type(valeurs) == "table" and valeurs or {}
     local categorie = LCM.Compendium.Get(jeu.categorie)
     local rarete = rareteId and Forge.Rarete(jeu, rareteId) or nil
@@ -370,7 +373,11 @@ function Forge.Bilan(jeu, rareteId, valeurs, multiplicateurPool, etatObjet)
     local pool = rarete and Forge.Pool(rarete, multiplicateurPool, categorie) or nil
     local retenu = credit
     if pool and credit > pool then retenu = pool end
+    local poolClassique = pool
+    local bonusIC = EstObjet(categorie) and LCM.IC.Bilan(ic).forge or 0
+    if pool then pool = pool + bonusIC end
     return {
+        poolClassique = poolClassique, bonusIC = bonusIC,
         total = depenses - retenu,
         lignes = lignes,
         horsMasques = horsMasques,
@@ -389,12 +396,13 @@ end
 -- est plafonne par le pool, le total depend de la rarete qu'on vise. Calcule
 -- une fois pour toutes, il proposait une rarete ou les valeurs ne rentraient
 -- pas.
-function Forge.RareteSuffisante(jeu, valeurs, multiplicateurPool, etatObjet)
+function Forge.RareteSuffisante(jeu, valeurs, multiplicateurPool, etatObjet, ic)
     if type(valeurs) ~= "table" then return nil end
     local meilleure
     for _, r in ipairs(jeu.raretes) do
-        local bilan = Forge.Bilan(jeu, r.id, valeurs, multiplicateurPool, etatObjet)
-        if bilan.total <= bilan.pool and (not meilleure or r.points < meilleure.points) then
+        local bilan = Forge.Bilan(jeu, r.id, valeurs, multiplicateurPool, etatObjet, ic)
+        local possible = not ic or (LCM.IC.Palier(r) and LCM.IC.Bilan(ic, LCM.IC.Palier(r)).restants >= 0)
+        if possible and bilan.total <= bilan.pool and (not meilleure or r.points < meilleure.points) then
             meilleure = r
         end
     end
@@ -424,7 +432,13 @@ end
 -- sa categorie ; sinon false et la premiere raison. Une categorie qu'aucun
 -- jeu ne vise est libre, meme si l'entree garde le « jeu/rarete » d'un jeu
 -- supprime depuis : sinon elle ne pourrait plus jamais etre modifiee.
-function Forge.Verifier(famille, element)
+function Forge.Verifier(famille, element, reception)
+    if famille == "objets" then
+        local _, rarete = Forge.Lire(element.forge)
+        local ancien = LCM.Objets.Get(element.id)
+        local ok, raison = LCM.IC.Verifier(element.ic, ancien and ancien.ic, rarete, reception)
+        if not ok then return false, raison end
+    elseif element.ic ~= nil then return false, "les IC sont réservés aux objets" end
     local categorie = CategorieDe(famille, element)
     if not categorie then return true end
     local jeux = Forge.PourCategorie(categorie.id)
@@ -447,14 +461,14 @@ function Forge.Verifier(famille, element)
     end
     local multiplicateurPool = categorie.id == "armes" and element.taille or 1
     local etatObjet = type(element.etat) == "table" and element.etat.max or nil
-    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool, etatObjet)
+    local bilan = Forge.Bilan(jeu, rarete.id, element.bonus, multiplicateurPool, etatObjet, element.ic)
     if bilan.horsMasques then return false, bilan.horsMasques end
     for _, ligne in ipairs(bilan.lignes) do
         if ligne.hors then return false, ligne.hors end
     end
     if bilan.total > bilan.pool then
-        return false, string.format("%s pts dépensés, le pool %s en permet %d",
-            LCM.Compendium.Nombre(bilan.total), rarete.label, bilan.pool)
+        return false, string.format("%s pts dépensés, le pool %s en permet %s",
+            LCM.Compendium.Nombre(bilan.total), rarete.label, LCM.Compendium.Nombre(bilan.pool))
     end
     return true
 end

@@ -454,6 +454,8 @@ end
 
 function Compendium.Carte(categorie, element)
     local sousTitre, entete, meta, pied, corps, stats = {}, {}, {}, {}, {}, {}
+    local ic = LCM.IC.Description(element.ic)
+    if ic ~= "" then corps[#corps + 1] = { titre="Propriétés IC", texte=ic } end
     local function Format(champ, valeur)
         if champ.libelle == false then return valeur end
         return string.format("%s : %s", champ.label, valeur)

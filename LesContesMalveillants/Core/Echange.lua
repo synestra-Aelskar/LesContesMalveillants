@@ -88,6 +88,10 @@ local function DefinitionObjet(ref)
         couleurTitre = objet.couleurTitre, couleurFond = objet.couleurFond,
         pileMax = objet.pileMax, type = objet.type, metiers = objet.metiers,
         forge = objet.forge, etat = objet.etat, bonus = objet.bonus,
+        ic = LCM.Copie(objet.ic),
+        -- Le transport historique aplatit les booleens/nombres des tables.
+        -- Le corps type garde notamment confirmation=false et cumul=false.
+        icSerialise = objet.ic and LCM.Lien.Serialiser(objet.ic) or nil,
         avantage = avantage, armure = objet.armure, taille = objet.taille,
     }
 end
@@ -98,6 +102,13 @@ local function ImporterObjetPartage(pose)
     local definition = pose.definition
     if famille ~= "objets" or type(definition) ~= "table" or tostring(definition.id or "") ~= id then
         return false
+    end
+    if definition.icSerialise ~= nil then
+        if type(definition.icSerialise) ~= "string" then return false end
+        local lu, ic = pcall(LCM.Lien.Deserialiser, definition.icSerialise)
+        if not lu or type(ic) ~= "table" then return false end
+        definition = LCM.Copie(definition)
+        definition.ic = ic
     end
     -- Construire valide categorie, bonus, durabilite et champs propres avant
     -- toute sauvegarde. Un message mal forme ne doit pas casser la reception.
@@ -244,6 +255,8 @@ function Echange.Offrir(objet)
     local seance = Echange.courant
     if not (seance and seance.ouverte) then return false, "aucun échange en cours." end
     if type(objet) ~= "table" or not objet.ref then return false, "rien à poser." end
+    local exemplaires, erreur = LCM.Exemplaires.Lire(objet.ref, tonumber(objet.quantite) or 1, objet.exemplaires)
+    if erreur then return false, erreur end
     for _, pose in ipairs(seance.mien.objets) do
         if pose.ref == objet.ref and pose.origine == objet.origine then
             return false, "déjà posé."
@@ -255,6 +268,7 @@ function Echange.Offrir(objet)
     seance.mien.objets[#seance.mien.objets + 1] = {
         ref = objet.ref, quantite = objet.quantite or 1,
         nom = objet.nom, icone = objet.icone,
+        exemplaires = exemplaires,
         definition = Echange.DefinitionPartagee(objet.ref),
         rendre = objet.rendre, origine = objet.origine,
     }
@@ -271,7 +285,7 @@ function Echange.Reprendre(rang)
     local pose = table.remove(seance.mien.objets, rang)
     if not pose then return false end
     if pose.rendre then pose.rendre()
-    else Inv.Deposer(Moi(), pose.ref, pose.quantite) end
+    else Inv.Deposer(Moi(), pose.ref, pose.quantite, pose.exemplaires) end
     Bouge()
     Envoyer("CONTENU", Echange.Contenu(), { etale = true })
     Prevenir()
@@ -312,9 +326,18 @@ function Echange.Contenu()
     local objets = {}
     for _, pose in ipairs(seance.mien.objets) do
         objets[#objets + 1] = { ref = pose.ref, quantite = pose.quantite, nom = pose.nom,
-            definition = pose.definition }
+            definition = pose.definition,
+            exemplairesSerialises = pose.exemplaires and LCM.Lien.Serialiser(pose.exemplaires) or nil }
     end
     return { objets = objets, devises = seance.mien.devises }
+end
+
+local function LireExemplaires(pose)
+    if pose.exemplairesSerialises == nil then return pose.exemplaires end
+    if type(pose.exemplairesSerialises) ~= "string" then return nil, "exemplaires illisibles." end
+    local ok, liste = pcall(LCM.Lien.Deserialiser, pose.exemplairesSerialises)
+    if not ok or type(liste) ~= "table" then return nil, "exemplaires illisibles." end
+    return LCM.Exemplaires.Lire(pose.ref, tonumber(pose.quantite) or 1, liste)
 end
 
 local function SurContenu(qui, donnees)
@@ -340,7 +363,9 @@ function Echange.Place()
     if not personnage then return false, "aucun personnage actif." end
     local essai = LCM.Copie(personnage)
     for _, pose in ipairs(seance.sien.objets) do
-        local ok, raison = Inv.Deposer(essai, pose.ref, tonumber(pose.quantite) or 1)
+        local exemplaires, erreur = LireExemplaires(pose)
+        if erreur then return false, erreur end
+        local ok, raison = Inv.Deposer(essai, pose.ref, tonumber(pose.quantite) or 1, exemplaires)
         if not ok then
             return false, string.format("%s : %s", tostring(pose.nom or pose.ref),
                 tostring(raison or "impossible à ranger."))
@@ -383,7 +408,8 @@ function Echange.Conclure()
 
     local recus, perdus = 0, {}
     for _, pose in ipairs(seance.sien.objets or {}) do
-        local ok = Inv.Deposer(Moi(), pose.ref, tonumber(pose.quantite) or 1)
+        local exemplaires, erreur = LireExemplaires(pose)
+        local ok = not erreur and Inv.Deposer(Moi(), pose.ref, tonumber(pose.quantite) or 1, exemplaires)
         if ok then recus = recus + 1 else perdus[#perdus + 1] = pose.nom or pose.ref end
     end
     for deviseId, combien in pairs(seance.sien.devises or {}) do
@@ -409,7 +435,7 @@ local function Rendre(seance)
     for rang = #seance.mien.objets, 1, -1 do
         local pose = seance.mien.objets[rang]
         if pose.rendre then pose.rendre()
-        else Inv.Deposer(Moi(), pose.ref, pose.quantite) end
+        else Inv.Deposer(Moi(), pose.ref, pose.quantite, pose.exemplaires) end
     end
     seance.mien.objets = {}
     for deviseId, combien in pairs(seance.mien.devises) do

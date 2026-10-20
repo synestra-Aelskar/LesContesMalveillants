@@ -1280,7 +1280,7 @@ local function Emplacement(conteneur, c)
     -- viser le fondu. Le bouton ne capte donc plus la souris ; la ligne recoit
     -- le clic et allume le fondu a son survol.
     function l:Agir()
-        if self.elementId then conteneur:Retirer(self.elementId) else conteneur:Proposer(self.action) end
+        if self.elementId then conteneur:Retirer(self.elementId, self.rangPorte) else conteneur:Proposer(self.action) end
     end
     l.action = UI.BoutonDegrade(l, function() l:Agir() end)
     l.action:EnableMouse(false)
@@ -1317,12 +1317,16 @@ local function Emplacement(conteneur, c)
             if element.categorie ~= conteneur.categorie then
                 return false, string.format("« %s » ne se porte pas ici.", element.label)
             end
+            if conteneur.catalogue == LCM.Objets and (tonumber(objet.quantite) or 1) ~= 1 then
+                return false, "sépare un exemplaire de la pile avant de l'équiper."
+            end
             return true
         end, function(objet)
             local ref = tostring(objet.ref or "")
             local _, id = ref:match("^([%w_]+)/(.+)$")
             id = id or (objet.element and objet.element.id)
-            local ok, raison = conteneur.catalogue.Placer(conteneur.entity, id)
+            local ok, raison = conteneur.catalogue.Placer(conteneur.entity, id,
+                objet.exemplaires and objet.exemplaires[1])
             if not ok then
                 LCM.Alerte(tostring(raison))
                 return
@@ -1354,22 +1358,25 @@ local function Emplacement(conteneur, c)
             if not conteneur:Autorise(conteneur.entity) then return end
             local element = conteneur.catalogue.Get(self.elementId)
             local porte = self.elementId
+            local exemplaire = conteneur.catalogue.PreparerExemplaireEquipe
+                and conteneur.catalogue.PreparerExemplaireEquipe(conteneur.entity, porte, self.rangPorte)
             UI.Glisser.Commencer({
                 icone = element and element.icone or nil,
                 nom = element and element.label or tostring(porte),
                 ref = Fiche.RefPortee(conteneur, porte),
                 element = element,
                 quantite = 1,
+                exemplaires = exemplaire and {LCM.Copie(exemplaire)} or nil,
                 origine = { equipement = conteneur, id = porte },
                 -- Quitter l'emplacement, et savoir y revenir si le rangement
                 -- echoue : un objet perdu entre le corps et le sac serait pire
                 -- que le refus.
                 retirer = function()
-                    conteneur.catalogue.Enlever(conteneur.entity, porte)
+                    conteneur.catalogue.Enlever(conteneur.entity, porte, exemplaire and exemplaire.id)
                     conteneur:Actualiser(conteneur.entity)
                 end,
                 rendre = function()
-                    conteneur.catalogue.Placer(conteneur.entity, porte)
+                    conteneur.catalogue.Placer(conteneur.entity, porte, exemplaire)
                     conteneur:Actualiser(conteneur.entity)
                 end,
             })
@@ -1653,7 +1660,7 @@ function Lignes.conteneur(bloc, def, c)
 
     -- Retirer se rattrape (on replace) : pas de confirmation. Un objet
     -- retourne dans un sac ; sans place, il reste porte et c'est dit.
-    function l:Retirer(id)
+    function l:Retirer(id, rang)
         if not self:Autorise(self.entity) then return end
         if self:DepuisLesSacs() then
             -- Un objet disparu de cette version ne peut pas retourner dans un
@@ -1663,7 +1670,7 @@ function Lignes.conteneur(bloc, def, c)
                 if self.catalogue.Enlever(self.entity, id) then self:Actualiser(self.entity) end
                 return
             end
-            local ok, raison = self.catalogue.Desequiper(self.entity, id)
+            local ok, raison = self.catalogue.Desequiper(self.entity, id, rang)
             if not ok then LCM.Alerte(raison) end
             self:Actualiser(self.entity)
         elseif self.catalogue.Enlever(self.entity, id) then
@@ -1704,6 +1711,7 @@ function Lignes.conteneur(bloc, def, c)
                 self.emplacements[index] = ligne
             end
             ligne:Habiller(self.catalogue, portes[index], mj)
+            ligne.rangPorte = index
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             ligne:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)

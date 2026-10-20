@@ -888,6 +888,42 @@ E.campement = {
 }
 
 -- ===== Lecture d'un bareme =================================================
+-- Budget mecanique independant de la forge classique. Pas de multiplicateur
+-- pour les armes a deux emplacements, ni de remboursement de malus en IC.
+E.ic = {
+    conversion = 0.25,
+    coutMinimum = 1,
+    coutsFrequence = {
+        ["heures24:1"] = -1, ["combat:1"] = 0, ["combat:2"] = 2,
+        ["tour:1"] = 4, sans_limite = 6,
+    },
+    coutsDuree = { instantanee = 0, ["rounds:1"] = -1, ["tours:1"] = 0, ["tours:2"] = 2 },
+    coutsDeclencheur = {
+        manuel = 0, debut_combat = 0, debut_tour = 1, fin_tour = 1,
+        critique_recu = 1, critique_inflige = 1, degats_recus = 1,
+        seuil_pv = 1, esquive_reussie = 1, action_reussie = 1, hors_combat = 2,
+    },
+    critique = {
+        attenuation_mineure = { cout = 3, reduction = 0.25 },
+        attenuation_majeure = { cout = 2, reduction = 0.50 },
+        protection_quotidienne = { cout = 3 },
+        protection_combat = { cout = 4 },
+        immunite_temporaire = { cout = 5 },
+        renforce = { cout = 3, augmentation = 0.25 },
+        affaiblissant = { cout = 3, reduction = 0.10 },
+        reparateur = { cout = 3, soin = 0.10 },
+        protecteur = { cout = 2, bouclier = 30 },
+    },
+    ordre = { "rose", "vert", "bleu", "orange", "rouge", "violet", "noir" },
+    paliers = {
+        rose={label="Rose",pool=0}, vert={label="Vert",pool=3}, bleu={label="Bleu",pool=6},
+        orange={label="Orange",pool=10}, rouge={label="Rouge",pool=15},
+        violet={label="Violet",pool=21}, noir={label="Noir",pool=50},
+    },
+    anciens = { commun="rose", inhabituel="vert", rare="bleu", epique="orange",
+        legendaire="rouge", mythique="violet", unique="noir" },
+}
+
 -- `{ base = 1, parNiveau = 2 }` lu au niveau 5 vaut 11, arrondi a l'inferieur.
 
 function E.Bareme(bareme, niveau)

@@ -362,10 +362,15 @@ function Inventaire.Lacher(entity, categorieId, index)
         local c = e.cases[case]
         if type(c) == "table" and c.ref then
             local q = math.max(1, math.floor(tonumber(c.quantite) or 1))
+            local exemplaires = LCM.Exemplaires.Assurer(c)
             if rang[c.ref] then
+                local precedent = objets[rang[c.ref]]
+                if exemplaires then
+                    for _, x in ipairs(exemplaires) do precedent.exemplaires[#precedent.exemplaires + 1] = LCM.Copie(x) end
+                end
                 objets[rang[c.ref]].quantite = objets[rang[c.ref]].quantite + q
             else
-                objets[#objets + 1] = { entree = c.ref, quantite = q }
+                objets[#objets + 1] = { entree = c.ref, quantite = q, exemplaires = LCM.Copie(exemplaires) }
                 rang[c.ref] = #objets
             end
         end
@@ -414,16 +419,21 @@ function Inventaire.RemplirSac(entity, categorieId, index, objets)
         local pile = math.max(1, math.floor(tonumber(element and element.pileMax) or 0))
         if not (element and element.pileMax) then pile = math.huge end
         local a = math.max(0, math.floor(tonumber(o.quantite) or 0))
+        local curseur = 1
         while a > 0 do
             while case <= total and (Inventaire.Case(e, case) or not Inventaire.Accepte(e, case, o.entree)) do
                 case = case + 1
             end
             if case > total then break end
             local n = math.min(a, pile)
-            Inventaire.Ranger(entity, categorieId, index, case, o.entree, n)
+            local ok = Inventaire.Ranger(entity, categorieId, index, case, o.entree, n,
+                LCM.Exemplaires.Tranche(o.exemplaires, curseur, n))
+            if not ok then break end
+            curseur = curseur + n
             a, case = a - n, case + 1
         end
-        if a > 0 then reste[#reste + 1] = { entree = o.entree, quantite = a } end
+        if a > 0 then reste[#reste + 1] = { entree = o.entree, quantite = a,
+            exemplaires = LCM.Exemplaires.Tranche(o.exemplaires, curseur, a) } end
         case = 1
     end
     return reste
@@ -435,7 +445,7 @@ end
 -- Les piles deja la sont completees d'abord, puis les cases libres qui
 -- l'acceptent. Tout ou rien : si tout ne tient pas, rien ne bouge. true, ou
 -- false et la raison.
-function Inventaire.Transvaser(entity, categorieId, index, ref, quantite)
+function Inventaire.Transvaser(entity, categorieId, index, ref, quantite, exemplaires)
     local e = Inventaire.Emplacement(entity, categorieId, index)
     local contenant = Inventaire.Contenant(e)
     if not contenant then return false, "aucun sac dans cet emplacement." end
@@ -474,9 +484,18 @@ function Inventaire.Transvaser(entity, categorieId, index, ref, quantite)
         return false, raison or string.format("pas assez de place dans %s.",
             tostring(contenant.element and contenant.element.label or "ce sac"))
     end
+    local copies, erreur = LCM.Exemplaires.Lire(ref, quantite, exemplaires)
+    if erreur then return false, erreur end
+    copies = copies or LCM.Exemplaires.CreerListe(ref, quantite)
+    local curseur = 1
     for _, etape in ipairs(plan) do
-        if etape.pile then etape.pile.quantite = etape.quantite
-        else Inventaire.Ranger(entity, categorieId, index, etape.case, ref, etape.quantite) end
+        local nombre = etape.quantite - (etape.pile and (tonumber(etape.pile.quantite) or 1) or 0)
+        local tranche = LCM.Exemplaires.Tranche(copies, curseur, nombre)
+        if etape.pile then
+            LCM.Exemplaires.Ajouter(etape.pile, tranche)
+            etape.pile.quantite = etape.quantite
+        else Inventaire.Ranger(entity, categorieId, index, etape.case, ref, etape.quantite, tranche) end
+        curseur = curseur + nombre
     end
     return true
 end
@@ -569,7 +588,7 @@ function Inventaire.CasesLibres(emplacement)
 end
 
 -- Range une entree dans une case libre d'un sac.
-function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite)
+function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite, exemplaires)
     local e = Inventaire.Emplacement(entity, categorieId, index)
     if not e or not (e.sac or e.tente or e.ceinture) then return false, "aucun sac dans cet emplacement." end
     local total = Inventaire.Cases(e)
@@ -582,9 +601,12 @@ function Inventaire.Ranger(entity, categorieId, index, case, ref, quantite)
     if not quantite or quantite < 1 or quantite ~= math.floor(quantite) then
         return false, "quantité illisible : un nombre entier, 1 au moins."
     end
+    local copies, erreur = LCM.Exemplaires.Lire(ref, quantite, exemplaires)
+    if erreur then return false, erreur end
+    copies = copies or LCM.Exemplaires.CreerListe(ref, quantite)
     e = EmplacementPourEcrire(entity, categorieId, index)
     e.cases = type(e.cases) == "table" and e.cases or {}
-    e.cases[case] = { ref = ref, quantite = quantite }
+    e.cases[case] = { ref = ref, quantite = quantite, exemplaires = copies }
     return true
 end
 
@@ -601,6 +623,11 @@ function Inventaire.Quantite(entity, categorieId, index, case, quantite)
     local element = LCM.Compendium.Resoudre(c.ref)
     if element and element.pileMax and n > element.pileMax then
         return false, string.format("%s s'empile par %d au plus.", element.label, element.pileMax)
+    end
+    local liste = LCM.Exemplaires.Assurer(c)
+    if liste then
+        while #liste > n do table.remove(liste) end
+        while #liste < n do liste[#liste + 1] = LCM.Exemplaires.Nouveau(c.ref) end
     end
     c.quantite = n
     return true
@@ -666,6 +693,8 @@ function Inventaire.Empiler(entity, categorieId, index, case, versCategorieId, v
     if not n then return false, raison end
     local source = Inventaire.Case(Inventaire.Emplacement(entity, categorieId, index), case)
     local cible = Inventaire.Case(Inventaire.Emplacement(entity, versCategorieId, versIndex), versCase)
+    LCM.Exemplaires.Assurer(cible)
+    LCM.Exemplaires.Ajouter(cible, LCM.Exemplaires.Sortir(source, n))
     cible.quantite = (tonumber(cible.quantite) or 1) + n
     local reste = (tonumber(source.quantite) or 1) - n
     if reste > 0 then
@@ -705,11 +734,14 @@ function Inventaire.Scinder(entity, categorieId, index, case, n, vers)
         local libre, plein = Place(LCM.Compendium.Resoudre(c.ref), deja, c.ref)
         if not libre then return false, plein end
         if n > libre then return false, string.format("cette pile n'a de place que pour %d.", libre) end
+        LCM.Exemplaires.Ajouter(deja, LCM.Exemplaires.Tranche(LCM.Exemplaires.Assurer(c), 1, n))
         deja.quantite = (tonumber(deja.quantite) or 1) + n
     else
-        local ok, raison = Inventaire.Ranger(entity, cat, i, place, c.ref, n)
+        local ok, raison = Inventaire.Ranger(entity, cat, i, place, c.ref, n,
+            LCM.Exemplaires.Tranche(LCM.Exemplaires.Assurer(c), 1, n))
         if not ok then return false, raison end
     end
+    LCM.Exemplaires.Sortir(c, n)
     c.quantite = total - n
     return true
 end
@@ -775,11 +807,13 @@ function Inventaire.Prendre(entity, ref)
     if not categorieId then return false, "absent des sacs." end
     local c = Inventaire.Case(Inventaire.Emplacement(entity, categorieId, index), case)
     local quantite = tonumber(c.quantite) or 1
+    local exemplaires = LCM.Exemplaires.Sortir(c, 1)
     if quantite > 1 then
         c.quantite = quantite - 1
-        return true
+        return true, exemplaires and exemplaires[1]
     end
-    return Inventaire.Vider(entity, categorieId, index, case)
+    Inventaire.Vider(entity, categorieId, index, case)
+    return true, exemplaires and exemplaires[1]
 end
 
 -- Prevoir ou ranger `quantite` d'une entree dans les CASES des sacs, sans rien
@@ -875,7 +909,7 @@ end
 -- On PREVOIT avant d'ecrire : tout tient, ou rien ne bouge. Les appelants
 -- rendent ce qu'ils ont pris quand ca echoue, et une moitie rangee serait une
 -- moitie dupliquee.
-function Inventaire.Deposer(entity, ref, quantite)
+function Inventaire.Deposer(entity, ref, quantite, exemplaires)
     if type(entity) ~= "table" then return false, "aucun personnage." end
     if not LCM.Compendium.Resoudre(ref) then
         return false, "entrée inconnue du compendium."
@@ -916,16 +950,25 @@ function Inventaire.Deposer(entity, ref, quantite)
         return false, "aucune place libre."
     end
 
+    local copies, erreur = LCM.Exemplaires.Lire(ref, quantite, exemplaires)
+    if erreur then return false, erreur end
+    copies = copies or LCM.Exemplaires.CreerListe(ref, quantite)
+    local curseur = 1
     for _, etape in ipairs(portes) do
         local ok, raison = Inventaire.Poser(entity, etape.categorie, etape.index, sac.id)
         if not ok then return false, raison end
     end
     for _, etape in ipairs(plan) do
         if etape.pile then
+            local ajout = etape.quantite - (tonumber(etape.pile.quantite) or 1)
+            LCM.Exemplaires.Ajouter(etape.pile, LCM.Exemplaires.Tranche(copies, curseur, ajout))
+            curseur = curseur + ajout
             etape.pile.quantite = etape.quantite
         else
-            local ok, raison = Inventaire.Ranger(entity, etape.categorie, etape.index, etape.case, ref, etape.quantite)
+            local ok, raison = Inventaire.Ranger(entity, etape.categorie, etape.index, etape.case, ref, etape.quantite,
+                LCM.Exemplaires.Tranche(copies, curseur, etape.quantite))
             if not ok then return false, raison end
+            curseur = curseur + etape.quantite
         end
     end
     return true

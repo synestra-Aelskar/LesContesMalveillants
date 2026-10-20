@@ -107,13 +107,14 @@ local function ObjetDeCase(onglet, index, place)
     if not c then return nil end
     local element = LCM.Compendium.Resoudre(c.ref)
     local ref, quantite = c.ref, c.quantite
+    local exemplaires = LCM.Copie(LCM.Exemplaires.Assurer(c))
     return {
         icone = element and LCM.Icone(element.icone) or nil,
         nom = element and element.label or tostring(ref),
-        ref = ref, quantite = quantite, element = element,
+        ref = ref, quantite = quantite, element = element, exemplaires = exemplaires,
         origine = { onglet = onglet, index = index, case = place },
         retirer = function() Inv.Vider(Entite(), onglet, index, place) end,
-        rendre = function() Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1) end,
+        rendre = function() Inv.Ranger(Entite(), onglet, index, place, ref, quantite or 1, exemplaires) end,
     }
 end
 
@@ -589,7 +590,7 @@ local function Carte(f)
             -- Il quitte sa place, puis entre dans ce sac ; s'il n'y tient pas,
             -- il y retourne.
             if objet.retirer then objet.retirer() end
-            local ok, raison = Inv.Transvaser(Entite(), c.onglet, c.index, objet.ref, objet.quantite or 1)
+            local ok, raison = Inv.Transvaser(Entite(), c.onglet, c.index, objet.ref, objet.quantite or 1, objet.exemplaires)
             if not ok then
                 if objet.rendre then objet.rendre() end
                 Refuser(raison)
@@ -795,7 +796,7 @@ local function Construire()
                     -- deshabille.
                     if objet.retirer then objet.retirer() end
                     local ok, raison = Inv.Ranger(entite, l.place.onglet, l.place.index, l.case,
-                        objet.ref, objet.quantite or 1)
+                        objet.ref, objet.quantite or 1, objet.exemplaires)
                     if not ok then
                         if objet.rendre then objet.rendre() end
                         Refuser(raison)
@@ -1112,7 +1113,7 @@ local function NouvelleCase(s, n)
         -- sait comment partir et revenir.
         if objet.retirer then objet.retirer() end
         local ok, raison = Inv.Ranger(entite, s.onglet, s.index, b.index,
-            objet.ref, objet.quantite or 1)
+            objet.ref, objet.quantite or 1, objet.exemplaires)
         if not ok then
             if objet.rendre then objet.rendre() end
             Refuser(raison)
@@ -1310,8 +1311,10 @@ local function ConstruireSac(onglet, index)
                                 local cibleOnglet, cibleIndex, cibleCase = categorie.id, i, libre
                                 cibles[#cibles + 1] = { label = sac and sac.label or Inv.Contenant(autre).id, action = function()
                                     local ref, quantite = c.ref, c.quantite
+                                    local exemplaires = LCM.Copie(LCM.Exemplaires.Assurer(c))
                                     Inv.Vider(entity, self.onglet, self.index, b.index)
-                                    Inv.Ranger(entity, cibleOnglet, cibleIndex, cibleCase, ref, quantite)
+                                    local ok = Inv.Ranger(entity, cibleOnglet, cibleIndex, cibleCase, ref, quantite, exemplaires)
+                                    if not ok then Inv.Ranger(entity, self.onglet, self.index, b.index, ref, quantite, exemplaires) end
                                     Ecran.Actualiser()
                                 end }
                             end

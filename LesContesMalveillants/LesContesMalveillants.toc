@@ -55,6 +55,9 @@ Core\Reactions.lua
 Core\Grimoires.lua
 Core\Compendium.lua
 Core\Forge.lua
+Core\IC.lua
+Core\ICCharges.lua
+Core\Exemplaires.lua
 Core\ActionsBoutons.lua
 Core\Direct.lua
 Core\Echange.lua
@@ -68,6 +71,7 @@ Core\Bannieres.lua
 Core\Defenses.lua
 Core\Expertises.lua
 Data\Equilibrage.lua
+Data\IC.lua
 Data\Icones.lua
 Data\Morphologies.lua
 Data\Fiche.lua

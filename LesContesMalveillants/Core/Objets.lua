@@ -77,6 +77,7 @@ function Objets.Construire(definition)
         source.etat.version = 2
     end
     local element = ConstruireObjet(source)
+    element.ic = LCM.IC.Lire(source.ic)
     if type(source) == "table" and type(source.etat) == "table" and type(element.etat) == "table" then
         element.etat.version = source.etat.version
         element.etat.ancienMax = source ~= definition and ancien or source.etat.ancienMax
@@ -136,6 +137,60 @@ end
 
 local function Ref(id) return "objets/" .. tostring(id) end
 
+local function EquipesPourEcrire(entity, categorie)
+    entity.exemplairesEquipes = entity.exemplairesEquipes or {}
+    local liste = entity.exemplairesEquipes[categorie] or {}
+    entity.exemplairesEquipes[categorie] = liste
+    for i, id in ipairs(Objets.Ids(entity, categorie)) do
+        if not liste[i] then liste[i] = LCM.Exemplaires.Nouveau(Ref(id)) end
+    end
+    return liste
+end
+
+function Objets.PreparerExemplaireEquipe(entity, id, rang)
+    local objet = Objets.Get(id)
+    if not objet then return nil end
+    local ids = Objets.Ids(entity, objet.categorie)
+    local liste = EquipesPourEcrire(entity, objet.categorie)
+    if rang then return ids[rang] == id and liste[rang] or nil end
+    for i = #ids, 1, -1 do if ids[i] == id then return liste[i] end end
+end
+
+local PlacerModele = Objets.Placer
+function Objets.Placer(entity, id, exemplaire)
+    local objet = Objets.Get(id)
+    if exemplaire then
+        local _, raison = LCM.Exemplaires.Lire(Ref(id), 1, {exemplaire})
+        if raison then return false, raison end
+    end
+    local ok, raison = PlacerModele(entity, id)
+    if not ok then return false, raison end
+    local liste = EquipesPourEcrire(entity, objet.categorie)
+    if exemplaire then liste[#Objets.Ids(entity, objet.categorie)] = LCM.Copie(exemplaire) end
+    return true
+end
+
+function Objets.Enlever(entity, id, exemplaireId)
+    for categorie, rangee in pairs(type(entity) == "table" and entity.equipement or {}) do
+        for i = #rangee, 1, -1 do
+            if rangee[i] == tostring(id) then
+                local liste = EquipesPourEcrire(entity, categorie)
+                local exemplaire = liste[i]
+                if not exemplaireId or exemplaire.id == exemplaireId then
+                table.remove(rangee, i)
+                if #rangee == 0 then entity.equipement[categorie] = nil end
+                if not next(entity.equipement) then entity.equipement = nil end
+                table.remove(liste, i)
+                if #liste == 0 then entity.exemplairesEquipes[categorie] = nil end
+                if not next(entity.exemplairesEquipes) then entity.exemplairesEquipes = nil end
+                return true, exemplaire
+                end
+            end
+        end
+    end
+    return false
+end
+
 function Objets.Possede(entity, id)
     return LCM.Inventaire.Chercher(entity, Ref(id)) ~= nil
 end
@@ -148,7 +203,10 @@ function Objets.Equiper(entity, id)
         return false, string.format("%s n'est dans aucun sac : on n'équipe que ce qu'on porte sur soi.", objet.label)
     end
     -- La place sur soi d'abord : si elle manque, l'objet reste dans son sac.
-    local ok, raison = Objets.Placer(entity, objet.id)
+    local cat, index, case = LCM.Inventaire.Chercher(entity, Ref(objet.id))
+    local contenu = LCM.Inventaire.Case(LCM.Inventaire.Emplacement(entity, cat, index), case)
+    local exemplaire = LCM.Exemplaires.Assurer(contenu)[1]
+    local ok, raison = Objets.Placer(entity, objet.id, exemplaire)
     if not ok then return false, raison end
     LCM.Inventaire.Prendre(entity, Ref(objet.id))
     return true
@@ -156,18 +214,20 @@ end
 
 -- Remet l'objet dans un sac. Sans place libre, il reste porte : on ne le
 -- fait pas disparaitre faute de sac.
-function Objets.Desequiper(entity, id)
+function Objets.Desequiper(entity, id, rang)
     if not Objets.Porte(entity, id) then return false, "cet objet n'est pas équipé." end
     local objet = Objets.Get(id)
     if not objet then
         return false, string.format("« %s » n'existe pas dans cette version : il reste équipé.", tostring(id))
     end
-    local ok, raison = LCM.Inventaire.Deposer(entity, Ref(objet.id), 1)
+    local exemplaire = Objets.PreparerExemplaireEquipe(entity, id, rang)
+    if not exemplaire then return false, "cet exemplaire n'est plus équipé." end
+    local ok, raison = LCM.Inventaire.Deposer(entity, Ref(objet.id), 1, {exemplaire})
     if not ok then
         return false, string.format("%s reste équipé : %s", objet.label, raison == "aucune place libre."
             and "aucune place libre dans les sacs." or tostring(raison))
     end
-    Objets.Enlever(entity, objet.id)
+    Objets.Enlever(entity, objet.id, exemplaire.id)
     return true
 end
 

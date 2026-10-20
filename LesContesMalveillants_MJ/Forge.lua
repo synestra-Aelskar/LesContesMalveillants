@@ -136,6 +136,15 @@ local function EstObjet()
         or courant.categorie == "accessoires" or courant.categorie == "outils"
 end
 
+local function ChoixIC(rarete)
+    if not EstObjet() then return nil end
+    local palier = LCM.IC.Palier(rarete)
+    local ic = courant.ic and LCM.Copie(courant.ic) or (palier and LCM.IC.Nouveau(palier))
+    if ic and palier then ic.palier = palier end
+    return ic
+end
+ForgeUI.ChoixIC = ChoixIC
+
 -- Les valeurs d'une entree : une statistique verrouillee vaut sa base, les
 -- autres ce qui est saisi. Un zero ne s'ecrit pas (le registre le refuse).
 local function Bonus(jeu, rarete)
@@ -178,6 +187,7 @@ function ForgeUI.Definition()
     def.id, def.label = id, nom
     def.bonus = Bonus(jeu, rarete)
     def.forge = LCM.Forge.Valeur(jeu, rarete)
+    def.ic = ChoixIC(rarete)
     if EstObjet() then
         local maximum = tonumber(courant.etatObjet) or LCM.Equilibrage.forge.etatObjet.base
         def.etat = { courant = maximum, max = maximum, version = 2 }
@@ -244,6 +254,7 @@ function ForgeUI.Creer()
         courant.original = element and LCM.Copie(element) or LCM.Copie(def)
     else
         courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
+        courant.ic = nil
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
         courant.mjSeulement = nil
@@ -304,6 +315,101 @@ local function Construire()
     f.vue = "liste"
     local c = f.contenu
     f.choix = UI.Choix("forge", "")
+
+    local pi = CreateFrame("Frame", nil, f)
+    f.panelIC = pi
+    pi:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -f.insetHaut)
+    pi:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, f.insetBas)
+    pi:SetWidth(270)
+    UI.Aplat(pi, {0,0,0,0.25}):SetAllPoints(pi)
+    UI.BordureFine(pi, 0.3)
+    local function TexteIC(texte, y, couleur)
+        local t = UI.Texte(pi, texte, couleur or UI.C.discret, "GameFontNormalSmall")
+        t:SetPoint("TOPLEFT", pi, "TOPLEFT", 12, -y)
+        t:SetWidth(246); t:SetJustifyH("LEFT"); t:SetWordWrap(true)
+        return t
+    end
+    TexteIC("PROPRIÉTÉS IC", 12, UI.C.titre)
+    pi.budget = TexteIC("", 42, UI.C.texte)
+    TexteIC("Conversion en points de forge", 140, UI.C.titre)
+    pi.conversion = TexteIC("", 165)
+    local function Convertir(pas)
+        local _,r = JeuCourant()
+        local ic = ChoixIC(r)
+        if not ic then return end
+        local minimum = courant.original and courant.original.ic and courant.original.ic.convertis or courant.minimumIC or 0
+        local n = ic.convertis + pas
+        if n < minimum or (pas > 0 and LCM.IC.Bilan(ic).restants < pas) then return end
+        ic.convertis = n; courant.ic = ic; f:Rafraichir()
+    end
+    pi.moins = UI.Bouton(pi, "− 1 IC", 100, 24, function() Convertir(-1) end)
+    pi.moins:SetPoint("TOPLEFT", pi, "TOPLEFT", 12, -195)
+    pi.plus = UI.Bouton(pi, "+ 1 IC", 100, 24, function() Convertir(1) end)
+    pi.plus:SetPoint("TOPRIGHT", pi, "TOPRIGHT", -12, -195)
+    TexteIC("Conversion définitive à l'enregistrement. Les statistiques ne changent pas automatiquement.", 228)
+    TexteIC("Catalogue par catégorie", 285, UI.C.titre)
+    pi.catalogue = TexteIC("Aucune propriété disponible.", 310)
+    pi.ajouter = UI.Bouton(pi, "Ajouter une propriété…", 246, 22, function(b)
+        local options = {}
+        local _,r = JeuCourant()
+        local ic = ChoixIC(r)
+        if not ic then return end
+        local vus = {}
+        for _,p in ipairs(ic.proprietes) do vus[p.id]=true end
+        for _,id in ipairs(LCM.IC.ordre) do
+            local d=LCM.IC.catalogue[id]
+            if not d.desactive and d.valider and not vus[id] then
+                options[#options+1]={id=id,label=d.nom,groupe=d.categorie}
+            end
+        end
+        f.choix:Proposer(b, options, function(id)
+            local p,raison=LCM.IC.Selection(id)
+            if not p then f:Statut(raison,UI.C.plein); return end
+            ic.proprietes[#ic.proprietes+1]=p
+            local ok,msg=LCM.IC.Verifier(ic,courant.ic,r)
+            if not ok then f:Statut(msg,UI.C.plein); return end
+            courant.ic=ic; f:Rafraichir()
+        end)
+    end)
+    pi.ajouter:SetPoint("TOPLEFT",pi,"TOPLEFT",12,-326)
+    pi.retirer = UI.Bouton(pi, "Retirer…", 85, 20, function(b)
+        local _,r=JeuCourant(); local ic=ChoixIC(r)
+        if not ic then return end
+        local options={}
+        for i,p in ipairs(ic.proprietes) do options[#options+1]={id=i,label=p.nom or p.id} end
+        f.choix:Proposer(b,options,function(i)
+            table.remove(ic.proprietes,i); courant.ic=ic; f:Rafraichir()
+        end)
+    end)
+    pi.retirer:SetPoint("BOTTOMRIGHT",pi,"BOTTOMRIGHT",-12,12)
+    TexteIC("Propriétés sélectionnées", 355, UI.C.titre)
+    pi.zone = UI.Defilement(pi)
+    pi.zone:SetPoint("TOPLEFT", pi, "TOPLEFT", 12, -380)
+    pi.zone:SetPoint("BOTTOMRIGHT", pi, "BOTTOMRIGHT", -18, 42)
+    pi.selection = UI.Texte(pi.zone.contenu, "", UI.C.texte, "GameFontNormalSmall")
+    pi.selection:SetPoint("TOPLEFT", pi.zone.contenu, "TOPLEFT", 0, 0)
+    pi.selection:SetWidth(230); pi.selection:SetWordWrap(true)
+    function f:ActualiserIC(rarete)
+        pi:SetShown(EstObjet())
+        if not EstObjet() then return end
+        local ic = ChoixIC(rarete)
+        local b = LCM.IC.Bilan(ic)
+        local configure = ic ~= nil and LCM.IC.Palier(rarete) ~= nil
+        pi.ajouter:SetShown(#LCM.IC.ordre>0)
+        pi.ajouter:SetEnabled(configure)
+        pi.catalogue:SetShown(#LCM.IC.ordre==0)
+        pi.retirer:SetShown(ic~=nil and #ic.proprietes>0)
+        pi.budget:SetText(configure and string.format("Pool total : %s IC\nPropriétés : %s IC\nConvertis : %s IC\nDisponibles : %s IC",
+            C.Nombre(b.total), C.Nombre(b.depenses), C.Nombre(b.convertis), C.Nombre(b.restants))
+            or "Choisis un palier IC pour cette rareté dans son jeu d'équilibrage.")
+        Peindre(pi.budget, b.restants < 0 and ROUGE or UI.C.texte)
+        pi.conversion:SetText(string.format("1 IC = %s point de forge\nBonus actuel : +%s points", C.Nombre(LCM.Equilibrage.ic.conversion), C.Nombre(b.forge)))
+        local minimum = courant.original and courant.original.ic and courant.original.ic.convertis or courant.minimumIC or 0
+        pi.moins:SetEnabled(configure and b.convertis > minimum)
+        pi.plus:SetEnabled(configure and b.restants >= 1)
+        pi.selection:SetText(LCM.IC.Description(ic) ~= "" and LCM.IC.Description(ic) or "Aucune propriété sélectionnée.")
+        pi.zone:Regler((pi.selection:GetStringHeight() or 20) + 12)
+    end
 
     local function Libelle(texte, x, y)
         local t = UI.Texte(c, texte, UI.C.libelle, "GameFontNormalSmall")
@@ -611,7 +717,7 @@ local function Construire()
         if depasse then Peindre(k.points, ROUGE) else k.points:SetTextColor(r, g, b) end
         -- Les VALEURS, pas le total : le credit des negatives est plafonne par
         -- le pool, donc le total depend de la rarete qu'on vise.
-        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs, MultiplicateurPool(), courant.etatObjet)
+        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs, MultiplicateurPool(), courant.etatObjet, ChoixIC(rarete))
         if depasse then
             k.palier:SetText("Dépasse le pool de " .. rarete.label)
         elseif suffit and suffit.id ~= rarete.id then
@@ -625,7 +731,7 @@ local function Construire()
             k.palier:SetText(string.format("%s — %s pt(s) rendus perdus (plafond du pool)",
                 k.palier:GetText(), C.Nombre(bilan.creditPerdu)))
         end
-        k.pool:SetText(string.format("/ %d pts", pool))
+        k.pool:SetText(string.format("/ %s pts", C.Nombre(pool)))
         local part = pool > 0 and math.min(1, math.max(0, total / pool)) or (total > 0 and 1 or 0)
         k.barre:SetWidth(math.max(1, ((k:GetWidth() or (LARGEUR - 28)) - 2) * part))
         if depasse then k.barre:SetColorTexture(1, 0.2, 0.2, 0.22) else k.barre:SetColorTexture(r, g, b, 0.18) end
@@ -645,10 +751,16 @@ local function Construire()
     function f:Rafraichir()
         local jeu, rarete = JeuCourant()
         local tableau = self.vue == "tableau"
+        local extra = EstObjet() and 290 or 0
         local colonnes = tableau and math.max(1, math.min(2,
-            math.floor((UIParent:GetWidth() * 0.9 - 40) / (FORGE_COLONNE + FORGE_ECART)))) or 1
-        self:SetSize(tableau and (40 + colonnes * (FORGE_COLONNE + FORGE_ECART)) or LARGEUR,
+            math.floor((UIParent:GetWidth() * 0.9 - 40 - extra) / (FORGE_COLONNE + FORGE_ECART)))) or 1
+        self:SetSize((tableau and (40 + colonnes * (FORGE_COLONNE + FORGE_ECART)) or LARGEUR) + extra,
             math.min(HAUTEUR, UIParent:GetHeight() * 0.88))
+        self:SetScale(math.min(1, UIParent:GetWidth() * 0.94 / self:GetWidth()))
+        c:ClearAllPoints()
+        c:SetPoint("TOPLEFT", self, "TOPLEFT", self.insetCote, -self.insetHaut)
+        c:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -self.insetCote-extra, self.insetBas)
+        self:ActualiserIC(rarete)
         self.mode:Selectionner(self.vue)
         self.aideVue:SetText(tableau and "Toutes les catégories" or "Catégories repliables")
         self.jeu.label:SetText(jeu and jeu.label or "Aucun jeu")
@@ -684,7 +796,7 @@ local function Construire()
                 v[champ.cle] = Valeur(jeu, rarete, champ.cle)
             end
             return v
-        end)(), MultiplicateurPool(), courant.etatObjet) or nil
+        end)(), MultiplicateurPool(), courant.etatObjet, ChoixIC(rarete)) or nil
         self:Compteur(jeu, rarete, bilan)
 
         -- Les statistiques ouvertes a l'investissement, par dossier. Les
@@ -824,7 +936,7 @@ local function Construire()
             local maximum = tonumber(courant.etatObjet) or LCM.Equilibrage.forge.etatObjet.base
             rendre(Bonus(jeu, rarete), LCM.Forge.Valeur(jeu, rarete),
                 EstObjet() and { courant = maximum, max = maximum, version = 2,
-                    ancienMax = courant.ancienMax } or nil)
+                    ancienMax = courant.ancienMax } or nil, ChoixIC(rarete))
             return
         end
         local ok, element, categorie, edition = ForgeUI.Creer()
@@ -862,6 +974,7 @@ function ForgeUI.Ouvrir(categorieId, options)
     -- creation. Sans cela, le formulaire garde l'identifiant de l'entree
     -- precedente et le bouton suivant l'ecraserait.
     if courant.editionId then
+        courant.ic, courant.minimumIC = nil, nil
         courant.editionId, courant.original = nil, nil
         courant.creationId = Brouillons.NouvelIdentifiant()
         courant.mjSeulement = nil
@@ -870,6 +983,7 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.nom, courant.icone, courant.description, courant.valeurs = "", nil, "", {}
     end
     if courant.categorie ~= categorie.id then
+        courant.ic, courant.minimumIC = nil, nil
         courant.categorie, courant.jeuId, courant.rareteId, courant.valeurs = categorie.id, nil, nil, {}
         courant.mjSeulement = nil
         courant.taille = 1
@@ -910,6 +1024,7 @@ function ForgeUI.OuvrirEdition(categorie, element)
         or LCM.Equilibrage.forge.etatObjet.base
     courant.editionId = tostring(element.id)
     courant.original = LCM.Copie(element)
+    courant.ic, courant.minimumIC = LCM.Copie(element.ic), nil
     ForgeUI.rendre = nil
 
     local f = ForgeUI.Fenetre()
@@ -927,7 +1042,7 @@ end
 --
 -- `valeurs` : les bonus deja poses. `forge` : « jeu/rarete » deja choisi, s'il
 -- y en a un. `onValider(bonus, valeurForge, etat)` recoit le resultat.
-function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille, etat)
+function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille, etat, ic, minimumIC)
     local ok, raison = ForgeUI.Ouvrir(categorieId)
     if not ok then return false, raison end
     local jeu, rarete = LCM.Forge.Lire(forge)
@@ -942,6 +1057,8 @@ function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille,
     courant.etatObjet = type(etat) == "table" and tonumber(etat.max)
         or LCM.Equilibrage.forge.etatObjet.base
     courant.ancienMax = type(etat) == "table" and etat.ancienMax or nil
+    courant.ic = LCM.Copie(ic)
+    courant.minimumIC = minimumIC or (ic and ic.convertis) or 0
     ForgeUI.rendre = onValider
     local f = ForgeUI.Fenetre()
     f:Rafraichir()
@@ -982,7 +1099,9 @@ local function Nouveau()
     nouveaux = nouveaux + 1
     local raretes = {}
     for _, r in ipairs(RARETES_NEUVES) do
-        raretes[#raretes + 1] = { id = Brouillons.Identifiant(r.label), label = r.label, points = "", couleur = r.couleur }
+        local id = Brouillons.Identifiant(r.label)
+        raretes[#raretes + 1] = { id = id, label = r.label, points = "", couleur = r.couleur,
+            palierIC = LCM.IC.Palier({id=id}) }
     end
     local cle = "__nouveau_" .. nouveaux
     local t = { id = cle, creation = true,
@@ -1197,6 +1316,12 @@ local function ConstruireEquilibrage()
             f:Rafraichir()
         end)
         l.retirer:SetPoint("LEFT", l.pastille, "RIGHT", 10, 0)
+        l.ic = UI.Bouton(l, "Palier IC", 125, 20, function(b)
+            f.choix:Proposer(b, LCM.IC.Options(), function(id)
+                l.rarete.palierIC=id; Touche(); f:Rafraichir()
+            end)
+        end)
+        l.ic:SetPoint("TOPLEFT", l, "TOPLEFT", 4, -26)
         pj.lignes[index] = l
         return l
     end
@@ -1206,6 +1331,7 @@ local function ConstruireEquilibrage()
         local categorie = C.Get(t.def.categorie)
         pj.categorie.label:SetText(categorie and categorie.label or "Choisir une catégorie...")
         local traits = categorie and categorie.famille == "traits"
+        local objets = categorie and categorie.famille == "objets"
         pj.titreRaretes:SetText(traits and "Raretés : pool, coût du trait et couleur"
             or "Raretés : pool de points et couleur")
         pj.aide:SetText(traits and "Nom · pool · coût en création (1-4) · couleur (RRVVBB)."
@@ -1214,6 +1340,9 @@ local function ConstruireEquilibrage()
         for index, r in ipairs(t.def.raretes) do
             local l = self:LigneRarete(index)
             l.rarete = r
+            l.ic:SetShown(objets)
+            local palier = LCM.IC.Palier(r)
+            l.ic.label:SetText(palier and ("IC : " .. LCM.Equilibrage.ic.paliers[palier].label) or "Choisir palier IC")
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", pj, "TOPLEFT", 0, -y)
             if not l.nom:HasFocus() then l.nom:SetText(r.label or "") end
@@ -1227,7 +1356,7 @@ local function ConstruireEquilibrage()
             if not l.couleur:HasFocus() then l.couleur:SetText(r.couleur or "") end
             l.pastille:SetColorTexture(RVB(r.couleur))
             l:Show()
-            y = y + 26
+            y = y + (objets and 54 or 26)
         end
         for index = #t.def.raretes + 1, #pj.lignes do pj.lignes[index]:Hide() end
         return y + 10

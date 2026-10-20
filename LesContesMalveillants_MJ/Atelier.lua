@@ -243,6 +243,7 @@ local function Charger(famille, source)
     e.morphology = source.morphology
     e.mjSeulement = source.mjSeulement == true
     e.categorie = source.categorie
+    e.ic, e.forge = LCM.Copie(source.ic), source.forge
     e.icone = tostring(source.icone or "")
     e.places = tostring(source.places or 12)
     e.placesDevise = tostring(source.placesDevise or 0)
@@ -277,6 +278,7 @@ local function Definition(e)
     local definition = { id = id, label = nom, bonus = bonus, avantage = avantage }
     -- Le jeu d'equilibrage choisi : c'est lui que Forge.Verifier attend.
     if e.forge and e.forge ~= "" then definition.forge = e.forge end
+    if e.famille == "objets" then definition.ic = LCM.Copie(e.ic) end
     if e.famille == "traits" then
         definition.cout = e.cout
     else
@@ -475,7 +477,7 @@ local function PanneauEffets(f, genre)
         local multiplicateurPool = categorie == "armes"
             and (tonumber(f.edition.taille) == 2 and 2 or 1) or 1
         local etatObjet = type(f.edition.etat) == "table" and f.edition.etat.max or nil
-        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus, multiplicateurPool, etatObjet)
+        local bilan = LCM.Forge.Bilan(jeu, rarete.id, bonus, multiplicateurPool, etatObjet, f.edition.ic)
         local hors
         for _, ligne in ipairs(bilan.lignes) do
             if ligne.hors then hors = ligne.hors break end
@@ -486,8 +488,8 @@ local function PanneauEffets(f, genre)
         else
             local pool = bilan.pool or rarete.points
             local depasse = bilan.total > pool
-            local texte = string.format("%s / %d points du pool %s",
-                LCM.Compendium.Nombre(bilan.total), pool, rarete.label)
+            local texte = string.format("%s / %s points du pool %s",
+                LCM.Compendium.Nombre(bilan.total), LCM.Compendium.Nombre(pool), rarete.label)
             -- Les negatives ne rendent que la moitie, et jamais plus que le
             -- pool : on le dit, sinon baisser une statistique de plus ne change
             -- rien sans qu'on comprenne.
@@ -634,8 +636,10 @@ local function PanneauEffets(f, genre)
                 LCM.Alerte("la forge n'est pas chargée.")
                 return
             end
+            local original = f.edition.famille == "objets" and LCM.Objets.Get(f.edition.id)
+            local minimumIC = original and original.ic and original.ic.convertis or 0
             local ouverte, raison = forgeUI.OuvrirPourBonus(categorieForge, valeurs, f.edition.forge,
-                function(bonus, valeurForge, etat)
+                function(bonus, valeurForge, etat, ic)
                     f.edition.bonus = {}
                     for cle, montant in pairs(bonus or {}) do
                         -- Zero n'est pas un bonus : l'ecrire encombrerait la
@@ -646,9 +650,10 @@ local function PanneauEffets(f, genre)
                     end
                     table.sort(f.edition.bonus, function(a, b) return a.champ < b.champ end)
                     f.edition.forge = valeurForge
+                    f.edition.ic = LCM.Copie(ic)
                     if etat ~= nil then f.edition.etat = etat end
                     p:Remplir()
-                end, f.edition.taille, f.edition.etat)
+                end, f.edition.taille, f.edition.etat, f.edition.ic, minimumIC)
             if not ouverte then LCM.Alerte(tostring(raison)) end
             return
         end
