@@ -1050,6 +1050,26 @@ local function ConstruireVendeur()
     return ed
 end
 
+-- Ranger un modele dans une categorie sans ouvrir le constructeur. Meme copie
+-- et meme porte d'enregistrement que lui (ed:Ouvrir puis ed:Sauver) : le
+-- modele repart entier, seule sa categorie a change. Vide = sans categorie.
+function Ecran.Categoriser(point, categorie)
+    if not point then return false, "choisis d'abord un modèle." end
+    local travail = CopiePoint(point, point.nature)
+    travail.arcId, travail.offres = nil, nil
+    for _, collection in ipairs({ travail.onglets or {}, travail.rachats or {} }) do
+        for _, onglet in ipairs(collection) do
+            for _, offre in ipairs(onglet.offres or {}) do PrixEditable(offre) end
+        end
+    end
+    categorie = tostring(categorie or ""):match("^%s*(.-)%s*$")
+    travail.categorie = categorie ~= "" and categorie or nil
+    local ok, raison = LCM.Brouillons.Enregistrer("points", travail, false)
+    if not ok then return false, raison end
+    Points.ActualiserRegles(Points.Get(travail.id))
+    return true
+end
+
 function Ecran.Editeur(nature)
     Ecran.editeurs = Ecran.editeurs or {}
     if not Ecran.editeurs[nature] then

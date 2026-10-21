@@ -37,6 +37,12 @@ LCM.Points = LCM.Registre({
         element.icone = definition.icone and tostring(definition.icone):match("%S")
             and LCM.Icone(definition.icone) or nil
         element.deviseDefaut = definition.deviseDefaut and tostring(definition.deviseDefaut) or nil
+        -- La categorie de rangement (un vendeur dans « Port de Kul Tiras »).
+        -- C'est un champ du modele, pas une liste a part : une categorie
+        -- existe tant qu'un modele la porte, et voyage avec lui dans la base
+        -- (21 octobre 2026).
+        local categorie = definition.categorie and tostring(definition.categorie):match("^%s*(.-)%s*$")
+        element.categorie = categorie ~= "" and categorie or nil
         if nature == "coffre" then
             local c = type(definition.coffre) == "table" and definition.coffre or {}
             local rayonDefaut = tonumber(LCM.Equilibrage and LCM.Equilibrage.coffres

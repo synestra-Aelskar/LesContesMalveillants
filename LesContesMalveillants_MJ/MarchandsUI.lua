@@ -308,24 +308,28 @@ local function Construire()
                 if UI.SurfaceLigne then UI.SurfaceLigne(l) end
                 l.texte = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
                 l.texte:SetPoint("LEFT", l, "LEFT", 8, 0)
-                l.texte:SetPoint("RIGHT", l, "RIGHT", -40, 0)
+                l.texte:SetPoint("RIGHT", l, "RIGHT", -156, 0)
                 l.texte:SetJustifyH("LEFT")
                 l.retirer = UI.Bouton(l, "x", 24, 20, function(b)
                     Marchands.Retirer(b:GetParent().poseId)
                     self:Afficher()
                 end)
                 l.retirer:SetPoint("RIGHT", l, "RIGHT", -4, 0)
-                -- Celui d'un autre se consulte : on peut y aller.
+                -- Sur chaque emplacement, le sien comme celui d'un autre, a la
+                -- meme place que dans Coffres et Ressources. Il n'etait
+                -- propose que pour ceux des autres (21 octobre 2026).
                 l.teleporter = UI.Bouton(l, "S'y téléporter", 112, 20, function(b)
-                    local ok, raison = LCM.Poses.Teleporter(b:GetParent().pose)
+                    local pose = b:GetParent().pose
+                    local ok, raison
+                    if pose and pose.autre then ok, raison = LCM.Poses.Teleporter(pose)
+                    else ok, raison = Marchands.Teleporter(b:GetParent().poseId) end
                     if not ok then LCM.Alerte(tostring(raison)) end
                 end)
-                l.teleporter:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+                l.teleporter:SetPoint("RIGHT", l, "RIGHT", -34, 0)
                 p.lignes[rang] = l
             end
             l.poseId, l.pose = pose.id, pose
             l.retirer:SetShown(not pose.autre)
-            l.teleporter:SetShown(pose.autre == true)
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
                 local d = LCM.Recolte.Distance(pose, { x = x, y = y, z = z })
@@ -351,34 +355,217 @@ local function Construire()
         p.toutRetirer:SetEnabled(#miens > 0)
     end
 
+    -- ----- Les categories ----------------------------------------------------
+    -- Une longue liste de vendeurs se range en accordeons, un par categorie
+    -- (21 octobre 2026). La categorie est un champ du modele
+    -- (UI.Points.Categoriser) : elle existe tant qu'un vendeur la porte. On la
+    -- cree depuis la bibliotheque (« + Créer une catégorie »), puis on y range
+    -- un vendeur en le glissant sur son en-tete, ou par clic droit.
+    --
+    -- Une categorie qu'on vient de creer est encore VIDE : elle ne vit que dans
+    -- `f.vides`, le temps de la session, et devient du contenu des qu'on y
+    -- range un vendeur. Ce qui est replie ne se retient pas non plus : c'est
+    -- une commodite d'affichage. Rien de cela ne va en sauvegarde.
+    f.replies, f.vides = {}, {}
+    local SANS = ""
+
+    local function Ranger(point, categorie)
+        if not point then return end
+        if (point.categorie or SANS) == (categorie or SANS) then return end
+        local ok, raison = UI.Points.Categoriser(point, categorie)
+        if not ok then LCM.Alerte(tostring(raison)) return end
+        -- Ranger dans une categorie repliee la deplie : le vendeur ne doit pas
+        -- disparaitre sous les yeux du MJ.
+        f.replies[categorie or SANS] = nil
+        f:Afficher()
+    end
+    f.Ranger = function(_, point, categorie) Ranger(point, categorie) end
+
+    -- Deux noms qui ne different que par la casse sont la meme categorie.
+    -- `lower` ne touche pas aux majuscules accentuees de l'UTF-8 : « É » reste
+    -- « É ». On les ramene a la main, AVANT `lower` : selon la locale, `lower`
+    -- peut modifier un octet de tete UTF-8 et rendre la lettre meconnaissable.
+    local MINUSCULES = { ["À"] = "à", ["Â"] = "â", ["Ä"] = "ä", ["Ç"] = "ç", ["É"] = "é", ["È"] = "è",
+        ["Ê"] = "ê", ["Ë"] = "ë", ["Î"] = "î", ["Ï"] = "ï", ["Ô"] = "ô", ["Ö"] = "ö", ["Ù"] = "ù",
+        ["Û"] = "û", ["Ü"] = "ü" }
+    local function Cle(nom)
+        nom = tostring(nom)
+        for majuscule, minuscule in pairs(MINUSCULES) do nom = nom:gsub(majuscule, minuscule) end
+        return (nom:gsub("[A-Z]", string.lower))
+    end
+    f.Cle = Cle
+
+    -- Rend vrai, ou faux et la raison.
+    function f:CreerCategorie(nom)
+        nom = tostring(nom or ""):match("^%s*(.-)%s*$")
+        if nom == "" then return false, "donne un nom à la catégorie." end
+        for _, existante in ipairs(self:Categories()) do
+            if Cle(existante) == Cle(nom) then return false, "la catégorie « " .. existante .. " » existe déjà." end
+        end
+        self.vides[nom] = true
+        self.replies[nom] = nil
+        self:Afficher()
+        return true
+    end
+
+    function f:Categories()
+        local vues, out = {}, {}
+        for _, point in ipairs(Marchands.Definitions()) do
+            local nom = point.categorie
+            if nom and not vues[nom] then vues[nom] = true out[#out + 1] = nom end
+        end
+        for nom in pairs(self.vides) do
+            if not vues[nom] then vues[nom] = true out[#out + 1] = nom end
+        end
+        table.sort(out, function(a, b) return a:lower() < b:lower() end)
+        return out
+    end
+
+    local function MenuRanger(bouton)
+        local point = Points.Get(bouton.pointId)
+        if not point then return end
+        local sous = {}
+        for _, nom in ipairs(f:Categories()) do
+            if nom ~= point.categorie then
+                sous[#sous + 1] = { label = nom, action = function() Ranger(point, nom) end }
+            end
+        end
+        if point.categorie then
+            sous[#sous + 1] = { label = "Sans catégorie", action = function() Ranger(point, nil) end }
+        end
+        if #sous == 0 then
+            LCM.Alerte("aucune autre catégorie : crée-en une avec « + Créer une catégorie ».")
+            return
+        end
+        UI.MenuContexte():Ouvrir(bouton, { { label = "Ranger dans", sous = sous } })
+    end
+
+    local function LigneVendeur(rang)
+        local b = UI.Bouton(f.liste.contenu, "", COLONNE - 20, LIGNE - 2,
+            function(bouton, souris)
+                if souris == "RightButton" then MenuRanger(bouton) return end
+                f:ChangerModele(function() f:Choisir(bouton.pointId) end)
+            end)
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b.label:ClearAllPoints()
+        b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
+        b.label:SetPoint("RIGHT", b, "RIGHT", -6, 0)
+        b.label:SetJustifyH("LEFT")
+        b:RegisterForDrag("LeftButton")
+        b:SetScript("OnDragStart", function(bouton)
+            local point = Points.Get(bouton.pointId)
+            if point then
+                UI.Glisser.Commencer({ icone = point.icone, nom = point.label,
+                    categorie = "vendeur", element = point })
+            end
+        end)
+        f.lignes[rang] = b
+        return b
+    end
+
+    local function EnTete(rang)
+        local h = UI.Bouton(f.liste.contenu, "", COLONNE - 10, LIGNE - 8, function(bouton)
+            f.replies[bouton.categorie] = not f.replies[bouton.categorie] or nil
+            f:Afficher()
+        end)
+        h.label:ClearAllPoints()
+        h.label:SetPoint("LEFT", h, "LEFT", 8, 0)
+        h.label:SetPoint("RIGHT", h, "RIGHT", -6, 0)
+        h.label:SetJustifyH("LEFT")
+        h.label:SetWordWrap(false)
+        local fond = UI.Aplat(h, { 0.55, 0.39, 0.12, 0.18 })
+        fond:SetAllPoints(h)
+        -- Lacher un vendeur sur un en-tete le range dans cette categorie.
+        UI.Glisser.Cible(h, function(objet)
+            if not (objet and objet.categorie == "vendeur" and type(objet.element) == "table") then
+                return false, "dépose ici un vendeur de la liste"
+            end
+            if (objet.element.categorie or SANS) == h.categorie then return false, "il y est déjà" end
+            return true
+        end, function(objet)
+            Ranger(Points.Get(objet.element.id), h.categorie ~= SANS and h.categorie or nil)
+        end)
+        f.entetes[rang] = h
+        return h
+    end
+    f.entetes = {}
+
     function f:Afficher()
         local definitions = self:FiltrerDefinitions(Marchands.Definitions())
         if self.pointId and not Points.Get(self.pointId) then self.pointId = nil end
         if not self.pointId and definitions[1] then self.pointId = definitions[1].id end
-        local y = 0
-        for rang, point in ipairs(definitions) do
-            local b = self.lignes[rang]
-            if not b then
-                b = UI.Bouton(self.liste.contenu, "", COLONNE - 10, LIGNE - 2, function(bouton)
-                    self:ChangerModele(function() self:Choisir(bouton.pointId) end)
-                end)
-                b.label:ClearAllPoints()
-                b.label:SetPoint("LEFT", b, "LEFT", 6, 0)
-                b.label:SetPoint("RIGHT", b, "RIGHT", -6, 0)
-                b.label:SetJustifyH("LEFT")
-                self.lignes[rang] = b
+        -- Les groupes : les categories par nom, « Sans catégorie » a la fin.
+        local groupes, parNom = {}, {}
+        for _, point in ipairs(definitions) do
+            local nom = point.categorie or SANS
+            if not parNom[nom] then
+                parNom[nom] = { nom = nom, points = {} }
+                groupes[#groupes + 1] = parNom[nom]
             end
-            b.pointId = point.id
-            local n = Marchands.Compte(point.id)
-            b.label:SetText(n > 0 and string.format("%s  |cff9d9d9d(%d)|r", point.label, n) or point.label)
-            b:ClearAllPoints()
-            b:SetPoint("TOPLEFT", self.liste.contenu, "TOPLEFT", 0, -y)
-            b:Selectionner(point.id == self.pointId)
-            b:Show()
-            y = y + LIGNE
+            table.insert(parNom[nom].points, point)
         end
-        for rang = #definitions + 1, #self.lignes do self.lignes[rang]:Hide() end
+        -- Les categories creees mais encore vides ; une recherche ne les montre
+        -- pas, elles ne contiennent rien a trouver.
+        if (self.filtre or "") == "" then
+            for nom in pairs(self.vides) do
+                if not parNom[nom] then
+                    parNom[nom] = { nom = nom, points = {} }
+                    groupes[#groupes + 1] = parNom[nom]
+                end
+            end
+        end
+        table.sort(groupes, function(a, b)
+            if (a.nom == SANS) ~= (b.nom == SANS) then return b.nom == SANS end
+            return a.nom:lower() < b.nom:lower()
+        end)
+        -- Sans aucune categorie, pas d'en-tete : la liste reste celle d'avant.
+        local avecEntetes = #groupes > 1 or (groupes[1] and groupes[1].nom ~= SANS)
+        -- Une recherche montre tout ce qu'elle trouve, meme replie.
+        local recherche = (self.filtre or "") ~= ""
+        local y, nLignes, nEntetes = 0, 0, 0
+        for _, groupe in ipairs(groupes) do
+            local replie = avecEntetes and not recherche and self.replies[groupe.nom]
+            if avecEntetes then
+                nEntetes = nEntetes + 1
+                local h = self.entetes[nEntetes] or EnTete(nEntetes)
+                h.categorie = groupe.nom
+                h.label:SetText(string.format("%s  %s  |cff9d9d9d(%d)|r", replie and "+" or "–",
+                    groupe.nom ~= SANS and groupe.nom or "Sans catégorie", #groupe.points))
+                h:ClearAllPoints()
+                h:SetPoint("TOPLEFT", self.liste.contenu, "TOPLEFT", 0, -y)
+                h:Show()
+                y = y + LIGNE - 4
+            end
+            if not replie then
+                for _, point in ipairs(groupe.points) do
+                    nLignes = nLignes + 1
+                    local b = self.lignes[nLignes] or LigneVendeur(nLignes)
+                    b.pointId = point.id
+                    local n = Marchands.Compte(point.id)
+                    b.label:SetText(n > 0 and string.format("%s  |cff9d9d9d(%d)|r", point.label, n) or point.label)
+                    b:ClearAllPoints()
+                    b:SetPoint("TOPLEFT", self.liste.contenu, "TOPLEFT", avecEntetes and 10 or 0, -y)
+                    b:Selectionner(point.id == self.pointId)
+                    b:Show()
+                    y = y + LIGNE
+                end
+            end
+        end
+        for rang = nLignes + 1, #self.lignes do self.lignes[rang]:Hide() end
+        for rang = nEntetes + 1, #self.entetes do self.entetes[rang]:Hide() end
         self.liste:Regler(y)
+        -- « Tout replier » ne sert que s'il y a des categories ; une fois tout
+        -- replie, il deplie.
+        local toutReplie = avecEntetes
+        for _, groupe in ipairs(groupes) do
+            if not self.replies[groupe.nom] then toutReplie = false end
+        end
+        if self.toutReplier then
+            self.toutReplier:SetShown(avecEntetes and not recherche)
+            self.toutReplier.label:SetText(toutReplie and "Tout déplier" or "Tout replier")
+            self.toutReplier.deplier = toutReplie
+            self.groupes = groupes
+        end
         self.modifier:SetEnabled(self:Point() ~= nil)
         self:AfficherArticles()
         self:AfficherPoints()
@@ -390,6 +577,66 @@ local function Construire()
     end
 
     UI.AtelierInteractions(f, "vendeur")
+    -- La recherche lit aussi la categorie : on retrouve un vendeur par
+    -- l'endroit ou il est (« Téphriskinah ») quand on a oublie son nom
+    -- (21 octobre 2026). Meme comptage et meme liste vide que celle du kit.
+    function f:FiltrerDefinitions(definitions)
+        local out = {}
+        local filtre = f.Cle(self.filtre or "")
+        for _, point in ipairs(definitions) do
+            if f.Cle(point.label or ""):find(filtre, 1, true)
+                or f.Cle(point.categorie or ""):find(filtre, 1, true) then
+                out[#out + 1] = point
+            end
+        end
+        self.compteModeles:SetText(string.format("%d / %d modèles", #out, #definitions))
+        self.listeVide:SetShown(#out == 0)
+        return out
+    end
+    -- A droite du titre de la bibliotheque, au-dessus de la liste qu'il plie.
+    f.toutReplier = UI.Bouton(f.contenu, "Tout replier", 96, 20, function(bouton)
+        for _, groupe in ipairs(f.groupes or {}) do
+            f.replies[groupe.nom] = not bouton.deplier or nil
+        end
+        f:Afficher()
+    end)
+    f.toutReplier:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 112, -6)
+    f.toutReplier:Hide()
+
+    -- « + Créer une catégorie » : un clic montre la saisie a sa place, Entree
+    -- cree l'accordeon (vide), Echap renonce.
+    f.creerCategorie = UI.Bouton(f.contenu, "+ Créer une catégorie", 196, 26, function()
+        f.creerCategorie:Hide()
+        f.nomCategorie:SetText("")
+        f.nomCategorie:Show()
+        f.nomCategorie:SetFocus()
+    end)
+    f.creerCategorie:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -126)
+    UI.Bulle(f.creerCategorie, "Créer une catégorie",
+        "Un accordéon pour ranger tes vendeurs (« Aelskar - Téphriskinah »). Glisse ensuite les vendeurs "
+        .. "sur son en-tête, ou range-les par clic droit.")
+    f.nomCategorie = UI.Champ(f.contenu, 196, 26)
+    f.nomCategorie:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -126)
+    f.nomCategorie:SetMaxLetters(60)
+    local indication = UI.Texte(f.nomCategorie, "Nom de la catégorie, puis Entrée", UI.C.discret, "GameFontNormalSmall")
+    indication:SetPoint("LEFT", f.nomCategorie, "LEFT", 8, 0)
+    f.nomCategorie:HookScript("OnTextChanged", function(self) indication:SetShown(self:GetText() == "") end)
+    local function FermerSaisie()
+        f.nomCategorie:ClearFocus()
+        f.nomCategorie:Hide()
+        f.creerCategorie:Show()
+    end
+    f.nomCategorie:SetScript("OnEnterPressed", function(self)
+        local ok, raison = f:CreerCategorie(self:GetText())
+        if not ok then LCM.Alerte(tostring(raison)) return end
+        FermerSaisie()
+    end)
+    f.nomCategorie:SetScript("OnEscapePressed", FermerSaisie)
+    f.nomCategorie:Hide()
+    f.liste:ClearAllPoints()
+    f.liste:SetPoint("TOPLEFT", f.contenu, "TOPLEFT", 8, -160)
+    f.liste:SetPoint("BOTTOMLEFT", f.contenu, "BOTTOMLEFT", 8, 76)
+    f.liste:SetWidth(196)
     f:Hide()
     return f
 end

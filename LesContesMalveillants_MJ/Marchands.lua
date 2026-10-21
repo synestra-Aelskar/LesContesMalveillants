@@ -101,7 +101,7 @@ function Marchands.Points(defId)
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
             out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y, z = p.z,
-                source = p.source, carte = p.carte, quand = p.quand, posePar = p.posePar }
+                source = p.source, carte = p.carte, mapid = p.mapid, quand = p.quand, posePar = p.posePar }
         end
     end
     table.sort(out, function(a, b)
@@ -169,13 +169,29 @@ function Marchands.Placer(defId)
         return nil, "position indisponible : .gps demandé, reclique dans un instant."
     end
     local id = Identifiant()
+    -- La carte SERVEUR, quand la position vient de lui : c'est elle que
+    -- « S'y téléporter » donne a .worldport, comme pour les coffres et les
+    -- filons. Les vendeurs ne la retenaient pas (21 octobre 2026).
+    local D = LCM.DeplacementForce
+    local mapid = source == "gps" and D and D.CarteGPS and tonumber(D.CarteGPS()) or nil
     Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
-        quand = (time and time()) or 0,
+        mapid = mapid, quand = (time and time()) or 0,
         -- Qui l'a pose (MJ/Poses.lua).
         posePar = Moi() }
     Rafraichir(point.id)
     Marchands.Diffuser(point.id)
     return id
+end
+
+-- Aller a un de ses vendeurs poses, comme a un coffre ou un filon. La commande
+-- est celle des points des autres (Poses.Teleporter) : une seule facon de
+-- construire le .worldport. Sans carte serveur (un vendeur pose avant le 21
+-- octobre 2026), le serveur garde la carte ou l'on est.
+function Marchands.Teleporter(id)
+    if not LCM.IsMaster() then return false, "réservé au maître du jeu." end
+    local p = Magasin()[tostring(id or "")]
+    if not p then return false, "emplacement de vendeur introuvable." end
+    return LCM.Poses.Teleporter(p)
 end
 
 function Marchands.Retirer(id)
