@@ -212,7 +212,7 @@ function Coffres.RecevoirCopie(expediteur, e)
         local point = C.points[id]
         if point then point.auteur = e.auteur; C.Sauver() end
         local d = Definition(e.def)
-        LCM.Info(string.format("« %s » : %s en a repris la garde pendant ton absence.",
+        LCM.Journal(string.format("« %s » : %s en a repris la garde pendant ton absence.",
             tostring(d and d.label or id), tostring(e.auteur)))
     end
 end
@@ -258,7 +258,7 @@ function Coffres.Veiller()
             Partager(e)
             repris = repris + 1
             local d = Definition(e.def)
-            LCM.Info(string.format("« %s » : %s est absent, tu en reprends la garde.",
+            LCM.Journal(string.format("« %s » : %s est absent, tu en reprends la garde.",
                 tostring(d and d.label or id), tostring(ancien)))
         end
     end
