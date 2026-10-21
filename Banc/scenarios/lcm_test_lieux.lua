@@ -406,19 +406,36 @@ attendu("elle est libellée", noeud and noeud.label, "Lieux")
 attendu("réservée au MJ", noeud and noeud.mjSeulement, true)
 attendu("et elle ouvre quelque chose", LCM.UI.Menu.EstLiee("lieux"), true)
 
--- Le dossier Outils est passe a NEUF branches. L'eventail ne sait dessiner que
--- les longueurs de bandeau qui existent, et au-dela d'elles il escamote la
--- derniere branche SANS RIEN DIRE : le plafond et le dessin doivent rester
--- d'accord.
-local outils
-for _, n in ipairs(LCM.UI.Menu.STRUCTURE) do if n.id == "outils" then outils = n end end
-attendu("neuf fenêtres dans Outils", outils and #outils.enfants, 9)
-attendu("et l'éventail en accepte autant", LCM.UI.Radial.MAX_ENTREES >= 9, true)
+-- L'eventail ne sait dessiner que les longueurs de bandeau qui existent, et
+-- au-dela d'elles il escamote la derniere branche SANS RIEN DIRE : le plafond
+-- et le dessin doivent rester d'accord.
+--
+-- Outils comptait NEUF branches ; Lieux, Ressources, Vendeurs et Coffres sont
+-- partis dans le dossier « Système » (15 octobre 2026), les trois derniers
+-- sous « Interactions » (16 octobre). On ne compte donc plus un dossier : on
+-- verifie que AUCUN ne depasse ce que l'eventail dessine, et que le MJ voit
+-- chacune de ses branches (21 octobre 2026).
+attendu("l'éventail accepte neuf branches", LCM.UI.Radial.MAX_ENTREES >= 9, true)
 attendu("le neuvième bandeau est dessiné", __fichierExiste(
     "LesContesMalveillants/ressources/radial/grimoire-fan-9.tga"), true)
+local trop, cachees = {}, {}
+local function Parcourir(noeuds)
+    for _, n in ipairs(noeuds or {}) do
+        if n.enfants then
+            if #n.enfants > LCM.UI.Radial.MAX_ENTREES then trop[#trop + 1] = n.id end
+            -- Une branche qui a sa propre regle (« Niveau supérieur », visible
+            -- quand on peut monter) n'est pas due au MJ.
+            local dues = 0
+            for _, e in ipairs(n.enfants) do if type(e.visible) ~= "function" then dues = dues + 1 end end
+            if #LCM.UI.Menu.Visibles(n.enfants) < dues then cachees[#cachees + 1] = n.id end
+            Parcourir(n.enfants)
+        end
+    end
+end
+Parcourir(LCM.UI.Menu.STRUCTURE)
+attendu("aucun dossier ne dépasse l'éventail", table.concat(trop, ","), "")
 
-dire("== le MJ les voit toutes les neuf")
-local visibles = LCM.UI.Menu.Visibles(outils.enfants)
-attendu("neuf branches", #visibles, 9)
+dire("== le MJ voit toutes les branches")
+attendu("aucune branche cachée au MJ", table.concat(cachees, ","), "")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

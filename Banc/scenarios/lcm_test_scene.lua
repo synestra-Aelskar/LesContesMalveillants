@@ -75,7 +75,11 @@ dire("== combat et scene : un PNJ n'apparait qu'une fois")
 LCM.Combat.etat = { s = "x", mj = "Nytherah-Apertus", c = 1, t = 1, r = 1, rm = 3,
                     entrees = { { id = "pnj:loup", nom = "Loup", v = 3, pnj = true } } }
 _, pnj = A.Cibles()
-attendu("pas de doublon", #pnj, 2)
+-- En combat, on ne vise que ceux qui se battent : les PNJ de la scene restent
+-- hors de la liste (c5631ef, regles de combat, 14 octobre 2026). Le loup, qui
+-- est des deux, n'apparait qu'une fois — c'est ce qu'on verifie ici.
+attendu("pas de doublon", #pnj, 1)
+attendu("  le loup du combat", pnj[1] and pnj[1].id, "pnj:loup")
 LCM.Combat.etat = nil
 
 dire("== la scene arrive pendant qu'on choisit : la liste suit, sans decocher")

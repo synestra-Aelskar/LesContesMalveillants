@@ -42,6 +42,14 @@ local function Envoye(sujet, depuis)
     end
 end
 local function Combien(ref) return LCM.Prix.Avoir(moi, ref) end
+-- Une reponse de .gps a cette position, comme le guetteur de chat la noterait.
+-- Ouvrir ou ramasser exige une mesure recente des trois axes depuis le
+-- 17 octobre 2026 (Core/Coffres.lua) ; sans elle, le geste part demander le
+-- .gps et n'aboutit pas dans le banc (21 octobre 2026).
+local function Gps(x, y, z)
+    LCM.DeplacementForce.NoterGPS(string.format("Map: 585 (Magisters' Terrace) Zone: 0 ( <unknown> ), "
+        .. "Area: 0 ( <unknown> ), Phase: 158070, X: %.6f, Y: %.6f, Z: %.6f, O: 1.904451", x, y, z))
+end
 local function SeulSac()
     local id, sol = next(Sol.sacs)
     return id, sol
@@ -98,6 +106,11 @@ attendu("une copie perimee ne la reprend pas", Sol.sacs.solsyn.gardien, MOI)
 __deconnecter("Syn-Apertus", false)
 
 dire("== ramasser le sac en entier")
+-- Ouvrir exige une mesure .gps recente des trois axes depuis le 17 octobre
+-- 2026 (Core/Coffres.lua, Ouvrir) : sans elle, l'ouverture part demander le
+-- .gps et la fenetre n'existe pas encore. Le banc en joue une, la ou l'on se
+-- tient, comme lcm_test_coffres (21 octobre 2026).
+Gps(10, 10, 0)
 C.Ouvrir(id)
 local fenetre = LCM.UI.Coffre.frame
 attendu("le bouton est la", fenetre.ramasser:IsShown(), true)
@@ -188,6 +201,7 @@ attendu("  c'est un objet seul au sol", idObjet ~= nil and Sol.sacs[idObjet].lab
 __avancer(0.3)
 local bouton = LCM.UI.Coffre.bouton
 attendu("devant lui : « Ramasser », pas « Ouvrir »", bouton and bouton:IsShown() and bouton.titre:GetText(), "Ramasser")
+Gps(60, 60, 0)
 bouton:Click()
 attendu("un clic, et les 4 herbes reviennent", Combien(HERBE), herbesAvant)
 attendu("  le point a disparu", Sol.sacs[idObjet], nil)
@@ -198,8 +212,10 @@ LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = mjCharge
 attendu("on joue en MJ", LCM.IsMaster(), true)
 avant = #__envois
+-- Avec son altitude, comme tout sac lache (Sol.Lacher la releve) : le coffre
+-- qui le securise exige les trois axes depuis le 16 octobre 2026 (21 octobre 2026).
 Recevoir("Zed-Apertus", Sol.SUJETS.etat, { i = "solzed", n = "Sac de réserve de Zed", b = "sac_reserve", s = 6,
-    o = { { e = PIERRE, q = 2 } }, x = 30, y = 40, r = sol.position.source, k = sol.position.carte,
+    o = { { e = PIERRE, q = 2 } }, x = 30, y = 40, z = 0, r = sol.position.source, k = sol.position.carte,
     a = "Zed-Apertus", g = "Zed-Apertus", v = 1 })
 attendu("le fantome disparait", Sol.sacs.solzed, nil)
 attendu("  et on le dit au groupe", Envoye(Sol.SUJETS.retrait, avant) ~= nil, true)

@@ -1,3 +1,4 @@
+-- banc: --sans-mj
 -- Lancer avec --sans-mj : ni atelier, ni jeu d'equilibrage necessaire.
 __declencher("PLAYER_LOGIN")
 assert(not LCM.IsMaster())

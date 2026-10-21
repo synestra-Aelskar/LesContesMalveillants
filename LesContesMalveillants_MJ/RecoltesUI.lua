@@ -830,7 +830,9 @@ local function Construire()
         local r = t.recolte
         if not tostring(t.label or ""):match("%S") then return nil, "donne un nom au point de récolte." end
         local ressources = {}
-        if #(r.ressources or {}) == 0 then return nil, "choisis la ressource que le point donne." end
+        -- Index 0 : la page des ressources, sans ligne a ouvrir. Sans index,
+        -- l'erreur menait aux reglages communs, ou la liste n'est pas.
+        if #(r.ressources or {}) == 0 then return nil, "choisis la ressource que le point donne.", 0 end
         for index, lot in ipairs(r.ressources or {}) do
             if (lot.entree or "") == "" or not LCM.Compendium.Resoudre(lot.entree) then
                 return nil, "choisis la ressource que le point donne.", index
@@ -889,7 +891,7 @@ local function Construire()
         local recolte, raison, index = self:Valider()
         if not recolte then
             c.pages:Choisir(index and 1 or 2)
-            if index then
+            if index and index > 0 then
                 self.ressourceIndex = index
                 self.ressourceOuverte = index
                 self:AfficherRessources()
@@ -947,7 +949,7 @@ local function Construire()
     function f:EnregistrerPose()
         local recolte, raison, index = self:Valider()
         if not recolte then
-            if index then
+            if index and index > 0 then
                 self.ressourceIndex, self.ressourceOuverte = index, index
                 self:AfficherRessources()
             end

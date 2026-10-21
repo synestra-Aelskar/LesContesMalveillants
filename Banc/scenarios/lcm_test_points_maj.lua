@@ -112,7 +112,11 @@ end
 ok, raison = LCM.Brouillons.Enregistrer("points", Coffre("Coffre"), true)
 attendu("coffre enregistre", ok, true)
 if not ok then dire("raison :", tostring(raison)) end
-local idCoffre = LCM.CoffresMJ.Placer("coffre_maj")
+-- Pose a une position donnee : sans elle, Placer exige la position serveur
+-- (.gps, trois axes, depuis le 16 octobre 2026), que le banc ne donne pas.
+-- La pose echouait en silence, et la suite avec elle (21 octobre 2026).
+local idCoffre = LCM.CoffresMJ.Placer("coffre_maj", { x = 10, y = 20, z = 0,
+    source = "monde", carte = LCM.Recolte.Carte() })
 local SC = LCM.Coffres.SUJETS
 avant = #__envois
 LCM.Brouillons.Enregistrer("points", Coffre("Coffre ferré"), false)

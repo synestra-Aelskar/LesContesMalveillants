@@ -1,5 +1,9 @@
 -- Les points de recolte survivent a une reconnexion (13 octobre 2026).
 --
+-- Les points portent leur altitude (`z`) : la distance se mesure en 3D
+-- depuis le 16 octobre 2026, et un point sans `z` est introuvable, voulu.
+-- Sans elle, ce scenario ne voyait plus aucun bouton (21 octobre 2026).
+--
 -- Constate en jeu : un point pose, un crash, et au retour le point etait
 -- toujours dans le carnet de placement mais plus sur le terrain — pas de
 -- bouton « Recolter ». Les points poses etaient bien sauvegardes ; c'est leur
@@ -25,7 +29,7 @@ LCM.Brouillons.Set("points", {
     recolte = { entree = "ressources/eau_temoin", min = 1, max = 1, dd = 0, rayon = 3 },
 })
 LCM.EnsureDatabase()
-LCM.db.recoltes = { r_avant = { def = "puiser_temoin", x = 10, y = 20, source = "monde",
+LCM.db.recoltes = { r_avant = { def = "puiser_temoin", x = 10, y = 20, z = 0, source = "monde",
     carte = LCM.Recolte.Carte(), quand = 1 } }
 
 attendu("avant la connexion, la définition n'est pas chargée", LCM.Points.Get("puiser_temoin"), nil)

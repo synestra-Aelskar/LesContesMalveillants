@@ -38,14 +38,17 @@ attendu("rien d'enregistre par les refus", #V.list, avant)
 dire("== les fenetres du template")
 local ids = {}
 for _, v in ipairs(V.list) do ids[#ids + 1] = v.id end
-attendu("vues", table.concat(ids, ","), "regles,fiche,sante,equipement,apprentissage,expertise,penetrations_resistances,deplacement,statistiques")
+-- Plus de vue « deplacement » : elle est devenue sa propre fenetre
+-- (UI/DeplacementForce.lua, fd447b7, 15 octobre 2026).
+attendu("vues", table.concat(ids, ","), "regles,fiche,sante,equipement,apprentissage,expertise,penetrations_resistances,statistiques")
 local function onglets(id)
     local out = {}
     for _, o in ipairs(V.Get(id).onglets) do out[#out + 1] = o.label end
     return table.concat(out, ", ")
 end
 attendu("Sante", onglets("sante"), "Physique, États, Maladies, Intangible")
-attendu("Equipements", onglets("equipement"), "Armes, Armures, Accessoires")
+-- L'onglet « Outils » depuis les types d'outils (18 octobre 2026).
+attendu("Equipements", onglets("equipement"), "Armes, Armures, Accessoires, Outils")
 attendu("Expertises", onglets("expertise"), "Observations, Athlétisme, Filouterie")
 attendu("Pen & Res : resistances d'abord", onglets("penetrations_resistances"), "Résistances, Pénétrations")
 local n = 0
@@ -93,6 +96,13 @@ attendu("Esprit et Ame sur 100", table.concat(noms, ", "), "Esprit 100 / 100, Â
 attendu("et les etats intangibles (10)", intangible.blocs[2].occupation:GetText(), "0 / 10")
 
 dire("== Sante : Etats et Maladies")
+-- Les etats passent par un jeu d'equilibrage de la campagne depuis le 21
+-- octobre 2026 (« Equilibrage-Etats ») : le bareme BLOQUE, et l'etat temoin
+-- etait refuse en silence. Ce scenario teste la fenetre, pas la forge : on
+-- ecarte ces jeux de sa memoire, comme lcm_test_atelier.
+for rang = #LCM.Forge.list, 1, -1 do
+    if LCM.Forge.list[rang].categorie == "etats" then LCM.Forge.Retirer(LCM.Forge.list[rang].id) end
+end
 LCM.Brouillons.Enregistrer("etats", { id = "peste_d_essai", label = "Peste d'essai", categorie = "etat",
     description = "Le sang s'empoisonne.", bonus = { force = -10 } }, true)
 fs.barre.boutons[2]:Click()
@@ -109,8 +119,11 @@ attendu("affiche", conteneur.emplacements[1].nom:GetText(), "Peste d'essai")
 -- L'emplacement annonce d'abord l'ETAT de ce qu'il porte (sa durabilite),
 -- puis ses effets. La colonne ne disait que les effets avant que les objets
 -- aient une usure.
+-- La durabilite de depart est un chiffre d'equilibrage (etatObjet.base,
+-- forge.etatObjet, 10 -> 40) : on la lit la, pas en dur (21 octobre 2026).
+local etatBase = LCM.Equilibrage.forge.etatObjet.base
 attendu("ses effets", conteneur.emplacements[1].effets:GetText(),
-    "État 10 / 10  ·  Force -10")
+    string.format("État %d / %d  ·  Force -10", etatBase, etatBase))
 attendu("une nouvelle case libre apparait", conteneur.emplacements[2]:IsShown(), true)
 attendu("vide", conteneur.emplacements[2].nom:GetText(), "Emplacement")
 attendu("pas plus", conteneur.emplacements[3], nil)
@@ -174,10 +187,18 @@ for _, l in ipairs(fe.pages.athletisme.lignes) do if l.label:GetText() == "Escal
 -- Le TOTAL, bonus portes compris (5 octobre 2026).
 attendu("valeur totale", escalade.valeur:GetText(), "7")
 attendu("bonus de trait dans sa colonne", escalade.bonus:GetText(), "+3")
-attendu("case d'avantage", escalade.avantage:IsShown(), true)
-local nSorties = #__sorties
+-- L'avantage se choisit dans le panneau de jet, plus dans une petite case de
+-- la ligne (6c95453, 16 octobre 2026 ; voir lcm_test_fiche_traits).
+attendu("plus de petite case d'avantage", escalade.avantage:IsShown(), false)
 escalade.lancer:Click()
+attendu("l'avantage est dans le panneau de jet", escalade.saisieExpertise.avantage:IsShown(), true)
+-- Un jet d'expertise demande son DD avant de partir : « Jet » ouvre le
+-- panneau, « Lancer » y jette (6c95453). Il partait au premier clic.
+local nSorties = #__sorties
+escalade.saisieExpertise.dd:Saisir("10")
+escalade.saisieExpertise.lancer:Click()
 attendu("le jet part", #__sorties > nSorties, true)
+escalade.saisieExpertise:Hide()
 dire("   " .. __sansCouleur(__sorties[#__sorties]))
 attendu("pas a la meme place que Sante", select(4, fe:GetPoint(1)) ~= select(4, fs:GetPoint(1)), true)
 
@@ -230,13 +251,11 @@ local function entreesStats()
     end
     return out
 end
--- Dix-neuf depuis le chapitre « Mécanique de défense » (11 octobre 2026) :
--- on y investit, on doit pouvoir l'y relire.
-attendu("dix-neuf familles, pas un sous-chapitre de plus", #entreesStats(), 19)
+-- Les dix anciennes familles de combat ne figurent plus au sommaire.
+attendu("neuf familles visibles", #entreesStats(), 9)
 attendu("ouverte sur la premiere", fst.onglet, "statistiques")
 attendu("et le sommaire le dit", entreesStats()[1].marque, "ici")
--- Le libelle d'une famille de combat vient de sa section, pas d'une copie.
-attendu("libelle repris de la section", entreesStats()[8].label:GetText(), "Attaques & Défense")
+attendu("mécaniques après les expertises", entreesStats()[8].label:GetText(), "Mécanique de compétence")
 -- 4 octobre 2026 : la vue se taille a son contenu. Le sommaire prend ce que
 -- demande son plus long chapitre (« Mécanique de compétence » se lisait
 -- « Mécanique de comp… »), et la fenetre suit la page la plus exigeante au
@@ -277,10 +296,7 @@ attendu("un seul bloc par page", #fst.pages.statistiques.blocs, 1)
 attendu("qui ne se replie plus", stats.bascule, nil)
 attendu("ses lignes visibles", stats.lignes[1]:IsShown(), true)
 attendu("Force totale : 3 + 2 (objet)", stats.lignes[1].valeur:GetText(), "5")
-local attaques = famille("attaques_defense")
-attendu("cliquer une famille l'affiche", fst.onglet, "attaques_defense")
-attendu("et cache l'autre", fst.pages.statistiques:IsShown(), false)
-attendu("Force d'attaque : l'objet", attaques.lignes[1].valeur:GetText(), "3")
+attendu("ancienne famille de combat absente", fst.pages.attaques_defense, nil)
 local bonus = famille("bonus")
 attendu("Bonus : PA +1", bonus.lignes[1].valeur:GetText(), "+1")
 attendu("Bonus : Fatigue sans bonus", bonus.lignes[2].valeur:GetText(), "0")

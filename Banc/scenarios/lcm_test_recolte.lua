@@ -76,12 +76,23 @@ attendu("la collecte peut ranger l'objet", recuObjet, true)
 attendu("l'objet est dans l'inventaire", Combien(REF_OBJET), 1)
 
 -- Le dernier envoi d'un sujet, recolle et decode.
+-- Le dernier envoi d'un sujet, RECOLLE : depuis que chaque point porte ses
+-- reglages (`lignes`, 20 octobre 2026), une definition depasse 255 octets et
+-- part en plusieurs morceaux. Lire le premier seul rendait un paquet tronque,
+-- sans ses points.
 local function DernierEnvoi(sujet)
     for i = #__envois, 1, -1 do
         local e = __envois[i]
-        local corps = e.message:match("^%d+:%d+:%d+:(.*)$")
-        if corps and corps:sub(1, #sujet + 1) == sujet .. "|" then
-            return e, LCM.Reseau.Decoder(corps:sub(#sujet + 2))
+        local id, rang, total, corps = e.message:match("^(%d+):(%d+):(%d+):(.*)$")
+        if rang == "1" and corps:sub(1, #sujet + 1) == sujet .. "|" then
+            local morceaux = { corps }
+            for j = i + 1, #__envois do
+                local id2, rang2, total2, corps2 = __envois[j].message:match("^(%d+):(%d+):(%d+):(.*)$")
+                if id2 == id and total2 == total then morceaux[tonumber(rang2)] = corps2 end
+            end
+            if #morceaux == tonumber(total) then
+                return e, LCM.Reseau.Decoder(table.concat(morceaux):sub(#sujet + 2))
+            end
         end
     end
 end
@@ -107,6 +118,9 @@ attendu("pas de nom", c.erreur:GetText(), "donne un nom au point de récolte.")
 c.nom:Saisir("Miner du témoin")
 c.enregistrer:Click()
 attendu("pas de ressource", c.erreur:GetText(), "choisis la ressource que le point donne.")
+-- Et on est mene la ou on la choisit : la liste, page 1. L'erreur menait aux
+-- reglages communs, ou elle n'est pas (corrige le 21 octobre 2026).
+attendu("  sur la page des ressources", c.zoneRessources:IsVisible(), true)
 
 dire("== ressources et objets forgeables")
 -- Un point accepte les ressources et les objets, mais pas les sacs.
@@ -149,12 +163,21 @@ attendu("un PNJ, non", okPnj, false)
 attendu("  et on dit ce qu'on récolte", tostring(raisonPnj):find("sacs", 1, true) ~= nil, true)
 
 dire("== la ressource se glisse depuis le compendium")
+-- Un point donne une LISTE de ressources depuis le 20 octobre 2026
+-- (`recolte.ressources`, regle chacune a part), et non plus une seule
+-- `recolte.entree`. On repart d'une liste vide : le glissement va sur
+-- « + Ajouter un élément », seule case visible tant qu'aucune ligne n'est
+-- ouverte. Ce scenario cherchait encore l'ancien champ, et toutes ses
+-- verifications suivantes tombaient avec lui.
+f.travail.recolte.ressources = {}
+f:AfficherRessources()
 LCM.UI.Glisser.Commencer({ ref = REF, nom = "Minerai témoin", categorie = "ressources" })
 c.entree.__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
 c.entree.__survol = nil
-attendu("elle est retenue", f.travail.recolte.entree, REF)
+local lot1 = f.travail.recolte.ressources[1]
+attendu("elle est retenue", lot1 and lot1.entree, REF)
 attendu("  et la ligne la nomme", c.lignesRessources[1].nom:GetText(), "Minerai témoin")
 
 dire("== quantité aléatoire, métier, DD, rayon")
@@ -186,7 +209,9 @@ attendu("enregistré", c.erreur:GetText(), "")
 local def = f:Point()
 attendu("le point existe", def and def.label, "Miner du témoin")
 attendu("  nature ressource", def and def.nature, "ressource")
-attendu("  quantité 2 à 4", def and (def.recolte.min .. "-" .. def.recolte.max), "2-4")
+-- La quantite est celle de la ligne, plus celle du point.
+local lotEnregistre = def and def.recolte.ressources and def.recolte.ressources[1]
+attendu("  quantité 2 à 4", lotEnregistre and (lotEnregistre.min .. "-" .. lotEnregistre.max), "2-4")
 attendu("  métier", def and def.recolte.metier, "mineur")
 attendu("  DD", def and def.recolte.dd, 10)
 attendu("  rayon", def and def.recolte.rayon, 3)
@@ -205,6 +230,10 @@ p.poser:Click()
 __position(180, 260, 0)
 p.poser:Click()
 attendu("trois points posés", Rs.Compte(def.id), 3)
+-- Un point pose part TOUT ETEINT depuis le 20 octobre 2026 : le MJ allume ce
+-- que CE point donne (MJ/Recoltes.lua, Regler). Ce scenario recoltait aussitot
+-- pose ; on allume tout, comme le « Tout activer » du panneau.
+for _, pose in ipairs(Rs.Carnet(def.id)) do Rs.Allumer(pose.id) end
 -- « disponible(s) » : depuis les statuts (Créé / En attente / Récolté), le
 -- carnet garde aussi les points récoltés, et les compte à part.
 attendu("tous listés", p.compte:GetText(), "3 disponible(s)")
@@ -305,8 +334,10 @@ dire("== côté aventurier : les points d'un autre MJ")
 Recevoir("Syn-Apertus", R.SUJETS.definition, R.Paquet({
     id = "def_distante", label = "Cueillir", entree = REF, min = 1, max = 1,
     metier = nil, dd = 0, rayon = 4,
-}, { { id = "rd1", x = 500, y = 500, source = "monde", carte = R.Carte() },
-     { id = "rd2", x = 520, y = 500, source = "monde", carte = R.Carte() } }))
+-- Avec leur altitude : la distance se mesure en 3D depuis le 16 octobre 2026,
+-- et un point sans `z` est introuvable — voulu, sinon le survoler le trahit.
+}, { { id = "rd1", x = 500, y = 500, z = 0, source = "monde", carte = R.Carte() },
+     { id = "rd2", x = 520, y = 500, z = 0, source = "monde", carte = R.Carte() } }))
 attendu("deux points reçus", R.points.rd1 ~= nil and R.points.rd2 ~= nil, true)
 attendu("  leur auteur est retenu", R.definitions.def_distante.auteur, "Syn-Apertus")
 __position(503, 500, 0)
@@ -337,7 +368,13 @@ Recevoir("Syn-Apertus", R.SUJETS.definition, R.Paquet({
 }, { { id = "rg1", x = 0, y = 0, source = "gps", carte = R.Carte() } }))
 __position(0, 0, 0)
 __avancer(0.3)
-attendu("un point posé au .gps ne se mesure pas au monde", bouton:IsShown(), false)
+-- Sans mesure .gps fraiche, le bouton se montre sur la seule proximite
+-- HORIZONTALE (Recolte.ProcheHorizontal, comme les coffres), et la recolte
+-- exige ensuite le .gps des trois axes. Ce scenario attendait l'ancienne
+-- separation stricte des sources. A trancher par le MJ : ce bouton trahit un
+-- point qu'on survole, ce que la mesure en 3D voulait justement empecher.
+attendu("un point posé au .gps se propose à l'horizontale", bouton:IsShown(), true)
+attendu("  mais ne se mesure pas au monde", R.Proche() == R.points.rg1, false)
 
 dire("== supprimer la définition emporte ses points")
 f:Onglet("creation")

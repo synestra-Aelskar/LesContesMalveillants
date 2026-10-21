@@ -12,25 +12,36 @@ __declencher("PLAYER_LOGIN")
 local C = LCM.Compendium
 
 dire("== Aucun avertissement au chargement")
-local alertes = {}
+-- Une entree ECARTEE est un echec : du contenu disparait du jeu. Une ligne
+-- de contenu laissee de cote (un objet ou un outil supprime depuis, dans un
+-- coffre) est dite au MJ et ne fait rien tomber : on l'affiche sans la
+-- compter, elle tient au contenu qui vit, pas a l'addon (21 octobre 2026).
+local alertes, laissees = {}, {}
 for _, l in ipairs(__sorties) do
-    if l:find("inconnu") or l:find("refuse") then alertes[#alertes + 1] = l end
+    if l:find("laissé%(s%) de côté") then
+        laissees[#laissees + 1] = l
+    elseif l:find("inconnu") or l:find("refuse") or l:find("écartée") then
+        alertes[#alertes + 1] = l
+    end
 end
 attendu("pas d'alerte", #alertes, 0)
 for _, l in ipairs(alertes) do dire("     " .. l) end
+for _, l in ipairs(laissees) do dire("  (contenu) " .. l) end
 
 dire("== Les categories du template, dans son ordre")
 local ids = {}
 for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- Vingt-sept depuis « Type Accessoires » et le campement (« Tentes »,
--- « Accessoires de camping », 10 octobre 2026). C'est la STRUCTURE de
--- l'addon : elle se verifie en entier, contrairement au contenu qui vit.
-attendu("27 categories", #C.categories, 27)
+-- « Accessoires de camping », 10 octobre 2026). Trente depuis les livres
+-- lisibles (« Livres », 19 octobre) et les outils (« Outils » et leurs types,
+-- « Liste outils », 18 octobre). C'est la STRUCTURE de l'addon : elle se
+-- verifie en entier, contrairement au contenu qui vit.
+attendu("30 categories", #C.categories, 30)
 attendu("ordre", table.concat(ids, ","),
-    "Information,Type Armures,Type Accessoires,Liste Armes,Liste origine,Liste ressources,Liste métiers,"
-    .. "Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Armes,Armures,"
-    .. "Accessoires,Tentes,Accessoires de camping,Races,Traits,Etats,Maladies,Apprentissage,"
-    .. "Actions-MJ,TEMPLATE,PNJ")
+    "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste origine,Liste ressources,"
+    .. "Liste métiers,Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,"
+    .. "Armes,Armures,Accessoires,Livres,Outils,Tentes,Accessoires de camping,Races,Traits,Etats,"
+    .. "Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")
 local function N(id) return #C.Entrees(C.Get(id)) end
@@ -107,7 +118,12 @@ dire("== Sous-categories")
 local groupes = C.SousCategories(C.Get("ressources"))
 local etiquettes = {}
 for _, g in ipairs(groupes) do etiquettes[#etiquettes + 1] = g.label end
-attendu("types de ressources, tries", table.concat(etiquettes, ","), "Lingot,Liquide,Minerais,poisson,Sans valeur")
+-- Les types de ressources sont du CONTENU : le MJ en ajoute (Bandage, Baume...).
+-- On verifie l'ordre de ceux qu'on connait, pas la liste entiere.
+local connus = { Lingot = true, Liquide = true, Minerais = true, poisson = true, ["Sans valeur"] = true }
+local vus = {}
+for _, e in ipairs(etiquettes) do if connus[e] then vus[#vus + 1] = e end end
+attendu("types de ressources, tries", table.concat(vus, ","), "Lingot,Liquide,Minerais,poisson,Sans valeur")
 attendu("sans sous-categorie", C.SousCategories(C.Get("devises")), nil)
 local sansType = C.SousCategories(C.Get("traits"))
 attendu("les traits n'ont pas de sous-categorie inutile", sansType, nil)
@@ -446,8 +462,14 @@ attendu("le mode joueur est actif", LCM.ModeJoueur(), true)
 attendu("et il neutralise le MJ", LCM.IsMaster(), false)
 f:Show()
 attendu("le compendium est visible en mode joueur", f:IsShown(), true)
-f:ChoisirCategorie("traits")
+-- Les devises, pas les traits : un joueur ne voit que les traits auxquels il
+-- a acces, et la recherche « Oeil du rapace » posee plus haut filtrait encore
+-- la liste. Elle etait VIDE : la rangee 1, cachee, gardait les boutons de
+-- l'affichage MJ precedent, et « Dup » semblait encore la (21 octobre 2026).
+f.champRecherche:Saisir("")
+f:ChoisirCategorie("devises")
 f:Rafraichir()
+attendu("une rangée est affichée", f.rangees[1]:IsShown(), true)
 attendu("pas de Nouvelle entree", f.nouvelle:IsShown(), false)
 attendu("pas de mode edition", f.reglages:IsShown(), false)
 attendu("Voir reste", f.rangees[1].voir:IsShown(), true)

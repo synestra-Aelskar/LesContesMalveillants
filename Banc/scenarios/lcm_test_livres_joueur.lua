@@ -1,3 +1,4 @@
+-- banc: --sans-mj
 -- Reception d'un livre sans l'addon MJ installe.
 local function attendu(nom, obtenu, voulu)
     if tostring(obtenu) ~= tostring(voulu) then

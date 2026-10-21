@@ -186,6 +186,9 @@ attendu("la bourse n'a pas bouge", LCM.Bourse.Solde(moi, "ecus"), avantSolde)
 dire("== la fenetre des ressources")
 local f = LCM.UI.Points.Basculer("ressource")
 attendu("ouverte", f:IsShown(), true)
+-- Comme pour le vendeur plus bas : le MJ a publie des points de recolte depuis,
+-- et le premier de la liste n'est plus le filon. On le choisit (21 octobre 2026).
+f:Choisir("filon_cuivre")
 attendu("le point est choisi", f.pointId, "filon_cuivre")
 attendu("ses deux offres", f.nombreAffiche, 2)
 attendu("le stock s'affiche", f.offres[1].stock:GetText(), "1 / 3")

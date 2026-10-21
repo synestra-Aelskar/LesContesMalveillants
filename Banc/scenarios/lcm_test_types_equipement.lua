@@ -35,8 +35,12 @@ for _, id in ipairs({ "anneau", "pendentif", "bracelet", "bijou", "cape" }) do
     attendu("  " .. id, accessoires[id] ~= nil, true)
 end
 attendu("une cape, une seule", accessoires.cape and accessoires.cape.maxEquipe, 1)
-attendu("deux anneaux", accessoires.anneau and accessoires.anneau.maxEquipe, 2)
-attendu("un bijou, autant qu'on veut", accessoires.bijou and accessoires.bijou.maxEquipe, nil)
+-- Combien d'anneaux ou de bijoux, c'est le MJ qui le regle dans le
+-- compendium : du CONTENU, qui a deja bouge (anneau 2 -> 4, bijou illimite
+-- -> 4). On verifie que la limite existe et qu'on la respecte, pas sa valeur
+-- (21 octobre 2026).
+local maxAnneaux = accessoires.anneau and tonumber(accessoires.anneau.maxEquipe)
+attendu("les anneaux ont une limite", maxAnneaux ~= nil and maxAnneaux >= 1, true)
 
 -- Et la catégorie Accessoires du compendium pointe bien dessus.
 local categorie
@@ -70,11 +74,12 @@ attendu("et on dit pourquoi", tostring(raison):find("Cape") ~= nil, true)
 -- Le MEME objet deux fois bute sur la meme limite : c'est le type qui compte.
 attendu("deux fois la même cape non plus", (O.Placer(moi, "cape_grise")), false)
 
--- Deux anneaux, oui ; trois, non.
+-- Autant d'anneaux que la limite, pas un de plus.
 O.Add({ id = "anneau_simple", label = "Anneau simple", categorie = "accessoire", type = "anneau" })
-attendu("premier anneau", O.Placer(moi, "anneau_simple"), true)
-attendu("deuxième anneau", O.Placer(moi, "anneau_simple"), true)
-attendu("troisième refusé", (O.Placer(moi, "anneau_simple")), false)
+local acceptes = 0
+for _ = 1, maxAnneaux or 0 do if O.Placer(moi, "anneau_simple") then acceptes = acceptes + 1 end end
+attendu("autant d'anneaux que la limite", acceptes, maxAnneaux)
+attendu("un de plus est refusé", (O.Placer(moi, "anneau_simple")), false)
 
 -- Un type sans limite ne borne rien. On libere d'abord : un personnage n'a que
 -- cinq emplacements d'accessoire, et c'est la LIMITE DE TYPE qu'on teste ici,

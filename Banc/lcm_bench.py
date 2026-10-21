@@ -321,6 +321,8 @@ local function NouvelleRegion(kind, parent)
     function r:GetTextColor() local c = self.__textColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] or 1 end
     function r:SetJustifyH(v) self.__justifyH = v end
     function r:SetJustifyV(v) self.__justifyV = v end
+    function r:GetJustifyH() return self.__justifyH or "CENTER" end
+    function r:GetJustifyV() return self.__justifyV or "MIDDLE" end
     function r:SetFontObject() end
     function r:SetFont(chemin, taille, contour) self.__font = { chemin, taille, contour } end
     function r:GetFont() local f = self.__font or {} return f[1], f[2], f[3] end
@@ -331,6 +333,11 @@ local function NouvelleRegion(kind, parent)
     function r:SetAllPoints(other) self.__allPoints = other or self.parent end
     function r:SetTexCoord(...) self.__texCoord = {...} end
     function r:SetRotation(a) self.__rotation = a end
+    -- Les coins d'une texture deplaces un a un (le feuillet qui tourne, UI/LivresAnimation).
+    function r:SetVertexOffset(coin, x, y)
+        self.__vertexOffset = self.__vertexOffset or {}
+        self.__vertexOffset[coin] = { x, y }
+    end
     function r:GetRotation() return self.__rotation or 0 end
     function r:AddMaskTexture(m) self.__masks = self.__masks or {} self.__masks[#self.__masks + 1] = m end
     -- Centre a l'ecran, resolu par le PREMIER ancrage (relatif au parent par
@@ -485,6 +492,7 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetTextInsets() end
     -- Une EditBox se cadre et se colore comme un texte (UI.ChampCellule).
     function f:SetJustifyH(v) self.__justifyH = v end
+    function f:GetJustifyH() return self.__justifyH or "LEFT" end
     function f:SetTextColor(...) self.__textColor = {...} end
     function f:SetMultiLine() end
     function f:Saisir(texte)
@@ -627,6 +635,21 @@ local chats = {}
 _G.__chats = chats
 function SendChatMessage(texte, canal, langue, cible)
     chats[#chats + 1] = { texte = tostring(texte), canal = canal, cible = cible }
+end
+
+-- Les filtres de chat : `__filtreChat(evenement, message)` dit si un message
+-- recu serait RETIRE de l'affichage (un filtre a rendu vrai). Retire par
+-- megarde avec 6aae0fb ; lcm_test_gps_portee s'en sert (21 octobre 2026).
+local filtresChat = {}
+function ChatFrame_AddMessageEventFilter(evenement, fn)
+    filtresChat[evenement] = filtresChat[evenement] or {}
+    table.insert(filtresChat[evenement], fn)
+end
+function _G.__filtreChat(evenement, message)
+    for _, fn in ipairs(filtresChat[evenement] or {}) do
+        if fn(DEFAULT_CHAT_FRAME, evenement, message) then return true end
+    end
+    return false
 end
 
 local lienInsere
@@ -792,6 +815,20 @@ def charger(chemin_scenario):
     src = io.open(chemin_scenario, encoding='utf-8').read()
     err = lua.eval("""
         function(src, chemin)
+            -- Un scenario qui ANNONCE ses echecs (« n ECHEC(S) ») sans lever
+            -- d'erreur sortait avec 0 : on comptait les rouges sur le code de
+            -- retour et le banc paraissait bien plus vert qu'il ne l'etait.
+            -- On ecoute ce qu'il dit.
+            local imprimer = print
+            __echecsAnnonces = 0
+            print = function(...)
+                local morceaux = {}
+                for i = 1, select("#", ...) do morceaux[i] = tostring((select(i, ...))) end
+                if table.concat(morceaux, " "):find("ECHEC%(S%)") then
+                    __echecsAnnonces = __echecsAnnonces + 1
+                end
+                return imprimer(...)
+            end
             local f, e = loadstring(src, chemin)
             if not f then return "syntaxe : " .. tostring(e) end
             local ok, err = pcall(f)
@@ -812,5 +849,12 @@ if __name__ == '__main__':
     if not arguments:
         print('usage: lcm_bench.py <scenario.lua> [--addons <dossier AddOns>]')
         sys.exit(2)
+    # Un scenario qui ne vaut que chez un joueur le dit en tete
+    # (« -- banc: --sans-mj ») : lance avec le compagnon, il echouait sans
+    # rien prouver, et passait pour un rouge.
+    with io.open(arguments[0], encoding='utf-8') as tete:
+        if any('banc: --sans-mj' in ligne for _, ligne in zip(range(10), tete)):
+            sys.argv.append('--sans-mj')
     print('AddOns : ' + ROOT + ('   (sans le compagnon MJ)' if '--sans-mj' in sys.argv else ''))
-    sys.exit(0 if charger(arguments[0]) is not None else 1)
+    lua = charger(arguments[0])
+    sys.exit(0 if lua is not None and not lua.globals().__echecsAnnonces else 1)

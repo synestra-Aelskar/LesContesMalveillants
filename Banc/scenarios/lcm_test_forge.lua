@@ -390,7 +390,14 @@ q.pageJeu.nom:Saisir("Création d'armure")
 q.onglets.boutons[2]:Click()
 local avant = 0
 for _, b in ipairs(q.pageChamps.dossiers) do if b:IsShown() then avant = avant + 1 end end
-attendu("dossiers visibles sans categorie", avant > 10, true)
+-- Autant de dossiers que la forge en declare, plutot qu'un nombre : « plus
+-- de dix » est tombe a dix exactement quand les anciennes familles de combat
+-- ont ete retirees (16 octobre 2026), sans que rien ne casse (21 octobre 2026).
+local declares, vusDossier = 0, {}
+for _, champ in ipairs(LCM.Forge.Champs(nil)) do
+    if not vusDossier[champ.dossier] then vusDossier[champ.dossier] = true declares = declares + 1 end
+end
+attendu("dossiers visibles sans categorie", avant > 0 and avant == declares, true)
 q.onglets.boutons[1]:Click()
 q.enregistrer:Click()
 contient("sans categorie : refuse", q.statut:GetText(), "choisis la categorie")

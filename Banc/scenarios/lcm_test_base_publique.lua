@@ -2,6 +2,10 @@
 __declencher("PLAYER_LOGIN")
 __personnage()
 LCM._masterCompanion = false
+-- Le compagnon MJ CHARGE suffit a faire un MJ (LCM.IsMaster lit sa presence) :
+-- il faut aussi le retirer, comme lcm_test_sac_au_sol. Sans ca, le joueur
+-- simule restait MJ et ignorait la liste du MJ (21 octobre 2026).
+__addonsCharges["LesContesMalveillants_MJ"] = nil
 
 local function attendu(ok, texte)
     if not ok then error(texte) end

@@ -206,12 +206,15 @@ envoi, paquet = DernierEnvoi(S.accuse, avant)
 attendu("on accuse réception", envoi and envoi.cible, "Claydenn-Apertus")
 attendu("  de tout ce qu'il a cité", paquet and paquet.l, "etal_temoin/herbe:5,inconnu/x:1")
 
+-- L'etal distant porte son altitude : la distance se mesure en 3D depuis le
+-- 16 octobre 2026, et un point sans `z` est introuvable, voulu. Sans elle,
+-- aucun bouton « Commercer » ne paraissait (21 octobre 2026).
 dire("== côté joueur : le marchand d'un autre MJ")
 Recevoir("Syn-Apertus", S.definition, M.Paquet({
     id = "etal_syn", label = "Échoppe", offres = {
         { id = "herbe", entree = HERBE, quantite = 1, prix = 1, devise = "piece_temoin", limite = 5, restant = 5 },
     }, rachats = {},
-}, { { id = "ms1", x = 300, y = 300, source = "monde", carte = LCM.Recolte.Carte() } }))
+}, { { id = "ms1", x = 300, y = 300, z = 0, source = "monde", carte = LCM.Recolte.Carte() } }))
 attendu("reçu", M.definitions.etal_syn and M.definitions.etal_syn.auteur, "Syn-Apertus")
 attendu("  gardé dans la sauvegarde", LCM.db.marche.definitions.etal_syn ~= nil, true)
 __position(301, 300, 0)
@@ -249,7 +252,7 @@ Recevoir("Syn-Apertus", S.definition, M.Paquet({
     id = "etal_syn", label = "Échoppe", offres = {
         { id = "herbe", entree = HERBE, quantite = 1, prix = 1, devise = "piece_temoin", limite = 5, restant = 4 },
     }, rachats = {},
-}, { { id = "ms1", x = 300, y = 300, source = "monde", carte = LCM.Recolte.Carte() } }))
+}, { { id = "ms1", x = 300, y = 300, z = 0, source = "monde", carte = LCM.Recolte.Carte() } }))
 envoi, paquet = DernierEnvoi(S.signaler, avant)
 attendu("signalé à son MJ", envoi and envoi.cible, "Syn-Apertus")
 attendu("  l'achat et son nombre", paquet and paquet.l, "etal_syn/herbe:1")

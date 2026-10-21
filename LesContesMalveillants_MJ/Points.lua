@@ -110,17 +110,34 @@ LCM.Points = LCM.Registre({
                     usureOutils = methode.usureOutils == true,
                     reverrouillable = methode.reverrouillable == true }
             end
+            -- Meme regle que les objets : un outil (ou un type d'outil) SUPPRIME
+            -- laisse sa ligne de cote, on le dit, et le coffre reste. « Cassier
+            -- fermé. » disparaissait du jeu parce que l'un de ses deux types
+            -- d'outil n'existait plus (21 octobre 2026). Une ligne MAL FORMEE,
+            -- elle, reste une erreur : ce n'est pas du contenu qui a bouge.
+            local outilsLaisses = {}
             for _, outil in ipairs(type(c.outils) == "table" and c.outils or {}) do
                 local ref = tostring(outil.entree or "")
                 local typeOutil = tostring(outil.typeOutil or "")
                 local expertise = tostring(outil.expertise or "")
+                local inconnu
                 if typeOutil ~= "" then
-                    local liste = LCM.Listes.Get(typeOutil)
-                    if ref ~= "" or not liste or liste.liste ~= "outils" then
-                        Erreur(element.id .. " : type d'outil de verrou inconnu (" .. typeOutil .. ")")
+                    if ref ~= "" then
+                        Erreur(element.id .. " : un outil de verrou est un objet OU un type, pas les deux ("
+                            .. ref .. ", " .. typeOutil .. ")")
                     end
+                    -- Absent : supprime depuis, on le laisse de cote. Present
+                    -- mais d'une AUTRE liste : une saisie fausse, refusee.
+                    local liste = LCM.Listes.Get(typeOutil)
+                    if not liste then
+                        inconnu = typeOutil
+                    elseif liste.liste ~= "outils" then
+                        Erreur(element.id .. " : « " .. typeOutil .. " » n'est pas un type d'outil")
+                    end
+                elseif ref == "" then
+                    Erreur(element.id .. " : outil de verrou sans objet ni type")
                 elseif not ref:match("^objets/") or not LCM.Compendium.Resoudre(ref) then
-                    Erreur(element.id .. " : outil de verrou inconnu (" .. ref .. ")")
+                    inconnu = ref
                 end
                 if expertise ~= "" then
                     local connue = false
@@ -131,12 +148,24 @@ LCM.Points = LCM.Registre({
                         Erreur(element.id .. " : expertise d'outil inconnue (" .. expertise .. ")")
                     end
                 end
-                coffre.outils[#coffre.outils + 1] = { entree = ref ~= "" and ref or nil,
-                    typeOutil = typeOutil ~= "" and typeOutil or nil,
-                    quantite = math.max(1, math.floor(tonumber(outil.quantite) or 1)),
-                    consomme = outil.consomme == true,
-                    consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)),
-                    expertise = expertise ~= "" and expertise or nil }
+                if inconnu then
+                    outilsLaisses[#outilsLaisses + 1] = inconnu
+                else
+                    coffre.outils[#coffre.outils + 1] = { entree = ref ~= "" and ref or nil,
+                        typeOutil = typeOutil ~= "" and typeOutil or nil,
+                        quantite = math.max(1, math.floor(tonumber(outil.quantite) or 1)),
+                        consomme = outil.consomme == true,
+                        consommeQuantite = math.max(1, math.floor(tonumber(outil.consommeQuantite) or 1)),
+                        expertise = expertise ~= "" and expertise or nil }
+                end
+            end
+            if #outilsLaisses > 0 then
+                local message = string.format("coffre « %s » : %d outil(s) de verrou inconnu(s) laissé(s) de côté (%s).",
+                    tostring(definition.label or element.id), #outilsLaisses, table.concat(outilsLaisses, ", "))
+                if not ObjetsLaisses[message] then
+                    ObjetsLaisses[message] = true
+                    LCM.Alerte(message)
+                end
             end
             if coffre.verrous > 0 and #coffre.expertises == 0 then
                 Erreur(element.id .. " : un coffre verrouillé doit définir au moins une expertise pour l'ouvrir")

@@ -163,7 +163,10 @@ local distante = { id = "distant_multiple", label = "Gisement distant",
         { entree = "ressources/fer_multiple", min = 1, max = 1, chance = 100 },
         { entree = "ressources/caillou_multiple", min = 2, max = 2, chance = 100 },
     } }
-R.Connaitre(distante, { { id = "rem_multi", x = 400, y = 500,
+-- Avec son altitude : la distance se mesure en 3D depuis le 16 octobre 2026.
+-- Sans `z`, la prise partait d'abord demander un .gps, et la reponse du MJ
+-- arrivait sans demande en attente (21 octobre 2026).
+R.Connaitre(distante, { { id = "rem_multi", x = 400, y = 500, z = 0,
     carte = R.Carte(), source = "monde" } }, "Syn-Apertus")
 __position(400, 500, 0)
 attendu("prise distante demandée", R.Tenter("rem_multi"), true)

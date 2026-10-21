@@ -1,3 +1,4 @@
+-- banc: --sans-mj
 -- Interface aventurier des coffres, sans l'addon MJ.
 
 local function dire(...) print(table.concat({ ... }, " ")) end

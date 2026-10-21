@@ -29,13 +29,14 @@ local B = LCM.Brouillons
 -- Il travaille donc sur des familles SANS jeu d'equilibrage — sinon le
 -- bareme refuse tout ce qu'il ecrit, et « + Bonus » ouvre la Forge a la place
 -- de la liste de choix. La campagne en publie maintenant pour les traits, les
--- races, les armes et les armures : on les ecarte de CE banc, en memoire
--- seulement, pour que le scenario puisse encore raconter son histoire.
+-- races, les armes et les armures — et les etats (« Equilibrage-Etats »,
+-- 21 octobre 2026) : on les ecarte de CE banc, en memoire seulement, pour que
+-- le scenario puisse encore raconter son histoire.
 for rang = #LCM.Forge.list, 1, -1 do
     local jeu = LCM.Forge.list[rang]
     local vise = jeu.categorie
     if vise == "traits" or vise == "races" or vise == "armes" or vise == "armures"
-        or vise == "accessoires" then
+        or vise == "accessoires" or vise == "etats" then
         LCM.Forge.Retirer(jeu.id)
     end
 end
@@ -342,7 +343,9 @@ attendu("sans categorie : refus explique", (f.message:GetText() or ""):find("cat
 po.categorie:Click()
 local cats = {}
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() then cats[#cats + 1] = b.choix end end
-attendu("trois categories proposees", table.concat(cats, ","), "arme,equipement,accessoire")
+-- Quatre depuis les outils (types d'outils, 18 octobre 2026) : c'est de la
+-- structure, elle se verifie en entier.
+attendu("quatre categories proposees", table.concat(cats, ","), "arme,equipement,accessoire,outil")
 for _, b in ipairs(f.choix.lignes) do if b:IsShown() and b.choix == "accessoire" then b:Click() end end
 attendu("categorie affichee", po.categorie.label:GetText(), "Accessoire")
 po.ajoutBonus:Click()

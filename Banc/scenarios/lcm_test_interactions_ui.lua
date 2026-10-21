@@ -64,10 +64,21 @@ for _, cas in ipairs({ { UI.CoffresMJ, "coffre_temoin" }, { UI.Recoltes, "filon_
     f.confirmation.non:Click()
     attendu("annuler conserve la saisie", f.travail.label, "Brouillon conserve")
     f:Onglet("placement")
-    attendu("pas de placement d'une ancienne version", f.placement.poser:IsEnabled(), false)
+    -- Deux facons de ne jamais poser une ancienne version : griser le bouton
+    -- (les points de recolte), ou ENREGISTRER avant de poser (les coffres,
+    -- depuis 6c95453, 16 octobre 2026). Ce scenario n'attendait que la
+    -- premiere ; on verifie maintenant le resultat, quel que soit le chemin.
+    if f.placement.poser:IsEnabled() then
+        f.placement.poser:Click()
+        attendu("placer enregistre d'abord : pas d'ancienne version", f:Modifie(), false)
+        attendu("  le modele porte la saisie", f:Point() and f:Point().label, "Brouillon conserve")
+    else
+        attendu("pas de placement d'une ancienne version", f.placement.poser:IsEnabled(), false)
+    end
     f:Onglet("creation")
     f.nouveau:Click()
-    f.confirmation.oui:Click()
+    -- Rien a perdre apres un enregistrement : pas de question.
+    if f.confirmation:IsShown() then f.confirmation.oui:Click() end
     attendu("confirmer cree un modele vierge", f.travail.label, "")
     attendu("hauteur constante", f:GetHeight(), 640)
     attendu("habillage compact", f.decor, nil)

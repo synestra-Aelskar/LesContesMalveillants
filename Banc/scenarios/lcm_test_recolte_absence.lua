@@ -1,5 +1,9 @@
 -- Recolter quand le MJ n'est pas la (13 octobre 2026).
 --
+-- Les points portent leur altitude (`z`) : la distance se mesure en 3D
+-- depuis le 16 octobre 2026, et un point sans `z` est introuvable, voulu.
+-- Sans elle, ce scenario ne voyait plus aucun bouton (21 octobre 2026).
+--
 -- Trois statuts : CREE (pose), EN ATTENTE (recolte par un joueur pendant que
 -- son MJ etait absent : il a sa part, le point a disparu chez lui), RECOLTE
 -- (le MJ l'a note et ne le renvoie plus). Le joueur garde ce qu'il sait dans
@@ -30,15 +34,15 @@ LCM.Brouillons.Set("points", {
     recolte = { entree = REF, min = 1, max = 1, dd = 0, rayon = 3 },
 })
 LCM.EnsureDatabase()
-LCM.db.recoltes = { r1 = { def = "puiser_mj", x = 900, y = 900, source = "monde", carte = CARTE, quand = 1 } }
+LCM.db.recoltes = { r1 = { def = "puiser_mj", x = 900, y = 900, z = 0, source = "monde", carte = CARTE, quand = 1 } }
 -- Ce que le joueur savait en se deconnectant : les points d'un autre MJ, et un
 -- point deja recolte sans lui, pas encore signale.
 LCM.db.recolte = {
     definitions = { def_syn = { id = "def_syn", label = "Cueillir", entree = REF, min = 2, max = 2,
         dd = 0, rayon = 4, auteur = "Syn-Apertus" } },
     points = {
-        p1 = { id = "p1", def = "def_syn", x = 0, y = 0, source = "monde", carte = CARTE },
-        p2 = { id = "p2", def = "def_syn", x = 50, y = 0, source = "monde", carte = CARTE },
+        p1 = { id = "p1", def = "def_syn", x = 0, y = 0, z = 0, source = "monde", carte = CARTE },
+        p2 = { id = "p2", def = "def_syn", x = 50, y = 0, z = 0, source = "monde", carte = CARTE },
     },
     attente = { p0 = { a = "Syn-Apertus", d = "def_syn", q = 1, t = 1 } },
 }
@@ -110,8 +114,8 @@ UnitIsConnected = nil
 avant = #__envois
 -- Il ne sait encore rien : il renvoie p1 avec p2.
 Recevoir("Syn-Apertus", R.SUJETS.definition, R.Paquet(R.definitions.def_syn, {
-    { id = "p1", x = 0, y = 0, source = "monde", carte = CARTE },
-    { id = "p2", x = 50, y = 0, source = "monde", carte = CARTE },
+    { id = "p1", x = 0, y = 0, z = 0, source = "monde", carte = CARTE },
+    { id = "p2", x = 50, y = 0, z = 0, source = "monde", carte = CARTE },
 }))
 attendu("p1 n'est pas recréé", R.points.p1, nil)
 attendu("p2 est toujours là", R.points.p2 ~= nil, true)

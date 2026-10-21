@@ -51,7 +51,10 @@ dire("== hors des races, une baisse ne rend que la moitié")
 local champArme = PremiereStat("armes")
 attendu("on a trouvé une statistique d'arme", champArme ~= nil, true)
 if champArme then
-    local bilan = F.Bilan(Jeu("armes"), "commune", { [champArme.cle] = -4 }, 1, 10)
+    -- L'etat de l'objet a SA base (nil) : il entre aussi dans le bilan d'une
+    -- arme, et le 10 code ici etait l'ancienne base. Depuis qu'elle vaut 40,
+    -- l'ecart de -30 ajoutait 1,25 au credit (21 octobre 2026).
+    local bilan = F.Bilan(Jeu("armes"), "commune", { [champArme.cle] = -4 }, 1, nil)
     -- Quatre points sous la base, un point coute 1 : la depense brute est de
     -- 4, et le credit retenu la moitie.
     attendu("le crédit est la moitié de la baisse", bilan.credit, 2)

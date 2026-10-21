@@ -91,14 +91,19 @@ Conventions des scénarios : une fonction `attendu(libellé, obtenu, voulu)`, de
 sections annoncées par `dire("== …")`, et une dernière ligne `TOUT PASSE` ou
 `n ECHEC(S)`. Copie n'importe lequel de `Banc/scenarios/` pour démarrer.
 
-### ⚠️ Le code de retour ment
+### Le code de retour dit vrai (depuis le 21 octobre 2026)
 
-**Plusieurs scénarios annoncent `n ECHEC(S)` et sortent quand même avec 0.**
-Si tu comptes les rouges sur `$LASTEXITCODE` ou `errorlevel`, tu verras un banc
-bien plus vert qu'il ne l'est. Ça a coûté plusieurs comptes rendus faux le
-9 octobre 2026.
+Pendant longtemps, des scénarios annonçaient `n ECHEC(S)` et sortaient quand
+même avec 0 — ça a coûté plusieurs comptes rendus faux le 9 octobre 2026. Le
+banc écoute maintenant ce que le scénario **dit** : une ligne `ECHEC(S)` fait
+sortir avec 1. Le texte et le code de retour concordent ; si un jour ils se
+contredisent, crois le texte et répare le banc.
 
-Compte sur le **texte**. En PowerShell :
+Un scénario qui ne vaut que **chez un joueur** l'écrit dans ses dix premières
+lignes : `-- banc: --sans-mj`. Le banc le lance alors sans le compagnon MJ.
+Lancé avec, il échouait sans rien prouver et passait pour un rouge.
+
+Pour tout passer en revue, en PowerShell :
 
 ```powershell
 Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
@@ -107,8 +112,29 @@ Get-ChildItem scenarios -Filter "lcm_test_*.lua" | ForEach-Object {
 }
 ```
 
-Si tu touches au banc, fais plutôt en sorte que chaque scénario propage son
-code de retour — ce serait le vrai correctif.
+### L'état au 21 octobre 2026 : 126 verts, 0 rouge
+
+Il était retombé à 34 rouges (sur 122). Presque tous étaient des attentes
+périmées. Trois causes reviennent, à connaître :
+
+* **Un commit qui réécrase des tests avec une vieille copie.** `6aae0fb` a
+  remis sept scénarios (`dot`, `actions`, `buff`, `creation`,
+  `creation_ecran`, `fiche_traits`, `objets`, plus la moitié de `vues`) dans
+  leur état d'AVANT le correctif de leur auteur, supprimé cinq scénarios et
+  retiré `__filtreChat` du banc. Avant de « rebaser » un rouge, regarde si une
+  version plus récente du test existe dans l'historique et passe : c'était
+  le cas pour tous ceux-là. (`gps_portee` est resté supprimé : le `.gps` de
+  fond qu'il vérifiait n'existe plus.)
+* **La distance en 3D.** Depuis le 16 octobre, un point (coffre, récolte, étal,
+  sac) sans `z` est introuvable — c'est voulu. Un point d'essai doit porter
+  son altitude, et ouvrir un coffre exige une mesure `.gps` récente : le banc
+  en joue une avec `LCM.DeplacementForce.NoterGPS(...)`.
+* **Le contenu qui vit**, encore : jeux d'équilibrage des états, limites
+  d'anneaux, base d'état d'objet (10 → 40), ordre des points publiés.
+
+Deux vrais bugs s'y cachaient : un point de récolte sans ressource renvoyait
+le MJ sur la mauvaise page, et un coffre dont UN type d'outil avait été
+supprimé disparaissait du jeu (« Cassier fermé. »).
 
 ### L'état au 12 octobre 2026 : 73 verts, 0 rouge
 

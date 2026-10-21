@@ -74,7 +74,11 @@ local jumeau = fc:Point()
 attendu("la copie est sélectionnée", jumeau and jumeau.label, "Coffre jumeau")
 attendu("  avec ses quatre emplacements", jumeau and jumeau.coffre.places, 4)
 attendu("l'original est intact", Points.Get("coffre_temoin").label, "Coffre témoin")
-LCM.CoffresMJ.Placer("coffre_temoin")
+-- Pose a une position donnee : sans elle, Placer exige la position serveur
+-- (.gps, trois axes, depuis le 16 octobre 2026), que le banc ne donne pas.
+-- La pose echouait en silence, et la suite avec elle (21 octobre 2026).
+LCM.CoffresMJ.Placer("coffre_temoin", { x = 10, y = 20, z = 0, source = "monde",
+    carte = LCM.Recolte.Carte() })
 fc:Choisir("coffre_temoin")
 fc.dupliquer:Click()
 fc.nom:Saisir("Coffre triple")
