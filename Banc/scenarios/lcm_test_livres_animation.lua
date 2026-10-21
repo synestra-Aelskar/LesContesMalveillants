@@ -60,7 +60,11 @@ definition.modele = nil
 assert(LCM.Livres.Construire(definition).modele == "necronicon", "anciens livres conservent le Necronicon")
 LCM.LivresUI.Editer(definition)
 assert(LCM.LivresUI.frame.travail.modele == "necronicon", "edition ancienne conserve le Necronicon")
+-- Une vraie liste deroulante : on l'ouvre, on y choisit la chronique.
 LCM.LivresUI.frame.modele:Click()
+for _, ligne in ipairs(LCM.UI.listeDeroulante.lignes) do
+    if ligne:IsShown() and ligne.choix == "chronique" then ligne:Click() end
+end
 assert(LCM.LivresUI.frame.travail.modele == "chronique", "les autres reliures restent accessibles")
 definition.modele = "necronicon"
 local paquet = LCM.Reseau.Decoder(LCM.Reseau.Encoder(definition))

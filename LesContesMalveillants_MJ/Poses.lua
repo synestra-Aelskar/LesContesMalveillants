@@ -204,26 +204,27 @@ function Poses.Poseurs(nature, miens)
     return noms
 end
 
--- Le bouton qui choisit ce que la liste montre. Un clic passe au suivant :
--- les miens, tous, puis chaque personnage. `poseurs()` rend les noms connus.
+-- La liste deroulante qui choisit ce que la liste montre : les miens, tous,
+-- ou ceux d'un personnage. `poseurs()` rend les noms connus.
 function Poses.Selecteur(parent, f, poseurs, changer)
     f.filtrePoses = f.filtrePoses or "mien"
-    local b = LCM.UI.Bouton(parent, "", 230, 22, function()
-        local choix = { "mien", "tous" }
+    local b = LCM.UI.Deroulant(parent, 230, 22, function()
+        local options = { { id = "mien", label = "Placements : les miens" },
+                          { id = "tous", label = "Placements : tous" } }
         for _, nom in ipairs(poseurs()) do
-            if nom ~= Poses.Court(LCM.PlayerId()) then choix[#choix + 1] = nom end
+            if nom ~= Poses.Court(LCM.PlayerId()) then
+                options[#options + 1] = { id = nom, label = "Placements : posés par " .. nom }
+            end
         end
-        local suivant = choix[1]
-        for i, c in ipairs(choix) do
-            if c == f.filtrePoses then suivant = choix[i % #choix + 1] end
-        end
-        f.filtrePoses = suivant
+        return options
+    end, function(id)
+        f.filtrePoses = id
         changer()
     end)
     function b:Actualiser()
         local filtre = f.filtrePoses
-        self.label:SetText("Placements : " .. (filtre == "mien" and "les miens"
-            or filtre == "tous" and "tous" or ("posés par " .. filtre)) .. "  ›")
+        self:Definir(filtre, "Placements : " .. (filtre == "mien" and "les miens"
+            or filtre == "tous" and "tous" or ("posés par " .. filtre)))
     end
     LCM.UI.Bulle(b, "Qui a posé quoi",
         "Ta liste ne montre que ce que tu as posé. Clique pour voir ceux des autres : "

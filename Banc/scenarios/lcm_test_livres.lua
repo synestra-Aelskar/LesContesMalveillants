@@ -30,8 +30,25 @@ if f then
     f.texte.saisie:Saisir("Verso témoin")
     attendu("note sur deux faces", #f.travail.pages, 2)
     f.livre:Click()
+    -- Une vraie liste deroulante (21 octobre 2026) : on l'ouvre, on choisit.
     f.modele:Click()
+    local liste = LCM.UI.listeDeroulante
+    local options, marquee, astral = 0, nil, nil
+    for _, ligne in ipairs(liste.lignes) do
+        if ligne:IsShown() then
+            options = options + 1
+            if ligne.choix == f.travail.modele then marquee = ligne end
+            if ligne.choix == "astral" then astral = ligne end
+        end
+    end
+    attendu("la liste des reliures s'ouvre", liste:IsShown(), true)
+    attendu("  avec les quatre modèles", options, #LCM.Livres.Modeles)
+    attendu("  sous le bouton", select(2, liste:GetPoint(1)) == f.modele, true)
+    attendu("  la reliure en cours y est marquée", marquee ~= nil, true)
+    if astral then astral:Click() end
     attendu("choix de reliure", f.travail.modele, "astral")
+    attendu("  la liste se referme", liste:IsShown(), false)
+    attendu("  le bouton la nomme", f.modele.label:GetText(), "Atlas · cuir bleu")
     f.ajouter:Click()
     attendu("ajout d'une page de livre", #f.travail.pages, 3)
     f.fond:Saisir("EEDDCC")

@@ -57,15 +57,16 @@ local function Construire()
     end)
     f.livre:SetPoint("LEFT", f.note, "RIGHT", 8, 0)
 
-    f.modele = UI.Bouton(c, "", 380, 24, function()
-        local modeles = LCM.Livres.Modeles
-        local actuel = f.travail.modele or LCM.Livres.MODELE_DEFAUT
-        for i, modele in ipairs(modeles) do
-            if modele.id == actuel then
-                f.travail.modele = modeles[i % #modeles + 1].id
-                break
-            end
+    -- Une liste deroulante : un bouton qui tournait d'un modele au suivant
+    -- obligeait a tous les parcourir (21 octobre 2026).
+    f.modele = UI.Deroulant(c, 380, 24, function()
+        local options = {}
+        for _, modele in ipairs(LCM.Livres.Modeles) do
+            options[#options + 1] = { id = modele.id, label = modele.label }
         end
+        return options
+    end, function(id)
+        f.travail.modele = id
         f:AfficherStyle()
     end)
     f.modele:SetPoint("TOPRIGHT", c, "TOPRIGHT", -30, -45)
@@ -181,8 +182,7 @@ local function Construire()
 
     function f:AfficherStyle()
         local s = self.travail.style
-        local modele = LCM.Livres.Modele(self.travail.modele or LCM.Livres.MODELE_DEFAUT)
-        self.modele.label:SetText((modele and modele.label or "Chronique · cuir brun") .. "  ›")
+        self.modele:Definir(self.travail.modele or LCM.Livres.MODELE_DEFAUT)
         self.modele:SetShown(self.travail.format == "livre")
         self.fond:SetText(s.fond)
         self.encre:SetText(s.encre)
