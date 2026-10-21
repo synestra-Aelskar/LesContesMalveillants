@@ -17,6 +17,7 @@ local function Magasin()
     LCM.db.coffresMJ = type(LCM.db.coffresMJ) == "table" and LCM.db.coffresMJ or {}
     return LCM.db.coffresMJ
 end
+local function Moi() return LCM.PlayerId() end
 local compteur = 0
 local function Identifiant()
     compteur = compteur + 1
@@ -61,6 +62,202 @@ local function Envoyer(expediteur, p, ok, extra)
         if C.onReponse then LCM.Proteger("coffre (réponse)", C.onReponse, expediteur, data) end
     else
         LCM.Reseau.Envoyer(S.etat, data, "WHISPER", expediteur)
+    end
+end
+
+-- ===== La garde =============================================================
+-- Le contenu d'un coffre vit chez le MJ qui l'arbitre. Absent, plus personne
+-- ne l'ouvrait, et ce qu'il contenait n'existait que dans SA sauvegarde. Les
+-- MJ se tiennent donc une COPIE de garde des coffres des autres, a jour a
+-- chaque geste ; et quand l'arbitre se tait, un autre reprend la garde avec
+-- le contenu tel qu'il etait (le MJ, 21 octobre 2026). Meme idee que le
+-- gardien d'un sac au sol (Core/SacsAuSol.lua).
+--
+-- Chaque coffre pose porte son arbitre (`auteur`), une `epoque` qui monte a
+-- chaque reprise de garde, et une `version` qui monte a chaque geste. L'epoque
+-- passe d'abord : un MJ qui revient avec sa vieille copie, et y touche avant
+-- d'avoir appris la reprise, ne peut pas l'emporter sur elle.
+--
+-- Un coffre retire laisse une TOMBE (epoque, version) : sans elle, une copie
+-- de garde reprise plus tard ferait revenir un coffre qu'on avait enleve.
+local G = { copie = "cofg", retrait = "cofg-", pouls = "cofg~" }
+Coffres.GARDE = G
+-- Un battement toutes les POULS secondes ; muet depuis ABSENCE, un MJ est
+-- parti. On n'en juge qu'apres avoir ecoute ABSENCE soi-meme : a la connexion,
+-- personne n'a encore eu le temps de battre.
+Coffres.POULS = 30
+Coffres.ABSENCE = 90
+local OUBLI_TOMBES = 30 * 24 * 3600
+local SESSION = string.format("%x%04x", (time and time()) or 0, math.random(0, 0xFFFF))
+local pairsMJ, debutEcoute = {}, nil
+
+local function Maintenant() return (GetTime and GetTime()) or 0 end
+local function Gardes()
+    LCM.EnsureDatabase()
+    LCM.db.coffresGarde = type(LCM.db.coffresGarde) == "table" and LCM.db.coffresGarde or {}
+    return LCM.db.coffresGarde
+end
+local function Tombes()
+    LCM.EnsureDatabase()
+    LCM.db.coffresRetires = type(LCM.db.coffresRetires) == "table" and LCM.db.coffresRetires or {}
+    return LCM.db.coffresRetires
+end
+
+-- `a` est-il plus recent que `b` ? A rang egal entre deux arbitres (deux MJ
+-- qui reprennent le meme coffre a la fois), le plus petit nom l'emporte :
+-- n'importe quelle regle, pourvu que les deux cotes tranchent pareil.
+local function PlusRecent(a, b)
+    if not b then return true end
+    local ea, eb = tonumber(a.epoque) or 0, tonumber(b.epoque) or 0
+    if ea ~= eb then return ea > eb end
+    local va, vb = tonumber(a.version) or 0, tonumber(b.version) or 0
+    if va ~= vb then return va > vb end
+    return tostring(a.auteur or "") < tostring(b.auteur or "")
+end
+Coffres.PlusRecent = PlusRecent
+
+local function Present(nom)
+    local vu = pairsMJ[tostring(nom or "")]
+    return vu ~= nil and Maintenant() - vu.quand < Coffres.ABSENCE
+end
+
+local function EnvoyerCopie(p, nom)
+    return LCM.Reseau.Envoyer(G.copie, { c = LCM.Lien.Serialiser(p) }, "WHISPER", nom, { etale = true })
+end
+local function EnvoyerTombe(id, tombe, nom)
+    return LCM.Reseau.Envoyer(G.retrait, { i = id, e = tombe.epoque, v = tombe.version,
+        a = tombe.auteur }, "WHISPER", nom)
+end
+
+-- Un geste sur un coffre que j'arbitre : il change de version, et les autres
+-- MJ presents en recoivent la copie.
+local function Partager(p)
+    p.auteur, p.epoque = Moi(), tonumber(p.epoque) or 0
+    p.version = (tonumber(p.version) or 0) + 1
+    for nom in pairs(pairsMJ) do
+        if Present(nom) then EnvoyerCopie(p, nom) end
+    end
+end
+
+-- Tout ce que je sais, a un MJ qui arrive (ou revient) : mes coffres, mes
+-- copies de garde — l'arbitre est peut-etre parti, et c'est alors moi qui
+-- sais — et les tombes.
+local function Echanger(nom)
+    for _, p in pairs(Magasin()) do EnvoyerCopie(p, nom) end
+    for _, p in pairs(Gardes()) do EnvoyerCopie(p, nom) end
+    for id, tombe in pairs(Tombes()) do EnvoyerTombe(id, tombe, nom) end
+end
+
+local function Battre(cible)
+    if cible then return LCM.Reseau.Envoyer(G.pouls, { s = SESSION }, "WHISPER", cible) end
+    local canal = Canal()
+    if canal then LCM.Reseau.Envoyer(G.pouls, { s = SESSION }, canal) end
+end
+
+function Coffres.RecevoirPouls(expediteur, data)
+    if not LCM.IsMaster() or expediteur == Moi() then return end
+    local vu = pairsMJ[expediteur]
+    -- Nouveau, revenu (autre session : il a recharge), ou de retour d'une
+    -- absence : il ne sait peut-etre rien de ce qui a change entre-temps.
+    local nouveau = not vu or vu.session ~= data.s or Maintenant() - vu.quand >= Coffres.ABSENCE
+    pairsMJ[expediteur] = { quand = Maintenant(), session = data.s }
+    if nouveau then
+        -- Un battement en retour, pour qu'il me decouvre sans attendre le sien.
+        Battre(expediteur)
+        Echanger(expediteur)
+    end
+end
+
+-- Une copie recue d'un autre MJ.
+function Coffres.RecevoirCopie(expediteur, e)
+    if not LCM.IsMaster() or type(e) ~= "table" or tostring(e.id or "") == "" then return end
+    local id = tostring(e.id)
+    local tombe = Tombes()[id]
+    if tombe and not PlusRecent(e, tombe) then
+        EnvoyerTombe(id, tombe, expediteur)
+        return
+    end
+    local mien, garde = Magasin()[id], Gardes()[id]
+    local connu = mien or garde
+    if not PlusRecent(e, connu) then
+        -- Il a une copie plus ancienne que la mienne : on le corrige. Si c'est
+        -- moi l'arbitre, il vient peut-etre de l'annoncer aux joueurs en
+        -- revenant : on la leur redit.
+        if connu and PlusRecent(connu, e) then
+            EnvoyerCopie(connu, expediteur)
+            if mien then Coffres.Renvoyer() end
+        end
+        return
+    end
+    if e.auteur == Moi() then
+        Gardes()[id], Magasin()[id] = nil, e
+        Coffres.Renvoyer()
+        return
+    end
+    Gardes()[id] = e
+    if mien then
+        -- La garde est passee a un autre pendant mon absence. Mon contenu
+        -- n'est pas efface : sa version plus recente le remplace, et elle
+        -- reste ici en copie de garde.
+        Magasin()[id] = nil
+        local point = C.points[id]
+        if point then point.auteur = e.auteur; C.Sauver() end
+        local d = Definition(e.def)
+        LCM.Info(string.format("« %s » : %s en a repris la garde pendant ton absence.",
+            tostring(d and d.label or id), tostring(e.auteur)))
+    end
+end
+
+function Coffres.RecevoirTombe(expediteur, data)
+    if not LCM.IsMaster() then return end
+    local id = tostring(data.i or "")
+    if id == "" then return end
+    local tombe = { epoque = tonumber(data.e) or 0, version = tonumber(data.v) or 0,
+        auteur = tostring(data.a or expediteur), quand = time and time() or 0 }
+    local ancienne = Tombes()[id]
+    if ancienne and not PlusRecent(tombe, ancienne) then return end
+    local mien, garde = Magasin()[id], Gardes()[id]
+    local connu = mien or garde
+    -- Un geste plus recent que le retrait (une reprise de garde ignoree de
+    -- celui qui l'a retire) : le coffre reste, on le redit.
+    if connu and PlusRecent(connu, tombe) then
+        EnvoyerCopie(connu, expediteur)
+        return
+    end
+    Tombes()[id] = tombe
+    Gardes()[id] = nil
+    if mien then Magasin()[id] = nil; C.Oublier(id) end
+end
+
+-- Les arbitres muets : je reprends la garde de leurs coffres.
+function Coffres.Veiller()
+    if not LCM.IsMaster() or not debutEcoute
+        or Maintenant() - debutEcoute < Coffres.ABSENCE then return 0 end
+    local repris = 0
+    for id, e in pairs(Gardes()) do
+        if e.auteur ~= Moi() and not Present(e.auteur) then
+            local ancien = e.auteur
+            Gardes()[id] = nil
+            e.epoque = (tonumber(e.epoque) or 0) + 1
+            e.version = 0
+            Magasin()[id] = e
+            Partager(e)
+            repris = repris + 1
+            local d = Definition(e.def)
+            LCM.Info(string.format("« %s » : %s est absent, tu en reprends la garde.",
+                tostring(d and d.label or id), tostring(ancien)))
+        end
+    end
+    if repris > 0 then Coffres.Renvoyer() end
+    return repris
+end
+
+-- Les tombes d'un mois s'oublient : aucune copie de garde n'a survecu aussi
+-- longtemps sans croiser son retrait.
+local function OublierTombes()
+    local maintenant = time and time() or 0
+    for id, tombe in pairs(Tombes()) do
+        if maintenant - (tonumber(tombe.quand) or 0) > OUBLI_TOMBES then Tombes()[id] = nil end
     end
 end
 
@@ -110,6 +307,7 @@ function Coffres.Placer(defId, position)
         carte = carte, mapid = mapid, quand = time and time() or 0, objets = contents,
         verrousRestants = d.coffre.verrous, verrouille = d.coffre.verrous > 0,
         ouvert = d.coffre.verrous == 0, verrousOuverts = {} }
+    Partager(Magasin()[id])
     Coffres.Renvoyer()
     return id
 end
@@ -129,6 +327,7 @@ function Coffres.Teleporter(id)
         if gx and p.carte == R.Carte() and math.abs(gx - x) <= 3 and math.abs(gy - y) <= 3 then
             p.x, p.y, p.z, p.mapid, p.source = gx, gy, gz, gm, "gps"
             x, y, z, mapid = gx, gy, gz, gm
+            Partager(p)
             Coffres.Renvoyer()
         else
             if LCM.DeplacementForce and LCM.DeplacementForce.DemanderGPS then LCM.DeplacementForce.DemanderGPS(true) end
@@ -153,6 +352,12 @@ function Coffres.Retirer(id)
     local p = Magasin()[tostring(id or "")]
     if not p then return false end
     Magasin()[p.id] = nil
+    local tombe = { epoque = tonumber(p.epoque) or 0, version = (tonumber(p.version) or 0) + 1,
+        auteur = Moi(), quand = time and time() or 0 }
+    Tombes()[p.id] = tombe
+    for nom in pairs(pairsMJ) do
+        if Present(nom) then EnvoyerTombe(p.id, tombe, nom) end
+    end
     -- Le client du MJ ignore ses propres messages réseau : sans retrait local,
     -- le coffre supprimé restait visible jusqu'au prochain rechargement.
     C.Oublier(p.id)
@@ -198,8 +403,10 @@ function Coffres.Points(defId)
 end
 
 local function MettreAJour(p)
+    Partager(p)
     local canal = Canal()
-    if p.id == C.courant and LCM.PlayerId() == (C.definitions[p.def] or {}).auteur then
+    -- `p` vient de mon magasin : c'est moi qui l'arbitre.
+    if p.id == C.courant then
         C.etat = Etat(p)
         if C.onChange then LCM.Proteger("coffre", C.onChange) end
     end
@@ -374,6 +581,48 @@ LCM.WhenReady(function()
     -- proximité appartient au module joueur. Après un /reload, sa copie locale
     -- est volontairement vide : republier ici restaure les boutons « Ouvrir »
     -- sans obliger le MJ à déplacer ou réenregistrer chaque coffre.
+    --
+    -- Ce qui est dans mon magasin, je l'arbitre — y compris un coffre pose
+    -- avant que la garde existe, ou sous un autre de mes personnages.
+    for _, p in pairs(Magasin()) do
+        p.auteur, p.epoque, p.version = Moi(), tonumber(p.epoque) or 0, tonumber(p.version) or 0
+    end
+    OublierTombes()
     Coffres.Renvoyer()
+
+    LCM.Reseau.Ecouter(G.pouls, Coffres.RecevoirPouls)
+    LCM.Reseau.Ecouter(G.copie, function(expediteur, data)
+        if not LCM.Reseau.Connu(expediteur) then return end
+        local e = LCM.Lien.Deserialiser(data.c)
+        if type(e) ~= "table" then return end
+        e.objets, e.verrousOuverts = e.objets or {}, e.verrousOuverts or {}
+        Coffres.RecevoirCopie(expediteur, e)
+    end)
+    LCM.Reseau.Ecouter(G.retrait, function(expediteur, data)
+        if LCM.Reseau.Connu(expediteur) then Coffres.RecevoirTombe(expediteur, data) end
+    end)
+
+    -- Le battement part des que le canal repond, puis a intervalle fixe ; la
+    -- veille des arbitres muets suit le meme rythme.
+    if LCM.Presence and LCM.Presence.QuandCanal then
+        LCM.Presence.QuandCanal(function()
+            debutEcoute = debutEcoute or Maintenant()
+            Battre()
+        end)
+    end
+    if CreateFrame then
+        local h = CreateFrame("Frame")
+        h.cumul = 0
+        h:SetScript("OnUpdate", function(self, dt)
+            self.cumul = self.cumul + (tonumber(dt) or 0)
+            if self.cumul < Coffres.POULS then return end
+            self.cumul = 0
+            if not LCM.IsMaster() then return end
+            debutEcoute = debutEcoute or Maintenant()
+            Battre()
+            Coffres.Veiller()
+        end)
+        Coffres.horlogeGarde = h
+    end
 end)
 

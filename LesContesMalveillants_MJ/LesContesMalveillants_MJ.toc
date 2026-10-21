@@ -2,7 +2,7 @@
 ## Title: Les Contes Malveillants |cffe8b451(MJ)|r
 ## Notes: Contenu et outils du maitre du jeu. Ne pas distribuer aux joueurs.
 ## Author: Syn'estra
-## Version: 0.2.1
+## Version: 0.2.2
 ## Dependencies: LesContesMalveillants
 ## SavedVariables: LCM_MJ_DB
 
