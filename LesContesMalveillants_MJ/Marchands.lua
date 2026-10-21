@@ -101,7 +101,7 @@ function Marchands.Points(defId)
     for id, p in pairs(Magasin()) do
         if not defId or p.def == defId then
             out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y, z = p.z,
-                source = p.source, carte = p.carte, quand = p.quand }
+                source = p.source, carte = p.carte, quand = p.quand, posePar = p.posePar }
         end
     end
     table.sort(out, function(a, b)
@@ -117,8 +117,32 @@ function Marchands.Compte(defId)
     return n
 end
 
+-- Ce qu'il reste de chaque offre de ce modele : de quoi rendre un stock PERDU
+-- (MJ/Poses.lua). Seulement le reste : les instants du stock se comptent depuis
+-- le lancement du jeu (Core/Stock.lua) et ne voudraient rien dire ailleurs.
+local function Restes(point)
+    local restes = {}
+    for _, offre in ipairs(point and point.offres or {}) do
+        if offre.cle and LCM.Stock.Limite(offre.cle) > 0 then
+            restes[offre.cle] = LCM.Stock.Restant(offre.cle)
+        end
+    end
+    return next(restes) and restes or nil
+end
+
+-- Chaque changement d'un vendeur passe ici : c'est donc ici qu'il part aussi
+-- vers la base commune, au prochain /reload.
+local function Noter(defId)
+    if not LCM.Poses then return end
+    local restes = Restes(Marchands.Definition(defId))
+    for id, p in pairs(Magasin()) do
+        if p.def == defId then LCM.Poses.Noter("vendeur", id, p, { stock = restes }) end
+    end
+end
+
 -- Le MJ connait ses vendeurs aussi en joueur : il peut ouvrir leur etal.
 local function Rafraichir(defId)
+    Noter(defId)
     local point = Marchands.Definition(defId)
     if point then M.Connaitre(Publique(point), Marchands.Points(defId), Moi())
     else M.OublierDefinition(defId) end
@@ -146,7 +170,9 @@ function Marchands.Placer(defId)
     end
     local id = Identifiant()
     Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
-        quand = (time and time()) or 0 }
+        quand = (time and time()) or 0,
+        -- Qui l'a pose (MJ/Poses.lua).
+        posePar = Moi() }
     Rafraichir(point.id)
     Marchands.Diffuser(point.id)
     return id
@@ -157,6 +183,7 @@ function Marchands.Retirer(id)
     local p = Magasin()[id]
     if not p then return false end
     Magasin()[id] = nil
+    if LCM.Poses then LCM.Poses.Supprimer(id) end
     Rafraichir(p.def)
     local canal = Canal()
     if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
@@ -166,7 +193,10 @@ end
 function Marchands.RetirerTout(defId)
     local n = 0
     for id, p in pairs(Magasin()) do
-        if p.def == defId then Magasin()[id] = nil n = n + 1 end
+        if p.def == defId then
+            Magasin()[id] = nil n = n + 1
+            if LCM.Poses then LCM.Poses.Supprimer(id) end
+        end
     end
     Rafraichir(defId)
     local canal = Canal()
@@ -310,6 +340,29 @@ if LCM.Brouillons then
         if famille == "points" then Marchands.Reconstruire() end
     end
 end
+
+-- MES vendeurs que la base commune connait et qui manquent ici reviennent, et
+-- avec eux le stock qu'on n'a plus du tout ; un stock connu n'est jamais
+-- ecrase. Comme MJ/Recoltes.lua.
+LCM.WhenReady(function()
+    local rendus = 0
+    for _, pose in ipairs(LCM.Poses and LCM.Poses.De("vendeur") or {}) do
+        if pose.auteur == Moi() and not Magasin()[pose.id] then
+            local e = LCM.Copie(pose.donnees)
+            e.id, e.auteur, e.epoque, e.version = nil, nil, nil, nil
+            Magasin()[pose.id] = e
+            rendus = rendus + 1
+            for cle, reste in pairs(type(pose.stock) == "table" and pose.stock or {}) do
+                if not LCM.Stock.Connu(cle) then
+                    LCM.Stock.Fusionner(cle, { r = reste, t = LCM.Stock.Maintenant(), u = 0 })
+                end
+            end
+        end
+    end
+    if rendus > 0 then
+        LCM.Info(string.format("%d vendeur(s) rendu(s) par la base commune.", rendus))
+    end
+end)
 
 LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.demande, function(expediteur)

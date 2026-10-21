@@ -32,7 +32,10 @@ LCM.Brouillons = Brouillons
 -- (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua).
 Brouillons.FAMILLES = { "traits", "races", "objets", "livres", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
-    "jeux", "points", "tentes", "accessoires_camping" }
+    "jeux", "points", "tentes", "accessoires_camping",
+    -- Ce qui est pose dans le monde (MJ/Poses.lua) : un etat, pas un modele,
+    -- mais il voyage par la meme file pour arriver dans la base.
+    "poses" }
 
 -- Version du modele de la sauvegarde. 2 : plus de brouillons dormants ni de
 -- masques « a reporter » (15 octobre 2026), voir la migration plus bas.
@@ -147,6 +150,7 @@ end
 -- famille -> registre est celle du compendium, la seule.
 local function Registre(famille)
     if tostring(famille or "") == "points" then return LCM.Points end
+    if tostring(famille or "") == "poses" then return LCM.Poses end
     local nom = LCM.Compendium and LCM.Compendium.FAMILLES[tostring(famille or "")]
     return nom and LCM[nom] or nil
 end

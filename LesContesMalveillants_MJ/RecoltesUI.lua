@@ -338,6 +338,12 @@ local function Construire()
     p.titre = UI.Texte(p, "", UI.C.titre)
     UI.Police(p.titre, 14)
     p.titre:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -2)
+    -- La liste est PERSONNELLE ; ce que les autres ont pose se demande ici.
+    p.filtre = LCM.Poses.Selecteur(p, f, function()
+        return LCM.Poses.Poseurs("ressource", Recoltes.Carnet())
+    end, function() f:AfficherPoints() end)
+    p.filtre:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+    p.titre:SetPoint("RIGHT", p.filtre, "LEFT", -8, 0)
     p.resume = UI.Texte(p, "", UI.C.discret, "GameFontNormalSmall")
     p.resume:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -22)
     p.resume:SetPoint("RIGHT", p, "RIGHT", 0, 0)
@@ -1033,7 +1039,9 @@ local function Construire()
         local point = self:Point()
         -- Tout le carnet : les points recoltes y restent, grises, avec qui
         -- les a pris. Seuls les CREES partent aux joueurs.
-        local liste = point and Recoltes.Carnet(point.id) or {}
+        local miens = point and Recoltes.Carnet(point.id) or {}
+        local liste = point and LCM.Poses.Composer("ressource", point.id, miens, self.filtrePoses) or {}
+        p.filtre:Actualiser()
         local x, y, source, z = self:Position()
         local carte = LCM.Recolte.Carte()
         local h = 0
@@ -1058,14 +1066,20 @@ local function Construire()
                 l.contenu:SetPoint("RIGHT", l.retirer, "LEFT", -6, 0)
                 -- Comme sur un coffre pose : y aller.
                 l.teleporter = UI.Bouton(l, "S'y téléporter", 112, 20, function(b)
-                    local ok, raison = Recoltes.Teleporter(b:GetParent().poseId)
+                    local pose = b:GetParent().pose
+                    local ok, raison
+                    if pose and pose.autre then ok, raison = LCM.Poses.Teleporter(pose)
+                    else ok, raison = Recoltes.Teleporter(b:GetParent().poseId) end
                     if not ok then LCM.Alerte(tostring(raison)) end
                 end)
                 l.teleporter:SetPoint("RIGHT", l.contenu, "LEFT", -6, 0)
                 l.texte:SetPoint("RIGHT", l.teleporter, "LEFT", -6, 0)
                 p.lignes[rang] = l
             end
-            l.poseId = pose.id
+            l.poseId, l.pose = pose.id, pose
+            -- Celui d'un autre se consulte : ni retrait, ni reglage.
+            l.retirer:SetShown(not pose.autre)
+            l.contenu:SetShown(not pose.autre)
             -- La distance quand elle se mesure : meme source, meme carte.
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
@@ -1085,10 +1099,11 @@ local function Construire()
             elseif pose.lignes then
                 statut = statut .. string.format("  |cff9d9d9d(%d ressource(s))|r", #(pose.ressources or {}))
             end
-            l.texte:SetText(string.format("#%d   %s   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1, statut,
+            if pose.autre then statut = "|cff9d9d9dlecture seule|r" end
+            l.texte:SetText(LCM.Poses.Prefixe(pose) .. string.format("#%d   %s   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1, statut,
                 pose.x, pose.y, pose.z and string.format("%.1f", pose.z) or "Z ?",
                 tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "",
-                pose.statut == "cree" and distance or ""))
+                (pose.statut == "cree" or pose.autre) and distance or ""))
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, -h)
             l:SetPoint("TOPRIGHT", p.zone.contenu, "TOPRIGHT", 0, -h)
@@ -1101,7 +1116,8 @@ local function Construire()
         local recoltes = point and Recoltes.CompteRecoltes(point.id) or 0
         local attente = point and Recoltes.CompteAttente(point.id) or 0
         local disponibles, regeneration = 0, 0
-        for _, pose in ipairs(liste) do
+        -- Les compteurs sont ceux de MES points : les autres n'ont pas d'etat ici.
+        for _, pose in ipairs(miens) do
             if pose.statut == "cree" then
                 if pose.actif then disponibles = disponibles + 1
                 else regeneration = regeneration + 1 end
@@ -1112,7 +1128,7 @@ local function Construire()
         if attente > 0 then morceaux[#morceaux + 1] = string.format("%d en attente", attente) end
         if recoltes > 0 then morceaux[#morceaux + 1] = string.format("%d récolté(s)", recoltes) end
         p.compte:SetText(point and table.concat(morceaux, ", ") or "")
-        p.toutRetirer:SetEnabled(#liste > 0)
+        p.toutRetirer:SetEnabled(#miens > 0)
     end
 
     function f:Afficher()

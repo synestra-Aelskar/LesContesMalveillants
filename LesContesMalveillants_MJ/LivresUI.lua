@@ -57,6 +57,19 @@ local function Construire()
     end)
     f.livre:SetPoint("LEFT", f.note, "RIGHT", 8, 0)
 
+    f.modele = UI.Bouton(c, "", 380, 24, function()
+        local modeles = LCM.Livres.Modeles
+        local actuel = f.travail.modele or LCM.Livres.MODELE_DEFAUT
+        for i, modele in ipairs(modeles) do
+            if modele.id == actuel then
+                f.travail.modele = modeles[i % #modeles + 1].id
+                break
+            end
+        end
+        f:AfficherStyle()
+    end)
+    f.modele:SetPoint("TOPRIGHT", c, "TOPRIGHT", -30, -45)
+
     Legende("Style", 20, 89)
     for index, preset in ipairs(PRESETS) do
         local b = UI.Bouton(c, preset.label, 110, 22, function()
@@ -168,6 +181,9 @@ local function Construire()
 
     function f:AfficherStyle()
         local s = self.travail.style
+        local modele = LCM.Livres.Modele(self.travail.modele or LCM.Livres.MODELE_DEFAUT)
+        self.modele.label:SetText((modele and modele.label or "Chronique · cuir brun") .. "  ›")
+        self.modele:SetShown(self.travail.format == "livre")
         self.fond:SetText(s.fond)
         self.encre:SetText(s.encre)
         self.accent:SetText(s.accent)
@@ -232,7 +248,7 @@ local function Construire()
     function f:Editer(element)
         self.nouveau = element == nil
         self.travail = element and LCM.Copie(element) or {
-            id = LCM.Brouillons.NouvelIdentifiant(), label = "", format = "note",
+            id = LCM.Brouillons.NouvelIdentifiant(), label = "", format = "note", modele = "chronique",
             icone = "INV_Misc_Note_01", style = {
                 fond = "E5D3A3", encre = "302317", accent = "8D632D", alignement = "LEFT" },
             pages = { NouvellePage(), NouvellePage() },
@@ -240,6 +256,7 @@ local function Construire()
         }
         self.travail.style = self.travail.style or {
             fond = "E5D3A3", encre = "302317", accent = "8D632D", alignement = "LEFT" }
+        self.travail.modele = self.travail.modele or LCM.Livres.MODELE_DEFAUT
         self.travail.couverture = self.travail.couverture or NouvellePage()
         self.travail.dos = self.travail.dos or NouvellePage()
         self.selection = self.travail.format == "livre" and "couverture" or 1

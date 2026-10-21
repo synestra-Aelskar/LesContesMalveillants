@@ -10,6 +10,7 @@ MJ.lua
 Traits.lua
 Stock.lua
 Points.lua
+Poses.lua
 Genere\Points.lua
 PointsUI.lua
 Brouillons.lua

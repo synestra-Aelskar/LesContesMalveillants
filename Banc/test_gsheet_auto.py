@@ -46,11 +46,14 @@ class AutoSyncTest(unittest.TestCase):
             file = Path(directory) / "LesContesMalveillants_MJ.lua"
             file.write_text('LCM_MJ_DB = { brouillons = { traits = { ancien = '
                             '{ id = "ancien", label = "Ancien" } } } }\n', encoding="utf-8")
-            before = auto.record(auto.snapshot(file))
+            # Depuis le 15 octobre 2026, tout ce qui n'est pas encore PUBLIE
+            # part (`pending_rows`) : « ancien » l'a ete, « tente » non.
+            snap = auto.snapshot(file)
+            before = auto.record(snap, {"traits/ancien": db.digest(snap["drafts"]["traits/ancien"])})
             file.write_text('LCM_MJ_DB = { brouillons = { traits = { ancien = '
                             '{ id = "ancien", label = "Ancien" }, tente = '
                             '{ id = "tente", label = "Tente" } } } }\n', encoding="utf-8")
-            drafts, masks = auto.changed_rows(before, auto.snapshot(file))
+            drafts, masks = auto.pending_rows(before, auto.snapshot(file))
             self.assertEqual(set(drafts), {"traits/tente"})
             self.assertEqual(masks, set())
 

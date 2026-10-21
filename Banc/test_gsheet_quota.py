@@ -20,9 +20,11 @@ from unittest.mock import patch
 from urllib.parse import unquote
 
 
-SYNC = Path(__file__).resolve().parents[1] / "LesContesMalveillants_MJ" / "Sync"
-sys.path.insert(0, str(SYNC / "Outils"))
-spec = importlib.util.spec_from_file_location("gsheet_base_sync", SYNC / "Outils" / "gsheet_base.py")
+# Le service de reference vit dans Outils/ ; LesContesMalveillants_MJ/Sync
+# n'en est qu'une copie deployee (Outils/packager_sync.py).
+OUTILS = Path(__file__).resolve().parents[1] / "Outils"
+sys.path.insert(0, str(OUTILS))
+spec = importlib.util.spec_from_file_location("gsheet_base_sync", OUTILS / "gsheet_base.py")
 db = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(db)
 

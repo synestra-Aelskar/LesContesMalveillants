@@ -83,4 +83,30 @@ premier:Click()
 __avancer(1)
 attendu("la premiere categorie se rouvre", Deploye(a, premier.cible.id), true)
 
+-- 21 octobre 2026 : « Système » retenu, plus rien ne s'ouvrait, sans
+-- rafraichissement cette fois. Toutes les animations passent par UNE boucle :
+-- une qui plante a chaque image empechait les autres de finir, dont le repli
+-- qui leve le verrou. Quoi qu'il arrive, le menu doit repartir.
+dire("== une animation qui plante ne gele pas le menu")
+R.Fermer() __avancer(1)
+R.Basculer("fenetres") __avancer(1)
+Bouton("systeme"):Click() __avancer(1)
+local vraiSetAlpha = c.secteur.SetAlpha
+c.secteur.SetAlpha = function() error("panne simulee") end
+local nSorties = #__sorties
+Bouton("outils"):Click()
+__avancer(1)
+c.secteur.SetAlpha = vraiSetAlpha
+local dit = false
+for i = nSorties + 1, #__sorties do if __sorties[i]:find("panne simulee", 1, true) then dit = true end end
+attendu("l'erreur est dite", dit, true)
+attendu("le verrou est leve", c.replie, nil)
+attendu("Outils est deploye", Deploye(c, "outils"), true)
+
+dire("== un verrou perime ne refuse plus rien")
+c.replie, c.replieJusqua = true, GetTime() - 1
+Bouton("objets"):Click()
+__avancer(1)
+attendu("Objets s'ouvre malgre le vieux verrou", Deploye(c, "objets"), true)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

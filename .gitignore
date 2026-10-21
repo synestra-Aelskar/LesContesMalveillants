@@ -4,6 +4,8 @@
 /Outils/.gsheet_ecritures.json
 /Outils/__pycache__/
 /Banc/__pycache__/
+/Outils/.livres-deps/
+/Outils/sources/livres/rendus/
 /LesContesMalveillants_MJ/Sync/**/__pycache__/
 /LesContesMalveillants_MJ/Sync/database/.gsheet_state_*.json
 /LesContesMalveillants_MJ/Sync/Outils/.gsheet_auto_state.json

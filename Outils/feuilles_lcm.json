@@ -1,5 +1,6 @@
 {
   "objets": {"titre": "Objets", "familles": ["objets"]},
+  "livres": {"titre": "Livres", "familles": ["livres"]},
   "traits": {"titre": "Traits", "familles": ["traits"]},
   "races": {"titre": "Races", "familles": ["races"]},
   "etats": {"titre": "Etats", "familles": ["etats"]},
@@ -17,6 +18,7 @@
   "points": {"titre": "Points", "familles": ["points"]},
   "tentes": {"titre": "Tentes", "familles": ["tentes"]},
   "accessoires_camping": {"titre": "Accessoires camping", "familles": ["accessoires_camping"]},
+  "poses": {"titre": "Poses", "familles": ["poses"]},
   "reglages": {"titre": "Reglages", "familles": []},
   "comptes": {"titre": "Comptes", "familles": []},
   "fiches": {"titre": "Fiches", "familles": []},

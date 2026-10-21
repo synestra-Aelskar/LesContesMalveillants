@@ -15,6 +15,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "Transfert_Base_LCM"
 CONTENT = PACKAGE / "Contenu"
 
+# Les points poses (coffres, filons, vendeurs) arrivent par les fichiers
+# generes copies plus bas, comme tout le contenu publie. Ils n'entrent PAS dans
+# la file d'envoi du destinataire : son service les republierait comme les
+# siens, alors que seul celui qui arbitre un point en ecrit la ligne
+# (LesContesMalveillants_MJ/Poses.lua, 21 octobre 2026).
+NON_INJECTES = {"poses"}
+
 
 def main() -> None:
     if PACKAGE.exists():
@@ -29,6 +36,8 @@ def main() -> None:
         if lcm_db.tombstone_path(family, identifier).exists():
             continue
         entries.append((family, identifier, table))
+    injectees = [entry for entry in entries if entry[0] not in NON_INJECTES]
+    poses = sum(1 for entry in entries if entry[0] == "poses")
 
     lines = [
         "-- Import LCM : contenu partage, sans donnees de personnage.\n",
@@ -36,7 +45,7 @@ def main() -> None:
         "LCM_MJ_DB.brouillons = type(LCM_MJ_DB.brouillons) == 'table' and LCM_MJ_DB.brouillons or {}\n",
         "LCM_MJ_DB.masques = type(LCM_MJ_DB.masques) == 'table' and LCM_MJ_DB.masques or {}\n",
     ]
-    for family, identifier, table in entries:
+    for family, identifier, table in injectees:
         family_lua = lcm_db.lua_string(family)
         id_lua = lcm_db.lua_string(identifier)
         lines.extend(
@@ -66,10 +75,12 @@ def main() -> None:
     for name in ("Installer la base.bat", "Installer la base.ps1", "LISEZ-MOI.txt"):
         shutil.copy2(ROOT / "Outils" / "transfert_base" / name, PACKAGE / name)
     (PACKAGE / "Manifest.json").write_text(
-        json.dumps({"definitions": len(entries), "familles": {f: sum(1 for e in entries if e[0] == f) for f in sorted({e[0] for e in entries})}}, ensure_ascii=False, indent=2) + "\n",
+        json.dumps({"definitions": len(injectees), "poses": poses,
+                    "familles": {f: sum(1 for e in entries if e[0] == f) for f in sorted({e[0] for e in entries})}},
+                   ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    print(f"Paquet cree : {PACKAGE} ({len(entries)} definitions)")
+    print(f"Paquet cree : {PACKAGE} ({len(injectees)} definitions, {poses} point(s) pose(s))")
 
 
 if __name__ == "__main__":

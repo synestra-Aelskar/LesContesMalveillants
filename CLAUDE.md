@@ -571,6 +571,37 @@ la boucle de chargement n'avait pas ce cas. Elle l'a maintenant, et garde une
 copie de l'original pour que supprimer le brouillon la rende au lieu de
 l'effacer.
 
+## Les points posés dans la base commune (21 octobre 2026)
+
+Le **modèle** d'un coffre, d'un filon ou d'un vendeur est du contenu (famille
+`points`). Ce qui en est **posé** — où, avec quoi dedans, le stock, qui
+l'arbitre — vit dans la famille `poses` (`LesContesMalveillants_MJ/Poses.lua`),
+réservée au MJ : jamais dans l'addon joueur, où l'on lirait l'emplacement des
+coffres cachés.
+
+* **Un arbitre par point posé**, pas par modèle (`Coffres.Auteur`,
+  `Recolte.Auteur`, `Marchands.Auteur`). Tenu par le modèle, l'annonce d'un MJ
+  effaçait les points que l'autre avait posés du même modèle.
+* **Même file d'envoi que le contenu** : chaque changement passe par
+  `Poses.Noter` (dans `Partager` pour les coffres, `Rafraichir` pour les
+  autres), un retrait par `Poses.Supprimer`, une garde perdue par
+  `Poses.Lacher` (sa ligne est à l'autre maintenant).
+* **La base est en retard sur la séance** : elle sert de sauvegarde et de point
+  de départ. Au chargement, un MJ récupère SES points qui manquent ; les coffres
+  d'un autre passent par `RecevoirCopie`, comme une copie reçue en séance. Les
+  filons et vendeurs d'un autre MJ sont connus mais pas encore servis en son
+  absence : la garde n'existe que pour les coffres.
+* Côté service, deux versions d'un même point **ne bloquent pas** la
+  synchronisation : la plus récente l'emporte (`pose_plus_recente`, même règle
+  que l'addon), une suppression toujours.
+
+**Le service de synchro de référence est `Outils/`** (avec
+`database/lcm_db.py`). `LesContesMalveillants_MJ/Sync/` n'en est qu'une copie
+déployée : le travail sur le quota avait été fait dans la copie, puis perdu du
+dépôt quand elle a été retirée. Après un changement, recopier les quatre
+fichiers dans `Sync/` (sans toucher à ses fichiers d'état) et relancer le
+processus `pythonw … gsheet_auto.py watch`.
+
 ## Le partage MJ / joueurs
 
 `LesContesMalveillants_MJ` est un **aiguillage, pas un verrou** :

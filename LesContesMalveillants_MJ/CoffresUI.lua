@@ -312,6 +312,15 @@ local function Construire()
     p.titre = UI.Texte(p, "", UI.C.titre)
     UI.Police(p.titre, 14)
     p.titre:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -2)
+    -- La liste est PERSONNELLE ; ce que les autres ont pose se demande ici.
+    p.filtre = LCM.Poses.Selecteur(p, f, function()
+        return LCM.Poses.Poseurs("coffre", Coffres.Points())
+    end, function()
+        f.pointPose = nil
+        f:AfficherPlacements()
+    end)
+    p.filtre:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+    p.titre:SetPoint("RIGHT", p.filtre, "LEFT", -8, 0)
     p.resume = UI.Texte(p, "", UI.C.discret, "GameFontNormalSmall")
     p.resume:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -22)
     p.resume:SetPoint("RIGHT", p, "RIGHT", 0, 0)
@@ -848,13 +857,19 @@ local function Construire()
 
     function f:AfficherPlacements()
         local point = self:Point()
-        local poses = point and Coffres.Points(point.id) or {}
+        local miens = point and Coffres.Points(point.id) or {}
+        local poses = point and LCM.Poses.Composer("coffre", point.id, miens, self.filtrePoses,
+            Coffres.CopiesDeGarde(point.id)) or {}
+        p.filtre:Actualiser()
         local x, y, source, z = self:Position()
         local carte = LCM.Recolte.Carte()
         for index, pose in ipairs(poses) do
             local ligne = self.placements[index]
             if not ligne then
                 ligne = UI.Bouton(p.zone.contenu, "", 490, LIGNE - 2, function(bouton)
+                    -- Celui d'un autre se consulte, il ne se selectionne pas
+                    -- pour etre retire.
+                    if bouton.pose and bouton.pose.autre then return end
                     self.pointPose = bouton.pointPose
                     self:AfficherPlacements()
                 end)
@@ -863,7 +878,10 @@ local function Construire()
                 ligne.label:SetPoint("RIGHT", ligne, "RIGHT", -156, 0)
                 ligne.label:SetJustifyH("LEFT")
                 ligne.teleporter = UI.Bouton(ligne, "S'y téléporter", 112, 20, function(bouton)
-                    local ok, raison = Coffres.Teleporter(bouton:GetParent().pointPose)
+                    local pose = bouton:GetParent().pose
+                    local ok, raison
+                    if pose and pose.autre then ok, raison = LCM.Poses.Teleporter(pose)
+                    else ok, raison = Coffres.Teleporter(bouton:GetParent().pointPose) end
                     if not ok then LCM.Alerte(tostring(raison)) end
                     if ok then self:AfficherPlacements() end
                 end)
@@ -876,13 +894,14 @@ local function Construire()
                 ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
                 self.placements[index] = ligne
             end
-            ligne.pointPose = pose.id
+            ligne.pointPose, ligne.pose = pose.id, pose
+            ligne.retirer:SetShown(not pose.autre)
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
                 local d = LCM.Recolte.Distance(pose, { x = x, y = y, z = z })
                 distance = d and string.format(" — à %.0f yards", d) or " — altitude inconnue : replacer"
             elseif pose.carte ~= carte then distance = " — autre carte" end
-            ligne.label:SetText(string.format("#%d   %.1f, %.1f, %s (%s%s)%s", #poses - index + 1,
+            ligne.label:SetText(LCM.Poses.Prefixe(pose) .. string.format("#%d   %.1f, %.1f, %s (%s%s)%s", #poses - index + 1,
                 tonumber(pose.x) or 0, tonumber(pose.y) or 0, pose.z and string.format("%.1f", pose.z) or "Z ?", tostring(pose.source),
                 pose.mapid and (", carte serveur " .. pose.mapid)
                     or (pose.carte and ", carte serveur ?" or ""), distance))
@@ -896,7 +915,8 @@ local function Construire()
         p.zone:Regler(#poses * LIGNE)
         p.vide:SetShown(point ~= nil and #poses == 0)
         p.compte:SetText(point and string.format("%d coffre(s) placé(s)", #poses) or "")
-        p.toutRetirer:SetEnabled(#poses > 0)
+        -- « Tout retirer » ne vise que les miens.
+        p.toutRetirer:SetEnabled(#miens > 0)
         p.retirer:SetShown(self.pointPose ~= nil)
     end
 

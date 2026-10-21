@@ -1,9 +1,14 @@
 """Surveille les sauvegardes WoW et synchronise la base MJ avec Google Sheets.
 
-Le premier lancement prend les brouillons deja presents comme point de depart :
-il ne republie jamais automatiquement un vieux brouillon potentiellement obsolete.
-Ensuite, un /reload ou une deconnexion declenche l'archivage et l'envoi des seules
-entrees changees. Les changements distants sont releves regulierement.
+Une entree enregistree dans WoW EXISTE : un /reload ou une deconnexion
+declenche l'archivage et l'envoi de tout ce qui a ete enregistre et n'est pas
+encore dans la base. Il n'y a pas de brouillon dormant (15 octobre 2026) : le
+premier lancement et un nouveau compte publient eux aussi ce qu'ils trouvent.
+
+Les suppressions, elles, ne partent que lorsqu'elles sont NOUVELLES : les masques
+deja presents au premier passage datent de l'ancien modele, ou ils cachaient du
+contenu sans l'effacer, et l'addon les oublie a sa mise a jour.
+Les changements distants sont releves regulierement.
 """
 
 from __future__ import annotations
@@ -88,10 +93,11 @@ def snapshot(file: Path) -> dict:
             "masks": sorted(masks)}
 
 
-def record(snap: dict, published: dict[str, str] | None = None) -> dict:
+def record(snap: dict, published: dict[str, str] | None = None,
+           held: list[str] | None = None) -> dict:
     return {"sha256": snap["sha256"],
             "drafts": {key: db.digest(row) for key, row in snap["drafts"].items()},
-            "masks": snap["masks"], "published": published or {}}
+            "masks": snap["masks"], "published": published or {}, "held": held or []}
 
 
 def mj_files(retail: Path) -> dict[str, Path]:
@@ -102,12 +108,38 @@ def mj_files(retail: Path) -> dict[str, Path]:
             for path in sorted(account.glob("*/SavedVariables/LesContesMalveillants_MJ.lua"))}
 
 
-def changed_rows(before: dict, after: dict) -> tuple[dict[str, list[object]], set[str]]:
-    old = before.get("drafts", {})
+def pending_rows(before: dict | None,
+                 after: dict) -> tuple[dict[str, list[object]], set[str]]:
+    """Ce qui doit partir : toute entree pas encore publiee sous cette forme,
+    et les suppressions apparues depuis le passage precedent.
+
+    On compare a `published`, pas a l'instantane precedent : une entree vue
+    sans avoir ete publiee (l'ancien point de depart protege) part elle aussi.
+    """
+    published = (before or {}).get("published", {})
     drafts = {key: row for key, row in after["drafts"].items()
-              if old.get(key) != db.digest(row)}
-    masks = set(after["masks"]) - set(before.get("masks", []))
+              if published.get(key) != db.digest(row)}
+    known = set(before.get("masks", [])) if before is not None else set(after["masks"])
+    masks = set(after["masks"]) - known
     return drafts, masks
+
+
+def stale_rows(before: dict | None, drafts: dict[str, list[object]],
+               local: dict[str, list[object]]) -> set[str]:
+    """Les vieilles copies qui ecraseraient une autre version de la base.
+
+    Une entree deja vue au passage precedent, jamais publiee et pas modifiee
+    depuis (ou trouvee sur un compte inconnu) n'a pas ete ecrite sous ce
+    service : c'est un reste de l'ancien modele. Absente de la base, elle part
+    (c'etait le cas d'une armure qu'un coffre citait). Presente sous une AUTRE
+    forme, elle ne part pas : un autre MJ l'a reecrite depuis, et une vieille
+    copie n'a pas a effacer son travail sans que personne le sache
+    (15 octobre 2026). Une entree modifiee en jeu, elle, part toujours.
+    """
+    old = (before or {}).get("drafts", {})
+    return {key for key, row in drafts.items()
+            if (before is None or old.get(key) == db.digest(row))
+            and local.get(key) is not None and local[key] != row}
 
 
 def stage_changes(api: db.Sheets, sheet_id: str,
@@ -143,6 +175,13 @@ def stage_changes(api: db.Sheets, sheet_id: str,
         if remote_hash == new_hash:
             continue
         if remote_hash != base_hash or (local_hash not in (base_hash, new_hash)):
+            # Un point pose ne bloque pas la synchronisation : le plus recent
+            # l'emporte (gsheet_base.pose_plus_recente). Plus ancien que la
+            # base, il ne part pas ; la base le remplacera ici.
+            if family == "poses":
+                if remote is None or db.pose_plus_recente(row, remote[1]):
+                    staged.append(row)
+                continue
             conflicts.append(key)
             continue
         staged.append(row)
@@ -245,55 +284,76 @@ def run_once(api: db.Sheets, sheet_id: str, retail: Path,
     state = read_state(sheet_id, retail)
     files = mj_files(retail)
     current = {name: snapshot(file) for name, file in files.items()}
-    first = not STATE_FILE.exists()
-    if first:
+    # Une seule lecture du Sheet par passage, et aucune s'il n'a pas change
+    # depuis la derniere : tout ce qui suit lit ce qui vient d'etre charge.
+    api.actualiser(db.onglets_contenu())
+    if not STATE_FILE.exists():
+        # La comparaison avec la Sheet a besoin de son etat de reference.
         sync_content(api, sheet_id)
-        local = db.local_rows()
-        for name, snap in current.items():
-            published = {key: db.digest(row) for key, row in snap["drafts"].items()
-                         if local.get(key) == row}
-            state["files"][name] = record(snap, published)
+        log("Premier lancement : ce qui est enregistre dans WoW part dans la base.")
+    work: dict[str, tuple[dict | None, dict, dict[str, list[object]]]] = {}
+    drafts: dict[str, list[object]] = {}
+    masks: set[str] = set()
+    local: dict[str, list[object]] | None = None
+    held_by_file: dict[str, list[str]] = {}
+    for name, snap in current.items():
+        before = state["files"].get(name)
+        new_drafts, new_masks = pending_rows(before, snap)
+        if new_drafts:
+            local = db.local_rows() if local is None else local
+            held = stale_rows(before, new_drafts, local)
+            for key in sorted(held):
+                del new_drafts[key]
+            held_by_file[name] = sorted(held)
+            # Dit une fois, pas a chaque releve de la Sheet.
+            fresh = set(held) - set((before or {}).get("held", []))
+            if fresh:
+                log(f"{name} : vieille(s) copie(s) NON publiee(s), la base en a une autre version : "
+                    + ", ".join(sorted(fresh)) + ". A trancher dans WoW (modifier l'entree la publie).")
+                # Note tout de suite : une erreur de la Sheet plus loin ferait
+                # sinon redire l'avertissement a chaque nouvelle tentative.
+                if before is not None:
+                    before["held"] = sorted(held)
+                    save_state(state)
+        if before is None or before.get("sha256") != snap["sha256"] or new_drafts or new_masks:
+            work[name] = (before, snap, new_drafts)
+        for key, row in new_drafts.items():
+            if key in drafts and drafts[key] != row:
+                raise ValueError(f"deux comptes ont modifie {key} differemment")
+            drafts[key] = row
+        masks.update(new_masks)
+    if work:
+        db.sauvegarder(api, retail)
+        staged = stage_changes(api, sheet_id, drafts, masks) if drafts or masks else []
+        backup = db.ROOT / "Sauvegardes_LCM" / "avant_import" / datetime.now().strftime("%Y%m%d_%H%M%S")
+        for row in staged:
+            db.apply_remote(row, backup)
+        if staged:
+            log(f"{len(staged)} entree(s) modifiee(s) dans WoW, envoi en cours.")
+        sync_content(api, sheet_id)
+        for name, (before, snap, sent) in work.items():
+            # Deja dans la base telle quelle compte comme publie : la Sheet
+            # l'avait, `stage_changes` l'a simplement saute.
+            published = {key: value for key, value in (before or {}).get("published", {}).items()
+                         if key in snap["drafts"] and db.digest(snap["drafts"][key]) == value}
+            for key, row in sent.items():
+                published[key] = db.digest(row)
+            state["files"][name] = record(snap, published, held_by_file.get(name))
         save_state(state)
-        log("Point de depart enregistre ; les anciens brouillons divergents restent proteges.")
+        log(f"Sauvegarde WoW et synchronisation terminees : {len(staged)} entree(s) publiee(s).")
     else:
-        changed = {name: snap for name, snap in current.items()
-                   if state["files"].get(name, {}).get("sha256") != snap["sha256"]}
-        if changed:
+        if archive_event:
             db.sauvegarder(api, retail)
-            drafts: dict[str, list[object]] = {}
-            masks: set[str] = set()
-            for name, snap in changed.items():
-                if name in state["files"]:
-                    new_drafts, new_masks = changed_rows(state["files"][name], snap)
-                    for key, row in new_drafts.items():
-                        if key in drafts and drafts[key] != row:
-                            raise ValueError(f"deux comptes ont modifie {key} differemment")
-                        drafts[key] = row
-                    masks.update(new_masks)
-                else:
-                    log(f"Nouveau compte {name} : ses anciens brouillons sont conserves sans publication.")
-            staged = stage_changes(api, sheet_id, drafts, masks) if drafts or masks else []
-            backup = db.ROOT / "Sauvegardes_LCM" / "avant_import" / datetime.now().strftime("%Y%m%d_%H%M%S")
-            for row in staged:
-                db.apply_remote(row, backup)
-            if staged:
-                log(f"{len(staged)} entree(s) modifiee(s) dans WoW, envoi en cours.")
-            sync_content(api, sheet_id)
-            for name, snap in changed.items():
-                previous = state["files"].get(name, {})
-                published = {key: value for key, value in previous.get("published", {}).items()
-                             if key in snap["drafts"] and db.digest(snap["drafts"][key]) == value}
-                if name in state["files"]:
-                    for key, row in snap["drafts"].items():
-                        if key in drafts:
-                            published[key] = db.digest(row)
-                state["files"][name] = record(snap, published)
-            save_state(state)
-            log(f"Sauvegarde WoW et synchronisation terminees : {len(staged)} entree(s) publiee(s).")
-        else:
-            if archive_event:
-                db.sauvegarder(api, retail)
-            sync_content(api, sheet_id)
+        sync_content(api, sheet_id)
+    # Les copies retenues ont ete dites : on le note, pour ne pas le redire a
+    # chaque releve.
+    retenues = False
+    for name, held in held_by_file.items():
+        if name in state["files"] and state["files"][name].get("held", []) != held:
+            state["files"][name]["held"] = held
+            retenues = True
+    if retenues:
+        save_state(state)
     if not wow_running():
         for name, file in files.items():
             published = state["files"].get(name, {}).get("published", {})
@@ -307,9 +367,10 @@ def run_once(api: db.Sheets, sheet_id: str, retail: Path,
                 if removed:
                     snap = snapshot(file)
                     state["files"][name] = record(snap, {key: value for key, value in published.items()
-                                                         if key in snap["drafts"]})
+                                                         if key in snap["drafts"]},
+                                                  state["files"][name].get("held"))
                     save_state(state)
-                    log(f"{removed} brouillon(s) deja publie(s) retires de {name}.")
+                    log(f"{removed} entree(s) deja dans la base retiree(s) de la file d'envoi de {name}.")
     deployed = deploy(retail)
     if deployed:
         log(f"{deployed} fichier(s) d'addon actualise(s) ; /reload requis si WoW est ouvert.")
@@ -321,11 +382,13 @@ def main() -> None:
     parser.add_argument("--sheet-id", required=True)
     parser.add_argument("--credentials", required=True, type=Path)
     parser.add_argument("--retail", required=True, type=Path)
-    parser.add_argument("--interval", type=int, default=60,
-                        help="secondes entre deux lectures du Sheet (defaut : 60)")
+    # Deux minutes : un releve ne coute plus qu'une question a Drive tant que
+    # le classeur ne bouge pas, mais le quota est partage avec l'autre MJ.
+    parser.add_argument("--interval", type=int, default=120,
+                        help="secondes entre deux releves du Sheet (defaut : 120)")
     args = parser.parse_args()
     retail = args.retail.resolve()
-    api = db.Sheets(args.credentials, args.sheet_id)
+    api = db.Sheets(args.credentials, args.sheet_id, journal=log)
     if args.mode == "once":
         run_once(api, args.sheet_id, retail)
         return
@@ -339,6 +402,7 @@ def main() -> None:
     observer.start()
     try:
         while True:
+            game_is_running = game_was_running
             try:
                 now = time.monotonic()
                 game_is_running = wow_running()
@@ -364,7 +428,16 @@ def main() -> None:
                 changed.wait(2)
             except (OSError, ValueError, RuntimeError, db.lcm_db.LuaError) as error:
                 log(f"ERREUR : {error}")
-                time.sleep(30)
+                # L'etat de WoW est NOTE meme quand le passage echoue : sinon la
+                # tentative suivante refaisait tout le passage « WoW ouvert »,
+                # et un quota depasse ne retombait jamais (15 octobre 2026).
+                game_was_running = game_is_running
+                # Le quota de Google se compte a la minute : retenter au bout
+                # de 30 s retombait dans la meme fenetre. Ce qui n'est pas
+                # parti repart au releve suivant, rien n'est perdu.
+                attente = 90 if "(429)" in str(error) else 30
+                next_remote = time.monotonic() + attente
+                time.sleep(attente)
     finally:
         observer.stop()
         observer.join()

@@ -112,7 +112,6 @@ UI\Experience.lua
 UI\HUD.lua
 UI\Auras.lua
 UI\Inventaires.lua
-UI\LivresGlyphes.lua
 UI\LivresAnimation.lua
 UI\Livres.lua
 UI\Metiers.lua

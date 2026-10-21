@@ -73,9 +73,13 @@ FAMILIES = {
     "points": "Points",
     "tentes": "Tentes",
     "accessoires_camping": "AccessoiresCamping",
+    # Ce qui est pose dans le monde (coffres, filons, vendeurs), avec son
+    # contenu : un etat, pas un modele. Jamais livre aux joueurs, qui liraient
+    # dans les fichiers ou sont les coffres caches (MJ/Poses.lua).
+    "poses": "Poses",
 }
 REGISTRY_TO_FAMILY = {registry: family for family, registry in FAMILIES.items()}
-RESERVED_MJ = {"pnj", "jeux", "points"}
+RESERVED_MJ = {"pnj", "jeux", "points", "poses"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

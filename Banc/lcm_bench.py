@@ -321,6 +321,8 @@ local function NouvelleRegion(kind, parent)
     function r:GetTextColor() local c = self.__textColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] or 1 end
     function r:SetJustifyH(v) self.__justifyH = v end
     function r:SetJustifyV(v) self.__justifyV = v end
+    function r:SetSpacing(v) self.__spacing = v end
+    function r:GetSpacing() return self.__spacing or 0 end
     function r:GetJustifyH() return self.__justifyH or "CENTER" end
     function r:GetJustifyV() return self.__justifyV or "MIDDLE" end
     function r:SetFontObject() end

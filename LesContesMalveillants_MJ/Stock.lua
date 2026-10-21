@@ -112,6 +112,11 @@ function Stock.Etat(cle)
     return Repousser(cle, etat)
 end
 
+-- Ce stock a-t-il deja une histoire ici ? (Faux : on n'en sait que la regle.)
+function Stock.Connu(cle)
+    return Entrees()[tostring(cle or "")] ~= nil
+end
+
 function Stock.Restant(cle)
     return Stock.Etat(cle).r
 end

@@ -30,10 +30,17 @@ class MemorySheet:
     def replace_view(self, tab, headers, rows):
         self.views[tab] = (headers, rows)
 
+    # Les vues changees partent d'un coup depuis le travail sur le quota.
+    def replace_views(self, vues):
+        for tab, (headers, rows) in vues.items():
+            self.replace_view(tab, headers, rows)
+
 
 class GoogleSheetBaseTest(unittest.TestCase):
     def test_tools_and_chest_tool_types_round_trip(self):
-        packaged_script = SCRIPT.parents[1] / "LesContesMalveillants_MJ" / "Sync" / "Outils" / "gsheet_base.py"
+        # La reference est Outils/ ; la copie deployee dans Sync/ n'est plus
+        # suivie dans le depot (Outils/packager_sync.py la refait).
+        packaged_script = SCRIPT
         packaged_spec = importlib.util.spec_from_file_location("gsheet_base_packaged", packaged_script)
         packaged = importlib.util.module_from_spec(packaged_spec)
         packaged_spec.loader.exec_module(packaged)
@@ -89,7 +96,10 @@ class GoogleSheetBaseTest(unittest.TestCase):
             original = b"LCM_CharDB = { fiche = { nom = 'Temoin' } }\r\n"
             file.write_bytes(original)
             sheet = MemorySheet()
-            with patch.object(gsheet, "ROOT", root):
+            # Ce qui a deja ete envoye se note a part : isole ici, sinon le test
+            # ecrit dans celui du vrai service et une archive « deja partie »
+            # ne repart pas.
+            with patch.object(gsheet, "ROOT", root),                  patch.object(gsheet, "ECRITURES", root / "ecritures.json"):
                 gsheet.sauvegarder(sheet, retail)
                 self.assertEqual(sheet.views["Fiches"][1][0][3:6],
                                  ["/fiche/nom", "texte", "Temoin"])

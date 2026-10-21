@@ -9,9 +9,16 @@ BASE LCM - TRANSFERT AU BINOME
    du dossier de compte. Entree seule choisit la sauvegarde MJ la plus recente.
 6. Attendre le message de succes, puis relancer WoW.
 
-Le script copie les fichiers de contenu publie et ajoute 111 definitions aux brouillons
-du compte MJ choisi. Il conserve les autres brouillons du destinataire et ses donnees
-de personnage. Une copie des fichiers remplaces est creee dans _retail_/Sauvegarde_LCM_*.
+Le script copie les fichiers de contenu publie et ajoute les definitions de la base
+(leur nombre est dans Manifest.json) aux brouillons du compte MJ choisi. Il conserve
+les autres brouillons du destinataire et ses donnees de personnage. Une copie des
+fichiers remplaces est creee dans _retail_/Sauvegarde_LCM_*.
 Le dossier Source contient la base entree par entree pour inspection.
 
-Ne donner cette archive qu'a un autre MJ : elle contient les PNJ et les jeux d'equilibrage.
+Les coffres, filons et vendeurs POSES, avec leur contenu, arrivent par les fichiers
+de contenu : au premier chargement, l'addon MJ du destinataire les connait et peut en
+reprendre la garde. Ils ne sont pas ajoutes a ses brouillons : seul le MJ qui
+arbitre un point en ecrit la ligne dans la base.
+
+Ne donner cette archive qu'a un autre MJ : elle contient les PNJ, les jeux
+d'equilibrage et l'emplacement de chaque coffre.

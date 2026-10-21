@@ -121,13 +121,18 @@ local function Present(nom)
     return vu ~= nil and Maintenant() - vu.quand < Coffres.ABSENCE
 end
 
+-- `nom` absent : la copie vient de la base commune (MJ/Poses.lua), il n'y a
+-- personne a qui repondre.
 local function EnvoyerCopie(p, nom)
+    if not nom then return false end
     return LCM.Reseau.Envoyer(G.copie, { c = LCM.Lien.Serialiser(p) }, "WHISPER", nom, { etale = true })
 end
 local function EnvoyerTombe(id, tombe, nom)
+    if not nom then return false end
     return LCM.Reseau.Envoyer(G.retrait, { i = id, e = tombe.epoque, v = tombe.version,
         a = tombe.auteur }, "WHISPER", nom)
 end
+local function Poses() return LCM.Poses end
 
 -- Un geste sur un coffre que j'arbitre : il change de version, et les autres
 -- MJ presents en recoivent la copie.
@@ -137,6 +142,8 @@ local function Partager(p)
     for nom in pairs(pairsMJ) do
         if Present(nom) then EnvoyerCopie(p, nom) end
     end
+    -- Et vers la base commune, au prochain /reload (MJ/Poses.lua).
+    if Poses() then Poses().Noter("coffre", p.id, p) end
 end
 
 -- Tout ce que je sais, a un MJ qui arrive (ou revient) : mes coffres, mes
@@ -183,7 +190,7 @@ function Coffres.RecevoirCopie(expediteur, e)
         -- Il a une copie plus ancienne que la mienne : on le corrige. Si c'est
         -- moi l'arbitre, il vient peut-etre de l'annoncer aux joueurs en
         -- revenant : on la leur redit.
-        if connu and PlusRecent(connu, e) then
+        if connu and PlusRecent(connu, e) and expediteur then
             EnvoyerCopie(connu, expediteur)
             if mien then Coffres.Renvoyer() end
         end
@@ -200,6 +207,8 @@ function Coffres.RecevoirCopie(expediteur, e)
         -- n'est pas efface : sa version plus recente le remplace, et elle
         -- reste ici en copie de garde.
         Magasin()[id] = nil
+        -- Sa ligne dans la base est a lui maintenant : je ne l'ecris plus.
+        if Poses() then Poses().Lacher(id) end
         local point = C.points[id]
         if point then point.auteur = e.auteur; C.Sauver() end
         local d = Definition(e.def)
@@ -226,7 +235,12 @@ function Coffres.RecevoirTombe(expediteur, data)
     end
     Tombes()[id] = tombe
     Gardes()[id] = nil
-    if mien then Magasin()[id] = nil; C.Oublier(id) end
+    if mien then
+        Magasin()[id] = nil
+        C.Oublier(id)
+        -- Celui qui l'a retire en ecrit la suppression ; je n'ecris plus rien.
+        if Poses() then Poses().Lacher(id) end
+    end
 end
 
 -- Les arbitres muets : je reprends la garde de leurs coffres.
@@ -306,7 +320,9 @@ function Coffres.Placer(defId, position)
     Magasin()[id] = { id = id, def = d.id, x = x, y = y, z = z, source = source,
         carte = carte, mapid = mapid, quand = time and time() or 0, objets = contents,
         verrousRestants = d.coffre.verrous, verrouille = d.coffre.verrous > 0,
-        ouvert = d.coffre.verrous == 0, verrousOuverts = {} }
+        ouvert = d.coffre.verrous == 0, verrousOuverts = {},
+        -- Qui l'a pose : ne change jamais, meme quand la garde passe (MJ/Poses.lua).
+        posePar = Moi() }
     Partager(Magasin()[id])
     Coffres.Renvoyer()
     return id
@@ -358,6 +374,7 @@ function Coffres.Retirer(id)
     for nom in pairs(pairsMJ) do
         if Present(nom) then EnvoyerTombe(p.id, tombe, nom) end
     end
+    if Poses() then Poses().Supprimer(p.id) end
     -- Le client du MJ ignore ses propres messages réseau : sans retrait local,
     -- le coffre supprimé restait visible jusqu'au prochain rechargement.
     C.Oublier(p.id)
@@ -391,6 +408,16 @@ function Coffres.DepuisSol(sol)
     local ok, raison = LCM.Brouillons.Enregistrer("points", definition, true)
     if not ok then return nil, raison end
     return Coffres.Placer(definition.id, sol.position)
+end
+
+-- Les copies de garde d'un modele : les coffres des AUTRES MJ que je tiens a
+-- jour (voir plus haut). La liste de placement les montre en lecture seule.
+function Coffres.CopiesDeGarde(defId)
+    local out = {}
+    for _, p in pairs(Gardes()) do
+        if not defId or p.def == defId then out[#out + 1] = LCM.Copie(p) end
+    end
+    return out
 end
 
 function Coffres.Points(defId)
@@ -584,10 +611,25 @@ LCM.WhenReady(function()
     --
     -- Ce qui est dans mon magasin, je l'arbitre — y compris un coffre pose
     -- avant que la garde existe, ou sous un autre de mes personnages.
-    for _, p in pairs(Magasin()) do
+    for id, p in pairs(Magasin()) do
         p.auteur, p.epoque, p.version = Moi(), tonumber(p.epoque) or 0, tonumber(p.version) or 0
+        -- Un coffre d'avant ce jour, dans mon magasin : c'est moi qui l'ai pose.
+        p.posePar = p.posePar or Moi()
+        -- Un coffre pose avant la base commune n'y part qu'a son premier geste :
+        -- on l'y envoie des maintenant. Deja publie tel quel, le service ne le
+        -- renvoie pas (il compare a ce qu'il a publie).
+        if LCM.Poses then LCM.Poses.Noter("coffre", id, p) end
     end
     OublierTombes()
+    -- Ce que la base commune sait des coffres poses (MJ/Poses.lua) passe par
+    -- la meme porte qu'une copie recue en seance : le plus recent l'emporte,
+    -- une tombe tient, et MES coffres absents d'ici (une sauvegarde perdue,
+    -- un autre poste) reviennent dans mon magasin.
+    for _, pose in ipairs(LCM.Poses and LCM.Poses.De("coffre") or {}) do
+        local e = LCM.Poses.Entree(pose)
+        e.objets, e.verrousOuverts = e.objets or {}, e.verrousOuverts or {}
+        Coffres.RecevoirCopie(nil, e)
+    end
     Coffres.Renvoyer()
 
     LCM.Reseau.Ecouter(G.pouls, Coffres.RecevoirPouls)

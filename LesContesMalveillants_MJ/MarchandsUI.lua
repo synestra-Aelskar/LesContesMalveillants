@@ -133,6 +133,12 @@ local function Construire()
     p.titre = UI.Texte(p, "", UI.C.titre)
     UI.Police(p.titre, 14)
     p.titre:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -2)
+    -- La liste est PERSONNELLE ; ce que les autres ont pose se demande ici.
+    p.filtre = LCM.Poses.Selecteur(p, f, function()
+        return LCM.Poses.Poseurs("vendeur", Marchands.Points())
+    end, function() f:AfficherPoints() end)
+    p.filtre:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
+    p.titre:SetPoint("RIGHT", p.filtre, "LEFT", -8, 0)
     p.position = UI.Texte(p, "", UI.C.texte, "GameFontNormalSmall")
     p.position:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -26)
     p.position:SetPoint("RIGHT", p, "RIGHT", 0, 0)
@@ -288,7 +294,9 @@ local function Construire()
 
     function f:AfficherPoints()
         local point = self:Point()
-        local liste = point and Marchands.Points(point.id) or {}
+        local miens = point and Marchands.Points(point.id) or {}
+        local liste = point and LCM.Poses.Composer("vendeur", point.id, miens, self.filtrePoses) or {}
+        p.filtre:Actualiser()
         local x, y, source, z = self:Position()
         local carte = LCM.Recolte.Carte()
         local h = 0
@@ -307,9 +315,17 @@ local function Construire()
                     self:Afficher()
                 end)
                 l.retirer:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+                -- Celui d'un autre se consulte : on peut y aller.
+                l.teleporter = UI.Bouton(l, "S'y téléporter", 112, 20, function(b)
+                    local ok, raison = LCM.Poses.Teleporter(b:GetParent().pose)
+                    if not ok then LCM.Alerte(tostring(raison)) end
+                end)
+                l.teleporter:SetPoint("RIGHT", l, "RIGHT", -4, 0)
                 p.lignes[rang] = l
             end
-            l.poseId = pose.id
+            l.poseId, l.pose = pose.id, pose
+            l.retirer:SetShown(not pose.autre)
+            l.teleporter:SetShown(pose.autre == true)
             local distance = ""
             if x and pose.source == source and pose.carte == carte then
                 local d = LCM.Recolte.Distance(pose, { x = x, y = y, z = z })
@@ -317,7 +333,7 @@ local function Construire()
             elseif pose.carte ~= carte then
                 distance = "  —  autre carte"
             end
-            l.texte:SetText(string.format("#%d   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1,
+            l.texte:SetText(LCM.Poses.Prefixe(pose) .. string.format("#%d   %.1f, %.1f, %s   (%s%s)%s", #liste - rang + 1,
                 pose.x, pose.y, pose.z and string.format("%.1f", pose.z) or "Z ?",
                 tostring(pose.source), pose.carte and (", carte " .. pose.carte) or "", distance))
             l:ClearAllPoints()
@@ -332,7 +348,7 @@ local function Construire()
         p.vide:SetShown(point ~= nil and #liste == 0)
         p.compte:SetText(point and string.format("%d emplacement(s)", #liste) or "")
         p.poser:SetEnabled(point ~= nil)
-        p.toutRetirer:SetEnabled(#liste > 0)
+        p.toutRetirer:SetEnabled(#miens > 0)
     end
 
     function f:Afficher()

@@ -73,6 +73,14 @@ Un seul lanceur, le **sceau** (déplaçable), qui porte deux couronnes radiales
 
 ### Ce qui marche
 
+**Les livres lisibles** (refonte du 21 octobre 2026). Le lecteur reprend les
+animations BLP du journal de quête Omega_hub : ouverture, fermeture,
+feuilletage dans les deux sens et notes recto verso. L'éditeur MJ propose
+quatre reliures (Necronicon, chronique, atlas astral, herbier). Les anciens
+livres conservent le Necronicon noir et or. Les textes restent natifs,
+avec défilement et taille réglable par `A+`. Sources et vérifications dans
+`Outils/sources/livres/README.md`.
+
 **Le socle.** Schéma figé (`Core/Schema.lua` + `Data/Fiche.lua`), 155 champs,
 8 onglets. Les entités — joueurs **et** PNJ, même modèle — ne stockent que leurs
 valeurs : `{ id, name, icon, kind, values }`. Une valeur égale au défaut n'est

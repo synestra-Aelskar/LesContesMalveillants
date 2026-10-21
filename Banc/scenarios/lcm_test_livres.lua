@@ -1,4 +1,5 @@
 -- Livres : edition MJ, compendium, lecture et transmission par loot.
+-- 2,5 s incluent la preparation GPU des atlas lors du premier affichage.
 local ko = 0
 local function attendu(nom, obtenu, voulu)
     local ok = tostring(obtenu) == tostring(voulu)
@@ -29,6 +30,8 @@ if f then
     f.texte.saisie:Saisir("Verso témoin")
     attendu("note sur deux faces", #f.travail.pages, 2)
     f.livre:Click()
+    f.modele:Click()
+    attendu("choix de reliure", f.travail.modele, "astral")
     f.ajouter:Click()
     attendu("ajout d'une page de livre", #f.travail.pages, 3)
     f.fond:Saisir("EEDDCC")
@@ -40,6 +43,7 @@ local livre = f and LCM.Livres.Get(f.travail.id)
 local ref = livre and "livres/" .. livre.id
 attendu("livre publié", livre and livre.label, "Chronique témoin")
 attendu("couleur personnalisée", livre and livre.style.fond, "EEDDCC")
+attendu("reliure enregistree", livre and livre.modele, "astral")
 attendu("compendium résout le livre", ref and LCM.Compendium.Resoudre(ref) ~= nil, true)
 if ref then
     local depose, raisonDepot = LCM.Inventaire.Deposer(moi, ref, 1)
@@ -66,26 +70,26 @@ if ref then
     local lecture = LCM.UI.Livres.frame
     attendu("couverture affichée", lecture.compteur:GetText():match("Couverture") ~= nil, true)
     lecture:Tourner(1)
-    __avancer(1.1)
+    __avancer(2.5)
     attendu("animation tourne la page", lecture.index, 2)
     attendu("double page visible", lecture.ouvert:IsShown(), true)
     attendu("page droite remplie", lecture.droite:IsShown(), true)
     lecture:Tourner(1)
-    __avancer(1.1)
+    __avancer(2.5)
     attendu("derniere page impaire", lecture.index, 4)
     attendu("page droite vide masquee", lecture.droite:IsShown(), false)
     lecture:Tourner(1)
-    __avancer(1.1)
+    __avancer(2.5)
     attendu("dos du livre", lecture.compteur:GetText(), "Dos")
     lecture:Tourner(-1)
-    __avancer(1.1)
+    __avancer(2.5)
     attendu("retour depuis le dos", lecture.index, 4)
     local note = { id = "note_visuelle", label = "Note témoin", format = "note",
         pages = { { titre = "Recto", texte = "A" }, { titre = "Verso", texte = "B" } } }
     attendu("apercu d'une note", LCM.UI.Livres.Apercu(note), true)
     attendu("feuille distincte visible", lecture.note:IsShown(), true)
     lecture:Tourner(1)
-    __avancer(1.1)
+    __avancer(2.5)
     attendu("note retournee", lecture.index, 2)
 
     local paquet = LCM.Recolte.Paquet({ id = "filon_livre", label = "Filon témoin",
@@ -94,12 +98,14 @@ if ref then
     LCM.Livres.Retirer(livre.id)
     LCM.Recolte.Lire(paquet)
     attendu("ressource transmet la definition", LCM.Livres.Get(livre.id) ~= nil, true)
+    attendu("ressource transmet la reliure", LCM.Livres.Get(livre.id).modele, "astral")
     local coffre = LCM.Coffres.Paquet({ id = "coffre_livre", label = "Coffre témoin",
         coffre = { places = 1, objets = { { entree = ref, quantite = 1 } } } }, {})
     coffre = LCM.Reseau.Decoder(LCM.Reseau.Encoder(coffre))
     LCM.Livres.Retirer(livre.id)
     LCM.Coffres.Lire(coffre)
     attendu("coffre transmet la definition", LCM.Livres.Get(livre.id) ~= nil, true)
+    attendu("coffre transmet la reliure", LCM.Livres.Get(livre.id).modele, "astral")
     local valide = LCM.Points.Construire({ id = "coffre_livre_valide", nature = "coffre",
         coffre = { places = 1, objets = { { entree = ref, quantite = 1 } } } })
     attendu("livre accepte dans un coffre", valide.coffre.objets[1].entree, ref)

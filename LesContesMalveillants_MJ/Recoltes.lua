@@ -152,7 +152,7 @@ function Recoltes.Carnet(defId)
                 end
             end
             out[#out + 1] = { id = id, def = p.def, x = p.x, y = p.y, z = p.z,
-                source = p.source, carte = p.carte, quand = p.quand,
+                source = p.source, carte = p.carte, quand = p.quand, posePar = p.posePar,
                 statut = p.statut or "cree", par = p.par, le = p.le,
                 usages = p.usages, consomme = p.consomme, prochain = p.prochain,
                 ressources = vue.ressources, vide = vue.vide, lignes = p.lignes,
@@ -201,9 +201,19 @@ local function Marquer(id, statut, par)
     return true
 end
 
+-- Chaque changement d'un point passe ici : c'est donc ici qu'il part aussi
+-- vers la base commune (MJ/Poses.lua), au prochain /reload.
+local function Noter(defId)
+    if not LCM.Poses then return end
+    for id, p in pairs(Magasin()) do
+        if p.def == defId then LCM.Poses.Noter("ressource", id, p) end
+    end
+end
+
 -- Ce que le MJ connait, il le connait aussi en joueur : il peut recolter ses
 -- propres points pour les essayer.
 local function Rafraichir(defId)
+    Noter(defId)
     local point = Recoltes.Definition(defId)
     if point then R.Connaitre(Publique(point), Recoltes.Points(defId, true), Moi())
     else R.OublierDefinition(defId) end
@@ -242,7 +252,9 @@ function Recoltes.Placer(defId)
     local mapid = source == "gps" and D and D.CarteGPS and tonumber(D.CarteGPS()) or nil
     -- Tout eteint : le MJ allume ce que CE point donne (voir Effectives).
     Magasin()[id] = { def = point.id, x = x, y = y, z = z, source = source, carte = R.Carte(),
-        mapid = mapid, quand = (time and time()) or 0, lignes = {} }
+        mapid = mapid, quand = (time and time()) or 0, lignes = {},
+        -- Qui l'a pose (MJ/Poses.lua).
+        posePar = Moi() }
     Rafraichir(point.id)
     Recoltes.Diffuser(point.id)
     return id
@@ -315,6 +327,7 @@ function Recoltes.Retirer(id)
     local p = Magasin()[id]
     if not p then return false end
     Magasin()[id] = nil
+    if LCM.Poses then LCM.Poses.Supprimer(id) end
     Rafraichir(p.def)
     local canal = Canal()
     if canal then LCM.Reseau.Envoyer(S.retrait, { i = id }, canal) end
@@ -325,7 +338,10 @@ end
 function Recoltes.RetirerTout(defId)
     local n = 0
     for id, p in pairs(Magasin()) do
-        if p.def == defId then Magasin()[id] = nil n = n + 1 end
+        if p.def == defId then
+            Magasin()[id] = nil n = n + 1
+            if LCM.Poses then LCM.Poses.Supprimer(id) end
+        end
     end
     Rafraichir(defId)
     local canal = Canal()
@@ -403,6 +419,26 @@ function Recoltes.Echec(id, par, compte)
     Recoltes.Diffuser(p.def)
     return true
 end
+
+-- MES points que la base commune connait et qui manquent ici (une sauvegarde
+-- perdue, un autre poste) reviennent dans le magasin. Ceux qu'on a retires ne
+-- reviennent pas : leur suppression, notee, les a deja ecartes du registre
+-- (MJ/Brouillons.lua). Ceux d'un autre MJ restent a lui. Avant tout le reste
+-- du chargement, qui les diffuse.
+LCM.WhenReady(function()
+    local rendus = 0
+    for _, pose in ipairs(LCM.Poses and LCM.Poses.De("ressource") or {}) do
+        if pose.auteur == Moi() and not Magasin()[pose.id] then
+            local e = LCM.Copie(pose.donnees)
+            e.id, e.auteur, e.epoque, e.version = nil, nil, nil, nil
+            Magasin()[pose.id] = e
+            rendus = rendus + 1
+        end
+    end
+    if rendus > 0 then
+        LCM.Info(string.format("%d point(s) de récolte rendu(s) par la base commune.", rendus))
+    end
+end)
 
 -- Le reglage par liste (le matin du 20 octobre 2026) devient des lignes
 -- allumees. Une fois, au chargement — jamais dans un accesseur.

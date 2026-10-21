@@ -22,7 +22,7 @@ class LivresSheetsTest(unittest.TestCase):
         for format in ('livre', 'note'):
             with self.subTest(format=format):
                 definition = {'id': 'livre_temoin', 'label': 'Chronique témoin',
-                    'description': 'Texte de test local.', 'format': format,
+                    'description': 'Texte de test local.', 'format': format, 'modele': 'herbier',
                     'pages': {1: {'titre': 'À l’aube', 'texte': 'Une ligne.\nUne autre.'},
                               2: {'titre': 'Épilogue', 'texte': 'Fin.'}},
                     'style': {'encre': '302317', 'fond': 'E5D3A3', 'alignement': 'LEFT'}}
