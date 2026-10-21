@@ -602,6 +602,14 @@ dépôt quand elle a été retirée. Après un changement, recopier les quatre
 fichiers dans `Sync/` (sans toucher à ses fichiers d'état) et relancer le
 processus `pythonw … gsheet_auto.py watch`.
 
+**Le code de `Sync/` est de nouveau suivi dans le dépôt** (21 octobre 2026) :
+c'est par lui que le binôme reçoit le service — `recuperer.ps1` copie tout
+fichier du dossier MJ du dépôt, et sans ces fichiers sa copie restait
+ancienne. Seuls le code et les installeurs y vont, jamais `entries/` ni les
+états (le `.gitignore` les écarte). Il faut donc les recopier **aussi** dans
+`LesContesMalveillants_MJ/Sync/` du dépôt, pas seulement dans AddOns. Après
+récupération, chacun relance son service.
+
 ## Le partage MJ / joueurs
 
 `LesContesMalveillants_MJ` est un **aiguillage, pas un verrou** :

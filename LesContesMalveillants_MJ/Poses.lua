@@ -49,12 +49,12 @@ LCM.Poses = LCM.Registre({
 local Poses = LCM.Poses
 local FAMILLE = "poses"
 
--- Un nom lisible dans la base : « Coffre « Cassier fermé. » — Reika ».
-local function Libelle(nature, defId, auteur)
+-- Un nom lisible dans la base : le modele, « Cassier fermé. ». Ni la nature
+-- ni le poseur : les colonnes Famille et Créateur du Sheet les disent deja
+-- (21 octobre 2026).
+local function Libelle(defId)
     local modele = LCM.Points and LCM.Points.Get(defId)
-    local noms = { coffre = "Coffre", ressource = "Récolte", vendeur = "Vendeur" }
-    return string.format("%s « %s » — %s", noms[nature] or nature,
-        tostring(modele and modele.label or defId), tostring(auteur):match("^[^-]+") or tostring(auteur))
+    return tostring(modele and modele.label or defId)
 end
 
 -- Ce point, tel qu'il est maintenant, part dans la file d'envoi. `entree` est
@@ -65,7 +65,7 @@ function Poses.Noter(nature, id, entree, extra)
     local donnees = LCM.Copie(entree)
     donnees.id = id
     local definition = {
-        id = id, nature = nature, label = Libelle(nature, donnees.def, entree.auteur or LCM.PlayerId()),
+        id = id, nature = nature, label = Libelle(donnees.def),
         auteur = entree.auteur or LCM.PlayerId(),
         epoque = tonumber(entree.epoque) or 0, version = tonumber(entree.version) or 0,
         donnees = donnees,

@@ -299,6 +299,9 @@ local function LigneCandidat(nom)
 end
 local ligneBram = LigneCandidat("Bram-Apertus")
 attendu("le nouveau joueur est proposé", ligneBram ~= nil, true)
+-- Sans profil TRP3 connu, il avait un point d'interrogation (21 octobre
+-- 2026) : il a maintenant le portrait de son unite de groupe.
+attendu("avec son portrait, pas un « ? »", ligneBram and ligneBram.icone:GetTexture(), "portrait:raid3")
 attendu("la case selectionne le joueur", ligneBram and ligneBram.case:IsEnabled(), true)
 ligneBram.case:Click()
 panneauCombat.integrer:Click()

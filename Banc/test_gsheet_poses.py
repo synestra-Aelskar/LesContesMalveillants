@@ -109,6 +109,85 @@ class PosesTest(unittest.TestCase):
                              [plus_recente])
             self.assertEqual(auto.stage_changes(sheet, "sheet", {"poses/c1": plus_vieille}, set()), [])
 
+    def test_la_colonne_famille_dit_ce_qui_est_pose(self):
+        # 21 octobre 2026 : « poses » ne disait rien au MJ qui filtre le Sheet.
+        # La colonne affiche la nature ; tous ces noms se relisent « poses ».
+        coffre = pose("c1")
+        self.assertEqual(db.vers_sheet(coffre)[0], "Coffre")
+        self.assertEqual(db.canonical(db.vers_sheet(coffre)), coffre)
+        vendeur = db.lcm_db.LuaParser(coffre[6]).value()
+        vendeur["nature"] = "vendeur"
+        ligne = db.canonical(["Vendeur", "c1", "c1", "", True, db.ACTIVE,
+                              db.lcm_db.lua_value(vendeur)])
+        self.assertEqual(ligne[0], "poses")
+        supprime = db.canonical(["poses", "c2", "", "", True, db.DELETED, ""])
+        self.assertEqual(db.vers_sheet(supprime)[0], "Point posé")
+        # Les autres familles ne bougent pas.
+        self.assertEqual(db.famille_affichee(["objets", "o"] + [""] * 5), "objets")
+        self.assertEqual(len(db.vers_sheet(["objets", "o"] + [""] * 5)), len(db.HEADERS))
+
+    def test_la_colonne_createur_dit_qui_a_pose(self):
+        # Le poseur, sans son royaume ; a defaut (point d'avant posePar),
+        # l'arbitre. Une colonne d'affichage : la relecture l'ignore.
+        coffre = pose("c1")
+        self.assertEqual(db.vers_sheet(coffre)[7], "Reika")
+        definition = db.lcm_db.LuaParser(coffre[6]).value()
+        definition["donnees"]["posePar"] = "Moon-Apertus"
+        posee = db.canonical(["poses", "c1", "c1", "", True, db.ACTIVE,
+                              db.lcm_db.lua_value(definition)])
+        self.assertEqual(db.createur(posee), "Moon")
+        self.assertEqual(db.canonical(db.vers_sheet(posee)), posee)
+        self.assertEqual(db.en_tetes("Poses"), db.HEADERS + ["Créateur"])
+        self.assertEqual(db.en_tetes("Objets"), db.HEADERS)
+
+    def test_un_onglet_poses_trop_etroit_s_elargit(self):
+        envois = []
+
+        class Classeur(db.Sheets):
+            def __init__(self):
+                self._lus, self._onglets, self._prets = {"Poses": [db.HEADERS]}, {"Poses": 7}, set()
+                self.tab, self._perime = "Poses", False
+
+            def request(self, method, suffix, body=None):
+                envois.append((suffix, body))
+                return {}
+
+        Classeur().prepare()
+        lots = [b["requests"] for s, b in envois if s == ":batchUpdate"]
+        # L'elargissement part seul, AVANT la mise en forme qui vise la colonne H.
+        self.assertEqual(lots[0], [{"appendDimension": {"sheetId": 7, "dimension": "COLUMNS",
+                                                        "length": 1}}])
+        self.assertEqual(envois[-1][1]["values"], [db.HEADERS + ["Créateur"]])
+        self.assertIn("A1%3AH1", envois[-1][0])
+
+    def test_un_ancien_poses_se_renomme_sans_changer_de_contenu(self):
+        coffre = pose("c1")
+        ecrit = []
+
+        preparee = []
+
+        class Feuille(MemorySheet):
+            def prepare(self):
+                preparee.append(self.tab)
+
+            def write(self, debut, lignes):
+                ecrit.append((debut, lignes))
+
+        feuille = Feuille([coffre, db.vers_sheet(pose("c2"))])
+        feuille.tab = "Poses"
+        with patch.object(db, "local_rows", return_value={"poses/c1": coffre,
+                                                          "poses/c2": pose("c2")}), \
+             patch.object(db, "load_state", return_value={}), \
+             patch.object(db, "save_state"), \
+             patch.object(db.lcm_db, "build"):
+            db.synchronise(feuille, "sheet", "poses", {"poses"}, prepare=False, verbose=False)
+        # Seule la ligne restee « poses » est reecrite, avec son nom affiche.
+        self.assertEqual(ecrit, [(2, [db.vers_sheet(coffre)])])
+        # Le service passe sans preparer l'onglet : un en-tete « Créateur »
+        # absent le fait preparer quand meme, sinon la colonne resterait sans
+        # titre (constate le 21 octobre 2026).
+        self.assertEqual(preparee, ["Poses"])
+
     def test_un_onglet_absent_est_cree_puis_relu(self):
         appels = []
 

@@ -100,6 +100,11 @@ function UnitName(unit)
     return "Reika"
 end
 function UnitFullName(unit) return "Reika", "Apertus" end
+-- Le portrait d'une unite : on retient l'unite dans le chemin, pour qu'un
+-- scenario sache QUEL portrait a ete pose.
+function SetPortraitTexture(texture, unit)
+    texture:SetTexture("portrait:" .. tostring(unit))
+end
 
 -- La cible du joueur, et les auras du jeu qui l'affectent.
 -- `__cible("Nytherah", { utiles = {...}, nefastes = {...} })` la pose,

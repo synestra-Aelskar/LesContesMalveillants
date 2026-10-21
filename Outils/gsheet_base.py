@@ -35,6 +35,21 @@ REGLAGES_HEADERS = ["Chemin", "Valeur"]
 ACTIVE = "ACTIF"
 DELETED = "SUPPRIME"
 
+# La colonne Famille d'un point pose dit CE qui est pose (« Vendeur »,
+# « Coffre »), pas le nom de la famille : c'est ce que le MJ cherche en
+# filtrant. Le nom n'est qu'un affichage — la nature fait foi dans le Lua, et
+# a la lecture tous ces noms redeviennent « poses ». Une suppression n'a plus
+# de Lua, donc plus de nature : elle s'affiche « Point posé ».
+NATURES_POSES = {"coffre": "Coffre", "ressource": "Récolte", "vendeur": "Vendeur"}
+POSE_SANS_NATURE = "Point posé"
+FAMILLES_AFFICHEES = {nom: "poses" for nom in [*NATURES_POSES.values(), POSE_SANS_NATURE]}
+# L'onglet des points poses a une colonne de plus : le personnage qui a pose le
+# point, pour filtrer les placements de chacun. Comme la Famille affichee, elle
+# n'est qu'une lecture du Lua (`posePar`, a defaut l'arbitre) et s'ignore a la
+# relecture. Elle vient APRES la colonne Lua, masquee : a l'ecran, elle suit
+# Statut, et aucune colonne existante ne change de place.
+CREATEUR = "Créateur"
+
 
 def validate_tool_extensions(family: str, identifier: str, definition: dict) -> None:
     """Garde les nouveaux outils dans les familles existantes du Sheet.
@@ -82,6 +97,7 @@ def canonical(row: list[object]) -> list[object]:
     values = (row + [""] * len(HEADERS))[: len(HEADERS)]
     family, identifier, label, description, mj, status, lua = values
     family, identifier = str(family).strip(), str(identifier).strip()
+    family = FAMILLES_AFFICHEES.get(family, family)
     if family not in lcm_db.FAMILIES:
         raise ValueError(f"famille inconnue : {family!r}")
     lcm_db.safe_id(identifier)
@@ -117,6 +133,43 @@ def canonical(row: list[object]) -> list[object]:
 
 def key(row: list[object]) -> str:
     return f"{row[0]}/{row[1]}"
+
+
+def _definition(row: list[object]) -> dict:
+    lua = str(row[6] or "").strip()
+    definition = lcm_db.LuaParser(lua).value() if lua else {}
+    return definition if isinstance(definition, dict) else {}
+
+
+def famille_affichee(row: list[object]) -> str:
+    if row[0] != "poses":
+        return str(row[0])
+    return NATURES_POSES.get(str(_definition(row).get("nature") or ""), POSE_SANS_NATURE)
+
+
+def createur(row: list[object]) -> str:
+    """Le personnage qui a pose ce point, sans son royaume."""
+    definition = _definition(row)
+    donnees = definition.get("donnees")
+    pose_par = donnees.get("posePar") if isinstance(donnees, dict) else None
+    return str(pose_par or definition.get("auteur") or "").split("-", 1)[0]
+
+
+def vers_sheet(row: list[object]) -> list[object]:
+    """Une ligne canonique telle qu'elle s'ecrit dans le Sheet."""
+    ligne = [famille_affichee(row)] + list(row[1:])
+    if row[0] == "poses":
+        ligne.append(createur(row))
+    return ligne
+
+
+def onglet_poses() -> str:
+    return next(item["titre"] for item in feuilles().values() if "poses" in item["familles"])
+
+
+def en_tetes(tab: str) -> list[str]:
+    """Les en-tetes de cet onglet de contenu."""
+    return HEADERS + [CREATEUR] if tab == onglet_poses() else HEADERS
 
 
 def digest(row: list[object]) -> str:
@@ -178,7 +231,12 @@ def onglets_contenu() -> list[str]:
     return [item["titre"] for item in feuilles().values() if item["familles"]]
 
 
-def remote_rows(values: list[list[object]]) -> dict[str, tuple[int, list[object]]]:
+def remote_rows(values: list[list[object]],
+                perimees: set[str] | None = None) -> dict[str, tuple[int, list[object]]]:
+    """`perimees`, si on le donne, recoit les lignes dont les colonnes
+    d'affichage (Famille, Créateur) ne disent pas ce qu'elles devraient — un
+    « poses » d'avant l'affichage par nature, un créateur absent : le contenu
+    est le meme, seul l'affichage est a reecrire."""
     if not values or values[0][: len(HEADERS)] != HEADERS:
         raise ValueError("en-tetes du Sheet absents ou modifies")
     rows = {}
@@ -190,6 +248,11 @@ def remote_rows(values: list[list[object]]) -> dict[str, tuple[int, list[object]
         if key(row) in rows:
             raise ValueError(f"doublon ligne {number} : {key(row)}")
         rows[key(row)] = (number, row)
+        if perimees is not None and (
+                str(raw[0]).strip() != famille_affichee(row)
+                or (row[0] == "poses"
+                    and str(raw[7] if len(raw) > 7 else "").strip() != createur(row))):
+            perimees.add(key(row))
     return rows
 
 
@@ -347,15 +410,27 @@ class Sheets:
     def prepare(self) -> None:
         if ("contenu", self.tab) in self._prets:
             return
+        headers = en_tetes(self.tab)
         found = self._onglet(self.tab)
         if found is None:
-            found = self._creer_onglet(self.tab, len(HEADERS), 2000)
+            found = self._creer_onglet(self.tab, len(headers), 2000)
+        current = self.values()
+        if not current or not any(str(value).strip() for value in current[0]):
+            current = []
+        elif current[0][: len(HEADERS)] != HEADERS:
+            raise ValueError(f"l'onglet {self.tab} existe avec d'autres en-tetes")
+        # Un onglet cree avant sa colonne en plus n'a pas la place de l'ecrire :
+        # on l'elargit une fois, avant toute mise en forme qui la viserait.
+        manque = len(headers) - len(current[0]) if current else 0
+        if manque > 0:
+            self.request("POST", ":batchUpdate", {"requests": [{"appendDimension": {
+                "sheetId": found, "dimension": "COLUMNS", "length": manque}}]})
         requests = [
             {"updateSheetProperties": {"properties": {"sheetId": found,
                 "gridProperties": {"frozenRowCount": 1}},
                 "fields": "gridProperties.frozenRowCount"}},
             {"repeatCell": {"range": {"sheetId": found, "startRowIndex": 0,
-                "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": len(HEADERS)},
+                "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": len(headers)},
                 "cell": {"userEnteredFormat": {"backgroundColor": {
                     "red": 0.11, "green": 0.17, "blue": 0.24},
                     "textFormat": {"bold": True, "foregroundColor": {
@@ -374,26 +449,27 @@ class Sheets:
                 "dimension": "COLUMNS", "startIndex": 6, "endIndex": 7},
                 "properties": {"pixelSize": 500, "hiddenByUser": True},
                 "fields": "pixelSize,hiddenByUser"}},
+            *([{"updateDimensionProperties": {"range": {"sheetId": found,
+                "dimension": "COLUMNS", "startIndex": len(HEADERS), "endIndex": len(headers)},
+                "properties": {"pixelSize": 160}, "fields": "pixelSize"}}]
+              if len(headers) > len(HEADERS) else []),
             {"updateDimensionProperties": {"range": {"sheetId": found,
                 "dimension": "ROWS", "startIndex": 1, "endIndex": 2000},
                 "properties": {"pixelSize": 38}, "fields": "pixelSize"}},
             {"repeatCell": {"range": {"sheetId": found, "startRowIndex": 1,
-                "startColumnIndex": 0, "endColumnIndex": len(HEADERS)},
+                "startColumnIndex": 0, "endColumnIndex": len(headers)},
                 "cell": {"userEnteredFormat": {"verticalAlignment": "MIDDLE",
                     "wrapStrategy": "CLIP"}},
                 "fields": "userEnteredFormat.verticalAlignment,userEnteredFormat.wrapStrategy"}},
             {"setBasicFilter": {"filter": {"range": {"sheetId": found,
-                "startRowIndex": 0, "endColumnIndex": len(HEADERS)}}}},
+                "startRowIndex": 0, "endColumnIndex": len(headers)}}}},
             {"setDataValidation": {"range": {"sheetId": found,
                 "startRowIndex": 1, "startColumnIndex": 4, "endColumnIndex": 5},
                 "rule": {"condition": {"type": "BOOLEAN"}, "strict": True}}},
         ]
         self.request("POST", ":batchUpdate", {"requests": requests})
-        current = self.values()
-        if not current or not any(str(value).strip() for value in current[0]):
-            self.write(1, [HEADERS])
-        elif current[0][: len(HEADERS)] != HEADERS:
-            raise ValueError(f"l'onglet {self.tab} existe avec d'autres en-tetes")
+        if not current or current[0][: len(headers)] != headers:
+            self.write(1, [headers])
         self._prets.add(("contenu", self.tab))
 
     def prepare_backups(self) -> None:
@@ -437,7 +513,7 @@ class Sheets:
         tabs = [tab for tab in dict.fromkeys(tabs) if tab not in self._lus]
         if not tabs:
             return
-        ranges = "&".join("ranges=" + quote(f"'{tab}'!A:G", safe="") for tab in tabs)
+        ranges = "&".join("ranges=" + quote(f"'{tab}'!A:H", safe="") for tab in tabs)
         try:
             result = self.request("GET", f"/values:batchGet?{ranges}&valueRenderOption=UNFORMATTED_VALUE")
         except RuntimeError as erreur:
@@ -516,7 +592,7 @@ class Sheets:
     def values(self) -> list[list[object]]:
         if self.tab in self._lus:
             return self._lus[self.tab]
-        region = quote(f"'{self.tab}'!A:G", safe="")
+        region = quote(f"'{self.tab}'!A:H", safe="")
         return self.request("GET", f"/values/{region}?valueRenderOption=UNFORMATTED_VALUE").get("values", [])
 
     def write(self, start: int, rows: list[list[object]]) -> None:
@@ -526,7 +602,8 @@ class Sheets:
         self._lus.pop(self.tab, None)
         self._perime = True
         end = start + len(rows) - 1
-        cell_range = f"'{self.tab}'!A{start}:G{end}"
+        last = chr(64 + max(len(row) for row in rows))
+        cell_range = f"'{self.tab}'!A{start}:{last}{end}"
         self.request("PUT", f"/values/{quote(cell_range, safe='')}?valueInputOption=RAW",
                      {"range": cell_range, "majorDimension": "ROWS", "values": rows})
 
@@ -656,7 +733,17 @@ def synchronise(api: Sheets, sheet_id: str, classeur: str, families: set[str],
     if prepare:
         api.prepare()
     local = local_rows(families)
-    remote = remote_rows(api.values())
+    perimees: set[str] = set()
+    values = api.values()
+    # Le service ne prepare pas l'onglet a chaque passage (prepare=False) : une
+    # colonne en plus arrivee apres coup n'aurait jamais son en-tete. On le
+    # constate ici, et on prepare une fois (21 octobre 2026).
+    headers = en_tetes(api.tab) if api.tab else HEADERS
+    if values and values[0][: len(headers)] != headers:
+        getattr(api, "_prets", set()).discard(("contenu", api.tab))
+        api.prepare()
+        values = api.values()
+    remote = remote_rows(values, perimees)
     for identifier in remote:
         if identifier.split("/", 1)[0] not in families:
             raise ValueError(f"entree dans le mauvais classeur : {identifier}")
@@ -702,10 +789,18 @@ def synchronise(api: Sheets, sheet_id: str, classeur: str, families: set[str],
         apply_remote(row, backup)
     # Verifier toute la base avant d'envoyer les modifications locales.
     lcm_db.build()
+    # Une ligne dont seul le nom affiche a vieilli se reecrit telle quelle :
+    # son contenu ne change pas, la comparaison ne l'aurait jamais renvoyee.
+    ecrites = {number for number, _ in pushes}
+    for identifier in sorted(perimees):
+        number, row = remote[identifier]
+        if number not in ecrites:
+            pushes.append((number, row))
     for number, row in pushes:
-        api.write(number, [row])
+        api.write(number, [vers_sheet(row)])
     if appends:
-        api.write(max([1] + [number for number, _ in remote.values()]) + 1, appends)
+        api.write(max([1] + [number for number, _ in remote.values()]) + 1,
+                  [vers_sheet(row) for row in appends])
     save_state(sheet_id, classeur, local_rows(families))
     if verbose and (pulls or pushes or appends):
         print(f"{classeur} : {len(pulls)} recues, {len(pushes) + len(appends)} envoyees.")

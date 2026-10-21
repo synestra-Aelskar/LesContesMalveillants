@@ -28,6 +28,30 @@ MJ.Combat = Ecran
 local COLONNE = 300
 local LIGNE = 26
 
+-- L'unite du groupe qui porte ce nom. Un joueur qui n'est pas encore au
+-- combat n'a pas d'icone connue — son profil TRP3 n'arrive qu'avec sa
+-- reponse — et la liste montrait un point d'interrogation (21 octobre 2026).
+-- Le portrait du jeu dit au moins de qui il s'agit.
+local function Unite(joueur)
+    local court = tostring(joueur or ""):match("^([^-]+)")
+    if not court or not UnitName then return nil end
+    if UnitName("player") == court then return "player" end
+    local nombre = GetNumGroupMembers and GetNumGroupMembers() or 0
+    local prefixe = (IsInRaid and IsInRaid()) and "raid" or "party"
+    for index = 1, nombre do
+        if UnitName(prefixe .. index) == court then return prefixe .. index end
+    end
+end
+
+local function PoserIcone(texture, icone, joueur)
+    local unite = not icone and joueur and Unite(joueur)
+    if unite and SetPortraitTexture then
+        SetPortraitTexture(texture, unite)
+    else
+        texture:SetTexture(LCM.Icone(icone))
+    end
+end
+
 local function Rangee(parent)
     local l = CreateFrame("Frame", nil, parent)
     l:SetHeight(LIGNE - 2)
@@ -171,7 +195,7 @@ function Ecran.Construire(page, fenetre)
                 if not actifs[instance.id] then candidats[#candidats + 1] = instance end
             end
             for _, joueur in ipairs(C.Membres()) do
-                if not actifs[joueur] then candidats[#candidats + 1] = { id = joueur, name = joueur } end
+                if not actifs[joueur] then candidats[#candidats + 1] = { id = joueur, name = joueur, joueur = joueur } end
             end
         end
         self.candidats = candidats
@@ -189,7 +213,7 @@ function Ecran.Construire(page, fenetre)
                 self.lignesPNJ[rang] = l
             end
             l.cle = instance.id
-            l.icone:SetTexture(LCM.Icone(instance.icon))
+            PoserIcone(l.icone, instance.icon, instance.joueur)
             l.nom:SetText(tostring(instance.name))
             l.case:Cocher(self.choisis[instance.id] == true)
             l.case:SetEnabled(etat ~= nil or modifiable)
@@ -212,7 +236,7 @@ function Ecran.Construire(page, fenetre)
         if etat then
             self.titreListe:SetText("Ordre d'initiative")
             for index, e in ipairs(etat.entrees) do
-                lignes[#lignes + 1] = { icone = e.icone, nom = e.nom,
+                lignes[#lignes + 1] = { icone = e.icone, nom = e.nom, joueur = not e.pnj and e.id or nil,
                     etat = tostring(e.v), actif = index == etat.c }
             end
             local tardive = C.invitationTardive
@@ -221,7 +245,7 @@ function Ecran.Construire(page, fenetre)
                 for joueur in pairs(tardive.cibles) do noms[#noms + 1] = joueur end
                 table.sort(noms)
                 for _, joueur in ipairs(noms) do
-                    lignes[#lignes + 1] = { nom = joueur, etat = "attend…" }
+                    lignes[#lignes + 1] = { nom = joueur, joueur = joueur, etat = "attend…" }
                 end
             end
         elseif invitation then
@@ -234,7 +258,8 @@ function Ecran.Construire(page, fenetre)
                 local texte = "attend…"
                 if r and r.ok then texte = string.format("accepte (%d)", r.v)
                 elseif r then texte = "refuse" end
-                lignes[#lignes + 1] = { nom = r and r.nom or joueur, etat = texte }
+                lignes[#lignes + 1] = { nom = r and r.nom or joueur, joueur = joueur,
+                    icone = r and r.icone, etat = texte }
             end
         else
             self.titreListe:SetText("")
@@ -246,7 +271,7 @@ function Ecran.Construire(page, fenetre)
                 l = Rangee(self.zoneListe.contenu)
                 self.lignesListe[rang] = l
             end
-            l.icone:SetTexture(LCM.Icone(ligne.icone))
+            PoserIcone(l.icone, ligne.icone, ligne.joueur)
             l.nom:SetText(ligne.nom)
             l.etat:SetText(ligne.etat)
             local couleur = ligne.actif and UI.C.accent or UI.C.texte

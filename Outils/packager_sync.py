@@ -18,7 +18,7 @@ def main() -> None:
     (TARGET / "Outils").mkdir(parents=True)
     (TARGET / "database").mkdir()
     for name in ("gsheet_auto.py", "gsheet_base.py", "feuilles_lcm.json",
-                 "installer_sync.ps1"):
+                 "installer_sync.ps1", "installer_sync.cmd"):
         copy2(ROOT / "Outils" / name, TARGET / "Outils" / name)
     copy2(ROOT / "database" / "lcm_db.py", TARGET / "database" / "lcm_db.py")
     for name in ("entries", "reglages", "tombstones"):

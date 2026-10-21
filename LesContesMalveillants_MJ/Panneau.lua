@@ -25,6 +25,7 @@ local LCM = _G.LCM
 if not LCM then return end
 
 local UI = LCM.UI
+local GameTooltip = UI.Infobulle()
 local Ecran = {}
 UI.PanneauMJ = Ecran
 MJ.Panneau = Ecran
@@ -648,15 +649,136 @@ function Pages.traits(page, f)
     page.joueursZone:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
     page.joueursZone:SetWidth(190)
     page.joueurs = {}
-    page.traitsZone = UI.Defilement(page)
-    page.traitsZone:SetPoint("TOPLEFT", page.joueursZone, "TOPRIGHT", 12, 0)
-    page.traitsZone:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
-    page.casesTraits = {}
     page.joueurActif = nil
     page.videJoueurs = UI.Texte(page.joueursZone.contenu, "Aucun joueur dans le groupe.", UI.C.discret)
     page.videJoueurs:SetPoint("TOPLEFT", page.joueursZone.contenu, "TOPLEFT", 6, -6)
+
+    -- A droite : une barre (recherche, filtre, compte), des en-tetes de
+    -- colonne, puis la liste. Avant (21 octobre 2026), c'etait une colonne de
+    -- cases « Nom · 2 pts » sans recherche : trouver un trait parmi une
+    -- centaine demandait de tout faire defiler.
+    page.droite = CreateFrame("Frame", nil, page)
+    page.droite:SetPoint("TOPLEFT", page.joueursZone, "TOPRIGHT", 12, 0)
+    page.droite:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+    local droite = page.droite
+
+    page.rechercheTraits = UI.Champ(droite, 170, 22, function() page:AfficherTraits() end)
+    page.rechercheTraits:SetPoint("TOPLEFT", droite, "TOPLEFT", 74, 0)
+    page.rechercheTraits:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    page.rechercheTraits:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() end)
+    page.rechercheTraits.label = UI.Texte(droite, "Rechercher :", UI.C.libelle)
+    page.rechercheTraits.label:SetPoint("RIGHT", page.rechercheTraits, "LEFT", -6, 0)
+    UI.Bulle(page.rechercheTraits, "Rechercher un trait",
+        "Dans le nom et la description, sans tenir compte des accents ni des majuscules.")
+
+    -- Le filtre : tout, ou seulement ce que le joueur voit, ou ce qu'il ne
+    -- voit pas — « qu'est-ce que je lui ai deja ouvert ? » est la question
+    -- qu'on se pose en seance.
+    page.filtreTraits = "tous"
+    page.filtres = UI.Onglets(droite, { { id = "tous", label = "Tous" },
+                                        { id = "visibles", label = "Visibles" },
+                                        { id = "caches", label = "Cachés" } },
+        function(id) page.filtreTraits = id page:AfficherTraits() end, { largeur = 64 })
+    page.filtres:SetPoint("TOPLEFT", page.rechercheTraits, "TOPRIGHT", 10, 0)
+    page.filtres:SetWidth(3 * 64 + 2 * 4)
+
+    page.compteTraits = UI.Texte(droite, "", UI.C.discret)
+    UI.Police(page.compteTraits, 10)
+    page.compteTraits:SetPoint("TOPLEFT", droite, "TOPLEFT", 2, -30)
+
+    page.enteteNom = UI.Texte(droite, "TRAIT", UI.C.libelle)
+    UI.Police(page.enteteNom, 10)
+    page.enteteNom:SetPoint("TOPLEFT", droite, "TOPLEFT", 34, -48)
+    page.enteteCout = UI.Texte(droite, "COÛT", UI.C.libelle)
+    UI.Police(page.enteteCout, 10)
+    page.enteteCout:SetPoint("TOPRIGHT", droite, "TOPRIGHT", -30, -48)
+
+    page.traitsZone = UI.Defilement(droite)
+    page.traitsZone:SetPoint("TOPLEFT", droite, "TOPLEFT", 0, -62)
+    page.traitsZone:SetPoint("BOTTOMRIGHT", droite, "BOTTOMRIGHT", 0, 0)
+    page.lignesTraits = {}
     page.videTraits = UI.Texte(page.traitsZone.contenu, "Choisis un joueur à gauche.", UI.C.discret)
     page.videTraits:SetPoint("TOPLEFT", page.traitsZone.contenu, "TOPLEFT", 6, -6)
+
+    -- Recherche sans accents ni majuscules : « echo » trouve « Écho ».
+    local ACCENTS = { ["à"] = "a", ["â"] = "a", ["ä"] = "a", ["é"] = "e", ["è"] = "e",
+        ["ê"] = "e", ["ë"] = "e", ["î"] = "i", ["ï"] = "i", ["ô"] = "o", ["ö"] = "o",
+        ["ù"] = "u", ["û"] = "u", ["ü"] = "u", ["ç"] = "c", ["À"] = "a", ["Â"] = "a",
+        ["É"] = "e", ["È"] = "e", ["Ê"] = "e", ["Î"] = "i", ["Ô"] = "o", ["Û"] = "u",
+        ["Ç"] = "c" }
+    local function Cherchable(texte)
+        texte = tostring(texte or "")
+        for avec, sans in pairs(ACCENTS) do texte = texte:gsub(avec, sans) end
+        return texte:lower()
+    end
+
+    local function Visible(traitId)
+        return page.joueurActif ~= nil and MJ.AccesTraits
+            and MJ.AccesTraits.Liste(page.joueurActif)[traitId] == true or false
+    end
+
+    -- Une ligne entiere se clique, pas seulement sa case : viser un carre de
+    -- dix-huit pixels cent fois de suite, c'est ce qui rendait la page penible.
+    local function Basculer(ligne)
+        if not (page.joueurActif and ligne.traitId and MJ.AccesTraits) then return end
+        local cochee = not Visible(ligne.traitId)
+        MJ.AccesTraits.Definir(page.joueurActif, ligne.traitId, cochee)
+        page:PeindreLigne(ligne, cochee)
+        page:Compter()
+    end
+
+    local function LigneTrait(rang)
+        local l = CreateFrame("Button", nil, page.traitsZone.contenu)
+        l:SetHeight(26)
+        if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+        l.case = UI.Case(l, "", function() Basculer(l) end)
+        l.case:SetPoint("LEFT", l, "LEFT", 8, 0)
+        l.case.label:Hide()
+        l.cout = UI.Texte(l, "", UI.C.titre)
+        UI.Police(l.cout, 11)
+        l.cout:SetPoint("RIGHT", l, "RIGHT", -14, 0)
+        l.cout:SetJustifyH("RIGHT")
+        l.cout:SetWidth(50)
+        l.nom = UI.Texte(l, "", UI.C.texte)
+        UI.Police(l.nom, 12)
+        l.nom:SetPoint("LEFT", l.case, "RIGHT", 10, 0)
+        l.nom:SetPoint("RIGHT", l.cout, "LEFT", -8, 0)
+        l.nom:SetJustifyH("LEFT")
+        l.nom:SetWordWrap(false)
+        l:SetScript("OnClick", function(self) Basculer(self) end)
+        -- La description au survol : la liste reste courte, et on lit le
+        -- trait avant de l'ouvrir au joueur.
+        l:SetScript("OnEnter", function(self)
+            if not self.trait or not GameTooltip then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:AddLine(tostring(self.trait.label), 1, 0.82, 0.3)
+            local description = tostring(self.trait.description or "")
+            if description ~= "" then GameTooltip:AddLine(description, 0.9, 0.9, 0.9, true) end
+            GameTooltip:Show()
+        end)
+        l:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+        page.lignesTraits[rang] = l
+        return l
+    end
+
+    -- Ce qui est ouvert au joueur s'ecrit en clair, le reste s'estompe : on
+    -- lit d'un coup d'oeil ce qu'il voit.
+    function page:PeindreLigne(l, cochee)
+        l.case:Cocher(cochee)
+        local c = cochee and UI.C.texte or UI.C.discret
+        l.nom:SetTextColor(c[1], c[2], c[3])
+    end
+
+    function page:Compter()
+        local total, visibles = #LCM.Traits.list, 0
+        for _, trait in ipairs(LCM.Traits.list) do
+            if Visible(trait.id) then visibles = visibles + 1 end
+        end
+        self.compteTraits:SetText(self.joueurActif and string.format(
+            "%d trait%s affiché%s  ·  %d sur %d visible%s par %s", self.nombreTraits or 0,
+            (self.nombreTraits or 0) > 1 and "s" or "", (self.nombreTraits or 0) > 1 and "s" or "",
+            visibles, total, visibles > 1 and "s" or "", NomPersonnage(self.joueurActif)) or "")
+    end
 
     function page:ChoisirJoueur(joueur)
         self.joueurActif = joueur
@@ -664,34 +786,40 @@ function Pages.traits(page, f)
     end
 
     function page:AfficherTraits()
+        self.filtres:Selectionner(self.filtreTraits)
+        local recherche = Cherchable(self.rechercheTraits:GetText())
         local liste = {}
-        for _, trait in ipairs(LCM.Traits.list) do liste[#liste + 1] = trait end
-        table.sort(liste, function(a, b) return tostring(a.label):lower() < tostring(b.label):lower() end)
-        local y = 0
-        for rang, trait in ipairs(liste) do
-            local c = self.casesTraits[rang]
-            if not c then
-                local index = rang
-                c = UI.Case(self.traitsZone.contenu, "", function(cochee)
-                    local ligne = page.casesTraits[index]
-                    if page.joueurActif and ligne and MJ.AccesTraits then
-                        MJ.AccesTraits.Definir(page.joueurActif, ligne.traitId, cochee)
-                    end
-                end)
-                self.casesTraits[rang] = c
+        for _, trait in ipairs(LCM.Traits.list) do
+            local garde = recherche == ""
+                or Cherchable(trait.label):find(recherche, 1, true)
+                or Cherchable(trait.description):find(recherche, 1, true)
+            if garde and self.filtreTraits ~= "tous" then
+                garde = Visible(trait.id) == (self.filtreTraits == "visibles")
             end
-            c.traitId = trait.id
-            c.label:SetText(string.format("%s  ·  %d pt%s", tostring(trait.label),
-                LCM.Traits.Cout(trait), LCM.Traits.Cout(trait) > 1 and "s" or ""))
-            c:SetPoint("TOPLEFT", self.traitsZone.contenu, "TOPLEFT", 6, -6 - y)
-            c:Cocher(self.joueurActif ~= nil
-                and MJ.AccesTraits.Liste(self.joueurActif)[trait.id] == true)
-            c:SetShown(self.joueurActif ~= nil)
-            y = y + 25
+            if garde then liste[#liste + 1] = trait end
         end
-        for rang = #liste + 1, #self.casesTraits do self.casesTraits[rang]:Hide() end
-        self.videTraits:SetShown(self.joueurActif == nil)
-        self.traitsZone:Regler(math.max(1, y + 6))
+        table.sort(liste, function(a, b) return Cherchable(a.label) < Cherchable(b.label) end)
+        local actif = self.joueurActif ~= nil
+        local y = 0
+        if actif then
+            for rang, trait in ipairs(liste) do
+                local l = self.lignesTraits[rang] or LigneTrait(rang)
+                l.trait, l.traitId = trait, trait.id
+                l.nom:SetText(tostring(trait.label))
+                local cout = LCM.Traits.Cout(trait)
+                l.cout:SetText(string.format("%d pt%s", cout, cout > 1 and "s" or ""))
+                self:PeindreLigne(l, Visible(trait.id))
+                Poser(l, self.traitsZone.contenu, y)
+                y = y + 28
+            end
+        end
+        for rang = (actif and #liste or 0) + 1, #self.lignesTraits do self.lignesTraits[rang]:Hide() end
+        self.nombreTraits = actif and #liste or 0
+        self.videTraits:SetText(not actif and "Choisis un joueur à gauche."
+            or (#liste == 0 and "Aucun trait ne correspond." or ""))
+        self.videTraits:SetShown(not actif or #liste == 0)
+        self.traitsZone:Regler(math.max(1, y))
+        self:Compter()
     end
 
     function page:Afficher()
@@ -748,7 +876,10 @@ function Pages.etats(page)
         "Nombre de rounds avant expiration. Laisse vide pour un état sans expiration automatique.")
 
     page.recherche = UI.Champ(page, 210, 22, function() page:Afficher() end)
-    page.recherche:SetPoint("RIGHT", page, "RIGHT", -2, 0)
+    -- Sur la ligne de la duree, au bord droit. Un seul ancrage « RIGHT » sur la
+    -- page la centrait VERTICALEMENT sur toute la page : elle tombait au
+    -- milieu de la liste des joueurs (21 octobre 2026).
+    page.recherche:SetPoint("TOPRIGHT", page, "TOPRIGHT", -2, -38)
     page.recherche:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     page.recherche:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() end)
     page.recherche.label = UI.Texte(page, "Rechercher :", UI.C.libelle)

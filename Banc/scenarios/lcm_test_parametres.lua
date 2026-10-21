@@ -125,6 +125,24 @@ app.opacite.enGlissement = false
 app.opacite:Aller(100)
 app.echelle:Aller(50)
 
+dire("   le bandeau d'initiative a sa taille")
+-- 21 octobre 2026 : demande en jeu, comme celle du bandeau de personnage.
+local bandeau = LCM.UI.Combat.Fenetre()
+attendu("sa barre se voit", app.echelleCombat:IsShown(), true)
+app.echelleCombat:Aller(75)
+attendu("taille retenue", LCM.db.settings.echelleCombat, 75)
+attendu("appliquee au bandeau", math.abs(bandeau:GetScale() - 0.7 * 1.25) < 0.001, true)
+attendu("sans toucher aux fenetres", f:GetScale(), 1)
+app.echelleCombat:Aller(50)
+attendu("50 = sa taille de reference", bandeau:GetScale(), 0.7)
+attendu("et rien n'est retenu", LCM.db.settings.echelleCombat, nil)
+attendu("le bouton dit « Fin de tour »", bandeau.passer.label:GetText(), "Fin\nde tour")
+
+dire("   une aide longue reste dans la fenetre")
+-- Ancree a gauche seulement, elle sortait par la droite (21 octobre 2026).
+attendu("l'aide est tenue des deux cotes", app.echelleHud.note:GetNumPoints(), 2)
+attendu("et passe a la ligne", app.echelleHud.note:CanWordWrap(), true)
+
 dire("   themes")
 f:AfficherApparence("theme")
 attendu("quatre habillages", #app.themes, 4)
