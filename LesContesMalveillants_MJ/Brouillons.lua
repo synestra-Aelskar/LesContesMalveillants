@@ -32,7 +32,7 @@ LCM.Brouillons = Brouillons
 -- (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua).
 Brouillons.FAMILLES = { "traits", "races", "objets", "livres", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
-    "jeux", "points", "tentes", "accessoires_camping",
+    "jeux", "points", "tentes", "accessoires_camping", "lanternes", "cristaux",
     -- Ce qui est pose dans le monde (MJ/Poses.lua) : un etat, pas un modele,
     -- mais il voyage par la meme file pour arriver dans la base.
     "poses" }

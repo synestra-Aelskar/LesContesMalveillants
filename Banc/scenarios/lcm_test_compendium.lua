@@ -34,13 +34,15 @@ for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- Vingt-sept depuis « Type Accessoires » et le campement (« Tentes »,
 -- « Accessoires de camping », 10 octobre 2026). Trente depuis les livres
 -- lisibles (« Livres », 19 octobre) et les outils (« Outils » et leurs types,
--- « Liste outils », 18 octobre). C'est la STRUCTURE de l'addon : elle se
--- verifie en entier, contrairement au contenu qui vit.
-attendu("30 categories", #C.categories, 30)
+-- « Liste outils », 18 octobre). Trente-deux depuis la lanterne reprise
+-- d'OmegaSurvive (« Lanternes » et « Cristaux », 22 octobre). C'est la
+-- STRUCTURE de l'addon : elle se verifie en entier, contrairement au contenu
+-- qui vit.
+attendu("32 categories", #C.categories, 32)
 attendu("ordre", table.concat(ids, ","),
     "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste origine,Liste ressources,"
     .. "Liste métiers,Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,"
-    .. "Armes,Armures,Accessoires,Livres,Outils,Tentes,Accessoires de camping,Races,Traits,Etats,"
+    .. "Armes,Armures,Accessoires,Livres,Outils,Lanternes,Cristaux,Tentes,Accessoires de camping,Races,Traits,Etats,"
     .. "Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")

@@ -125,7 +125,8 @@ attendu("six entrees de premier niveau", #M.STRUCTURE, 6)
 attendu("ordre du radial des fenêtres", table.concat(noms, ","),
     "Personnage,Objets,Grimoires,Système,Outils,Déplacement")
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
-attendu("Objets : quatre fenetres (Bourse ajoutee)", #M.Trouver("objets").enfants, 4)
+-- Cinq depuis le 22 octobre 2026 : « Outils » (la lanterne) y est ajoute.
+attendu("Objets : cinq fenetres (Bourse, puis Outils ajoutes)", #M.Trouver("objets").enfants, 5)
 -- Neuf depuis le 10 octobre 2026 : le Campement y est range en attendant sa
 -- place, puis les Lieux. Huit etait le plafond parce qu'il n'existait que huit
 -- bandeaux d'eventail ; un neuvieme a ete dessine pour cette entree, et le

@@ -43,7 +43,9 @@ end
 dire("== un dossier s'ouvre")
 Bouton("objets"):Click()
 __avancer(1)
-attendu("Objets deploye", c.choisi .. " " .. c.nombreEntrees, "objets 4")
+-- Cinq entrees depuis le 22 octobre 2026 : « Outils » (la lanterne) a rejoint
+-- Equipements, Inventaires, Bourse et Metiers.
+attendu("Objets deploye", c.choisi .. " " .. c.nombreEntrees, "objets 5")
 
 dire("== on change de dossier, et la fiche bouge pendant le repli")
 Bouton("outils"):Click()
