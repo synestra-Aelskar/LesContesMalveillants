@@ -63,7 +63,7 @@ dire("== poser un objet : il quitte le sac tout de suite")
 -- On le prend dans le sac comme a la souris, puis on le lache dans sa colonne.
 LCM.UI.Menu.Trouver("inventaires").onClick()
 local f = LCM.UI.Inventaires.frame
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 __souris.LeftButton = true
 f.lignes[1]:GetScript("OnDragStart")(f.lignes[1])
 attendu("un glissement est en cours", LCM.UI.Glisser.EnCours(), true)

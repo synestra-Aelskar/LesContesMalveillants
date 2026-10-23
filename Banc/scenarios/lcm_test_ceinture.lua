@@ -60,7 +60,7 @@ for i = 1, bulle.nombreLignes do
 end
 attendu("l'infobulle la donne entiere", entiere, true)
 carteCeinture:GetScript("OnLeave")(carteCeinture)
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 local ligne = f.lignes[5]
 __souris.LeftButton = true
 ligne:GetScript("OnDragStart")(ligne)
@@ -120,7 +120,7 @@ menu:Hide()
 
 dire("== un sac plein ne s'echange ni ne se jette : on dit pourquoi")
 I.Ranger(moi, "sacs", 1, 1, "ressources/eau", 1)
-f.cartes[1]:Click("RightButton")
+f:CarteDe("sacs", 1):Click("RightButton")
 attendu("le menu d'un sac", libelles(), "Ouvrir,Voir,Échanger,Détruire")
 cliquer("Détruire")
 local dit = false

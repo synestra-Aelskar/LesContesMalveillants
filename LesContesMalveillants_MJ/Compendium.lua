@@ -1480,7 +1480,9 @@ function Editeur.Ouvrir(categorie, element, mode)
     -- Une categorie qui a son propre editeur (les jeux de la forge) l'ouvre :
     -- sa structure ne tient pas dans des champs.
     local propre = categorie and categorie.editeur and MJ[categorie.editeur]
-    if propre then return propre.Editer(element) end
+    -- La categorie suit : un meme editeur peut servir deux categories
+    -- (LumieresUI : lanternes et cristaux).
+    if propre then return propre.Editer(element, categorie) end
     Fenetre():Ouvrir(categorie, element)
 end
 

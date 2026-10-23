@@ -222,9 +222,8 @@ attendu("  et ce qu'elle apporte", noteexp and noteexp:find("Apporte") ~= nil, t
 local noteresi = LCM.Creation.Note("expertises", "resistance")
 attendu("les Résistances disent ce qu'elles allègent",
     noteresi and noteresi:find("part des dégâts") ~= nil, true)
--- La note generique des mecaniques ne disait rien : on ne la montre pas.
-attendu("et on ne montre pas une note vide de sens",
-    LCM.Creation.Note("penetration", "pen_feu"), nil)
+attendu("la pénétration a aussi un survol explicatif",
+    LCM.Creation.Note("penetration", "pen_feu"):find("Feu") ~= nil, true)
 
 dire("== le récapitulatif de la création porte les trois chiffres vitaux")
 local ecran = LCM.UI.Creation

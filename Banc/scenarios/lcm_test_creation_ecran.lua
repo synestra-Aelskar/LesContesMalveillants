@@ -32,7 +32,7 @@ for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
 -- « Métiers » est une etape a part entiere depuis que les PNJ en depensent
 -- (ils en recoivent quatre par niveau) : elle n'etait pas dans le template.
 attendu("les onglets du template", table.concat(noms, ", "),
-    "Bienvenue, Générale, Statistiques, Expertises, Mécaniques, Pénétrations, Résistances, Traits, Métiers")
+    "Bienvenue, Générale, Statistiques, Capacité, Pénétrations, Résistances, Traits, Métiers")
 attendu("on demarre sur Bienvenue", f.etape, "bienvenue")
 attendu("brouillon neuf", f.brouillon.nom, "")
 attendu("les textes du template", f.pages.bienvenue.blocs[1].paragraphe:GetText():find("Syn ou Talyah") ~= nil, true)
@@ -242,6 +242,12 @@ f.barre.boutons[3]:Click()
 local st = f.pages.statistiques
 attendu("page affichee", f.etape, "statistiques")
 local force = compteur(st, "force")
+attendu("Force a un survol dans la creation", type(force:GetScript("OnEnter")), "function")
+force:GetScript("OnEnter")(force)
+attendu("le survol de Force reprend la fiche", LCM.UI.Infobulle().titre:GetText(), "Force")
+force:GetScript("OnLeave")(force)
+attendu("Points de vie a un survol", type(st.pv:GetScript("OnEnter")), "function")
+attendu("Fatigue a un survol", type(st.fatigue:GetScript("OnEnter")), "function")
 attendu("plafond lu du moteur (5 + 4)", force.plafond, 9)
 for _ = 1, 9 do force.plus:Click() end
 attendu("neuf clics, neuf points", f.brouillon.valeurs.force, 9)
@@ -437,18 +443,47 @@ dire("== Expertises et mecaniques")
 f.barre.boutons[4]:Click()
 local ex = f.pages.expertises
 attendu("page expertises", f.etape, "expertises")
+attendu("onglet majeur Capacité", f.barre.actif, "capacites")
+attendu("sous-onglet Expertise", f.barreCapacites.actif, "expertises")
+attendu("domaine Observations visible", ex.domaines.Observations:IsShown(), true)
+f.barresDomaines.expertises.boutons[2]:Click()
+attendu("domaine Athlétisme sélectionné", f.barresDomaines.expertises.actif, "Athlétisme")
+attendu("domaine Observations masqué", ex.domaines.Observations:IsShown(), false)
+attendu("domaine Athlétisme visible", ex.domaines["Athlétisme"]:IsShown(), true)
+f.barresDomaines.expertises.boutons[1]:Click()
 local n = 0
 for _, c in ipairs(ex.compteurs) do if c.categorie == "expertises" then n = n + 1 end end
 attendu("26 expertises", n, 26)
+local sansSurvol = 0
+for _, c in ipairs(ex.compteurs) do
+    if type(c:GetScript("OnEnter")) ~= "function" then sansSurvol = sansSurvol + 1 end
+end
+attendu("toutes les expertises ont un survol", sansSurvol, 0)
+local vue = compteur(ex, "vue")
+vue:GetScript("OnEnter")(vue)
+attendu("le survol explique l'expertise",
+    LCM.UI.Infobulle().lignes[LCM.UI.Infobulle().nombreLignes]:GetText()
+        :find(LCM.Schema.Field("vue").note, 1, true) ~= nil, true)
+vue:GetScript("OnLeave")(vue)
 attendu("budget 18 + 3 x 2", budget(ex, "expertises").budget:GetText(), "24 / 24")
 -- Les mecaniques ont leur propre etape depuis le 3 octobre 2026.
 attendu("elles ne sont plus avec les expertises", compteur(ex, "meca_soin"), nil)
-f.barre.boutons[5]:Click()
+f.barreCapacites.boutons[2]:Click()
 local meca = f.pages.mecaniques
 attendu("l'etape Mecaniques", f.etape, "mecaniques")
+attendu("sous-onglet Mécanique", f.barreCapacites.actif, "mecaniques")
+attendu("domaine Compétence visible", meca.domaines["Compétence"]:IsShown(), true)
+f.barresDomaines.mecaniques.boutons[2]:Click()
+attendu("domaine Défense visible", meca.domaines["Défense"]:IsShown(), true)
+f.barresDomaines.mecaniques.boutons[1]:Click()
 -- Trente et un : vingt-quatre de competence et les sept de defense, ajoutees
 -- le 11 octobre 2026 et qui partagent le meme budget.
 attendu("trente et un choix", #meca.compteurs, 31)
+sansSurvol = 0
+for _, c in ipairs(meca.compteurs) do
+    if type(c:GetScript("OnEnter")) ~= "function" then sansSurvol = sansSurvol + 1 end
+end
+attendu("toutes les mecaniques ont un survol", sansSurvol, 0)
 local soin = compteur(meca, "meca_soin")
 attendu("avec ses lignes", soin ~= nil, true)
 attendu("avec Provocation", compteur(meca, "meca_provocation") ~= nil, true)
@@ -456,6 +491,12 @@ attendu("avec Intimidation", compteur(meca, "meca_intimidation") ~= nil, true)
 attendu("plafond d'une mecanique", soin.plafond, 10)
 for _ = 1, 4 do soin.plus:Click() end
 attendu("quatre points de soin", f.brouillon.valeurs.meca_soin, 4)
+soin:GetScript("OnEnter")(soin)
+local bulleSoin = LCM.UI.Infobulle()
+attendu("la mécanique détaille quatre points", bulleSoin.droites[1]:GetText(), "4")
+attendu("la puissance suit les points investis",
+    bulleSoin.lignes[bulleSoin.nombreLignes]:GetText():find("4 × 10 %%", 1, false) ~= nil, true)
+soin:GetScript("OnLeave")(soin)
 -- Deux colonnes : c'est la page la plus serree de la creation.
 local deborde = 0
 for _, c in ipairs(ex.compteurs) do

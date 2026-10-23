@@ -58,7 +58,7 @@ local jeu = LCM.Forge.Add({ id = "jeu_outils_temoin", label = "Équilibrage des 
         couleur = "4D8CFF" } },
     champs = { ["metier:mineur"] = { min = 0, base = 0, max = 5, cout = 2 } } })
 attendu("coût de métier réglable par un jeu", LCM.Forge.Limites(jeu, "metier:mineur", "rare").cout, 2)
-attendu("emplacement d'outil disponible", LCM.Objets.Emplacements("outil"), 1)
+attendu("quatre outils peuvent etre portes a la ceinture", LCM.Objets.Emplacements("outil"), 4)
 attendu("équipement de l'outil", LCM.Objets.Placer(personnage, outil.id), true)
 attendu("chaque point ajoute un au jet de métier", LCM.Metiers.Bonus(personnage, "mineur"), 3)
 

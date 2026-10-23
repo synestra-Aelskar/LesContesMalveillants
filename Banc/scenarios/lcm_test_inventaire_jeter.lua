@@ -25,7 +25,7 @@ __addonsCharges["LesContesMalveillants_MJ"] = false
 
 LCM.UI.Menu.Trouver("inventaires").onClick()
 local f = LCM.UI.Inventaires.frame
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 local ligne = f.lignes[3]
 -- Le menu est cree au premier usage : on le demande au kit.
 local menu = LCM.UI.MenuContexte()

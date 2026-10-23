@@ -49,11 +49,13 @@ end
 attendu("Sante", onglets("sante"), "Physique, États, Maladies, Intangible")
 -- L'onglet « Outils » depuis les types d'outils (18 octobre 2026).
 attendu("Equipements", onglets("equipement"), "Armes, Armures, Accessoires, Outils")
-attendu("Expertises", onglets("expertise"), "Observations, Athlétisme, Filouterie")
+attendu("Capacité", onglets("expertise"), "Observations, Athlétisme, Filouterie, Compétence, Défense")
 attendu("Pen & Res : resistances d'abord", onglets("penetrations_resistances"), "Résistances, Pénétrations")
 local n = 0
 for _, o in ipairs(V.Get("expertise").onglets) do
-    for _, s in ipairs(o.sections) do n = n + #s.fields end
+    if o.groupe == "expertise" then
+        for _, s in ipairs(o.sections) do n = n + #s.fields end
+    end
 end
 attendu("26 expertises", n, 26)
 for _, id in ipairs(ids) do attendu("  " .. id .. " : entree du menu allumee", M.EstLiee(id), true) end
@@ -153,17 +155,36 @@ local fe = LCM.UI.Vues.frames.expertise
 attendu("ouverte", fe:IsShown(), true)
 attendu("onglet Observations", fe.onglet, "observations")
 attendu("9 observations", #fe.pages.observations.lignes, 9)
+local sansExpertise = 0
+for _, ongletId in ipairs({ "observations", "athletisme", "filouterie" }) do
+    fe:Afficher(ongletId)
+    for _, ligne in ipairs(fe.pages[ongletId].lignes) do
+        if type(ligne:GetScript("OnEnter")) ~= "function" then sansExpertise = sansExpertise + 1 end
+    end
+end
+attendu("toutes les expertises ont un survol", sansExpertise, 0)
+fe:Afficher("observations")
+local ouie
+for _, ligne in ipairs(fe.pages.observations.lignes) do
+    if ligne.field and ligne.field.id == "ouie" then ouie = ligne break end
+end
+ouie:GetScript("OnEnter")(ouie)
+local bulle = LCM.UI.Infobulle()
+attendu("une expertise sans bonus détaille les points", bulle.lignes[1]:GetText(), "Points investis")
+attendu("et l'apport", bulle.lignes[2]:GetText(), "Apport des statistiques")
+attendu("et son total", bulle.lignes[4]:GetText(), "Total")
+ouie:GetScript("OnLeave")(ouie)
 -- Les noms longs (« Investigation », « Communication ») poussaient le bouton
 -- Jet hors du cadre : la vue a onglets ne s'elargit pas. La plage (« 0-15 »)
 -- cede maintenant la place la premiere (13 octobre 2026).
 -- Les trois onglets ont la meme taille, sur une rangee ou deux : justifiee
 -- rangee par rangee, la bande en faisait deux grands et un petit (13 octobre
 -- 2026).
-local b = fe.barre.boutons
+local b = fe.barresSousOnglets.expertise.boutons
 dire("   onglets : " .. b[1]:GetWidth() .. " / " .. b[2]:GetWidth() .. " / " .. b[3]:GetWidth()
-    .. " sur " .. tostring(fe.barre.rangees) .. " rangee(s)")
+    .. " sur " .. tostring(fe.barresSousOnglets.expertise.rangees) .. " rangee(s)")
 attendu("onglets de meme largeur", b[1]:GetWidth() == b[2]:GetWidth() and b[2]:GetWidth() == b[3]:GetWidth(), true)
-attendu("les trois cote a cote", fe.barre.rangees, 1)
+attendu("les trois cote a cote", fe.barresSousOnglets.expertise.rangees, 1)
 local police = select(2, b[1].label:GetFont())
 dire("   police des onglets : " .. tostring(police))
 attendu("lisible (9 au moins)", (tonumber(police) or 0) >= 9, true)
@@ -180,8 +201,37 @@ for _, l in ipairs(fe.pages.observations.lignes) do
             select(4, l.plage:GetPoint(1)) >= finNom, true)
     end
 end
-fe.barre.boutons[2]:Click()
+fe.barresSousOnglets.expertise.boutons[2]:Click()
 attendu("10 en athletisme", #fe.pages.athletisme.lignes, 10)
+fe.barre.boutons[2]:Click()
+attendu("onglet majeur Mécanique", fe.barre.actif, "mecanique")
+attendu("sous-onglet Compétence", fe.onglet, "competence")
+attendu("24 mécaniques de compétence", #fe.pages.competence.lignes, 24)
+local sansSurvol = 0
+for _, ligne in ipairs(fe.pages.competence.lignes) do
+    if type(ligne:GetScript("OnEnter")) ~= "function" then sansSurvol = sansSurvol + 1 end
+end
+attendu("toutes les compétences ont un survol", sansSurvol, 0)
+local soin
+for _, ligne in ipairs(fe.pages.competence.lignes) do
+    if ligne.field and ligne.field.id == "meca_soin" then soin = ligne break end
+end
+soin:GetScript("OnEnter")(soin)
+bulle = LCM.UI.Infobulle()
+attendu("mécanique à zéro : points visibles", bulle.droites[1]:GetText(), "0")
+attendu("mécanique à zéro : puissance calculée",
+    bulle.lignes[bulle.nombreLignes]:GetText():find("= 80 %%") ~= nil, true)
+soin:GetScript("OnLeave")(soin)
+fe.barresSousOnglets.mecanique.boutons[2]:Click()
+attendu("sous-onglet Défense", fe.onglet, "defense")
+attendu("7 mécaniques de défense", #fe.pages.defense.lignes, 7)
+sansSurvol = 0
+for _, ligne in ipairs(fe.pages.defense.lignes) do
+    if type(ligne:GetScript("OnEnter")) ~= "function" then sansSurvol = sansSurvol + 1 end
+end
+attendu("toutes les défenses ont un survol", sansSurvol, 0)
+fe.barre.boutons[1]:Click()
+fe.barresSousOnglets.expertise.boutons[2]:Click()
 local escalade
 for _, l in ipairs(fe.pages.athletisme.lignes) do if l.label:GetText() == "Escalade" then escalade = l end end
 -- Le TOTAL, bonus portes compris (5 octobre 2026).

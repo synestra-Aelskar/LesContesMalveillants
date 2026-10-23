@@ -89,19 +89,22 @@ LCM.UI.Fiche.Bulle(force, "Force", LCM.UI.Fiche.Decomposition(moi, force.field, 
 force:GetScript("OnEnter")(force)
 local bulle = LCM.UI.Infobulle()
 attendu("la bulle nomme la statistique", bulle.titre:GetText(), "Force")
--- Les points un par un, texte a gauche et valeur a droite, le total en
--- dernier (demande du 13 octobre 2026 : le total ouvrait la bulle).
+-- Les points un par un, le total, puis la note explicative du champ.
 attendu("la premiere ligne dit ce qui est investi", bulle.lignes[1]:GetText(), "Points investis")
 attendu("sa valeur est a droite", bulle.droites[1]:GetText(), "2")
-local derniere = bulle.nombreLignes
-attendu("le total ferme la bulle", bulle.lignes[derniere]:GetText(), "Total")
-attendu("avec sa valeur a droite", bulle.droites[derniere]:GetText() ~= nil, true)
-attendu("un filet separe le total", bulle.filets[derniere - 1]:IsShown(), true)
+local total = bulle.nombreLignes - 2
+attendu("le total suit la decomposition", bulle.lignes[total]:GetText(), "Total")
+attendu("avec sa valeur a droite", bulle.droites[total]:GetText() ~= nil, true)
+attendu("un filet separe le total", bulle.filets[total - 1]:IsShown(), true)
+attendu("une note decrit la statistique", bulle.lignes[bulle.nombreLignes]:GetText() ~= "", true)
 -- Une source qui donne quelque chose se lit element par element.
 local detail = LCM.UI.Fiche.Decomposition(moi, { id = "force" }, 0, 0)
 for _, ligne in ipairs(detail) do
-    attendu("une ligne par element : " .. ligne[1], ligne[1]:find(" · ", 1, true) ~= nil, true)
+    if ligne[1] ~= "Points investis" then
+        attendu("une ligne par element : " .. ligne[1], ligne[1]:find(" · ", 1, true) ~= nil, true)
+    end
 end
+attendu("même zéro investi est détaillé", detail[1][2], "0")
 attendu("elle utilise le fond de l'interface", bulle.fond.__color[1], LCM.UI.C.fond[1])
 attendu("elle est visible", bulle:IsShown(), true)
 force:GetScript("OnLeave")(force)

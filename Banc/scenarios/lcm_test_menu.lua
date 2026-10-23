@@ -236,7 +236,7 @@ attendu("changer de categorie ferme le sous-menu", F.sousMenu.orbite:IsShown(), 
 local libelles = {}
 for i = 1, F.nombreEntrees do libelles[#libelles + 1] = F.boutonsEntree[i].cible.label end
 attendu("ses fenetres dans l'ordre du template", table.concat(libelles, ", "),
-    "Fiche, Santé, Expertises, Pénétration & Résistances, Statistiques, Apprentissage")
+    "Fiche, Santé, Capacité, Pénétration & Résistances, Statistiques, Apprentissage")
 attendu("eventail a 6 branches",
     tostring(F.secteur.surface.__texture):find("fan%-6%.tga") ~= nil, true)
 F.boutonsEntree[1]:Click("LeftButton")

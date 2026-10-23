@@ -184,7 +184,7 @@ menu:Hide()
 dire("== la pile, au clic droit : « Mettre en bourse »")
 UI.Menu.Trouver("inventaires").onClick()
 local inv = UI.Inventaires.frame
-inv.cartes[1]:Click("LeftButton")
+inv:CarteDe("sacs", 1):Click("LeftButton")
 attendu("la pile est la première case", (Case(1) or {}).ref, "devises/piece_temoin")
 inv.lignes[1]:Click("RightButton")
 attendu("l'entrée est là", libelles():find("Mettre en bourse", 1, true) ~= nil, true)
@@ -284,7 +284,7 @@ dire("== lâcher sa monnaie sur la carte d'un sac")
 -- qui a une reference et vient d'ailleurs. Une monnaie de bourse en a une
 -- depuis ce soir : sans garde-fou, lachee sur un sac elle s'y serait rangee
 -- SANS QUITTER la bourse — un ecu fabrique a chaque glissement.
-local carteSac = inv.cartes[1]
+local carteSac = inv:CarteDe("sacs", 1)
 local ligneQ = LigneDe("piece_temoin")
 ligneQ:GetScript("OnDragStart")(ligneQ)
 local porte2 = UI.Glisser.objet

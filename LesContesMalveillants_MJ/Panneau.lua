@@ -476,8 +476,11 @@ function Pages.joueurs(page, f)
     regain.modes.min:SetPoint("LEFT", regain.modes.max, "RIGHT", 8, 0)
     regain.modes.exact = UI.Bouton(regain.contenu, "Chiffre précis", 116, 22, function() ChoisirMode("exact") end)
     regain.modes.exact:SetPoint("LEFT", regain.modes.min, "RIGHT", 8, 0)
+    -- Pas de SetNumeric : il refuse le signe moins, et un chiffre negatif
+    -- RETIRE des points (le MJ, 23 octobre 2026). La lecture est faite a la
+    -- validation, qui refuse ce qui n'est pas un nombre entier.
     regain.montant = UI.Champ(regain.contenu, 72, 22, nil)
-    regain.montant:SetNumeric(true)
+    regain.montant:SetMaxLetters(6)
     regain.montant:SetPoint("LEFT", regain.modes.exact, "RIGHT", 8, 0)
 
     regain.tous = UI.Bouton(regain.contenu, "Tout cocher", 110, 22, function()
@@ -497,8 +500,12 @@ function Pages.joueurs(page, f)
         if #cibles == 0 then LCM.Alerte("coche au moins un personnage.") return end
         if not next(regain.ressources) then LCM.Alerte("coche au moins une ressource.") return end
         if not regain.mode then LCM.Alerte("choisis Max, Min ou Chiffre précis.") return end
-        local montant = math.floor(tonumber(regain.montant:GetText()) or 0)
-        if regain.mode == "exact" and montant <= 0 then LCM.Alerte("indique un chiffre positif.") return end
+        local saisi = tonumber((tostring(regain.montant:GetText() or ""):gsub("%s", "")))
+        if regain.mode == "exact" and (not saisi or saisi ~= math.floor(saisi) or saisi == 0) then
+            LCM.Alerte("indique un nombre entier : positif pour donner, négatif pour retirer.")
+            return
+        end
+        local montant = saisi or 0
 
         local envoyes = 0
         for _, joueur in ipairs(cibles) do

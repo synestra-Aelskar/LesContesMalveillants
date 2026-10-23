@@ -73,6 +73,30 @@ Un seul lanceur, le **sceau** (déplaçable), qui porte deux couronnes radiales
 
 ### Ce qui marche
 
+**La ceinture porte-outils et le scanner du Val'Razkah.** Dans Objets > Outils,
+la ceinture illustrée permet d'équiper une lanterne et le scanner à haute
+fréquence. La lanterne est une entrée de la catégorie Lanternes du compendium,
+le scanner l'objet `outil_scanner_valrazkah` : le MJ les donne d'abord dans les
+sacs de l'addon. Équiper les sort du sac ; retirer les y remet. La ceinture a
+quatre places, lanterne comprise.
+
+**La lanterne et ses cristaux** (23 octobre 2026). Rien n'est livré : le MJ
+crée lanternes et cristaux dans le compendium, avec le constructeur repris de
+Survive (« Nouvelle entrée » ou « Forger »), et ils n'existent pour un joueur
+que s'il les possède. La lanterne équipée ouvre son panneau ; on y pose un
+cristal de ses sacs. Chaque cristal garde SA charge : changé ou retiré, un
+cristal entamé va dans « Cristaux en cours d'usage » (une ligne par
+pourcentage) et revient dans la liste avec sa charge ; épuisé, il se détruit.
+
+Le scanner affiche une grille centrée sur le personnage et les échos des puits
+à moins de 200 m. Les points clignotent plus vite et plus fort à l'approche.
+Un MJ équipé du scanner dispose de « Poser un puits ici » et « Retirer le plus
+proche » directement dans sa fenêtre. Les positions sont conservées et
+partagées aux joueurs du groupe par le réseau de l'addon. La mesure reprend
+les coordonnées monde ou GPS du module de déplacement ; si aucune position
+n'est disponible, la console demande le GPS et invite à réessayer. Aucun puits
+n'est livré d'avance : le MJ les place sur les cartes de campagne.
+
 **Les livres lisibles** (refonte du 21 octobre 2026). Le lecteur reprend les
 animations BLP du journal de quête Omega_hub : ouverture, fermeture,
 feuilletage dans les deux sens et notes recto verso. L'éditeur MJ propose

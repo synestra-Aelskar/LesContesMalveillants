@@ -70,7 +70,8 @@ LCM.Points = LCM.Registre({
             -- transportent — reste au moment du GESTE : un chargement ne doit
             -- pas dependre de l'ordre dans lequel les fichiers arrivent.
             local familles = { objets = true, livres = true, ressources = true,
-                               accessoires_camping = true, sacs = true, devises = true }
+                               accessoires_camping = true, sacs = true, devises = true,
+                               lanternes = true, cristaux = true }
             -- Un objet supprime du compendium ne fait plus tomber le coffre
             -- entier : sa ligne est laissee de cote, et on le dit. Avant, le
             -- coffre disparaissait au /reload avec tout le reste de son

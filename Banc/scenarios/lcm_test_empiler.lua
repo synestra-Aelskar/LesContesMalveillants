@@ -46,7 +46,10 @@ local function Libres()
     for _, categorie in ipairs(I.categories) do
         for index = 1, I.Capacite(categorie.id) do
             local e = I.Emplacement(moi, categorie.id, index)
-            if e then
+            -- La poche « Cristaux en cours d'usage » (23 octobre 2026) a
+            -- toujours une case libre, mais pour un cristal entame seulement :
+            -- ce n'est pas une place pour du fer.
+            if e and not categorie.cristaux then
                 local total, places = I.Cases(e)
                 for case = 1, math.min(total, places) do
                     if not I.Case(e, case) then n = n + 1 end

@@ -103,7 +103,7 @@ dire("== La fenetre : seul ce qui est dans les sacs est propose")
 -- La fenetre Inventaires ouverte a cote, sur le sac : elle doit suivre.
 local inv = LCM.UI.Inventaires.Fenetre()
 inv:Show()
-inv.cartes[1]:Click("LeftButton")
+inv:CarteDe("sacs", 1):Click("LeftButton")
 attendu("l'inventaire montre la dague", inv.lignes[1].nom:GetText(), "Dague d'essai")
 LCM.UI.Menu.Trouver("equipement").onClick()
 local f = LCM.UI.Vues.frames.equipement

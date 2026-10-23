@@ -30,7 +30,10 @@ local ids = {}
 for _, c in ipairs(I.categories) do ids[#ids + 1] = c.label .. ":" .. I.Capacite(c.id) end
 -- + Ceintures:1 le 13 octobre 2026 : un emplacement de ceinture, toujours la
 -- (voir lcm_test_ceinture.lua).
-attendu("Sacs 2, Saccoches 4, Ceintures 1", table.concat(ids, ","), "Sacs:2,Saccoches:4,Ceintures:1")
+-- + Cristaux en cours d'usage:1 le 23 octobre 2026 : la poche des cristaux
+-- entames, toujours la (voir lcm_test_lanterne.lua).
+attendu("Sacs 2, Saccoches 4, Ceintures 1, poche 1", table.concat(ids, ","),
+    "Sacs:2,Saccoches:4,Ceintures:1,Cristaux en cours d'usage:1")
 
 dire("== les sacs d'avant sont repris")
 attendu("sac 1", I.Emplacement(moi, "sacs", 1).sac, "gros_sac")
@@ -116,20 +119,39 @@ attendu("titre", f.titre:GetText(), "INVENTAIRES")
 -- Plus d'onglets depuis le 3 octobre 2026 : les six emplacements sont dans une
 -- colonne a gauche, deux sacs puis quatre sacoches.
 attendu("plus de bande d'onglets", f.onglets, nil)
--- 6 -> 7 le 13 octobre 2026 : la ceinture s'ajoute en bas de la colonne.
-attendu("sept emplacements", #f.cartes, 7)
-attendu("le sac (nom et remplissage)", f.cartes[1].nom:GetText(), "Gros sac (0/12)")
-attendu("un emplacement de sac libre se nomme Sac", f.cartes[2].nom:GetText(), "Sac")
-attendu("et une sacoche libre, Sacoche", f.cartes[3].nom:GetText(), "Sacoche")
-attendu("pas de boutons en vue (template)", f.cartes[1].action, nil)
+-- Le 23 octobre 2026 (le MJ) : la colonne se lit par SECTIONS, chacune sous
+-- un bandeau qui dit son remplissage — la ceinture EN TETE (en bas, on ne la
+-- voyait pas), puis Sac, puis Saccoches. Une section ne montre que ses
+-- emplacements occupes et UN seul vide : la colonne ne s'allonge plus de
+-- quatre sacoches vides. Les cartes changent donc de RANG avec ce qu'on
+-- equipe : on les retrouve par leur emplacement (f:CarteDe).
+local function Montrees()
+    local n = 0
+    for _, c in ipairs(f.cartes) do if c:IsShown() then n = n + 1 end end
+    return n
+end
+attendu("ceinture, gros sac, un sac vide, une sacoche vide", Montrees(), 4)
+attendu("la ceinture en tete", f.cartes[1].onglet, "ceintures")
+attendu("bandeau Ceinture", f.bandeaux.ceintures.titre:GetText(), "Ceinture")
+attendu("aucune ceinture posee", f.bandeaux.ceintures.compte:GetText(), "0/1")
+attendu("bandeau Sac", f.bandeaux.sacs.titre:GetText(), "Sac")
+attendu("un sac sur deux", f.bandeaux.sacs.compte:GetText(), "1/2")
+attendu("bandeau Saccoches", f.bandeaux.saccoches.titre:GetText(), "Saccoches")
+attendu("aucune sacoche sur quatre", f.bandeaux.saccoches.compte:GetText(), "0/4")
+attendu("un seul emplacement de sacoche vide", f:CarteDe("saccoches", 2), nil)
+local sac1, sac2 = f:CarteDe("sacs", 1), f:CarteDe("sacs", 2)
+attendu("le sac (nom et remplissage)", sac1.nom:GetText(), "Gros sac (0/12)")
+attendu("un emplacement de sac libre se nomme Sac", sac2.nom:GetText(), "Sac")
+attendu("et une sacoche libre, Sacoche", f:CarteDe("saccoches", 1).nom:GetText(), "Sacoche")
+attendu("pas de boutons en vue (template)", sac1.action, nil)
 attendu("ils sont l'un sous l'autre",
-    select(5, f.cartes[2]:GetPoint(1)) < select(5, f.cartes[1]:GetPoint(1)), true)
+    select(5, sac2:GetPoint(1)) < select(5, sac1:GetPoint(1)), true)
 attendu("et tous a la meme abscisse",
-    select(4, f.cartes[2]:GetPoint(1)) == select(4, f.cartes[1]:GetPoint(1)), true)
+    select(4, sac2:GetPoint(1)) == select(4, sac1:GetPoint(1)), true)
 
 dire("   clic gauche : le contenu s'affiche a droite")
-f.cartes[1]:Click("LeftButton")
-attendu("c'est lui qu'on regarde", f.choisi, 1)
+sac1:Click("LeftButton")
+attendu("c'est lui qu'on regarde", f.choisi, sac1.rang)
 attendu("son nom est en haut", f.titreContenu:GetText(), "Gros sac")
 attendu("occupation du sac", f.occupation:GetText(), "0 / 12")
 attendu("douze lignes de contenu", #f.lignes, 12)
@@ -152,33 +174,42 @@ end
 
 -- Clic sur l'emplacement libre : plus de liste (3 octobre 2026), on ne se
 -- donne pas un sac a la volee. Le MJ le glisse depuis le compendium.
-f.cartes[2]:Click("LeftButton")
+sac2:Click("LeftButton")
 attendu("pas de liste au clic", f.choix:IsShown(), false)
-Glisser("sacs", "sac_d_essai", f.cartes[2])
+Glisser("sacs", "sac_d_essai", sac2)
 attendu("sac pose en glissant", I.Emplacement(moi, "sacs", 2).sac, "sac_d_essai")
+attendu("le bandeau suit", f.bandeaux.sacs.compte:GetText(), "2/2")
+attendu("plein : plus d'emplacement de sac vide", Montrees(), 4)
 
 -- La colonne de droite recoit aussi : c'est la que le MJ regarde le contenu.
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 Glisser("ressources", "eau", f.lignes[4])
 attendu("depose dans la colonne de droite", I.Case(I.Emplacement(moi, "sacs", 1), 4)
     and I.Case(I.Emplacement(moi, "sacs", 1), 4).ref, "ressources/eau")
 attendu("la ligne le montre", f.lignes[4].nom:GetText(), "Eau")
+-- Le meme, lache sur sa pile, s'y AJOUTE (le MJ, 23 octobre 2026) : c'etait
+-- refuse (« cette case est déjà occupée »), alors que la case tenait
+-- justement cela. Une autre entree, elle, est toujours refusee.
 Glisser("ressources", "eau", f.lignes[4])
-attendu("case prise : refuse", I.Case(I.Emplacement(moi, "sacs", 1), 4).quantite, 1)
+attendu("la meme entree s'ajoute a sa pile", I.Case(I.Emplacement(moi, "sacs", 1), 4).quantite, 2)
+LCM.Ressources.Add({ id = "bois_temoin", label = "Bois témoin" })
+Glisser("ressources", "bois_temoin", f.lignes[4])
+attendu("une autre entree : case prise, refuse", I.Case(I.Emplacement(moi, "sacs", 1), 4).ref, "ressources/eau")
 I.Vider(moi, "sacs", 1, 4)
 f:Rafraichir()
 
--- Glisser un sac du compendium sur une saccoche (les rangs 3 a 6).
-attendu("quatre emplacements de saccoche", f.cartes[6]:IsShown(), true)
+-- Glisser un sac du compendium sur la saccoche vide, la seule montree.
+local sacoche = f:CarteDe("saccoches", 1)
+attendu("un emplacement de saccoche", sacoche ~= nil, true)
 local Comp = LCM.UI.Compendium.Ouvrir("sacs")
 local ligne
 for _, r in ipairs(Comp.rangees) do if r.element and r.element.id == "sac_de_gros" then ligne = r end end
 __souris.LeftButton = true
 ligne:GetScript("OnDragStart")(ligne)
-f.cartes[3].__survol = true
+sacoche.__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
-f.cartes[3].__survol = nil
+sacoche.__survol = nil
 -- Un SAC ne se porte pas dans un emplacement de sacoche : le glisser la est
 -- refuse depuis le 3 octobre 2026.
 attendu("un sac refuse l'emplacement de sacoche",
@@ -195,7 +226,7 @@ local function choisirDansMenu(libelle)
     end
     return false
 end
-f.cartes[1]:Click("RightButton")
+f:CarteDe("sacs", 1):Click("RightButton")
 attendu("le menu propose Ouvrir", choisirDansMenu("Ouvrir"), true)
 local s = LCM.UI.Inventaires.sacs["sacs_1"]
 attendu("fenetre du sac", s and s:IsShown(), true)
@@ -207,7 +238,7 @@ s.cases[1]:Click("LeftButton")
 attendu("pas de liste au clic", s.choix:IsShown(), false)
 Glisser("ressources", "eau", s.cases[1])
 attendu("eau rangee", I.Case(I.Emplacement(moi, "sacs", 1), 1).ref, "ressources/eau")
-attendu("le remplissage suit", f.cartes[1].nom:GetText(), "Gros sac (1/12)")
+attendu("le remplissage suit", f:CarteDe("sacs", 1).nom:GetText(), "Gros sac (1/12)")
 -- Clic droit : le menu ; Quantite.
 s.cases[1]:Click("RightButton")
 local menu = LCM_MenuContexte
@@ -241,12 +272,15 @@ menu.sousLignes[1]:Click()
 attendu("deplacee hors du gros sac", I.Case(I.Emplacement(moi, "sacs", 1), 1), nil)
 attendu("dans le sac d'essai", I.Case(I.Emplacement(moi, "sacs", 2), 1).ref, "ressources/eau")
 
-dire("== trois categories pour sept emplacements")
+dire("== quatre categories ; ne se montrent que les emplacements utiles")
 -- Les categories restent le modele (combien d'emplacements, ce qu'ils
 -- acceptent) ; c'est leur bande d'onglets qui a disparu.
--- La ceinture s'y ajoute le 13 octobre 2026.
-attendu("Sacs, Saccoches et Ceintures", #LCM.Inventaire.categories, 3)
-attendu("deux sacs, quatre sacoches et une ceinture", #f.cartes, 7)
+-- La ceinture s'y ajoute le 13 octobre 2026, la poche des cristaux entames
+-- le 23 octobre 2026.
+attendu("Sacs, Saccoches, Ceintures et la poche", #LCM.Inventaire.categories, 4)
+-- La ceinture, les deux sacs portes, une sacoche vide ; la poche vide se
+-- cache (23 octobre 2026).
+attendu("ceinture, deux sacs et une sacoche vide", Montrees(), 4)
 
 dire("== le joueur voit, n'y touche pas")
 LCM._masterCompanion = false
@@ -255,13 +289,13 @@ f:Rafraichir()
 -- Un emplacement OCCUPE : le clic droit ouvre son menu, joueur comme MJ, et
 -- « Ouvrir » ouvre le sac (13 octobre 2026 ; avant, il s'ouvrait directement).
 LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
-f.cartes[1]:Click("RightButton")
+f:CarteDe("sacs", 1):Click("RightButton")
 choisirDansMenu("Ouvrir")
 attendu("le sac s'ouvre", LCM.UI.Inventaires.sacs["sacs_1"]:IsShown(), true)
 LCM.UI.Inventaires.sacs["sacs_1"]:Hide()
 -- Un emplacement VIDE garde son menu : il n'y a rien a ouvrir, et c'est la
 -- qu'on choisit quoi y mettre.
-f.cartes[4]:Click("RightButton")
+f:CarteDe("saccoches", 1):Click("RightButton")
 attendu("rien a ouvrir, rien a proposer au joueur", menu:IsShown(), false)
 menu:Hide()
 local Comp2 = LCM.UI.Compendium.Ouvrir("ressources")
@@ -357,7 +391,7 @@ dire("== glisser depuis le panneau de contenu de la fenetre Inventaires")
 -- lit le contenu d'une sacoche — donc celui d'ou on veut sortir un objet. Seules
 -- les cases de la fenetre d'un sac savaient se glisser, si bien que le
 -- glisser-deposer semblait ne pas exister du tout (5 octobre 2026).
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 I.Vider(moi, "sacs", 1, 1)
 I.Vider(moi, "sacs", 1, 2)
 attendu("un objet dans la premiere case",
@@ -474,7 +508,7 @@ attendu("il sait demarrer un glissement", type(porte:GetScript("OnDragStart")), 
 
 -- On vide une case du premier sac pour l'accueillir. La PREMIERE : le sac en
 -- place a ce stade du scenario n'a pas douze cases.
-f.cartes[1]:Click("LeftButton")
+f:CarteDe("sacs", 1):Click("LeftButton")
 I.Vider(moi, "sacs", 1, 1)
 f:Rafraichir()
 __souris.LeftButton = true

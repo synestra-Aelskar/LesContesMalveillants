@@ -128,9 +128,10 @@ local champOmbre = LCM.Schema.Field(ombre.field.id)
 -- a gauche, valeur a droite), une par element, et le total vient en dernier.
 local detail = LCM.UI.Fiche.Decomposition(moi, champOmbre, 0, 0)
 attendu("l'infobulle donne le total", detail.total, "2")
-attendu("et nomme la source", detail[1] and detail[1][1]:find("^Équipement · ") ~= nil, true)
-attendu("avec ce qu'elle donne", detail[1] and detail[1][2], "+2")
-dire("  (ligne : " .. tostring(detail[1] and detail[1][1]) .. ")")
+attendu("les points investis sont visibles à zéro", detail[1] and detail[1][2], "0")
+attendu("et nomme la source", detail[2] and detail[2][1]:find("^Équipement · ") ~= nil, true)
+attendu("avec ce qu'elle donne", detail[2] and detail[2][2], "+2")
+dire("  (ligne : " .. tostring(detail[2] and detail[2][1]) .. ")")
 local feu
 for _, l in ipairs(fr.pages.resistances.lignes) do if l.label:GetText() == "Feu" then feu = l end end
 attendu("Feu : pas de bonus, pas de signe", feu.valeur:GetText(), "0")
