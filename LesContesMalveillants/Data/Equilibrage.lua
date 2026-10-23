@@ -332,6 +332,42 @@ E.armure = {
     parDefaut = 2,
 }
 
+-- ===== Viser plusieurs cibles ==============================================
+-- Ce qu'une attaque MULTICIBLE coute en plus, selon le nombre de cibles (le
+-- MJ, 21 octobre 2026). Le choix « Multicible » lui-meme ne coute rien : c'est
+-- le NOMBRE qui se paie.
+--
+-- Le bareme n'est pas lineaire, et c'est voulu : les premieres cibles coutent
+-- surtout de la fatigue, les points d'action n'arrivent qu'a la troisieme.
+-- Au-dela du dernier palier, chaque cible de plus ajoute sa part, au MEME
+-- rythme que la fin de la table : viser plus large ne doit jamais revenir
+-- moins cher, par cible, que viser moyen.
+--
+-- L'action demande ce bareme par `baremeCibles=multicible` dans ses reponses
+-- (Data/ActionsBoutons.lua) : celles qui n'en veulent pas gardent leur cout
+-- lineaire, ou la regle historique de Necronicon.
+
+E.cibles = {
+    multicible = {
+        -- Le palier d'un nombre de cibles, de 1 a 6.
+        paliers = {
+            { pa = 0, pf = 2 },
+            { pa = 0, pf = 5 },
+            { pa = 1, pf = 8 },
+            { pa = 1, pf = 12 },
+            { pa = 2, pf = 16 },
+            { pa = 2, pf = 20 },
+        },
+        -- Chaque cible au-dela du dernier palier, AU MEME RYTHME que la
+        -- table : un demi-PA (un PA toutes les deux cibles) et 4 PF, comme de
+        -- la troisieme a la sixieme. La premiere ecriture n'en ajoutait que 2,
+        -- et une attaque sur dix cibles revenait alors moins cher PAR CIBLE
+        -- qu'une attaque sur six — viser large devenait la bonne affaire
+        -- (corrige le 23 octobre 2026).
+        enPlus = { pa = 0.5, pf = 4 },
+    },
+}
+
 -- ===== Forge ================================================================
 -- Le cout d'un point dans une statistique qu'un jeu d'equilibrage ne regle
 -- pas (Core/Forge.lua). Repris de Necronicon (GetForgeStatCost : 1 quand rien
