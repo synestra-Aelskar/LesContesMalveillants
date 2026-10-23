@@ -91,6 +91,9 @@ local CATEGORIES_ENTREES = {
     etats = true,
     maladies = true,
     apprentissages = true,
+    -- Les consommables (23 octobre 2026, le MJ) : leur Type vient de la
+    -- « Liste consommable », que la forge propose comme pour les objets.
+    consommables = true,
 }
 
 function ForgeUI.EstCategorie(categorie)
@@ -134,6 +137,32 @@ end
 local function EstObjet()
     return courant.categorie == "armes" or courant.categorie == "armures"
         or courant.categorie == "accessoires" or courant.categorie == "outils"
+end
+
+local function EstConsommable() return courant.categorie == "consommables" end
+
+-- L'etat qu'un consommable pose, tel que la forge le montre : la case peut
+-- etre decochee sans perdre ce qui etait ecrit, le temps de se decider.
+local function EtatCourant()
+    courant.etat = courant.etat or { pose = false, conteneur = "etat", nom = "", description = "", rounds = "" }
+    return courant.etat
+end
+
+-- Le contenant d'un outil (Core/Contenants.lua), tel que la forge le montre.
+-- Les nombres restent du texte jusqu'a l'enregistrement : c'est le registre
+-- qui refuse une saisie illisible, avec sa raison.
+local function ContenantCourant()
+    courant.contenant = courant.contenant or { actif = false, taille = "", retrait = "", types = {}, entrees = {} }
+    courant.contenant.entrees = courant.contenant.entrees or {}
+    return courant.contenant
+end
+ForgeUI.ContenantCourant = ContenantCourant
+
+local function ResumeContenant()
+    local k = ContenantCourant()
+    if not k.actif then return "Non" end
+    return string.format("Oui — %s, −%s par usage", k.taille ~= "" and k.taille or "?",
+        k.retrait ~= "" and k.retrait or "?")
 end
 
 local function ChoixIC(rarete)
@@ -196,6 +225,34 @@ function ForgeUI.Definition()
         end
     end
     if categorie.id == "armes" then def.taille = MultiplicateurPool() end
+    if categorie.id == "outils" then
+        local k = ContenantCourant()
+        if k.actif then
+            local types = {}
+            for id in pairs(k.types) do types[#types + 1] = id end
+            table.sort(types)
+            -- Seules les entrees d'un type encore coche : decocher Boisson ne
+            -- laisse pas « Eau » derriere lui.
+            local entrees = {}
+            for ref in pairs(k.entrees) do
+                local e = LCM.Compendium.Resoudre(ref)
+                if e and k.types[e.type] then entrees[#entrees + 1] = ref end
+            end
+            table.sort(entrees)
+            def.contenant = { taille = tonumber(k.taille) or k.taille, retrait = tonumber(k.retrait) or k.retrait,
+                types = types[1] and types or nil, entrees = entrees[1] and entrees or nil, depart = k.depart }
+        else
+            def.contenant = nil
+        end
+    end
+    if categorie.id == "consommables" then
+        local e = EtatCourant()
+        def.etatApplique = e.pose and {
+            conteneur = e.conteneur, nom = Texte(e.nom) ~= "" and Texte(e.nom) or nil,
+            description = Texte(e.description) ~= "" and e.description or nil,
+            rounds = Texte(e.rounds) ~= "" and e.rounds or nil,
+        } or nil
+    end
     -- Une race publique est proposee aux joueurs ; une race reservee reste
     -- visible et attribuable uniquement pour un MJ. La case de la Forge est
     -- la source de cette propriete, y compris lors d'une modification.
@@ -213,6 +270,13 @@ function ForgeUI.Definition()
     -- jamais, il fallait rouvrir l'entree dans le compendium pour le poser
     -- (10 octobre 2026).
     if ForgeUI.ListeDuType(categorie) and Texte(courant.type) ~= "" then
+        -- Un type d'une autre liste (garde d'un transfert) est refuse, pas
+        -- remplace en douce : c'est au MJ de choisir celui d'ici.
+        local entree = LCM.Listes.Get(Texte(courant.type))
+        if entree and entree.liste ~= ForgeUI.ListeDuType(categorie) then
+            return nil, string.format("« %s » n'est pas un type de %s : choisis-en un dans sa liste",
+                tostring(entree.label), categorie.label)
+        end
         def.type = Texte(courant.type)
     end
     def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
@@ -258,6 +322,8 @@ function ForgeUI.Creer()
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
         courant.mjSeulement = nil
+        courant.etat = nil
+        courant.contenant = nil
         courant.creationId = Brouillons.NouvelIdentifiant()
     end
     return true, element, categorie, edition
@@ -292,6 +358,7 @@ local COULEURS = {
     ["Empoisonnement"] = { 0.62, 0.79, 0.38 },
     ["Mécanique de compétence"] = { 0.58, 0.68, 0.94 },
     ["Autres"] = { 0.75, 0.72, 0.65 },
+    ["Critères"] = { 0.55, 0.88, 0.62 },
 }
 local function CouleurDossier(nom) return COULEURS[nom] or UI.C.titre end
 local function TeinterDossier(cadre, nom)
@@ -409,6 +476,69 @@ local function Construire()
         pi.plus:SetEnabled(configure and b.restants >= 1)
         pi.selection:SetText(LCM.IC.Description(ic) ~= "" and LCM.IC.Description(ic) or "Aucune propriété sélectionnée.")
         pi.zone:Regler((pi.selection:GetStringHeight() or 20) + 12)
+    end
+
+    -- L'etat qu'un consommable pose (le MJ, 23 octobre 2026) : meme place que
+    -- les proprietes IC d'un objet, qu'un consommable n'a pas. Ses bonus de
+    -- statistiques ne vivent que la (Core/Consommation.lua).
+    local pe = CreateFrame("Frame", nil, f)
+    f.panelEtat = pe
+    pe:SetPoint("TOPRIGHT", f, "TOPRIGHT", -14, -f.insetHaut)
+    pe:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -14, f.insetBas)
+    pe:SetWidth(270)
+    UI.Aplat(pe, { 0, 0, 0, 0.25 }):SetAllPoints(pe)
+    UI.BordureFine(pe, 0.3)
+    local function TexteEtat(texte, y, couleur)
+        local t = UI.Texte(pe, texte, couleur or UI.C.discret, "GameFontNormalSmall")
+        t:SetPoint("TOPLEFT", pe, "TOPLEFT", 12, -y)
+        t:SetWidth(246); t:SetJustifyH("LEFT"); t:SetWordWrap(true)
+        return t
+    end
+    TexteEtat("ÉTAT POSÉ", 12, UI.C.titre)
+    pe.pose = UI.Case(pe, "Pose un état à la consommation", function(cochee)
+        EtatCourant().pose = cochee and true or false
+        f:Rafraichir()
+    end)
+    pe.pose:SetPoint("TOPLEFT", pe, "TOPLEFT", 10, -36)
+    pe.aide = TexteEtat("", 62)
+    pe.lblType = TexteEtat("Type d'état", 104, UI.C.libelle)
+    local TYPES = { { id = "etat", label = "État classique" }, { id = "maladie", label = "Maladie" },
+                    { id = "intangible", label = "Intangible" } }
+    pe.conteneur = UI.Bouton(pe, "", 246, 22, function(b)
+        f.choix.titre:SetText("Type d'état")
+        f.choix:Proposer(b, TYPES, function(id) EtatCourant().conteneur = id f:Rafraichir() end)
+    end)
+    pe.conteneur:SetPoint("TOPLEFT", pe, "TOPLEFT", 12, -120)
+    function pe:LibelleType(id)
+        for _, t in ipairs(TYPES) do if t.id == id then return t.label end end
+        return tostring(id)
+    end
+    pe.lblNom = TexteEtat("Nom de l'état (vide : celui du consommable)", 152, UI.C.libelle)
+    pe.nom = UI.Champ(pe, 246, 22, function(texte) EtatCourant().nom = texte end)
+    pe.nom:SetMaxLetters(60)
+    pe.nom:SetPoint("TOPLEFT", pe, "TOPLEFT", 12, -168)
+    pe.lblRounds = TexteEtat("Durée en rounds (vide : jusqu'au retrait)", 200, UI.C.libelle)
+    pe.rounds = UI.Champ(pe, 80, 22, function(texte) EtatCourant().rounds = texte end)
+    pe.rounds:SetMaxLetters(4)
+    pe.rounds:SetPoint("TOPLEFT", pe, "TOPLEFT", 12, -216)
+    pe.lblDescription = TexteEtat("Description", 248, UI.C.libelle)
+    pe.description = UI.Zone(pe, 246, 150, function(texte) EtatCourant().description = texte end)
+    pe.description:SetPoint("TOPLEFT", pe, "TOPLEFT", 12, -264)
+    function f:ActualiserEtat()
+        pe:SetShown(EstConsommable() and ForgeUI.rendre == nil)
+        if not pe:IsShown() then return end
+        local e = EtatCourant()
+        pe.pose:Cocher(e.pose == true)
+        pe.aide:SetText(e.pose
+            and "Les bonus de statistiques passent par cet état, et durent ce qu'il dure."
+            or "Sans état, le consommable ne rend que des jauges (dossier « Critères »).")
+        for _, w in ipairs({ pe.conteneur, pe.nom, pe.rounds, pe.description,
+                             pe.lblType, pe.lblNom, pe.lblRounds, pe.lblDescription }) do w:SetShown(e.pose == true) end
+        pe.conteneur.label:SetText(pe:LibelleType(e.conteneur))
+        if not pe.nom:HasFocus() then pe.nom:SetText(e.nom or "") end
+        if not pe.rounds:HasFocus() then pe.rounds:SetText(e.rounds or "") end
+        if not pe.description.saisie:HasFocus() then pe.description:SetText(e.description or "") end
+        pe.description.saisie:SetWidth(234)
     end
 
     local function Libelle(texte, x, y)
@@ -540,6 +670,15 @@ local function Construire()
     f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 412, -180)
     UI.Bulle(f.emplacements, "Occupation de l'arme",
         "Une arme à deux emplacements dispose de deux fois le pool de points de sa rareté.")
+
+    -- Un outil peut contenir un consommable ou une ressource (le MJ,
+    -- 23 octobre 2026) : meme rangee que les emplacements d'une arme, qu'un
+    -- outil n'a pas. Le reglage s'ouvre a part, il ne tient pas sur une ligne.
+    f.contenantLibelle = Libelle("Contenant", 290, -184)
+    f.contenant = UI.Bouton(c, "", 210, 22, function() ForgeUI.OuvrirContenant() end)
+    f.contenant:SetPoint("TOPLEFT", c, "TOPLEFT", 358, -180)
+    UI.Bulle(f.contenant, "Contenant",
+        "Ce que l'outil peut contenir, combien, et ce qu'un usage en retire.")
 
     -- Le compteur : points depenses sur le pool de la rarete.
     local k = CreateFrame("Frame", nil, c)
@@ -751,7 +890,7 @@ local function Construire()
     function f:Rafraichir()
         local jeu, rarete = JeuCourant()
         local tableau = self.vue == "tableau"
-        local extra = EstObjet() and 290 or 0
+        local extra = (EstObjet() or EstConsommable()) and 290 or 0
         local colonnes = tableau and math.max(1, math.min(2,
             math.floor((UIParent:GetWidth() * 0.9 - 40 - extra) / (FORGE_COLONNE + FORGE_ECART)))) or 1
         self:SetSize((tableau and (40 + colonnes * (FORGE_COLONNE + FORGE_ECART)) or LARGEUR) + extra,
@@ -761,6 +900,7 @@ local function Construire()
         c:SetPoint("TOPLEFT", self, "TOPLEFT", self.insetCote, -self.insetHaut)
         c:SetPoint("BOTTOMRIGHT", self, "BOTTOMRIGHT", -self.insetCote-extra, self.insetBas)
         self:ActualiserIC(rarete)
+        self:ActualiserEtat()
         self.mode:Selectionner(self.vue)
         self.aideVue:SetText(tableau and "Toutes les catégories" or "Catégories repliables")
         self.jeu.label:SetText(jeu and jeu.label or "Aucun jeu")
@@ -775,6 +915,10 @@ local function Construire()
         local estArme = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "armes"
         self.emplacementsLibelle:SetShown(estArme)
         self.emplacements:SetShown(estArme)
+        local estOutil = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "outils"
+        self.contenantLibelle:SetShown(estOutil)
+        self.contenant:SetShown(estOutil)
+        if estOutil then self.contenant.label:SetText(ResumeContenant()) end
         -- Le type n'existe que pour les categories qui en declarent une liste.
         local aType = ForgeUI.rendre == nil and categorie ~= nil
             and ForgeUI.ListeDuType(categorie) ~= nil
@@ -783,7 +927,9 @@ local function Construire()
         if aType then
             local choisi = Texte(courant.type)
             local entree = choisi ~= "" and LCM.Listes.Get(choisi) or nil
-            self.type.label:SetText(entree and tostring(entree.label) or "— type —")
+            local horsListe = entree and entree.liste ~= ForgeUI.ListeDuType(categorie)
+            self.type.label:SetText(entree and (horsListe and ("|cffff6060" .. tostring(entree.label)
+                .. " — pas un type d'ici|r") or tostring(entree.label)) or "— type —")
         end
         self.emplacements.label:SetText(MultiplicateurPool() == 2 and "2 emplacements" or "1 emplacement")
         -- La zone suit la largeur de la fenetre (le tableau l'elargit) ; sa
@@ -960,6 +1106,328 @@ function ForgeUI.Fenetre()
     return ForgeUI.frame or Construire()
 end
 
+-- ===== Le contenant d'un outil ===============================================
+-- Une fenetre a part : la case, la taille, le retrait par usage, ce qu'il
+-- contient en naissant, et le tableau de ce qu'il accepte.
+
+-- Ce qu'un outil accepte se lit en TABLEAU d'entrees (le MJ, 23 octobre
+-- 2026) : une case par type de chaque liste noyait le reglage. Une entree,
+-- c'est un type et ce qu'on en prend : tout le type — meme ce qui sera cree
+-- plus tard — ou quelques elements choisis. Le modele n'a pas change :
+-- `types` dit les types retenus, `entrees` les elements quand un type n'est
+-- pas pris en entier.
+
+-- Les familles dont les types se choisissent, dans l'ordre de l'ecran.
+local FAMILLES_CONTENU = {
+    { liste = "consommables", registre = "Consommables", famille = "consommables", label = "Consommables" },
+    { liste = "ressources", registre = "Ressources", famille = "ressources", label = "Ressources" },
+}
+
+local function FamilleDuType(typeId)
+    local entree = LCM.Listes.Get(typeId)
+    for _, f in ipairs(FAMILLES_CONTENU) do
+        if entree and entree.liste == f.liste then return f end
+    end
+    return nil
+end
+
+-- Les elements choisis d'un type, dans l'etat de travail.
+local function ChoisisDuType(k, typeId)
+    local out = {}
+    for ref in pairs(k.entrees) do
+        local e = LCM.Compendium.Resoudre(ref)
+        if e and e.type == typeId then out[#out + 1] = e end
+    end
+    table.sort(out, function(a, b) return tostring(a.label) < tostring(b.label) end)
+    return out
+end
+
+-- Le panneau d'un type : la recherche, « Tout le type », et ses elements.
+-- Il travaille sur une COPIE : Annuler ne change rien.
+local function ConstruireChoixType()
+    local p = UI.Fenetre("forge_contenant_type", "Type", 380, 520, { x = 640, y = 0 }, { enTeteSimple = true, sobre = true })
+    ForgeUI.fenetreChoixType = p
+    p:SetFrameStrata("DIALOG")
+    local c = p.contenu
+    p.tout = UI.Case(c, "Tout le type, même ce qui sera créé plus tard", function(cochee)
+        p.travail.tout = cochee and true or false
+        p:Rafraichir()
+    end)
+    p.tout:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -6)
+    p.lblRecherche = UI.Texte(c, "Rechercher", UI.C.libelle, "GameFontNormalSmall")
+    p.lblRecherche:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -36)
+    p.recherche = UI.Champ(c, 340, 22, function(texte) p.filtre = texte p:Rafraichir() end)
+    p.recherche:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -52)
+    p.zone = UI.Defilement(c)
+    p.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -84)
+    p.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -4, 36)
+    p.cases = {}
+    p.vide = UI.Texte(p.zone.contenu, "", UI.C.discret, "GameFontNormalSmall")
+    p.vide:SetPoint("TOPLEFT", p.zone.contenu, "TOPLEFT", 0, 0)
+    p.valider = UI.Bouton(c, "Valider", 120, 24, function()
+        local k = ContenantCourant()
+        local typeId = p.typeId
+        -- On repart de zero pour ce type, puis on pose ce qui est choisi.
+        for ref in pairs(k.entrees) do
+            local e = LCM.Compendium.Resoudre(ref)
+            if not e or e.type == typeId then k.entrees[ref] = nil end
+        end
+        local choisis = 0
+        if not p.travail.tout then
+            for ref in pairs(p.travail.refs) do k.entrees[ref] = true choisis = choisis + 1 end
+        end
+        -- Ni tout le type ni aucun element : l'entree disparait du tableau.
+        k.types[typeId] = (p.travail.tout or choisis > 0) or nil
+        p:Hide()
+        if ForgeUI.fenetreContenant then ForgeUI.fenetreContenant:Rafraichir() end
+    end)
+    p.valider:SetPoint("BOTTOMLEFT", c, "BOTTOMLEFT", 4, 4)
+    p.annuler = UI.Bouton(c, "Annuler", 120, 24, function() p:Hide() end)
+    p.annuler:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -4, 4)
+
+    function p:Rafraichir()
+        local famille = FamilleDuType(self.typeId)
+        local filtre = Texte(self.filtre):lower()
+        self.tout:Cocher(self.travail.tout == true)
+        local y, n = 0, 0
+        for _, e in ipairs(famille and LCM[famille.registre].list or {}) do
+            if e.type == self.typeId and (filtre == "" or tostring(e.label):lower():find(filtre, 1, true)) then
+                n = n + 1
+                local case = self.cases[n]
+                if not case then
+                    case = UI.Case(self.zone.contenu, "", function(cochee)
+                        p.travail.refs[case.ref] = cochee or nil
+                    end)
+                    self.cases[n] = case
+                end
+                case.ref = famille.famille .. "/" .. e.id
+                case.label:SetText(e.label)
+                -- « Tout le type » englobe chacun : les cases se grisent,
+                -- elles n'ont plus rien a dire.
+                case:Cocher(self.travail.tout or self.travail.refs[case.ref] == true)
+                case:SetEnabled(not self.travail.tout)
+                case:ClearAllPoints()
+                case:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 4, -y)
+                case:Show()
+                y = y + 22
+            end
+        end
+        for i = n + 1, #self.cases do self.cases[i]:Hide() end
+        self.vide:SetText(n == 0 and (filtre ~= "" and "Rien ne correspond à la recherche."
+            or "Aucune entrée de ce type pour l'instant.") or "")
+        self.vide:SetShown(n == 0)
+        self.zone:Regler(math.max(y, 20))
+    end
+    p:Hide()
+    return p
+end
+
+function ForgeUI.ChoisirType(typeId)
+    local p = ForgeUI.fenetreChoixType or ConstruireChoixType()
+    local k = ContenantCourant()
+    local entree = LCM.Listes.Get(typeId)
+    p.typeId = typeId
+    if p.titre then p.titre:SetText(entree and entree.label or tostring(typeId)) end
+    local refs = {}
+    for _, e in ipairs(ChoisisDuType(k, typeId)) do
+        local f = FamilleDuType(typeId)
+        refs[f.famille .. "/" .. e.id] = true
+    end
+    -- Un type deja retenu sans element choisi, c'est « tout le type ».
+    p.travail = { tout = k.types[typeId] == true and next(refs) == nil, refs = refs }
+    p.filtre = ""
+    p.recherche:SetText("")
+    p:Rafraichir()
+    p:Show()
+    UI.Devant(p)
+    return p
+end
+
+local function ConstruireContenant()
+    local g = UI.Fenetre("forge_contenant", "Contenant", 440, 560, { x = 330, y = 0 }, { enTeteSimple = true, sobre = true })
+    ForgeUI.fenetreContenant = g
+    g:SetFrameStrata("DIALOG")
+    local c = g.contenu
+    local function Libelle(texte, y, x)
+        local l = UI.Texte(c, texte, UI.C.libelle, "GameFontNormalSmall")
+        l:SetPoint("TOPLEFT", c, "TOPLEFT", x or 4, y)
+        return l
+    end
+    local function Rafraichir()
+        g:Rafraichir()
+        if ForgeUI.frame and ForgeUI.frame:IsShown() then ForgeUI.frame:Rafraichir() end
+    end
+    g.actif = UI.Case(c, "Cet outil est un contenant", function(cochee)
+        ContenantCourant().actif = cochee and true or false
+        Rafraichir()
+    end)
+    g.actif:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -6)
+    g.lblTaille = Libelle("Taille du contenant", -36)
+    g.taille = UI.Champ(c, 90, 22, function(texte) ContenantCourant().taille = texte end)
+    g.taille:SetMaxLetters(6)
+    g.taille:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -52)
+    g.lblRetrait = Libelle("Retiré à chaque usage", -36, 150)
+    g.retrait = UI.Champ(c, 90, 22, function(texte) ContenantCourant().retrait = texte end)
+    g.retrait:SetMaxLetters(6)
+    g.retrait:SetPoint("TOPLEFT", c, "TOPLEFT", 150, -52)
+    g.lblDepart = Libelle("Contenu à la création", -84)
+    g.choix = UI.Choix("forge_contenant", "Contenu")
+    g.depart = UI.Bouton(c, "", 300, 22, function(b)
+        local k = ContenantCourant()
+        local options = { { id = "", label = "— vide —" } }
+        local modele = { label = "Cet outil", contenant = { types = (function()
+            local out = {}
+            for id in pairs(k.types) do out[#out + 1] = id end
+            return out[1] and out or nil
+        end)(), entrees = (function()
+            local out = {}
+            for ref in pairs(k.entrees) do out[#out + 1] = ref end
+            return out[1] and out or nil
+        end)() } }
+        for _, f in ipairs(FAMILLES_CONTENU) do
+            for _, e in ipairs(LCM[f.registre].list) do
+                local ref = f.famille .. "/" .. e.id
+                if LCM.Contenants.Accepte(modele, ref) == true then
+                    options[#options + 1] = { id = ref, label = e.label, groupe = f.label }
+                end
+            end
+        end
+        g.choix.titre:SetText("Contenu à la création")
+        g.choix:Proposer(b, options, function(id)
+            k.depart = id ~= "" and id or nil
+            Rafraichir()
+        end)
+    end)
+    g.depart:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -100)
+
+    g.lblTypes = Libelle("Ce qu'il accepte", -134)
+    g.ajouter = UI.Bouton(c, "Ajouter une entrée", 160, 22, function(b)
+        -- Les types de chaque liste, groupes ; un type deja au tableau se
+        -- reprend par sa ligne.
+        local k = ContenantCourant()
+        local options = {}
+        for _, f in ipairs(FAMILLES_CONTENU) do
+            for _, entree in ipairs(LCM.Listes.De(f.liste)) do
+                if not k.types[entree.id] then
+                    options[#options + 1] = { id = entree.id, label = entree.label, groupe = f.label }
+                end
+            end
+        end
+        if #options == 0 then LCM.Alerte("tous les types sont déjà au tableau.") return end
+        g.choix.titre:SetText("Type")
+        g.choix:Proposer(b, options, function(id) ForgeUI.ChoisirType(id) end)
+    end)
+    g.ajouter:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -130)
+    g.zone = UI.Defilement(c)
+    g.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 4, -160)
+    g.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -4, 36)
+    g.lignes = {}
+    g.vide = UI.Texte(g.zone.contenu, "Aucune entrée : l'outil accepte tout consommable et toute ressource.",
+        UI.C.discret, "GameFontNormalSmall")
+    g.vide:SetPoint("TOPLEFT", g.zone.contenu, "TOPLEFT", 0, 0)
+    g.vide:SetWidth(400)
+    g.vide:SetJustifyH("LEFT")
+    g.vide:SetWordWrap(true)
+
+    local LIGNE_TABLEAU = 26
+    local function Ligne(i)
+        if g.lignes[i] then return g.lignes[i] end
+        local l = CreateFrame("Frame", nil, g.zone.contenu)
+        l:SetHeight(LIGNE_TABLEAU - 2)
+        l:SetPoint("TOPLEFT", g.zone.contenu, "TOPLEFT", 0, -(i - 1) * LIGNE_TABLEAU)
+        l:SetPoint("RIGHT", g.zone, "RIGHT", -14, 0)
+        l.fond = UI.Aplat(l, { 1, 1, 1, i % 2 == 0 and 0.03 or 0.06 })
+        l.fond:SetAllPoints(l)
+        l.retirer = UI.Bouton(l, "Retirer", 70, 20, function()
+            local k = ContenantCourant()
+            if l.ref then
+                -- Un element : lui seul. Le dernier parti, le type part avec lui
+                -- — sinon il deviendrait « tout le type » sans qu'on l'ait dit.
+                k.entrees[l.ref] = nil
+                if not ChoisisDuType(k, l.typeId)[1] then k.types[l.typeId] = nil end
+            else
+                k.types[l.typeId] = nil
+                for ref in pairs(k.entrees) do
+                    local e = LCM.Compendium.Resoudre(ref)
+                    if not e or e.type == l.typeId then k.entrees[ref] = nil end
+                end
+            end
+            Rafraichir()
+        end)
+        l.retirer:SetPoint("RIGHT", l, "RIGHT", -2, 0)
+        l.modifier = UI.Bouton(l, "Modifier", 76, 20, function() ForgeUI.ChoisirType(l.typeId) end)
+        l.modifier:SetPoint("RIGHT", l.retirer, "LEFT", -6, 0)
+        l.texte = UI.Texte(l, "", UI.C.texte, "GameFontNormalSmall")
+        l.texte:SetPoint("LEFT", l, "LEFT", 6, 0)
+        l.texte:SetPoint("RIGHT", l.modifier, "LEFT", -8, 0)
+        l.texte:SetJustifyH("LEFT")
+        l.texte:SetWordWrap(false)
+        g.lignes[i] = l
+        return l
+    end
+
+    g.ok = UI.Bouton(c, "OK", 120, 24, function() g:Hide() end)
+    g.ok:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -4, 4)
+    -- La forge resume le contenant sur son bouton : elle se redessine quand
+    -- le reglage se ferme. Taille et retrait se notent a chaque touche sans
+    -- la redessiner — le bouton restait sur « ?, −? » (le MJ, 23 octobre 2026).
+    g:HookScript("OnHide", function()
+        if ForgeUI.fenetreChoixType then ForgeUI.fenetreChoixType:Hide() end
+        if ForgeUI.frame and ForgeUI.frame:IsShown() then ForgeUI.frame:Rafraichir() end
+    end)
+
+    function g:Rafraichir()
+        local k = ContenantCourant()
+        self.actif:Cocher(k.actif == true)
+        for _, w in ipairs({ self.taille, self.retrait, self.depart, self.zone, self.ajouter,
+                             self.lblTaille, self.lblRetrait, self.lblDepart, self.lblTypes }) do
+            w:SetShown(k.actif == true)
+        end
+        if not self.taille:HasFocus() then self.taille:SetText(k.taille or "") end
+        if not self.retrait:HasFocus() then self.retrait:SetText(k.retrait or "") end
+        local depart = k.depart and LCM.Compendium.Resoudre(k.depart)
+        self.depart.label:SetText(depart and depart.label or "— vide —")
+        -- Le tableau, dans l'ordre des listes : un type pris en entier tient
+        -- sur une ligne, « Boisson (Tout) » ; sinon, une ligne par element
+        -- choisi, son type a cote (le MJ, 23 octobre 2026).
+        local n = 0
+        for _, f in ipairs(FAMILLES_CONTENU) do
+            for _, entree in ipairs(LCM.Listes.De(f.liste)) do
+                if k.types[entree.id] then
+                    local choisis = ChoisisDuType(k, entree.id)
+                    if not choisis[1] then
+                        n = n + 1
+                        local l = Ligne(n)
+                        l.typeId, l.ref = entree.id, nil
+                        l.texte:SetText(entree.label .. "  |cffd9b45a(Tout)|r")
+                        l:Show()
+                    end
+                    for _, e in ipairs(choisis) do
+                        n = n + 1
+                        local l = Ligne(n)
+                        l.typeId, l.ref = entree.id, f.famille .. "/" .. e.id
+                        l.texte:SetText(e.label .. "  |cff9d9d9d(" .. entree.label .. ")|r")
+                        l:Show()
+                    end
+                end
+            end
+        end
+        for i = n + 1, #self.lignes do self.lignes[i]:Hide() end
+        self.vide:SetShown(n == 0)
+        self.zone:Regler(math.max(n * LIGNE_TABLEAU, 20))
+    end
+    g:Hide()
+    return g
+end
+
+function ForgeUI.OuvrirContenant()
+    local g = ForgeUI.fenetreContenant or ConstruireContenant()
+    g:Rafraichir()
+    g:Show()
+    UI.Devant(g)
+    return g
+end
+
 -- Le bouton « Forger » du compendium : la forge, sur les jeux de cette
 -- categorie. false et la raison s'il n'y en a aucun.
 function ForgeUI.Ouvrir(categorieId, options)
@@ -981,8 +1449,15 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
         courant.nom, courant.icone, courant.description, courant.valeurs = "", nil, "", {}
+        courant.type = nil
+        courant.etat = nil
+        courant.contenant = nil
     end
     if courant.categorie ~= categorie.id then
+        -- Un type ne vaut que dans la liste de sa categorie.
+        courant.type = nil
+        courant.etat = nil
+        courant.contenant = nil
         courant.ic, courant.minimumIC = nil, nil
         courant.categorie, courant.jeuId, courant.rareteId, courant.valeurs = categorie.id, nil, nil, {}
         courant.mjSeulement = nil
@@ -1018,6 +1493,25 @@ function ForgeUI.OuvrirEdition(categorie, element)
     courant.nom = tostring(element.label or element.id or "")
     courant.icone = element.icone
     courant.description = element.description or ""
+    -- Le type de l'entree reprise. Il n'etait pas recharge : la forge
+    -- affichait « — type — », et un type reste d'une creation precedente
+    -- remplacait le bon a l'enregistrement (23 octobre 2026).
+    courant.type = element.type
+    local e = element.etatApplique
+    courant.etat = type(e) == "table" and { pose = true, conteneur = e.conteneur or "etat",
+        nom = e.nom or "", description = e.description or "",
+        rounds = e.rounds and tostring(e.rounds) or "" } or nil
+    local k = element.contenant
+    if type(k) == "table" then
+        local types = {}
+        for _, id in ipairs(k.types or {}) do types[id] = true end
+        local entrees = {}
+        for _, ref in ipairs(k.entrees or {}) do entrees[ref] = true end
+        courant.contenant = { actif = true, taille = tostring(k.taille or ""), retrait = tostring(k.retrait or ""),
+            types = types, entrees = entrees, depart = k.depart }
+    else
+        courant.contenant = nil
+    end
     courant.mjSeulement = element.mjSeulement == true
     courant.taille = categorie.id == "armes" and (tonumber(element.taille) == 2 and 2 or 1) or 1
     courant.etatObjet = type(element.etat) == "table" and tonumber(element.etat.max)

@@ -71,33 +71,55 @@ LCM.Points = LCM.Registre({
             -- pas dependre de l'ordre dans lequel les fichiers arrivent.
             local familles = { objets = true, livres = true, ressources = true,
                                accessoires_camping = true, sacs = true, devises = true,
-                               lanternes = true, cristaux = true }
+                               lanternes = true, cristaux = true, consommables = true }
             -- Un objet supprime du compendium ne fait plus tomber le coffre
             -- entier : sa ligne est laissee de cote, et on le dit. Avant, le
             -- coffre disparaissait au /reload avec tout le reste de son
             -- contenu, sans qu'on comprenne pourquoi (20 octobre 2026). Il ne
             -- tombe que si TOUS ses objets ont disparu : il n'aurait plus rien
             -- de ce que le MJ y avait mis.
+            --
+            -- Une ligne laissee de cote n'est plus JETEE (le MJ, 23 octobre
+            -- 2026) : elle part dans `coffre.laisses`, que l'element garde et
+            -- que la construction relit. Un coffre rouvert puis enregistre la
+            -- perdait pour de bon. Et elle revient seule quand l'entree
+            -- existe : au chargement, un coffre se lit AVANT que la file
+            -- d'envoi ne rejoue ce qu'elle tient — un consommable tout juste
+            -- transfere n'y est pas encore (Points.Relire, apres le rejeu).
+            --
+            -- Ce qui ne change pas : une famille qu'un coffre n'accepte pas est
+            -- une saisie fausse, laissee de cote sans attente. Et un coffre
+            -- dont TOUT a disparu tombe (20 octobre 2026) — mais seulement le
+            -- contenu en place : pendant le chargement, il attend sa relecture.
             local presents, inconnus = {}, {}
-            local lignes = type(c.objets) == "table" and c.objets or {}
+            coffre.laisses = {}
+            local lignes = {}
+            for _, source in ipairs({ c.objets, c.laisses }) do
+                for _, objet in ipairs(type(source) == "table" and source or {}) do lignes[#lignes + 1] = objet end
+            end
             for _, objet in ipairs(lignes) do
                 local ref = tostring(objet.entree or "")
                 local famille = ref:match("^([%w_]+)/")
                 local quantite = math.max(1, math.floor(tonumber(objet.quantite) or 1))
                 if presents[ref] then Erreur(element.id .. " : objet de coffre répété (" .. ref .. ")") end
                 presents[ref] = true
-                if not familles[famille or ""] or not LCM.Compendium.Resoudre(ref) then
+                if not familles[famille or ""] then
                     inconnus[#inconnus + 1] = ref
+                elseif not LCM.Compendium.Resoudre(ref) then
+                    coffre.laisses[#coffre.laisses + 1] = { entree = ref, quantite = quantite }
                 else
                     coffre.objets[#coffre.objets + 1] = { entree = ref, quantite = quantite }
                 end
             end
-            if #lignes > 0 and #coffre.objets == 0 then
+            for _, l in ipairs(coffre.laisses) do inconnus[#inconnus + 1] = l.entree end
+            if not coffre.laisses[1] then coffre.laisses = nil end
+            if #lignes > 0 and #coffre.objets == 0 and (LCM.Points.relu or not coffre.laisses) then
                 Erreur(element.id .. " : tous les objets du coffre sont inconnus ("
                     .. table.concat(inconnus, ", ") .. ")")
-            elseif #inconnus > 0 then
-                -- Une definition se relit plusieurs fois au chargement : on ne
-                -- le dit qu'une fois.
+            elseif #inconnus > 0 and LCM.Points.relu then
+                -- Une definition se relit plusieurs fois : on ne le dit qu'une
+                -- fois. Pendant le chargement, on se tait — la relecture dira
+                -- ce qui manque vraiment.
                 local message = string.format("coffre « %s » : %d objet(s) inconnu(s) laissé(s) de côté (%s).",
                     tostring(definition.label or element.id), #inconnus, table.concat(inconnus, ", "))
                 if not ObjetsLaisses[message] then
@@ -375,6 +397,30 @@ function Points.OffreRachat(pointId, offreId)
         end
     end
     return nil
+end
+
+-- Relit les coffres qui attendent des lignes (`coffre.laisses`), une fois
+-- tout le contenu en place : la file d'envoi rejouee (MJ/Brouillons.lua), ou
+-- une entree transferee. Ce qui reste introuvable se dit, une fois.
+function Points.Relire()
+    Points.relu = true
+    -- Copie de la liste : un coffre qui tombe en sort.
+    local liste = {}
+    for _, point in ipairs(Points.list) do liste[#liste + 1] = point end
+    for _, point in ipairs(liste) do
+        if point.coffre and point.coffre.laisses then
+            local ok, neuf = pcall(Points.Construire, LCM.Copie(point))
+            if ok then
+                for cle in pairs(point) do point[cle] = nil end
+                for cle, valeur in pairs(neuf) do point[cle] = valeur end
+            else
+                -- Tout a vraiment disparu : la regle du 20 octobre s'applique.
+                Points.Retirer(point.id)
+                LCM.Alerte(string.format("coffre « %s » écarté : %s", tostring(point.label or point.id),
+                    (tostring(neuf):gsub("^LCM/%a+ : ", ""))))
+            end
+        end
+    end
 end
 
 -- Une creation faite en jeu arrive apres l'initialisation du contenu. Ses

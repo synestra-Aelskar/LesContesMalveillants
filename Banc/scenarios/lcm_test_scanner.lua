@@ -15,18 +15,17 @@ local O, I, P = LCM.Objets, LCM.Inventaire, LCM.PuitsTonnerre
 attendu("scanner defini", O.Get("outil_scanner_valrazkah") ~= nil, true)
 local ok, raison = O.Equiper(moi, "outil_scanner_valrazkah")
 attendu("sans scanner dans les sacs, equipement refuse", ok, false)
-attendu("portee de la ceinture", O.Capacite("outil"), 4)
+attendu("portee de la ceinture", O.Capacite("outil"), 2)
 attendu("scanner mis dans les sacs", (I.Deposer(moi, "objets/outil_scanner_valrazkah", 1)), true)
 LCM.UI.Menu.Trouver("outils_portes").onClick()
 local ceinture = LCM.UI.Ceinture.frame
-attendu("la ceinture propose le scanner", ceinture.equiper:IsEnabled(), true)
--- La liste de la ceinture porte une reference (« objets/… ») depuis qu'elle
--- propose aussi les lanternes du compendium (23 octobre 2026).
-ceinture.equiper.choisir("objets/outil_scanner_valrazkah")
+attendu("la ceinture propose deux crochets", #ceinture.emplacements, 2)
+ceinture.emplacements[1]:Click()
+_G.LCM_Choix_ceinture_outils.lignes[1]:Click()
 attendu("scanner equipe depuis la ceinture", O.Porte(moi, "outil_scanner_valrazkah"), true)
 attendu("scanner parti des sacs", O.Possede(moi, "outil_scanner_valrazkah"), false)
-attendu("premiere place affiche le scanner", ceinture.lignes[1].id, "outil_scanner_valrazkah")
-attendu("deuxieme place libre", ceinture.lignes[2].id, nil)
+attendu("premiere place affiche le scanner", ceinture.emplacements[1].porte.id, "outil_scanner_valrazkah")
+attendu("deuxieme place libre", ceinture.emplacements[2].porte, nil)
 attendu("scanner ouvert", (LCM.UI.Scanner.Basculer()), true)
 local f = LCM.UI.Scanner.frame
 attendu("console MJ presente", f.poser ~= nil, true)

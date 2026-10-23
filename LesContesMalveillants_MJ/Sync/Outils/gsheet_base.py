@@ -66,6 +66,21 @@ def validate_tool_extensions(family: str, identifier: str, definition: dict) -> 
         for field in bonus:
             if str(field).startswith("metier:") and not str(field)[len("metier:"):]:
                 raise ValueError(f"metier d'outil vide : {identifier}")
+        # Un outil contenant (Core/Contenants.lua, 23 octobre 2026) : la meme
+        # regle que l'addon, pour ne pas publier ce qu'il refuserait.
+        contenant = definition.get("contenant")
+        if contenant is not None:
+            if not isinstance(contenant, dict):
+                raise ValueError(f"contenant illisible : {identifier}")
+            def entier(cle: str) -> int:
+                valeur = contenant.get(cle)
+                if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or valeur != int(valeur) or valeur < 1:
+                    raise ValueError(f"{cle} du contenant illisible : {identifier}")
+                return int(valeur)
+            if entier("retrait") > entier("taille"):
+                raise ValueError(f"un usage retire plus que le contenant ne tient : {identifier}")
+    elif family == "objets" and definition.get("contenant") is not None:
+        raise ValueError(f"seul un outil peut etre un contenant : {identifier}")
     if family == "points" and definition.get("nature") == "coffre":
         coffre = definition.get("coffre") or {}
         tools = coffre.get("outils") or {}

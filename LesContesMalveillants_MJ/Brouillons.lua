@@ -32,7 +32,7 @@ LCM.Brouillons = Brouillons
 -- (LesContesMalveillants_MJ/Genere/Atelier_MJ.lua).
 Brouillons.FAMILLES = { "traits", "races", "objets", "livres", "etats", "apprentissages", "sacs",
     "informations", "listes", "devises", "ressources", "connaissances", "resolutions", "calculateurs", "pnj",
-    "jeux", "points", "tentes", "accessoires_camping", "lanternes", "cristaux",
+    "jeux", "points", "tentes", "accessoires_camping", "lanternes", "cristaux", "consommables",
     -- Ce qui est pose dans le monde (MJ/Poses.lua) : un etat, pas un modele,
     -- mais il voyage par la meme file pour arriver dans la base.
     "poses" }
@@ -263,6 +263,14 @@ local function PointChange(famille, id)
     end
 end
 
+-- Ce qui veut savoir qu'une entree vient d'etre enregistree PAR CE MJ (pas
+-- recue de l'autre) : le transfert (MJ/Transfert.lua) attend ainsi que le
+-- panneau qu'il a ouvert soit valide, quel que soit ce panneau.
+local suiveursEnregistrement = {}
+function Brouillons.SurEnregistrement(fonction)
+    suiveursEnregistrement[#suiveursEnregistrement + 1] = fonction
+end
+
 -- Enregistre une entree et la rend jouable aussitot. `creation` : le MJ pense
 -- creer une entree neuve, donc un identifiant deja pris est une collision, pas
 -- une modification. Sinon, enregistrer une entree qui existe la MODIFIE, d'ou
@@ -290,6 +298,12 @@ function Brouillons.Enregistrer(famille, entree, creation)
         local dansLeBareme, horsBareme = LCM.Forge.Verifier(famille, neuf, enReception)
         if not dansLeBareme then return false, horsBareme end
     end
+    -- Une regle propre a la famille, qui ne tient pas dans la forme d'une
+    -- entree (un consommable ne porte de statistiques que par son etat).
+    if type(registre.VerifierEnregistrement) == "function" and not enReception then
+        local valide, raison = registre.VerifierEnregistrement(neuf)
+        if not valide then return false, raison end
+    end
 
     -- Restes de l'ancien modele, qui ne veulent plus rien dire.
     if famille == "objets" then entree.ic = LCM.Copie(neuf.ic) end
@@ -311,6 +325,12 @@ function Brouillons.Enregistrer(famille, entree, creation)
     -- est deja partie de chez lui.
     Publique().Publier(famille, entree, enReception)
     PointChange(famille, neuf.id)
+    if not enReception then
+        for _, fonction in ipairs(suiveursEnregistrement) do
+            local okSuivi, erreur = pcall(fonction, famille, tostring(neuf.id))
+            if not okSuivi then LCM.Erreur("après enregistrement : " .. tostring(erreur)) end
+        end
+    end
     return true
 end
 
@@ -686,4 +706,8 @@ LCM.WhenReady(function()
             end
         end
     end
+    -- Tout est en place : les coffres qui attendaient une ligne (une entree
+    -- encore dans la file, comme un consommable tout juste transfere) la
+    -- retrouvent (MJ/Points.lua).
+    if LCM.Points and LCM.Points.Relire then LCM.Points.Relire() end
 end)

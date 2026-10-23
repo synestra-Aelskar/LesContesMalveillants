@@ -48,8 +48,8 @@ end
 -- Un filon donne ce qu'on peut ranger : des ressources, des livres, des
 -- objets, et des sacs (le MJ, 20 octobre 2026) — une besace oubliee au fond
 -- d'une caisse est une trouvaille comme une autre.
-local CATEGORIES = { "ressources", "livres", "outils", "armes", "armures", "accessoires", "sacs" }
-local FAMILLES = { objets = true, ressources = true, livres = true, sacs = true }
+local CATEGORIES = { "ressources", "consommables", "livres", "outils", "armes", "armures", "accessoires", "sacs" }
+local FAMILLES = { objets = true, ressources = true, consommables = true, livres = true, sacs = true }
 
 local function EstEntreeRecoltable(ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")

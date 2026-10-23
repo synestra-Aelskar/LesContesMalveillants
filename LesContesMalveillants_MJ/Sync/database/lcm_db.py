@@ -73,6 +73,12 @@ FAMILIES = {
     "points": "Points",
     "tentes": "Tentes",
     "accessoires_camping": "AccessoiresCamping",
+    # Ajoutees en jeu les 22 et 23 octobre 2026 : la lanterne et ses cristaux
+    # (Core/Lanternes.lua), les consommables (Core/Consommation.lua). Une
+    # famille absente d'ici ne quitte jamais la file d'envoi du MJ.
+    "consommables": "Consommables",
+    "lanternes": "Lanternes",
+    "cristaux": "Cristaux",
     # Ce qui est pose dans le monde (coffres, filons, vendeurs), avec son
     # contenu : un etat, pas un modele. Jamais livre aux joueurs, qui liraient
     # dans les fichiers ou sont les coffres caches (MJ/Poses.lua).

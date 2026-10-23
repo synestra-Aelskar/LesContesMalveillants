@@ -84,6 +84,13 @@ local function OptionsObjets(choix, exception, doublons)
                     groupe = "Ressources" }
             end
         end
+        for _, consommable in ipairs((LCM.Consommables and LCM.Consommables.list) or {}) do
+            local ref = "consommables/" .. tostring(consommable.id)
+            if not deja[ref] then
+                out[#out + 1] = { id = ref, label = consommable.label or consommable.id,
+                    groupe = "Consommables" }
+            end
+        end
         for _, devise in ipairs((LCM.Devises and LCM.Devises.list) or {}) do
             local ref = "devises/" .. tostring(devise.id)
             if not deja[ref] and LCM.Coffres.Accepte(ref) == true then

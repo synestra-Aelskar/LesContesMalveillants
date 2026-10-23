@@ -245,6 +245,7 @@ def main():
         'calculateurs': 'Calculateurs', 'pnj': 'PNJ', 'jeux': 'Forge',
         'points': 'Points',
         'tentes': 'Tentes', 'accessoires_camping': 'AccessoiresCamping',
+        'consommables': 'Consommables', 'lanternes': 'Lanternes', 'cristaux': 'Cristaux',
     }
 
     # Une famille peut nourrir les deux fichiers (les resolutions), d'ou le tri

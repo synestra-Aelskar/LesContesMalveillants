@@ -73,20 +73,27 @@ Un seul lanceur, le **sceau** (déplaçable), qui porte deux couronnes radiales
 
 ### Ce qui marche
 
-**La ceinture porte-outils et le scanner du Val'Razkah.** Dans Objets > Outils,
-la ceinture illustrée permet d'équiper une lanterne et le scanner à haute
-fréquence. La lanterne est une entrée de la catégorie Lanternes du compendium,
-le scanner l'objet `outil_scanner_valrazkah` : le MJ les donne d'abord dans les
-sacs de l'addon. Équiper les sort du sac ; retirer les y remet. La ceinture a
-quatre places, lanterne comprise.
+**La ceinture porte-outils est en refonte.** Dans Objets > Outils, le bouton
+ouvre la ceinture illustrée avec deux crochets. Les « + » sont dessinés par
+l'interface et servent à équiper directement un outil ou une lanterne des sacs :
+clic pour choisir, ou glissement depuis l'inventaire. L'icône de l'objet remplace
+le « + » ; un clic dessus permet de l'ouvrir (si disponible) ou de le retirer.
+La ceinture de base a deux places. Les ceintures à trois ou quatre places et
+leurs positions supplémentaires seront définies avec les futurs modèles.
 
 **La lanterne et ses cristaux** (23 octobre 2026). Rien n'est livré : le MJ
 crée lanternes et cristaux dans le compendium, avec le constructeur repris de
 Survive (« Nouvelle entrée » ou « Forger »), et ils n'existent pour un joueur
-que s'il les possède. La lanterne équipée ouvre son panneau ; on y pose un
-cristal de ses sacs. Chaque cristal garde SA charge : changé ou retiré, un
+que s'il les possède. La lanterne équipée apparaît suspendue à la ceinture :
+son crochet reçoit l'anneau, avec une superposition locale pour l'emboîtement.
+Le corps, le cristal et le levier sont trois BLP transparents. Les jauges sont
+dessinées dans leurs logements avec 60, 24 et 6 graduations (minutes, heures,
+jours). Le levier bascule l'éclairage ; le cristal se choisit en cliquant sur
+la chambre. La porte latérale donne les paramètres et le retrait.
+Chaque cristal garde SA charge : changé ou retiré, un
 cristal entamé va dans « Cristaux en cours d'usage » (une ligne par
-pourcentage) et revient dans la liste avec sa charge ; épuisé, il se détruit.
+pourcentage) et revient dans la liste avec sa charge ; épuisé, il reste terne
+dans la lanterne éteinte et disparaît lors du retrait ou du remplacement.
 
 Le scanner affiche une grille centrée sur le personnage et les échos des puits
 à moins de 200 m. Les points clignotent plus vite et plus fort à l'approche.

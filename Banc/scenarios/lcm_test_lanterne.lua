@@ -5,7 +5,7 @@
 --     base (retire le 23 octobre 2026) ;
 --   * rien n'existe sans etre possede : la lanterne s'equipe sur la ceinture
 --     depuis les sacs, les cristaux viennent des sacs ; changer de cristal
---     en pose un neuf et ejecte l'ancien, et un cristal epuise se detruit ;
+--     en pose un neuf et ejecte l'ancien ; vide, il reste terne jusqu'au retrait ;
 --   * ce que la construction refuse, et pourquoi ;
 --   * l'ecoulement : multiplicateur x variateur, la charge gardee par
 --     cristal, la decharge ;
@@ -265,8 +265,7 @@ __avancerTemps(150)
 L.Synchroniser()
 attendu("a x2, 200 de charge tiennent 100 s", L.Charge(), 0)
 attendu("elle s'eteint", L.Allumee(), false)
--- Le MJ, 23 octobre 2026 : un cristal epuise se detruit, sur le coup.
-attendu("le cristal epuise se detruit", L.CristalPose(moi), nil)
+attendu("le cristal epuise reste visible et vide", L.CristalPose(moi).charge, 0)
 contient("on le dit", __sansCouleur(__sorties[#__sorties] or ""), "épuisé")
 ok, err = L.Allumer()
 attendu("sans cristal, elle refuse de s'allumer", ok, false)
@@ -288,7 +287,7 @@ local function CourtsEntames()
     end
     return n
 end
--- Le cristal epuise est detruit, mais la lanterne retient son modele :
+-- Le cristal epuise reste pose ; la lanterne retient aussi son modele :
 -- changer en pose un neuf du meme.
 ok, err = L.ChangerCristal()
 attendu("sans neuf du meme modele, refuse", ok, false)
@@ -324,7 +323,7 @@ attendu("range dans la poche", (function()
 end)(), "cristaux_usage")
 
 -- Le MJ, 23 octobre 2026 : un cristal vide ne s'entasse pas dans la poche.
-dire("== un cristal vide disparait")
+dire("== un cristal vide reste terne jusqu'au retrait")
 Cs.Add({ id = "temoin_vide", label = "Vite vide", duree = 10 })
 I.Deposer(moi, "cristaux/temoin_vide", 1)
 L.ChoisirCristal("temoin_vide")
@@ -332,8 +331,8 @@ L.Allumer()
 __avancerTemps(400)   -- 600 s de charge, a x2
 L.Synchroniser()
 attendu("il est vide", L.Charge(), 0)
--- Tout seul, sans qu'on le retire (le MJ, 23 octobre 2026).
-attendu("il s'est detruit", L.CristalPose(moi), nil)
+-- Il reste visible dans la lanterne, sans retourner dans les sacs.
+attendu("il reste terne dans la lanterne", L.CristalPose(moi).charge, 0)
 attendu("il n'est nulle part", Combien("cristaux/temoin_vide"), 0)
 
 -- Comme un objet : sa charge voyage avec son exemplaire.
@@ -432,14 +431,23 @@ attendu("il est lie a sa fenetre", M.EstLiee("outils_portes"), true)
 M.Trouver("outils_portes").onClick()
 local ceinture = LCM.UI.Ceinture.frame
 attendu("la ceinture s'ouvre", ceinture and ceinture:IsShown(), true)
-attendu("place vide sans lanterne", ceinture.lignes[1].nom:GetText(), "1 · Emplacement libre")
+attendu("place vide sans lanterne", ceinture.emplacements[1].plus:IsShown(), true)
 attendu("plus d'objet « Lanterne » generique", LCM.Objets.Get("outil_lanterne"), nil)
-attendu("les lanternes des sacs sont proposees", ceinture.equiper:IsEnabled(), true)
-ceinture.equiper.choisir("lanternes/temoin_simple")
+ceinture.emplacements[1]:Click()
+local choixCeinture = _G.LCM_Choix_ceinture_outils
+local ligneTemoin
+for _, ligne in ipairs(choixCeinture.lignes) do
+    if ligne:IsShown() and ligne.choix == "lanternes/temoin_simple" then ligneTemoin = ligne end
+end
+attendu("les lanternes des sacs sont proposees", ligneTemoin ~= nil, true)
+if ligneTemoin then ligneTemoin:Click() end
 attendu("la ceinture equipe la lanterne", L.IdEquipe(moi), "temoin_simple")
-attendu("elle est sur la premiere ligne", ceinture.lignes[1].nom:GetText(), "1 · Témoin x1")
+attendu("elle est sur le premier crochet", ceinture.emplacements[1].porte.id, "temoin_simple")
 local nChats = #__chats
-ceinture.lignes[1].ouvrir:Click()
+ceinture.emplacements[1]:Click()
+for _, ligne in ipairs(LCM.UI.MenuContexte().lignes) do
+    if ligne:IsShown() and ligne.texte:GetText() == "Ouvrir" then ligne:Click() break end
+end
 local f = LCM.UI.Lanterne.frame
 attendu("le panneau lanterne s'ouvre", f and f:IsShown(), true)
 attendu("ouvrir se joue en emote", chat("examine sa lanterne.") ~= nil and #__chats > nChats, true)
@@ -487,10 +495,13 @@ attendu("la lanterne se referme", f:IsShown(), false)
 attendu("ranger se joue en emote", chat("remet sa lanterne") ~= nil, true)
 
 dire("== la ceinture rend la lanterne")
-ceinture.lignes[1].retirer:Click()
+ceinture.emplacements[1]:Click()
+for _, ligne in ipairs(LCM.UI.MenuContexte().lignes) do
+    if ligne:IsShown() and ligne.texte:GetText() == "Retirer" then ligne:Click() break end
+end
 attendu("retiree", L.IdEquipe(moi), nil)
 attendu("au sac", I.Chercher(moi, "lanternes/temoin_simple") ~= nil, true)
-attendu("la ligne est libre", ceinture.lignes[1].nom:GetText(), "1 · Emplacement libre")
+attendu("le crochet est libre", ceinture.emplacements[1].plus:IsShown(), true)
 M.Trouver("outils_portes").onClick()
 attendu("la ceinture se referme", ceinture:IsShown(), false)
 

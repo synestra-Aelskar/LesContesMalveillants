@@ -65,6 +65,35 @@ class GoogleSheetBaseTest(unittest.TestCase):
                               '{ id = "coffre", nature = "coffre", coffre = { outils = '
                               '{ { entree = "objets/crochet", typeOutil = "serrurerie" } } } }'])
 
+    def test_nouvelles_familles_et_contenants(self):
+        # 22-23 octobre 2026 : lanternes, cristaux et consommables entrent dans
+        # la base, chacun dans son onglet. Absents, ils ne quittaient jamais la
+        # file d'envoi du MJ.
+        plan = gsheet.feuilles()
+        for famille, titre in (("consommables", "Consommables"), ("lanternes", "Lanternes"),
+                               ("cristaux", "Cristaux")):
+            self.assertIn(famille, gsheet.lcm_db.FAMILIES)
+            self.assertEqual(plan[famille], {"titre": titre, "familles": [famille]})
+            self.assertNotIn(famille, gsheet.lcm_db.RESERVED_MJ)
+        # Un consommable par criteres, avec l'etat qu'il pose et son passe.
+        conso = ('{ id = "soupe", type = "t_soupe", bonus = { ["rend:fatigue"] = 2, resi_vent = 5 }, '
+                 'etatApplique = { conteneur = "maladie", nom = "Repus", rounds = 3 }, '
+                 'transfertDe = { "ressources/soupe" } }')
+        row = gsheet.canonical(["consommables", "soupe", "Soupe", "", False, gsheet.ACTIVE, conso])
+        parsed = gsheet.lcm_db.LuaParser(row[6]).value()
+        self.assertEqual(parsed["etatApplique"]["conteneur"], "maladie")
+        self.assertEqual(gsheet.canonical(row), row)
+        # Un outil contenant passe ; un contenant faux ne se publie pas.
+        gourde = ('{ id = "gourde", categorie = "outil", contenant = { taille = 100, retrait = 20, '
+                  'types = { "t_boisson" }, entrees = { "consommables/eau" }, depart = "consommables/eau" } }')
+        gsheet.canonical(["objets", "gourde", "Gourde", "", False, gsheet.ACTIVE, gourde])
+        with self.assertRaisesRegex(ValueError, "plus que le contenant"):
+            gsheet.canonical(["objets", "g2", "G2", "", False, gsheet.ACTIVE,
+                              '{ id = "g2", categorie = "outil", contenant = { taille = 1, retrait = 5 } }'])
+        with self.assertRaisesRegex(ValueError, "seul un outil"):
+            gsheet.canonical(["objets", "e", "E", "", False, gsheet.ACTIVE,
+                              '{ id = "e", categorie = "arme", contenant = { taille = 1, retrait = 1 } }'])
+
     def test_tabs_cover_each_family_once(self):
         plan = gsheet.feuilles()
         self.assertEqual(len(plan), len(gsheet.lcm_db.FAMILIES) + 5)
