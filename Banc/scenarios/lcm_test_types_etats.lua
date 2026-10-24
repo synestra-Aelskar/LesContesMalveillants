@@ -18,11 +18,14 @@ for _, destination in ipairs({'etat', 'maladie', 'intangible'}) do
     local e = LCM.Etats.Construire(def)
     attendu('destination construite ' .. destination, e.categorie, destination)
     LCM.Etats.Add(def)
+    -- Sans duree, l'etat rejoint les etats PORTES (le MJ, 24 octobre 2026),
+    -- dans l'emplacement que son TYPE designe.
     p.duree:SetText('')
     p:Appliquer(LCM.PlayerId(), e)
-    local liste = LCM.EtatsTemporaires.Liste(moi)
-    attendu('pose locale ' .. destination, liste[#liste].conteneur, destination)
-    attendu('sans duree ' .. destination, liste[#liste].restant, nil)
+    attendu('pose locale ' .. destination, LCM.Etats.Porte(moi, def.id), true)
+    local ids = LCM.Etats.Ids(moi, destination)
+    attendu('dans son conteneur ' .. destination, ids[#ids], def.id)
+    attendu('et pas en temporaire ' .. destination, #LCM.EtatsTemporaires.Liste(moi), 0)
 end
 for _, id in ipairs({'etats', 'maladies'}) do
     local source
@@ -48,9 +51,12 @@ local ok = pcall(function() LCM.Listes.Construire({id='invalide', liste='type_et
 attendu('destination invalide refusee', ok, false)
 __groupe({'Nytherah-Apertus'})
 __reseauBoucle(true, 'Nytherah-Apertus')
+-- Il est deja porte depuis la boucle plus haut : on le rend, sinon la pose
+-- serait refusee pour doublon et ce n'est pas ce qu'on teste ici.
+LCM.Etats.Enlever(moi, 'test_maladie')
 LCM.EtatsTemporaires.Envoyer('Nytherah-Apertus', 'test_maladie', nil)
 __avancer(LCM.Reseau.FileEnvoi() * LCM.Reseau.CADENCE + 1)
-local maladie
-for _, e in ipairs(LCM.EtatsTemporaires.Liste(moi)) do if e.id == 'test_maladie' then maladie=e end end
-attendu('pose reseau destination', maladie and maladie.conteneur, 'maladie')
+-- Sans duree, l'etat recu du MJ rejoint lui aussi les etats PORTES.
+local maladies = LCM.Etats.Ids(moi, 'maladie')
+attendu('pose reseau destination', maladies[#maladies], 'test_maladie')
 print(ko == 0 and 'TOUT PASSE' or (ko .. ' ECHEC(S)'))

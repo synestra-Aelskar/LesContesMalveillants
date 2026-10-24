@@ -376,6 +376,11 @@ E.cibles = {
 
 E.forge = {
     coutParDefaut = 1,
+    -- Combien de POURCENTS valent un point, sur une ligne cochee « % » dans la
+    -- forge (le MJ, 24 octobre 2026 : « on paye 1 pour 5 % »). Le cout par
+    -- point de la statistique s'applique ensuite comme d'habitude : baisser la
+    -- Force de 40 % coute 8 points de Force, et non 40.
+    pourcentParPoint = 5,
     -- Ce qu'une statistique passee SOUS sa base rend au pool, en part de son
     -- cout. La moitie : descendre une stat ne doit pas financer entierement la
     -- montee d'une autre, sinon le pool ne borne plus rien.
@@ -824,10 +829,14 @@ E.campement = {
     fatigue  = { base = 0.05, decimales = 6 },
     -- Les PS : base x (heures de soin x parSoin + heures de sommeil x
     -- parSommeil), dans la feuille VITA_BASE, VITA_BASE_HEAL, VITA_BASE_SLEEP.
-    -- `psParPoint` : retirer un etat ou une maladie coute ce nombre de PS par
-    -- point de sa rarete (« un etat rose a 6 points, il faut 12 PS », le MJ,
-    -- 10 octobre 2026).
-    vitalite = { base = 2, decimales = 2, parSoin = 15, parSommeil = 1, psParPoint = 2 },
+    -- `psParPointNegatif` : retirer un etat ou une maladie coute ce nombre de
+    -- PS par point NEGATIF qu'il porte — ce que la forge affiche en rouge au
+    -- bout de ses lignes (le MJ, 24 octobre 2026 : « le nombre de pts negatifs
+    -- egale le cout en PS »). Un etat qui ne retire rien ne coute rien a
+    -- lever. Le prix se lisait avant sur le pool de sa RARETE (`psParPoint`,
+    -- 10 octobre 2026) : deux etats de meme rarete coutaient donc pareil,
+    -- qu'ils retirent un point ou trente.
+    vitalite = { base = 2, decimales = 2, parSoin = 15, parSommeil = 1, psParPointNegatif = 1 },
     -- `metiers` : ceux qui savent remettre une armure en etat au camp (le MJ,
     -- 10 octobre 2026). La formule de l'armure restauree reste a donner.
     armure   = { base = 0.6, decimales = nil,

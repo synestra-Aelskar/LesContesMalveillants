@@ -142,27 +142,31 @@ local V = LCM.UI.Vues.Basculer("sante")
 V:Afficher("etats")
 local page = V.pages.etats
 local bloc
-for _, l in ipairs(page.lignes) do if l.vide then bloc = l end end
+for _, l in ipairs(page.lignes) do if l.temporaires then bloc = l end end
 attendu("le bloc existe", bloc ~= nil, true)
-attendu("l'etat y est", bloc.lignes[1] and bloc.lignes[1]:IsShown() and bloc.lignes[1].nom:GetText(), "Ralenti")
-attendu("avec ses effets et sa duree", bloc.lignes[1].effets:GetText():find("Terrestre -2", 1, true) ~= nil
-    and bloc.lignes[1].effets:GetText():find("2 rounds", 1, true) ~= nil, true)
-attendu("le MJ peut le retirer", bloc.lignes[1].action:IsShown() and bloc.lignes[1].action.label:GetText(), "Retirer")
-bloc.lignes[1].action:Click()
-attendu("retire, la vue suit", bloc.vide:IsShown(), true)
+-- Depuis le 24 octobre 2026, un etat temporaire se montre dans la MEME case
+-- qu'un etat porte : le nom sur sa ligne, les effets et la duree dessous, et
+-- un bouton a signe au bout.
+local case = bloc.emplacements[1]
+attendu("l'etat y est", case and case:IsShown() and case.nom:GetText(), "Ralenti")
+attendu("avec ses effets et sa duree", case.description:GetText():find("Terrestre -2", 1, true) ~= nil
+    and case.description:GetText():find("2 rounds", 1, true) ~= nil, true)
+attendu("le MJ peut le retirer", case.action:IsShown() and case.action.titreBulle, "Retirer")
+case.action:Click()
+attendu("retire, la vue le dit", bloc.emplacements[1].nom:GetText(), "Aucun état temporaire.")
 
 dire("== un etat qui se guerit par un jet")
 T.Poser(moi, { nom = "Maudit", id = "g1", guerison = { mode = "rand", competence = "Esprit", dc = 0 } })
 LCM._masterCompanion = false
 __addonsCharges["LesContesMalveillants_MJ"] = false
 V:Actualiser()
-attendu("le joueur peut tenter", bloc.lignes[1].action.label:GetText(), "Guérir (Esprit)")
-bloc.lignes[1].action:Click()
+attendu("le joueur peut tenter", bloc.emplacements[1].action.titreBulle, "Guérir (Esprit)")
+bloc.emplacements[1].action:Click()
 attendu("DC 0 : gueri", #T.Liste(moi), 0)
 attendu("annonce", chatDit("guérison de « Maudit » (DC 0) : réussie") ~= nil, true)
 T.Poser(moi, { nom = "Narré", id = "g2" })
 V:Actualiser()
-attendu("sans jet de guerison : un joueur n'y touche pas", bloc.lignes[1].action:IsShown(), false)
+attendu("sans jet de guerison : un joueur n'y touche pas", bloc.emplacements[1].action:IsShown(), false)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 T.Retirer(moi, "Narré")

@@ -55,6 +55,9 @@ end
 
 -- Vert au-dessus de la base, rouge en dessous, gris a la base (Necronicon).
 local VERT, ROUGE, GRIS = { 0.35, 0.90, 0.45 }, { 1, 0.35, 0.35 }, { 0.62, 0.62, 0.62 }
+-- L'or des cases a cocher (UI.Case) : le « % » pose contre le chiffre dit la
+-- meme chose que la case cochee, et se lit comme elle.
+local OR = { 0.82, 0.66, 0.20 }
 
 -- Les raretes d'un jeu neuf : noms et couleurs de Necronicon (DEFAULT_RARITIES).
 -- Les pools restent VIDES : c'est au MJ de les fixer, l'enregistrement le
@@ -74,10 +77,35 @@ local RARETES_NEUVES = {
 -- En memoire seulement : jeu, rarete, nom, et les valeurs touchees (une
 -- statistique non touchee vaut sa base).
 
-local courant = { valeurs = {}, nom = "", taille = 1,
+-- `pourcent` : les statistiques dont la valeur saisie se lit en POURCENTAGE
+-- (le MJ, 24 octobre 2026 — « baisse force de 40 % »). Une case par ligne,
+-- pour les etats seulement : c'est la qu'on en avait besoin, et le reste du
+-- compendium garde des points.
+--
+-- `avantage` / `desavantage` : les JETS que l'entree fait relancer, en gardant
+-- le meilleur ou le pire (Core/Effets.lua). Une seule case a trois etats par
+-- ligne (le MJ, 24 octobre 2026) : vide, rouge, vert. Ils ne se declaraient
+-- nulle part dans la forge — il fallait passer par l'editeur du compendium.
+local courant = { valeurs = {}, pourcent = {}, avantage = {}, desavantage = {},
+    nom = "", taille = 1,
     etatObjet = LCM.Equilibrage.forge.etatObjet.base,
     creationId = Brouillons.NouvelIdentifiant() }
 ForgeUI.courant = courant
+
+-- La famille dont les lignes offrent la case « % ».
+local function PourcentPermis(categorie)
+    return type(categorie) == "table" and categorie.famille == "etats"
+end
+ForgeUI.PourcentPermis = PourcentPermis
+
+-- Un avantage ne vaut que sur un JET : c'est un jet qu'on relance. Sur une
+-- primaire, il ne serait jamais demande par personne, et la case aurait promis
+-- quelque chose qui n'arrive pas.
+local function EstJet(cle)
+    local field = LCM.Schema.Field(cle)
+    return field ~= nil and field.kind == "roll"
+end
+ForgeUI.EstJet = EstJet
 
 -- Les categories dont les entrees sont creees et reprises dans cette fenetre.
 -- Le reste du compendium conserve son editeur specialise ou generique.
@@ -195,6 +223,20 @@ local function Bonus(jeu, rarete)
     end
     return out
 end
+
+-- Les statistiques cochees « % », et seulement celles qui portent un montant :
+-- une case cochee sur une ligne restee a zero ne veut rien dire, et le
+-- registre refuserait l'entree (Effets.Lire). Rend nil plutot qu'une liste
+-- vide — une table vide n'a rien a faire dans une definition.
+local function Pourcentages(bonus, categorie)
+    if not PourcentPermis(categorie) then return nil end
+    local out = {}
+    for cle in pairs(courant.pourcent or {}) do
+        if bonus[cle] ~= nil then out[#out + 1] = cle end
+    end
+    table.sort(out)
+    return next(out) and out or nil
+end
 ForgeUI.Bonus = Bonus
 
 -- La definition de l'entree, prete pour `Brouillons.Enregistrer`.
@@ -215,6 +257,22 @@ function ForgeUI.Definition()
     local def = courant.original and LCM.Copie(courant.original) or {}
     def.id, def.label = id, nom
     def.bonus = Bonus(jeu, rarete)
+    def.pourcent = Pourcentages(def.bonus, categorie)
+    -- Les jets marques par la case a trois etats font foi. Elle porte aussi
+    -- ceux de l'entree d'origine, qu'OuvrirEdition y recopie : repartir de
+    -- `original` aurait ignore ce que le MJ vient de cocher.
+    --
+    -- Une LISTE, comme une definition s'ecrit. `original` est l'element
+    -- CONSTRUIT, ou ce sont des ensembles ; relu tel quel, l'avantage se
+    -- reperdait a chaque reenregistrement (Effets.Lire sait lire les deux
+    -- depuis le 24 octobre 2026, mais c'est la liste qui se relit a l'oeil
+    -- dans la base).
+    for _, cle in ipairs({ "avantage", "desavantage" }) do
+        local liste = {}
+        for champ in pairs(courant[cle] or {}) do liste[#liste + 1] = champ end
+        table.sort(liste)
+        def[cle] = next(liste) and liste or nil
+    end
     def.forge = LCM.Forge.Valeur(jeu, rarete)
     def.ic = ChoixIC(rarete)
     if EstObjet() then
@@ -773,11 +831,60 @@ local function Construire()
             f:Fixer(e:GetParent().cle, e:GetText())
         end)
         l.valeur:SetScript("OnEscapePressed", function(e) e:ClearFocus() f:Rafraichir() end)
+        -- Le signe du pourcentage, DANS le champ et contre le chiffre : une
+        -- case cochee a l'autre bout de la ligne ne se voit pas depuis la
+        -- valeur, et « -40 » ne se lit pas comme « -40 % » (le MJ, 24 octobre
+        -- 2026). Dehors, il faisait une colonne de plus qui decalait tout.
+        l.unite = UI.Texte(l.valeur, "", OR, "GameFontNormalSmall")
+        l.unite:SetJustifyH("LEFT")
+        l.unite:SetWordWrap(false)
+        UI.Police(l.unite, 11)
+        -- Le chiffre est CENTRE dans son champ : pour poser le signe contre
+        -- lui, il faut savoir ou il s'arrete. Ce texte-la ne s'affiche jamais,
+        -- il ne sert qu'a mesurer celui du champ.
+        l.mesure = l.valeur:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+        l.mesure:Hide()
         l.plus = UI.Bouton(l, "+", 18, 19, function(b) f:Changer(b:GetParent().cle, 1) end)
         l.plus:SetPoint("LEFT", l.valeur, "RIGHT", 4, 0)
+        -- La case « % » : ce qui est saisi sur cette ligne est un pourcentage
+        -- et non des points (le MJ, 24 octobre 2026). Elle n'a pas de libelle
+        -- — a cette largeur il mangerait la ligne — et le survol le dit.
+        l.pourcent = UI.Case(l, "", function(cochee)
+            local cle = l.cle
+            if not cle then return end
+            courant.pourcent = courant.pourcent or {}
+            courant.pourcent[cle] = cochee or nil
+            f:Rafraichir()
+        end)
+        l.pourcent:SetSize(16, 16)
+        l.pourcent:SetPoint("LEFT", l.plus, "RIGHT", 6, 0)
+        -- La case des JETS, a trois etats (le MJ, 24 octobre 2026) : vide,
+        -- rouge = avantage, vert = desavantage. Une seule case plutot que deux
+        -- parce que les deux s'excluent — on ne relance pas un meme jet en
+        -- gardant a la fois le meilleur et le pire. Le clic tourne.
+        l.jet = UI.Case(l, "")
+        l.jet:SetSize(16, 16)
+        l.jet:SetPoint("LEFT", l.pourcent, "RIGHT", 6, 0)
+        l.jet:SetScript("OnClick", function()
+            local cle = l.cle
+            if not cle then return end
+            courant.avantage = courant.avantage or {}
+            courant.desavantage = courant.desavantage or {}
+            local etat = courant.avantage[cle] and 1 or (courant.desavantage[cle] and 2 or 0)
+            etat = (etat + 1) % 3
+            courant.avantage[cle] = etat == 1 or nil
+            courant.desavantage[cle] = etat == 2 or nil
+            f:Rafraichir()
+        end)
+        -- Les bulles d'une ligne se posent ICI, une seule fois. UI.Bulle
+        -- ACCROCHE un script : appelee depuis PeindreLigne, elle en accrochait
+        -- un de plus a chaque rafraichissement. Le texte, lui, change a chaque
+        -- peinture — la bulle le relit sur la ligne au moment du survol.
+        UI.Bulle(l.pourcent, "Convertie en %", function(soi) return soi.explication end)
+        UI.Bulle(l.jet, "Avantage / Désavantage", function(soi) return soi.explication end)
+        UI.Bulle(l, function(soi) return soi.titreBulle or "" end,
+            function(soi) return soi.texteBulle end)
         l.limites = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
-        l.limites:SetPoint("LEFT", l.plus, "RIGHT", 8, 0)
-        l.limites:SetWidth(76)
         l.limites:SetJustifyH("LEFT")
         l.limites:SetWordWrap(false)
         l.cout = UI.Texte(l, "", UI.C.discret, "GameFontNormalSmall")
@@ -862,7 +969,9 @@ local function Construire()
         if depasse then Peindre(k.points, ROUGE) else k.points:SetTextColor(r, g, b) end
         -- Les VALEURS, pas le total : le credit des negatives est plafonne par
         -- le pool, donc le total depend de la rarete qu'on vise.
-        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs, MultiplicateurPool(), courant.etatObjet, ChoixIC(rarete))
+        local estEtat = PourcentPermis(C.Get(jeu.categorie))
+        local suffit = LCM.Forge.RareteSuffisante(jeu, bilan.valeurs, MultiplicateurPool(),
+            courant.etatObjet, ChoixIC(rarete), estEtat and courant.pourcent or nil)
         if depasse then
             k.palier:SetText("Dépasse le pool de " .. rarete.label)
         elseif suffit and suffit.id ~= rarete.id then
@@ -875,6 +984,15 @@ local function Construire()
         if (bilan.creditPerdu or 0) > 0 then
             k.palier:SetText(string.format("%s — %s pt(s) rendus perdus (plafond du pool)",
                 k.palier:GetText(), C.Nombre(bilan.creditPerdu)))
+        end
+        -- Ce que l'etat coutera a lever au campement : son nombre de points
+        -- NEGATIFS (le MJ, 24 octobre 2026). On le dit ICI, pendant qu'on le
+        -- construit — c'est le moment ou ce chiffre se decide. Seuls les etats
+        -- et les maladies se soignent au camp : un intangible ne se paie pas.
+        if estEtat and LCM.Etats.Conteneur({ type = courant.type }) ~= "intangible" then
+            local parPoint = tonumber(LCM.Equilibrage.campement.vitalite.psParPointNegatif) or 1
+            k.palier:SetText(string.format("%s — %s PS à soigner", k.palier:GetText(),
+                C.Nombre(math.ceil((bilan.credit or 0) * parPoint))))
         end
         k.pool:SetText(string.format("/ %s pts", C.Nombre(pool)))
         local part = pool > 0 and math.min(1, math.max(0, total / pool)) or (total > 0 and 1 or 0)
@@ -915,6 +1033,9 @@ local function Construire()
         if not self.nom:HasFocus() then self.nom:SetText(courant.nom or "") end
         if not self.description.saisie:HasFocus() then self.description:SetText(courant.description or "") end
         local categorie = jeu and C.Get(jeu.categorie) or (courant.categorie and C.Get(courant.categorie))
+        -- Releve une fois ici : chaque ligne s'y reporte sans redemander la
+        -- categorie du jeu courant.
+        self.pourcentPermis = ForgeUI.rendre == nil and PourcentPermis(categorie)
         self.mjSeulement:Cocher(courant.mjSeulement == true)
         self.mjSeulement:SetShown(ForgeUI.rendre == nil
             and categorie ~= nil and categorie.famille == "races")
@@ -948,7 +1069,8 @@ local function Construire()
                 v[champ.cle] = Valeur(jeu, rarete, champ.cle)
             end
             return v
-        end)(), MultiplicateurPool(), courant.etatObjet, ChoixIC(rarete)) or nil
+        end)(), MultiplicateurPool(), courant.etatObjet, ChoixIC(rarete),
+            PourcentPermis(C.Get(jeu and jeu.categorie)) and courant.pourcent or nil) or nil
         self:Compteur(jeu, rarete, bilan)
 
         -- Les statistiques ouvertes a l'investissement, par dossier. Les
@@ -1042,6 +1164,76 @@ local function Construire()
         local v, base = ligne.valeur, ligne.limites.base
         if not l.valeur:HasFocus() then l.valeur:SetText(C.Nombre(v)) end
         Peindre(l.valeur, v > base and VERT or (v < base and ROUGE or GRIS))
+        -- La case « % » n'existe que pour les etats ; ailleurs elle se cache,
+        -- et ce qui suit se recale sur elle.
+        local pourcent = self.pourcentPermis == true
+        local coche = pourcent and (courant.pourcent or {})[ligne.champ.cle] == true
+        l.pourcent:SetShown(pourcent)
+        -- La case des jets : seulement sur un jet, et jamais dans l'atelier,
+        -- qui n'emprunte la forge que pour des points.
+        local jet = ForgeUI.rendre == nil and EstJet(ligne.champ.cle)
+        l.jet:SetShown(jet)
+        -- Elle se cale sur la case « % » quand il y en a une, sinon sur le
+        -- « + » : ancree a une case cachee, elle laissait son trou.
+        l.jet:ClearAllPoints()
+        l.jet:SetPoint("LEFT", pourcent and l.pourcent or l.plus, "RIGHT", 6, 0)
+        -- Les bornes prennent ce qui reste jusqu'au cout, au lieu d'une
+        -- largeur fixe : chaque case ajoutee les poussait d'autant vers lui.
+        l.limites:ClearAllPoints()
+        l.limites:SetPoint("LEFT", (jet and l.jet) or (pourcent and l.pourcent) or l.plus, "RIGHT", 8, 0)
+        l.limites:SetPoint("RIGHT", l.cout, "LEFT", -6, 0)
+        if jet then
+            local avantage = (courant.avantage or {})[ligne.champ.cle] == true
+            local desavantage = (courant.desavantage or {})[ligne.champ.cle] == true
+            l.jet:Cocher(avantage or desavantage)
+            -- Le vert pour ce qui aide, le rouge pour ce qui nuit : les memes
+            -- couleurs que les chiffres de la ligne, qui montent en vert et
+            -- descendent en rouge.
+            local couleur = avantage and VERT or ROUGE
+            l.jet.coche:SetColorTexture(couleur[1], couleur[2], couleur[3])
+            l.jet.explication = string.format(
+                "Ce que l'entrée fait du jet de %s. Le clic tourne :\n\n"
+                .. "Vide : rien.\nVert : AVANTAGE — le jet est relancé, on garde le meilleur.\n"
+                .. "Rouge : DÉSAVANTAGE — le jet est relancé, on garde le pire.\n\n"
+                .. "Les deux s'excluent, et ne coûtent aucun point : c'est au jeu "
+                .. "d'équilibrage de les payer par ailleurs.",
+                tostring(ligne.champ.label))
+        end
+        -- Le signe tient DANS le champ, contre le chiffre. Le chiffre y est
+        -- CENTRE : on mesure son texte pour savoir ou il s'arrete, et le signe
+        -- se pose juste apres — sans jamais depasser le bord du champ, qu'un
+        -- nombre a quatre signes ferait sortir. Rien ne bouge sur le reste de
+        -- la ligne : le chiffre garde toute sa place pour la saisie.
+        l.unite:SetShown(coche)
+        if coche then
+            -- Le signe suit la couleur du chiffre : ce qu'on lit « -40 % » est
+            -- rouge d'un bout a l'autre, pas un nombre rouge et un signe d'or.
+            l.unite:SetText("%")
+            Peindre(l.unite, v > base and VERT or (v < base and ROUGE or OR))
+            local police, taille, style = l.valeur:GetFont()
+            if police then l.mesure:SetFont(police, taille, style) end
+            l.mesure:SetText(l.valeur:GetText() or "")
+            local largeur = l.valeur:GetWidth()
+            local contre = largeur / 2 + l.mesure:GetStringWidth() / 2 + 2
+            local bord = largeur - 3 - l.unite:GetStringWidth()
+            l.unite:ClearAllPoints()
+            l.unite:SetPoint("LEFT", l.valeur, "LEFT", math.min(contre, bord), 0)
+        else
+            l.unite:SetText("")
+        end
+        if pourcent then
+            l.pourcent:Cocher(coche)
+            l.pourcent.explication = string.format(
+                "Coché : ce qui est saisi n'est pas un nombre de points mais un POURCENTAGE.\n\n"
+                .. "« %s %s » devient « %s %s de %s %% ».\n\n"
+                .. "Les pourcentages s'appliquent après les points et s'additionnent entre eux "
+                .. "(deux états à -40 %% font -80 %%) ; une statistique ne descend jamais sous zéro.\n\n"
+                .. "Le prix suit : %s %% pour 1 point, donc %s %% en valent %s.",
+                tostring(ligne.champ.label), C.Nombre(v), tostring(ligne.champ.label),
+                v < 0 and "en baisse" or "en hausse", C.Nombre(math.abs(v)),
+                C.Nombre(LCM.Equilibrage.forge.pourcentParPoint), C.Nombre(math.abs(v)),
+                C.Nombre(math.abs(v) / (tonumber(LCM.Equilibrage.forge.pourcentParPoint) or 5)))
+        end
         local morceaux = { "base " .. C.Nombre(base) }
         if ligne.limites.min then morceaux[#morceaux + 1] = "min " .. C.Nombre(ligne.limites.min) end
         if ligne.limites.max then morceaux[#morceaux + 1] = "max " .. C.Nombre(ligne.limites.max) end
@@ -1050,7 +1242,8 @@ local function Construire()
             and string.format("Coût : %s pt pour +%d points d'état",
                 C.Nombre(LCM.Equilibrage.forge.etatObjet.coutParPas), LCM.Equilibrage.forge.etatObjet.pas)
             or ("Coût : " .. C.Nombre(ligne.limites.cout) .. " / pt")
-        UI.Bulle(l, ligne.champ.label, table.concat(morceaux, "\n") .. "\n" .. cout)
+        l.titreBulle = ligne.champ.label
+        l.texteBulle = table.concat(morceaux, "\n") .. "\n" .. cout
         -- Hors bornes : la valeur reste, la ligne le dit.
         Peindre(l.limites, ligne.hors and UI.C.plein or UI.C.discret)
         l.hors = ligne.hors
@@ -1455,6 +1648,7 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
         courant.nom, courant.icone, courant.description, courant.valeurs = "", nil, "", {}
+        courant.pourcent, courant.avantage, courant.desavantage = {}, {}, {}
         courant.type = nil
         courant.etat = nil
         courant.contenant = nil
@@ -1466,6 +1660,10 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.contenant = nil
         courant.ic, courant.minimumIC = nil, nil
         courant.categorie, courant.jeuId, courant.rareteId, courant.valeurs = categorie.id, nil, nil, {}
+        -- Une statistique cochee « % », un jet marque en avantage : ils ne
+        -- valent que dans la categorie ou on les a coches. Changer de
+        -- categorie remet les cases a plat.
+        courant.pourcent, courant.avantage, courant.desavantage = {}, {}, {}
         courant.mjSeulement = nil
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
@@ -1496,6 +1694,14 @@ function ForgeUI.OuvrirEdition(categorie, element)
     for cle, montant in pairs(element.bonus or {}) do
         courant.valeurs[cle] = tonumber(montant) or montant
     end
+    -- Les cases « % » de l'entree reprise. `element.pourcent` est un ensemble
+    -- (l'element est construit) ; `Ensemble` accepte aussi la liste d'une
+    -- definition, car une entree peut arriver des deux cotes.
+    courant.pourcent = LCM.Effets.Ensemble(element.pourcent)
+    -- Et ses jets marques, de la meme facon : ce sont eux que la definition
+    -- reecrira, donc ce qui n'est pas repris ici serait perdu.
+    courant.avantage = LCM.Effets.Ensemble(element.avantage)
+    courant.desavantage = LCM.Effets.Ensemble(element.desavantage)
     courant.nom = tostring(element.label or element.id or "")
     courant.icone = element.icone
     courant.description = element.description or ""
@@ -1553,6 +1759,9 @@ function ForgeUI.OuvrirPourBonus(categorieId, valeurs, forge, onValider, taille,
     for cle, montant in pairs(valeurs or {}) do
         courant.valeurs[cle] = tonumber(montant) or montant
     end
+    -- L'atelier ne demande que des points : ni case « % » ni jet marque ne
+    -- survit a son ouverture, meme si la forge en portait juste avant.
+    courant.pourcent, courant.avantage, courant.desavantage = {}, {}, {}
     courant.taille = categorieId == "armes" and (tonumber(taille) == 2 and 2 or 1) or 1
     courant.etatObjet = type(etat) == "table" and tonumber(etat.max)
         or LCM.Equilibrage.forge.etatObjet.base

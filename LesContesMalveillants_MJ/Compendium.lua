@@ -125,12 +125,18 @@ end
 
 local function Travail(categorie, element)
     local e = LCM.Copie(element or {})
-    -- L'avantage est un ensemble dans un element, une liste dans une definition.
-    if type(e.avantage) == "table" and e.avantage[1] == nil then
-        local liste = {}
-        for id in pairs(e.avantage) do liste[#liste + 1] = id end
-        table.sort(liste)
-        e.avantage = liste
+    -- Ces trois-la sont un ensemble dans un element, une liste dans une
+    -- definition. Seul l'avantage etait converti : le desavantage et les
+    -- champs en pourcentage repartaient en ensemble, que `Effets.Lire`
+    -- relisait vide (il sait desormais lire les deux, mais la definition
+    -- enregistree reste une liste — c'est ce qui se relit a l'oeil).
+    for _, cle in ipairs({ "avantage", "desavantage", "pourcent" }) do
+        if type(e[cle]) == "table" and e[cle][1] == nil then
+            local liste = {}
+            for id in pairs(e[cle]) do liste[#liste + 1] = id end
+            table.sort(liste)
+            e[cle] = liste
+        end
     end
     if not element then
         for k, v in pairs(categorie.defaut or {}) do e[k] = LCM.Copie(v) end
@@ -185,7 +191,10 @@ local function Definition(t)
         def.etat = nil
     end
     if def.icone == LCM.Icone(nil) then def.icone = nil end
-    for _, cle in ipairs({ "bonus", "valeurs" }) do
+    -- Une table vide ne s'enregistre pas : sans cela, chaque passage dans
+    -- l'editeur ajoutait `avantage = {}`, `desavantage = {}` et `pourcent = {}`
+    -- a une entree qui n'en a pas, dans la base comme dans le Sheet.
+    for _, cle in ipairs({ "bonus", "valeurs", "avantage", "desavantage", "pourcent" }) do
         if type(def[cle]) == "table" and next(def[cle]) == nil then def[cle] = nil end
     end
     return def

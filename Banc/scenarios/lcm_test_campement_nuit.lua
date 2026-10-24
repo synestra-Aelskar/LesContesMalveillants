@@ -262,11 +262,16 @@ recevoir(AMI, "CAMP_PS_RETOUR", { c = id, n = 7 })
 attendu("l'ami rend 7 PS", K.courant.psDisponibles, 46 + 10 - blessure + 7)
 
 dire("== retirer un etat avec des PS")
--- L'exemple du MJ : un etat rose vaut 6 points, il faut 12 PS pour le retirer.
+-- Un etat se paie ce qu'il RETIRE (le MJ, 24 octobre 2026) : le nombre de
+-- points negatifs qu'il porte, soit ce que la forge affiche au bout de ses
+-- lignes. -24 de Force au cout par defaut, rembourses de moitie, font douze
+-- points negatifs, donc douze PS. Avant, le prix se lisait sur le pool de la
+-- rarete : deux etats roses coutaient pareil, qu'ils retirent un point ou
+-- trente.
 LCM.Forge.Add({ id = "jeu_etats_banc", label = "Etats (banc)", categorie = "etats",
     raretes = { { id = "rose", label = "Rose", points = 6, couleur = "FF8CB8" } } })
 LCM.Etats.Add({ id = "fievre_banc", label = "Fièvre", categorie = "etat", forge = "jeu_etats_banc/rose",
-    bonus = { force = -1 } })
+    bonus = { force = -24 } })
 LCM.Etats.Add({ id = "malediction_banc", label = "Malédiction", categorie = "etat", bonus = { force = -1 } })
 attendu("on attrape la fievre", (LCM.Etats.Placer(moi, "fievre_banc")), true)
 LCM.Etats.Placer(moi, "malediction_banc")

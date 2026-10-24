@@ -177,6 +177,17 @@ bouclierHUD:GetScript("OnLeave")(bouclierHUD)
 LCM.Entities.SetGauge(moi, "armure", 0)
 attendu("il disparaît à zéro", f.total.bouclier:IsShown(), false)
 
+dire("== l'orbe des PV ouvre la Sante")
+-- Clic gauche sur l'orbe (le MJ, 24 octobre 2026) : c'est elle qu'on regarde
+-- quand on se demande ou l'on en est, et le detail par zone etait a trois
+-- crans du menu radial.
+if LCM.UI.Vues.frames.sante then LCM.UI.Vues.frames.sante:Hide() end
+f.total:Click("LeftButton")
+attendu("la fenêtre Santé s'ouvre", LCM.UI.Vues.frames.sante ~= nil
+    and LCM.UI.Vues.frames.sante:IsShown(), true)
+f.total:Click("LeftButton")
+attendu("  et le même clic la referme", LCM.UI.Vues.frames.sante:IsShown(), false)
+
 dire("== la generation d'un bouclier arrondit les points")
 local calculerAvant = LCM.Actions.Calculer
 LCM.Actions.Calculer = function() return 46.41 end

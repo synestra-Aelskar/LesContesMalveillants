@@ -82,6 +82,10 @@ function Temporaires.Poser(entity, etat)
         -- parce qu'il retire des points, il l'impose parce qu'il le dit
         -- (le MJ, 24 octobre 2026).
         desavantage = type(etat.desavantage) == 'table' and LCM.Copie(etat.desavantage) or nil,
+        -- Et les champs dont le montant se lit en POURCENTAGE : il voyage de
+        -- la meme facon, sinon « baisse la Force de 40 % » deviendrait
+        -- « retire 40 points de Force » une fois l'etat pose.
+        pourcent = type(etat.pourcent) == 'table' and LCM.Copie(etat.pourcent) or nil,
         debuff = etat.debuff == true, dissipation = etat.dissipation, cumul = etat.cumul,
         conteneur = Temporaires.ConteneurValide(etat.conteneur),
         -- Ce que la dissipation doit battre : le jet du lanceur, et sa
@@ -98,6 +102,111 @@ function Temporaires.Poser(entity, etat)
     if Temporaires.onChange then Temporaires.onChange(entity) end
     if LCM.Entities and LCM.Entities.Changed then LCM.Entities.Changed(entity, "etatsTemporaires") end
     return liste[#liste]
+end
+
+-- Imposer un etat du compendium : LA DUREE DECIDE DE SON LOGEMENT.
+--
+-- Sans duree, il n'a rien de temporaire — il reste jusqu'a ce qu'on le
+-- retire. Sa place est donc celle des etats PORTES, dans l'emplacement de son
+-- conteneur (« États divers », « Maladies », « Intangible »), et non la liste
+-- des etats temporaires, ou il se serait installe pour toujours sous une
+-- duree vide (le MJ, 24 octobre 2026).
+--
+-- Avec une duree, c'est bien un etat temporaire : il compte ses rounds et
+-- s'eteint seul.
+--
+-- Renvoie true, ou false et la raison (plus d'emplacement libre, deja porte).
+function Temporaires.Imposer(entity, definition, rounds)
+    if type(entity) ~= "table" then return false, "aucune fiche." end
+    if type(definition) ~= "table" then return false, "état inconnu." end
+    if rounds == nil then
+        local ok, raison = LCM.Etats.Placer(entity, definition.id)
+        if not ok then return false, raison end
+        if LCM.Entities and LCM.Entities.Changed then LCM.Entities.Changed(entity, "etats") end
+        return true
+    end
+    Temporaires.Poser(entity, {
+        nom = definition.label, icone = definition.icone,
+        description = definition.description, bonus = definition.bonus,
+        desavantage = definition.desavantage, pourcent = definition.pourcent,
+        rounds = rounds, conteneur = LCM.Etats.Conteneur(definition),
+        debuff = definition.debuff == true, id = definition.id,
+    })
+    return true
+end
+
+-- Changer la duree d'un etat deja pose, en seance. Comme c'est la duree qui
+-- decide du logement, la changer DEPLACE l'etat quand il le faut : donner une
+-- duree a un etat porte en fait un etat temporaire, la lui retirer le range
+-- avec les etats portes.
+--
+-- `nom` designe un etat temporaire, `id` une entree du compendium : une ligne
+-- du Panel MJ peut etre l'un ou l'autre, et porte les deux.
+function Temporaires.FixerDuree(entity, nom, rounds, id)
+    if type(entity) ~= "table" then return false, "aucune fiche." end
+    nom = tostring(nom or "")
+    if rounds ~= nil then
+        rounds = tonumber(rounds)
+        if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+            return false, "la durée doit être un nombre entier positif." end
+    end
+    for _, e in ipairs(Temporaires.Liste(entity)) do
+        if e.nom == nom or (e.id ~= nil and id ~= nil and e.id == id) then
+            if rounds ~= nil then
+                e.restant = rounds
+                if Temporaires.onChange then Temporaires.onChange(entity) end
+                if LCM.Entities and LCM.Entities.Changed then
+                    LCM.Entities.Changed(entity, "etatsTemporaires")
+                end
+                return true
+            end
+            -- Plus de duree. Un etat venu du compendium rejoint les etats
+            -- portes ; un etat pose par une action n'y a pas d'entree, il
+            -- reste ou il est et cesse simplement de compter.
+            local definition = e.id and LCM.Etats.Get(e.id)
+            if not definition then
+                e.restant = nil
+                if Temporaires.onChange then Temporaires.onChange(entity) end
+                if LCM.Entities and LCM.Entities.Changed then
+                    LCM.Entities.Changed(entity, "etatsTemporaires")
+                end
+                return true
+            end
+            local ok, raison = Temporaires.Imposer(entity, definition, nil)
+            if not ok then return false, raison end
+            Temporaires.RetirerForce(entity, e.nom)
+            return true
+        end
+    end
+    -- Pas dans les temporaires : c'est un etat PORTE.
+    local definition = id and LCM.Etats and LCM.Etats.Get(id)
+    if not definition then return false, "cet état n'est pas sur cette fiche." end
+    if rounds == nil then return true end
+    if not LCM.Etats.Enlever(entity, definition.id) then
+        return false, "cet état n'est pas sur cette fiche."
+    end
+    if LCM.Entities and LCM.Entities.Changed then LCM.Entities.Changed(entity, "etats") end
+    return Temporaires.Imposer(entity, definition, rounds)
+end
+
+-- Le MJ demande au personnage de changer la duree d'un de ses etats. Comme
+-- Envoyer : c'est sa fiche a lui qui change, la copie consultee n'est qu'une
+-- image.
+function Temporaires.EnvoyerDuree(joueur, nom, rounds, id)
+    joueur = tostring(joueur or "")
+    if joueur == "" then return false, "choisis un joueur." end
+    if not LCM.IsMaster() then return false, "seul le maître du jeu peut changer une durée." end
+    if joueur == tostring(LCM.PlayerId()) then return false, "utilise la fiche locale pour ton personnage." end
+    if not LCM.Reseau.DansLeGroupe(joueur) then return false, "ce joueur n'est pas dans le groupe." end
+    if rounds ~= nil then
+        rounds = tonumber(rounds)
+        if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+            return false, "la durée doit être un nombre entier positif." end
+    end
+    local ok, raison = LCM.Reseau.Envoyer("etat_mj~",
+        { n = nom, r = rounds, i = id }, "WHISPER", joueur)
+    if not ok then return false, raison or "la durée n'a pas pu être envoyée." end
+    return true
 end
 
 -- Le MJ demande au personnage de poser un etat du catalogue sur sa propre
@@ -276,13 +385,14 @@ LCM.Effets.Source("état temporaire", function(entity)
         -- L'etat porte son desavantage, comme il porte ses bonus. A defaut
         -- (un etat pose avant le 24 octobre 2026, encore en sauvegarde), on
         -- le relit sur son modele du compendium.
-        local declare = e.desavantage
-        if not declare and e.id and LCM.Etats then
+        local declare, enPourcent = e.desavantage, e.pourcent
+        if (not declare or not enPourcent) and e.id and LCM.Etats then
             local modele = LCM.Etats.Get(e.id)
-            declare = modele and modele.desavantage
+            declare = declare or (modele and modele.desavantage)
+            enPourcent = enPourcent or (modele and modele.pourcent)
         end
         out[#out + 1] = { label = e.nom, bonus = e.bonus or {}, avantage = VIDE,
-                          desavantage = declare or VIDE }
+                          desavantage = declare or VIDE, pourcent = enPourcent or VIDE }
     end
     return out
 end)
@@ -347,15 +457,35 @@ LCM.WhenReady(function()
         local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
             or (LCM.Entities.Self and LCM.Entities.Self())
         if not entity then return end
-        Temporaires.Poser(entity, {
-            nom = definition.label, icone = definition.icone,
-            description = definition.description, bonus = definition.bonus,
-            desavantage = definition.desavantage,
-            rounds = rounds, conteneur = LCM.Etats.Conteneur(definition),
-            debuff = definition.debuff == true, id = definition.id,
-        })
+        -- Sans duree, il rejoint les etats PORTES et non la liste des
+        -- temporaires : c'est Imposer qui en decide.
+        local ok, raison = Temporaires.Imposer(entity, definition, rounds)
+        if not ok then
+            LCM.Alerte(string.format("« %s » n'a pas pu être posé : %s",
+                definition.label, tostring(raison)))
+            return
+        end
         LCM.Info(string.format("Le MJ vous impose « %s » (%s).", definition.label,
             rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'au retrait"))
+    end)
+
+    -- Le MJ change la duree d'un etat deja pose.
+    LCM.Reseau.Ecouter("etat_mj~", function(expediteur, paquet)
+        if not LCM.Reseau.DansLeGroupe(expediteur) then return end
+        local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
+            or (LCM.Entities.Self and LCM.Entities.Self())
+        if not entity then return end
+        local rounds
+        if paquet.r ~= nil and paquet.r ~= "" then
+            rounds = tonumber(paquet.r)
+            if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then return end
+        end
+        local ok = Temporaires.FixerDuree(entity, paquet.n, rounds, paquet.i)
+        if ok then
+            LCM.Info(string.format("Le MJ change la durée de « %s » : %s.",
+                tostring(paquet.n), rounds and (rounds .. " round" .. (rounds > 1 and "s" or ""))
+                    or "jusqu'au retrait"))
+        end
     end)
 end)
 
@@ -373,7 +503,8 @@ LCM.AddCommand("etats", "les états temporaires : la liste, ou « retirer <nom> 
         local effets = {}
         for champ, n in pairs(e.bonus or {}) do
             local field = LCM.Schema.Field(champ)
-            effets[#effets + 1] = string.format("%s %+d", field and field.label or champ, n)
+            effets[#effets + 1] = string.format("%s %+d%s", field and field.label or champ, n,
+                LCM.Effets.Unite(e, champ))
         end
         table.sort(effets)
         LCM.Info(string.format("%s (%s)%s", e.nom, Temporaires.Duree(e),

@@ -84,7 +84,7 @@ function Traits.Construire(definition)
         Erreur(id .. " : cout invalide (" .. tostring(definition.cout) .. "), attendu 1 a " .. Traits.COUT_MAX)
     end
 
-    local bonus, avantage, desavantage = LCM.Effets.Lire(id, definition, Erreur)
+    local bonus, avantage, desavantage, pourcent = LCM.Effets.Lire(id, definition, Erreur)
 
     -- Un avantage se PAIE : un par niveau de trait, pas un de plus. Un trait a
     -- 1 point qui relancerait trois jets differents serait la meilleure affaire
@@ -117,6 +117,7 @@ function Traits.Construire(definition)
         bonus = bonus,
         avantage = avantage,
         desavantage = desavantage,
+        pourcent = pourcent,
     }, Erreur)
 end
 

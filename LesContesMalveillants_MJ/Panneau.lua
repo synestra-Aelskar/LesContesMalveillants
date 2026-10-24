@@ -938,14 +938,10 @@ function Pages.etats(page)
             local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
                 or LCM.Entities.Self()
             if entity then
-                LCM.EtatsTemporaires.Poser(entity, {
-                    nom = definition.label, icone = definition.icone,
-                    description = definition.description, bonus = definition.bonus,
-                    desavantage = definition.desavantage,
-                    rounds = rounds, conteneur = LCM.Etats.Conteneur(definition),
-                    debuff = definition.debuff == true, id = definition.id,
-                })
-                ok = true
+                -- Sans duree, il rejoint les etats portes : c'est Imposer qui
+                -- en decide, pour que les trois chemins (ici, la fiche, le
+                -- reseau) rangent l'etat au meme endroit.
+                ok, raison = LCM.EtatsTemporaires.Imposer(entity, definition, rounds)
             else
                 raison = "aucune fiche de personnage active."
             end
@@ -999,13 +995,46 @@ function Pages.etats(page)
         self:AfficherActifs()
     end
 
+    -- La duree saisie sur une ligne, posee sur l'etat. Vide : jusqu'au
+    -- retrait. Le refus se dit, il ne se devine pas a l'affichage qui n'a
+    -- pas bouge.
+    function page:FixerDuree(ligne)
+        local joueur, etat = self.joueurActif, ligne.etat
+        if not (joueur and etat) then return end
+        local texte = tostring(ligne.saisie:GetText() or ""):match("^%s*(.-)%s*$")
+        local rounds
+        if texte ~= "" then
+            rounds = tonumber(texte)
+            if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+                LCM.Alerte("la durée doit être un nombre entier positif, ou vide.")
+                return
+            end
+        end
+        local ok, raison
+        if EstMoi(joueur) then
+            local entity = FicheJoueur(joueur)
+            if not entity then return end
+            ok, raison = LCM.EtatsTemporaires.FixerDuree(entity, etat.nom, rounds, etat.id)
+        else
+            ok, raison = LCM.EtatsTemporaires.EnvoyerDuree(joueur, etat.nom, rounds, etat.id)
+            if ok then self:DemanderEtats(joueur) end
+        end
+        if not ok then
+            LCM.Alerte(tostring(raison or "la durée n'a pas pu être changée."))
+        else
+            LCM.Ok(string.format("« %s » : %s.", etat.nom,
+                rounds and (rounds .. " round" .. (rounds > 1 and "s" or "")) or "jusqu'au retrait"))
+        end
+        self:AfficherActifs()
+    end
+
     function page:AfficherActifs()
         local entity = self.joueurActif and FicheJoueur(self.joueurActif)
         local liste = {}
         if entity then
             for _, etat in ipairs(LCM.EtatsTemporaires.Liste(entity)) do
-                liste[#liste + 1] = { nom = etat.nom, icone = etat.icone,
-                    duree = LCM.EtatsTemporaires.Duree(etat) }
+                liste[#liste + 1] = { nom = etat.nom, icone = etat.icone, id = etat.id,
+                    restant = etat.restant, duree = LCM.EtatsTemporaires.Duree(etat) }
             end
             for _, categorie in ipairs(LCM.Etats.CATEGORIES) do
                 for _, id in ipairs(LCM.Etats.Ids(entity, categorie.id)) do
@@ -1030,11 +1059,41 @@ function Pages.etats(page)
                 local ligne = l
                 l.retirer = UI.Bouton(l, "×", 22, 22, function() page:RetirerEtat(ligne) end)
                 l.retirer:SetPoint("RIGHT", l, "RIGHT", -3, 0)
+                -- Changer la duree en seance, sans retirer puis reposer l'etat
+                -- (le MJ, 24 octobre 2026). Vide = jusqu'au retrait, et l'etat
+                -- rejoint alors les etats portes : c'est la duree qui decide
+                -- de son logement (Core/EtatsTemporaires.lua).
+                l.valider = UI.Bouton(l, "V", 20, 20, function() page:FixerDuree(ligne) end)
+                l.valider:SetPoint("RIGHT", l.retirer, "LEFT", -3, 0)
+                UI.Bulle(l.valider, "Changer la durée",
+                    "Poser la durée saisie à gauche. Vide : jusqu'au retrait.")
+                l.saisie = UI.Champ(l, 36, 20)
+                l.saisie:SetJustifyH("CENTER")
+                l.saisie:SetPoint("RIGHT", l.valider, "LEFT", -3, 0)
+                l.saisie:SetScript("OnEnterPressed", function(e)
+                    e:ClearFocus()
+                    page:FixerDuree(ligne)
+                end)
+                l.saisie:SetScript("OnEscapePressed", function(e)
+                    e:ClearFocus()
+                    page:AfficherActifs()
+                end)
+                -- Le nom et la duree s'arretent avant la saisie : sans cela
+                -- ils passaient dessous.
+                l.duree:SetPoint("RIGHT", l.saisie, "LEFT", -6, 0)
+                l.duree:SetWordWrap(false)
                 self.lignesActifs[i] = l
             end
             l.etat = etat
             l.nom:SetText(etat.nom)
             l.duree:SetText(etat.duree)
+            -- La saisie montre la duree en cours, pas un champ vide : on
+            -- corrige « 3 » en « 5 » sans avoir a retrouver ce qu'il restait.
+            -- Pas pendant qu'on y tape, sinon le rafraichissement de la
+            -- seance effacerait ce qu'on est en train d'ecrire.
+            if not l.saisie:HasFocus() then
+                l.saisie:SetText(etat.restant and tostring(etat.restant) or "")
+            end
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", self.zoneActifs.contenu, "TOPLEFT", 2, -(i - 1) * 46)
             l:SetPoint("RIGHT", self.zoneActifs.contenu, "RIGHT", -2, 0)
@@ -1052,6 +1111,30 @@ function Pages.etats(page)
             page:AfficherActifs()
         end
     end)
+
+    -- La duree restante vieillit toute seule : ce qui est affiche doit suivre
+    -- (le MJ, 24 octobre 2026). Chez un joueur distant, elle ne vieillit pas
+    -- ICI — c'est sa fiche qui compte les rounds — donc on redemande sa copie
+    -- plutot que de rafraichir un chiffre fige.
+    function page:Reclamer()
+        if not (self:IsVisible() and self.joueurActif) then return end
+        if not EstMoi(self.joueurActif) then self:DemanderEtats(self.joueurActif) end
+        self:AfficherActifs()
+    end
+
+    -- A chaque changement de round, et sinon toutes les vingt minutes : hors
+    -- combat rien ne bouge, et une table qui dure n'a pas a montrer un
+    -- decompte de la veille.
+    local avantCombat = LCM.Combat and LCM.Combat.onChange
+    if LCM.Combat then
+        LCM.Combat.onChange = function(...)
+            if avantCombat then avantCombat(...) end
+            page:Reclamer()
+        end
+    end
+    if C_Timer and C_Timer.NewTicker then
+        C_Timer.NewTicker(20 * 60, function() page:Reclamer() end)
+    end
 
     function page:Afficher()
         local recherche = tostring(self.recherche:GetText() or ""):lower()

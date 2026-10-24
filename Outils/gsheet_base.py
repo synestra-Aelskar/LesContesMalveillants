@@ -58,6 +58,26 @@ CREATEUR = "Créateur"
 CONTENEURS_ETATS = ("etat", "maladie", "intangible")
 
 
+def champs_declares(valeur: object) -> list[str]:
+    """Les champs qu'un effet designe : `avantage`, `desavantage`, `pourcent`.
+
+    Une definition en ecrit une LISTE, un element construit un ENSEMBLE
+    ({ champ = true }) — et les deux formes circulent, l'addon acceptant l'une
+    et l'autre depuis le 24 octobre 2026 (Core/Effets.lua, Ensemble).
+    """
+    if isinstance(valeur, list):
+        return [str(v) for v in valeur]
+    if isinstance(valeur, dict):
+        out = []
+        for cle, v in valeur.items():
+            if isinstance(cle, int):
+                out.append(str(v))
+            elif v is True:
+                out.append(str(cle))
+        return out
+    return []
+
+
 def validate_tool_extensions(family: str, identifier: str, definition: dict) -> None:
     """Garde les nouveaux outils dans les familles existantes du Sheet.
 
@@ -110,6 +130,19 @@ def validate_tool_extensions(family: str, identifier: str, definition: dict) -> 
             by_type = bool(str(tool.get("typeOutil") or "").strip())
             if exact == by_type:
                 raise ValueError(f"prerequis d'outil ambigu : {identifier} #{index}")
+    if definition.get("pourcent") is not None:
+        # Les champs dont le montant se lit en POURCENTAGE (Core/Effets.lua,
+        # 24 octobre 2026). Un pourcentage sans montant ne ferait rien du tout
+        # — c'est la case cochee puis la valeur remise a zero — et l'addon le
+        # refuse au CHARGEMENT : publie depuis le Sheet, il ne gate pas une
+        # entree, il empeche l'addon de se charger.
+        champs = champs_declares(definition.get("pourcent"))
+        if not champs:
+            raise ValueError(f"pourcentages illisibles : {identifier}")
+        bonus = definition.get("bonus")
+        for champ in champs:
+            if not isinstance(bonus, dict) or bonus.get(champ) is None:
+                raise ValueError(f"pourcentage sans montant sur {champ} : {identifier}")
     if family == "listes" and definition.get("liste") == "type_etats":
         # Un type d'etat dit OU l'etat se range (Core/Contenus.lua, 24 octobre
         # 2026). L'addon refuse autre chose au CHARGEMENT, par error() : un

@@ -176,12 +176,14 @@ attendu("et son rand", rand, 13)
 local V = LCM.UI.Vues.Basculer("sante")
 V:Afficher("etats")
 local bloc
-for _, l in ipairs(V.pages.etats.lignes) do if l.vide then bloc = l end end
+for _, l in ipairs(V.pages.etats.lignes) do if l.temporaires then bloc = l end end
 attendu("le bloc des etats", bloc ~= nil, true)
-local ligne = bloc.lignes[1]
+-- La case d'un etat temporaire est celle d'un etat porte depuis le 24 octobre
+-- 2026 : ce qu'il fait se lit sous son nom.
+local ligne = bloc.emplacements[1]
 attendu("le dot y est, stacks devant le nom", ligne and ligne.nom:GetText(), "x2  Fièvre")
 attendu("et sa morsure est annoncee",
-    ligne and ligne.effets:GetText():find("PF %-%d+") ~= nil, true)
+    ligne and ligne.description:GetText():find("PF %-%d+") ~= nil, true)
 
 -- Une jauge ZONEE se dit en pourcentage : personne d'autre que le porteur ne
 -- connait le maximum de la zone ou le coup tombera.

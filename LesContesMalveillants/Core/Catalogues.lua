@@ -77,7 +77,8 @@ function LCM.Catalogue(def)
         if not CATEGORIE[categorie] then
             Erreur(id .. " : categorie inconnue « " .. categorie .. " »")
         end
-        local bonus, avantage, desavantage = LCM.Effets.Lire(id, definition, Erreur, def.primaires == true)
+        local bonus, avantage, desavantage, pourcent =
+            LCM.Effets.Lire(id, definition, Erreur, def.primaires == true)
         local element = {
             id = id,
             label = tostring(definition.label or id),
@@ -85,6 +86,7 @@ function LCM.Catalogue(def)
             bonus = bonus,
             avantage = avantage,
             desavantage = desavantage,
+            pourcent = pourcent,
         }
         LCM.ChampsCommuns(definition, element, Erreur)
         -- Certaines familles portent une jauge d'etat meme quand une ancienne

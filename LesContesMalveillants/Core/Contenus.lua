@@ -319,7 +319,7 @@ end
 LCM.Ressources = LCM.Registre({
     nom = "ressource", prefixe = "Ressources",
     construire = function(definition, element, Erreur)
-        element.bonus, element.avantage, element.desavantage =
+        element.bonus, element.avantage, element.desavantage, element.pourcent =
             LCM.Effets.Lire(element.id, definition, Erreur, true)
     end,
 })
@@ -339,7 +339,7 @@ LCM.Effets.Source("ressource", function() return {} end, function() return LCM.R
 LCM.Consommables = LCM.Registre({
     nom = "consommable", prefixe = "Consommables",
     construire = function(definition, element, Erreur)
-        element.bonus, element.avantage, element.desavantage =
+        element.bonus, element.avantage, element.desavantage, element.pourcent =
             LCM.Effets.Lire(element.id, definition, Erreur, true)
         local etat = definition.etatApplique
         if etat ~= nil then

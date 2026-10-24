@@ -119,9 +119,17 @@ function Fiche.Decomposition(e, field, base, apport, options)
         local source = LIBELLE_SOURCE[part.nom] or (part.nom:sub(1, 1):upper() .. part.nom:sub(2))
         for _, element in ipairs(part.elements or {}) do
             local nom = element.label and (source .. " · " .. tostring(element.label)) or source
-            lignes[#lignes + 1] = { nom, Montant(element.montant),
+            lignes[#lignes + 1] = { nom, Montant(element.montant) .. (element.pourcent and " %" or ""),
                                     element.montant < 0 and UI.C.plein or UI.C.accent }
         end
+    end
+    -- Les pourcentages portes s'appliquent a la fin, sur l'ensemble
+    -- (Formules.Module) : la bulle le dit dans cet ordre, sinon son total ne
+    -- tombe pas sur la valeur que la fiche affiche juste a cote.
+    local avantPourcent = total
+    total = LCM.Formules.Module(e, field.id, total)
+    if total ~= avantPourcent then
+        lignes[#lignes + 1] = { "Total avant pourcentage", Nombre(avantPourcent), UI.C.discret }
     end
     if options.sansBase and #lignes == 0 then lignes[#lignes + 1] = { "Bonus portés", "0" } end
     local mecaniqueId = field.id and field.id:match("^meca_(.+)$")
@@ -859,6 +867,7 @@ function Fiche.Effets(element)
     for champ, montant in pairs(element.bonus) do
         local field = LCM.Schema.Field(champ)
         bonus[#bonus + 1] = (field and field.label or champ) .. " " .. Montant(montant)
+            .. LCM.Effets.Unite(element, champ)
     end
     for champ in pairs(element.avantage) do
         local field = LCM.Schema.Field(champ)
@@ -905,7 +914,7 @@ function Fiche.EffetsGroupes(element)
         plats[#plats + 1] = {
             id = champ,
             label = (field and field.label) or champ,
-            valeur = Montant(montant),
+            valeur = Montant(montant) .. LCM.Effets.Unite(element, champ),
             groupe = Fiche.groupeChamp[champ] or "Autres",
             rang = Fiche.rangChamp[champ] or 9999,
         }
@@ -1438,7 +1447,11 @@ local function Emplacement(conteneur, c)
     -- Cible de glissement : on y depose un objet venu d'un sac, s'il va dans
     -- cette categorie. Equiper demandait d'ouvrir le menu « + Ajouter » et de
     -- retrouver l'objet dans une liste, alors qu'on l'a sous la souris.
-    if UI.Glisser then
+    --
+    -- `sansGlisser` : les etats temporaires empruntent cette case pour avoir
+    -- la meme allure que les etats portes, mais ils ne se glissent nulle part
+    -- — ils ne sont pas dans un catalogue, et un sac n'en voudrait pas.
+    if UI.Glisser and not conteneur.sansGlisser then
         UI.Glisser.Cible(l, function(objet)
             if conteneur.entity and conteneur.entity.distante then
                 return false, "fiche distante en lecture seule."
@@ -1644,9 +1657,6 @@ local function Emplacement(conteneur, c)
     return l
 end
 
--- Les etats temporaires (Core/EtatsTemporaires.lua) : une ligne par etat —
--- icone, nom, effets, duree. Le MJ peut retirer ; un etat qui se guerit par
--- un jet propose « Guérir ». Aucun : une ligne le dit.
 -- Le joueur dont cette fiche est la copie, quand le MJ le consulte — ou nil
 -- quand on regarde sa propre fiche, ou celle de quelqu'un qu'on ne suit pas.
 -- C'est lui qui applique : une copie recue ne se modifie pas.
@@ -1657,35 +1667,54 @@ local function Consulte(entity)
     return C.joueur
 end
 
+-- Les etats temporaires (Core/EtatsTemporaires.lua) : une case par etat, la
+-- MEME que celle des etats PORTES juste au-dessus (le MJ, 24 octobre 2026).
+-- Deux listes d'etats dans une meme fenetre ne peuvent pas se lire de deux
+-- facons. Le MJ pose et retire ; un etat qui se guerit par un jet propose
+-- « Guérir » a celui qui le porte.
 function Lignes.temporaires(bloc, c, conteneur)
     local l = CreateFrame("Frame", nil, bloc)
-    l.lignes = {}
-    l.vide = UI.Texte(l, "Aucun état temporaire.", UI.C.discret)
-    UI.Police(l.vide, c.police * 0.85)
-    l.vide:SetPoint("TOPLEFT", l, "TOPLEFT", 8, -6)
+    -- Ce qu'une case d'emplacement attend de son conteneur. Le catalogue et la
+    -- categorie servent au clic droit, qui ouvre la carte de l'etat ; un etat
+    -- pose, lui, ne se glisse nulle part — aucun sac n'en voudrait.
+    l.conteneur = conteneur
+    l.catalogue, l.categorie = LCM.Etats, conteneur
+    l.sansGlisser = true
+    -- Ce qui distingue ce bloc de celui des etats PORTES, auquel il ressemble
+    -- desormais en tout point.
+    l.temporaires = true
+    l.emplacements = {}
+
+    -- Qui peut agir : le MJ, sur sa fiche comme sur celle qu'il consulte. Une
+    -- copie recue qu'on ne suit pas (un PNJ d'une autre machine) n'offre rien,
+    -- elle n'a personne a qui parler.
+    local function Permis(e)
+        return e ~= nil and (not e.distante or Consulte(e) ~= nil) and LCM.IsMaster()
+    end
 
     -- Poser un etat sans quitter la fiche qu'on regarde (le MJ, 24 octobre
     -- 2026) : il fallait passer par l'onglet « Imposer un etat » du Panel MJ
     -- et glisser l'etat sur le bon joueur, en lisant une autre fenetre.
-    l.poser = UI.Bouton(l, "+ État", 70, c.boutonH, function()
-        local ent = l.entity
-        if not ent then return end
+    function l:Proposer(ancre)
+        local ent = self.entity
+        if not (ent and Permis(ent)) then return end
         local options = {}
         for _, etat in ipairs((LCM.Etats and LCM.Etats.list) or {}) do
             -- Chaque onglet ne propose que SES etats : on ne pose pas une
             -- maladie dans la case des etats intangibles.
-            if not l.conteneur or (etat.categorie or "etat") == l.conteneur then
+            if not self.conteneur or LCM.Etats.Conteneur(etat) == self.conteneur then
                 options[#options + 1] = { id = etat.id, label = etat.label }
             end
         end
         table.sort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
         if #options == 0 then LCM.Alerte("aucun état de cette sorte au compendium.") return end
-        l.choix = l.choix or UI.Choix("fiche_poser_etat", "Imposer un état")
-        l.choix:Proposer(l.poser, options, function(id)
+        self.choix = self.choix or UI.Choix("fiche_poser_etat", "Imposer un état")
+        self.choix:Proposer(ancre, options, function(id)
             local etat = LCM.Etats.Get(id)
             if not etat then return end
             UI.Demande():Demander(string.format("Combien de rounds pour « %s » ?\n"
-                .. "Laisse vide : jusqu'au retrait.", etat.label), "", function(texte)
+                .. "Laisse vide : jusqu'au retrait — il rejoint alors les états portés.",
+                etat.label), "", function(texte)
                 local rounds = nil
                 if tostring(texte or ""):gsub("%s+", "") ~= "" then
                     rounds = tonumber(texte)
@@ -1701,117 +1730,141 @@ function Lignes.temporaires(bloc, c, conteneur)
                     return true
                 end
                 -- Sa propre fiche, ou celle d'un PNJ qu'on tient : on pose.
-                LCM.EtatsTemporaires.Poser(ent, {
-                    nom = etat.label, icone = etat.icone, description = etat.description,
-                    bonus = etat.bonus, desavantage = etat.desavantage,
-                    rounds = rounds, conteneur = LCM.Etats.Conteneur(etat), id = etat.id,
-                })
+                -- Sans duree, l'etat rejoint les etats PORTES, juste au-dessus
+                -- (Core/EtatsTemporaires.lua : c'est la duree qui decide).
+                local ok, raison = LCM.EtatsTemporaires.Imposer(ent, etat, rounds)
+                if not ok then return false, raison end
+                l:Actualiser(ent)
                 return true
             end)
         end)
-    end)
-    l.poser:SetPoint("TOPRIGHT", l, "TOPRIGHT", -4, -2)
-    UI.Police(l.poser.label, c.police * 0.8)
-    l.poser:Hide()
+    end
+
+    -- Le geste d'une case occupee : retirer l'etat, ou tenter de le guerir.
+    -- On le retrouve par son RANG, le nom pouvant se repeter d'un onglet a
+    -- l'autre.
+    function l:Retirer(_, rang)
+        local etat = self.liste and self.liste[rang]
+        local ent = self.entity
+        if not (etat and ent) then return end
+        local T = LCM.EtatsTemporaires
+        if etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster() then
+            local _, ligne = T.Guerir(ent, etat.nom)
+            if ligne then LCM.Actions.Annoncer(ligne) end
+            return
+        end
+        -- Une fiche CONSULTEE n'est qu'une copie : la retirer ici ne changerait
+        -- rien chez le joueur, qui tient sa propre liste. On la lui demande
+        -- (le MJ, 24 octobre 2026).
+        local joueur = Consulte(ent)
+        if joueur then
+            local ok, raison = T.EnvoyerRetrait(joueur, etat.nom)
+            if not ok then LCM.Alerte(tostring(raison)) end
+            return
+        end
+        T.Retirer(ent, etat.nom)
+    end
+
+    -- Une case : l'etat qu'elle porte, ou la case libre qui sert a en poser un.
+    function l:Habiller(r, etat, permis)
+        r.vies.texte:SetText("")
+        r.vies:Hide()
+        r.survol = nil
+        UI.TeinterBrise(r.icone, false)
+        if not etat then
+            r.elementId = nil
+            r.icone:SetTexture(VIDE)
+            local aucun = #(self.liste or {}) == 0
+            r.nom:SetText(aucun and "Aucun état temporaire." or "Imposer un état…")
+            r.nom:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+            r.description:SetText("")
+            r.bulle = { titre = "États temporaires",
+                texte = "Ce qu'une action ou le maître du jeu pose pour quelques rounds. "
+                    .. "Un état sans durée n'a rien de temporaire : il se range avec les "
+                    .. "états portés, au-dessus." }
+            r.action:Signe("+", "Imposer un état", "Choisir un état à poser sur cette fiche.")
+            r.action:SetShown(permis)
+            return
+        end
+        local T = LCM.EtatsTemporaires
+        r.elementId = etat.id or etat.nom
+        r.icone:SetTexture(LCM.Icone(etat.icone))
+        -- Un DOT porte ses stacks devant son nom : c'est le nombre qui dit
+        -- combien il mord, et celui qu'une dissipation fait tomber.
+        local dotResume, dotStacks, dotRand
+        if LCM.Dot then dotResume, dotStacks, dotRand = LCM.Dot.Resume(self.entity, etat) end
+        r.nom:SetText(dotStacks and string.format("x%d  %s", dotStacks, etat.nom) or etat.nom)
+        local couleur = etat.debuff and UI.C.plein or UI.C.titre
+        r.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+        local effets = {}
+        for champ, n in pairs(etat.bonus or {}) do
+            local field = LCM.Schema.Field(champ)
+            effets[#effets + 1] = string.format("%s %+d%s", field and field.label or champ, n,
+                LCM.Effets.Unite(etat, champ))
+        end
+        table.sort(effets)
+        -- Ce qu'il grignote passe AVANT la durée : c'est ce qu'on regarde.
+        if dotResume and dotResume ~= "" then table.insert(effets, 1, dotResume) end
+        -- Sous le nom, la ou un objet porte sa description : ce que l'etat
+        -- fait, puis le temps qu'il lui reste.
+        local texte = table.concat(effets, ", ")
+        if texte ~= "" then texte = "|cff" .. UI.Hex(UI.C.accent) .. texte .. "|r  ·  " end
+        r.description:SetText(texte .. T.Duree(etat))
+        local aide = ((etat.description or "") ~= "" and (etat.description .. "\n\n") or "")
+            .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat)
+        if dotStacks then
+            -- Le rand COURANT, puisqu'il baisse d'un round a l'autre : sans
+            -- lui on ne peut pas juger si une dissipation valait le coup.
+            aide = aide .. string.format("\n\n%d stack%s, %s par round."
+                .. "\nÀ battre pour dissiper : %d — et chaque point au-dessus"
+                .. " emporte un stack de plus.", dotStacks, dotStacks > 1 and "s" or "",
+                dotResume ~= "" and dotResume or "rien", dotRand or 0)
+        end
+        r.bulle = { titre = etat.nom, texte = aide }
+        local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
+        if guerir then
+            r.action:Signe("Guérir", "Guérir (" .. tostring(etat.guerison.competence) .. ")",
+                "Tenter de s'en défaire par un jet.")
+        else
+            r.action:Signe("×", "Retirer", "Lever cet état.")
+        end
+        r.action:SetShown(permis or guerir)
+    end
+
     function l:Actualiser(e)
         self.entity = e
-        local T = LCM.EtatsTemporaires
-        local liste = T.Liste(e, self.conteneur)
+        local liste = LCM.EtatsTemporaires.Liste(e, self.conteneur)
+        self.liste = liste
+        local permis = Permis(e)
+        -- Une case libre au bout pour en poser un, comme un conteneur garde la
+        -- sienne. Sans etat ET sans droit d'en poser, elle reste tout de meme :
+        -- elle dit qu'il n'y en a pas, la ou une section vide ressemblerait a
+        -- une panne.
+        local n = #liste + ((permis or #liste == 0) and 1 or 0)
         local y = 0
-        for i, etat in ipairs(liste) do
-            local r = self.lignes[i]
+        for index = 1, n do
+            local r = self.emplacements[index]
             if not r then
-                r = Ligne(self, c)
-                r:SetHeight(math.max(40, c.ligne))
-                Icone(r, c, VIDE)
-                Nom(r, c, "", true)
-                r.effets = UI.Texte(r, "", UI.C.accent)
-                UI.Police(r.effets, c.police * 0.72)
-                r.effets:SetPoint("LEFT", r, "LEFT", c.plage, 0)
-                r.effets:SetPoint("RIGHT", r, "LEFT", c.action - 8 * c.echelle, 0)
-                r.effets:SetJustifyH("RIGHT")
-                r.effets:SetWordWrap(false)
-                r.action = UI.Bouton(r, "", c.actionLargeur, c.boutonH, function(self_)
-                    local et = self_:GetParent().etat
-                    local ent = l.entity
-                    if not (et and ent) then return end
-                    if et.guerison and et.guerison.mode == "rand" and not LCM.IsMaster() then
-                        local _, ligne = T.Guerir(ent, et.nom)
-                        if ligne then LCM.Actions.Annoncer(ligne) end
-                        return
-                    end
-                    -- Une fiche CONSULTEE n'est qu'une copie : la retirer ici
-                    -- ne changerait rien chez le joueur, qui tient sa propre
-                    -- liste. On la lui demande (le MJ, 24 octobre 2026).
-                    local joueur = Consulte(ent)
-                    if joueur then
-                        local ok, raison = T.EnvoyerRetrait(joueur, et.nom)
-                        if not ok then LCM.Alerte(tostring(raison)) end
-                        return
-                    end
-                    T.Retirer(ent, et.nom)
-                end)
-                r.action:SetPoint("LEFT", r, "LEFT", c.action, 0)
-                UI.Police(r.action.label, c.police * 0.8)
-                self.lignes[i] = r
+                r = Emplacement(self, c)
+                self.emplacements[index] = r
             end
-            r.etat = etat
-            r.icone:SetTexture(LCM.Icone(etat.icone))
-            -- Un DOT porte ses stacks devant son nom : c'est le nombre qui dit
-            -- combien il mord, et celui qu'une dissipation fait tomber.
-            local dotResume, dotStacks, dotRand
-            if LCM.Dot then dotResume, dotStacks, dotRand = LCM.Dot.Resume(e, etat) end
-            r.nom:SetText(dotStacks and string.format("x%d  %s", dotStacks, etat.nom) or etat.nom)
-            local couleur = etat.debuff and UI.C.plein or UI.C.titre
-            r.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
-            local effets = {}
-            for champ, n in pairs(etat.bonus or {}) do
-                local field = LCM.Schema.Field(champ)
-                effets[#effets + 1] = string.format("%s %+d", field and field.label or champ, n)
-            end
-            table.sort(effets)
-            -- Ce qu'il grignote passe AVANT la durée : c'est ce qu'on regarde.
-            if dotResume and dotResume ~= "" then
-                table.insert(effets, 1, dotResume)
-            end
-            r.effets:SetText(table.concat(effets, ", ") .. "  |cff9a9a9a" .. T.Duree(etat) .. "|r")
-            local aide = ((etat.description or "") ~= "" and (etat.description .. "\n\n") or "")
-                .. (etat.lanceur and ("De " .. etat.lanceur .. ". ") or "") .. "Durée : " .. T.Duree(etat)
-            if dotStacks then
-                -- Le rand COURANT, puisqu'il baisse d'un round a l'autre : sans
-                -- lui on ne peut pas juger si une dissipation valait le coup.
-                aide = aide .. string.format("\n\n%d stack%s, %s par round."
-                    .. "\nÀ battre pour dissiper : %d — et chaque point au-dessus"
-                    .. " emporte un stack de plus.", dotStacks, dotStacks > 1 and "s" or "",
-                    dotResume ~= "" and dotResume or "rien", dotRand or 0)
-            end
-            Bulle(r, etat.nom, aide)
-            local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
-            r.action.label:SetText(guerir and string.format("Guérir (%s)", etat.guerison.competence) or "Retirer")
-            -- Sur une fiche consultee, le MJ garde son bouton : il agit par le
-            -- reseau. Une copie recue qu'on ne suit pas (un PNJ d'une autre
-            -- machine) n'offre rien, elle n'a personne a qui parler.
-            r.action:SetShown((not e.distante or Consulte(e) ~= nil)
-                and (LCM.IsMaster() or guerir))
+            r.rangPorte = index
+            self:Habiller(r, liste[index], permis)
             r:ClearAllPoints()
             r:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             r:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
             r:Show()
-            y = y + r:GetHeight() + 2
+            y = y + r:GetHeight() + ECART_LIGNES
         end
-        for i = #liste + 1, #self.lignes do self.lignes[i]:Hide() end
-        self.vide:SetShown(#liste == 0)
-        -- Poser est un geste de MJ, sur sa fiche comme sur celle qu'il
-        -- consulte. Un joueur ne se pose pas d'etat a lui-meme.
-        self.poser:SetShown(LCM.IsMaster() and (not e.distante or Consulte(e) ~= nil))
-        local h = math.max(#liste == 0 and 24 or 0, y)
-        if self.poser:IsShown() then h = math.max(h, self.poser:GetHeight() + 6) end
+        for index = n + 1, #self.emplacements do self.emplacements[index]:Hide() end
+        local h = math.max(1, y - ECART_LIGNES)
         if h ~= self.hauteur then
             self.hauteur = h
             self:SetHeight(h)
             if self.onChange then self.onChange() end
         end
     end
+    l:SetScript("OnHide", function() if Fiche.choixConteneur then Fiche.choixConteneur:Hide() end end)
     return l
 end
 

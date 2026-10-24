@@ -46,7 +46,7 @@ local function onglets(id)
     for _, o in ipairs(V.Get(id).onglets) do out[#out + 1] = o.label end
     return table.concat(out, ", ")
 end
-attendu("Sante", onglets("sante"), "Physique, États, Maladies, Intangible")
+attendu("Sante", onglets("sante"), "Santé Globale, Physique, Maladies, Intangible")
 -- L'onglet « Outils » depuis les types d'outils (18 octobre 2026).
 attendu("Equipements", onglets("equipement"), "Armes, Armures, Accessoires, Outils")
 attendu("Capacité", onglets("expertise"), "Observations, Athlétisme, Filouterie, Compétence, Défense")
@@ -72,8 +72,40 @@ attendu("ouverte", fs:IsShown(), true)
 attendu("titre en capitales", fs.titre:GetText(), "SANTÉ")
 attendu("nom du personnage", fs.nom:GetText(), tostring(moi.name))
 attendu("onglet Physique", fs.onglet, "physique")
-local corps = fs.pages.physique.lignes[1]
-attendu("les zones, sans la jauge globale", corps.total:IsShown(), false)
+-- « Santé Globale » rassemble l'Existence, les PV totaux et les zones, dans
+-- cet ordre (le MJ, 24 octobre 2026).
+local noms = {}
+for _, l in ipairs(fs.pages.physique.lignes) do
+    if l.barre and l.label then noms[#noms + 1] = l.label:GetText() .. " " .. l.barre.label:GetText() end
+end
+attendu("Esprit et Âme en tête", table.concat(noms, ", "), "Esprit 100 / 100, Âme 100 / 100")
+local pv, corps
+for _, l in ipairs(fs.pages.physique.lignes) do
+    if l.field and l.field.id == "corps" then
+        if l.total and l.total:IsShown() then pv = l else corps = l end
+    end
+end
+attendu("les PV totaux avant les zones", pv ~= nil, true)
+attendu("les zones, sans la jauge globale", corps ~= nil and corps.total:IsShown(), false)
+
+-- La fenetre se taille a son contenu : rien ne doit se lire au defilement
+-- tant que l'ecran le permet (le MJ, 24 octobre 2026).
+local function tientEntier(fenetre)
+    local p = fenetre.pages[fenetre.onglet]
+    local chrome = (fenetre.insetHaut or 0) + (fenetre.insetBas or 0) + (fenetre.hautZone or 0)
+    return fenetre:GetHeight() + 0.5 >= chrome + p.hauteur
+end
+attendu("la page tient dans la fenêtre", tientEntier(fs), true)
+-- Une hauteur tiree a la poignee fait PLANCHER et non plafond : elle ne cache
+-- pas le contenu, et elle n'est pas rabotee non plus.
+fs.hauteurChoisie, fs.hauteurVoulue = true, 200
+fs:AjusterHauteur()
+attendu("  une hauteur choisie trop courte s'agrandit", tientEntier(fs), true)
+fs.hauteurVoulue = 700
+fs:AjusterHauteur()
+attendu("  une hauteur choisie plus grande est gardée", fs:GetHeight(), 700)
+fs.hauteurChoisie, fs.hauteurVoulue = nil, nil
+fs:AjusterHauteur()
 local zones = 0
 for _, z in ipairs(corps.zones) do if z:IsShown() then zones = zones + 1 end end
 attendu("cinq zones", zones, 5)
@@ -92,10 +124,12 @@ bras.boutons[3]:Click()
 dire("== Sante : Intangible")
 fs.barre.boutons[4]:Click()
 local intangible = fs.pages.intangible
-local noms = {}
-for _, l in ipairs(intangible.lignes) do if l.barre then noms[#noms + 1] = l.label:GetText() .. " " .. l.barre.label:GetText() end end
-attendu("Esprit et Ame sur 100", table.concat(noms, ", "), "Esprit 100 / 100, Âme 100 / 100")
-attendu("et les etats intangibles (10)", intangible.blocs[2].occupation:GetText(), "0 / 10")
+-- L'Existence est passee en tete de « Santé Globale » : il ne reste ici que
+-- les etats intangibles.
+local jauges = 0
+for _, l in ipairs(intangible.lignes) do if l.barre then jauges = jauges + 1 end end
+attendu("plus de jauge ici", jauges, 0)
+attendu("les etats intangibles (10)", intangible.blocs[1].occupation:GetText(), "0 / 10")
 
 dire("== Sante : Etats et Maladies")
 -- Les etats passent par un jeu d'equilibrage de la campagne depuis le 21
@@ -387,10 +421,14 @@ fiche:Afficher("traits")
 attendu("l'onglet Traits est plus court", fiche:GetHeight() < grande, true)
 
 dire("   tirer la poignee reprend la main")
+-- La poignee retient le chiffre lui-meme (`hauteurVoulue`) et pas seulement
+-- le fait qu'on y a touche : c'est le plancher que la hauteur automatique
+-- respecte depuis le 24 octobre 2026.
 fiche:SetHeight(200)
-fiche.hauteurChoisie = true
+fiche.hauteurChoisie, fiche.hauteurVoulue = true, 200
 fiche:Afficher(fiche.onglet)
 attendu("la hauteur choisie est gardee", fiche:GetHeight(), 200)
+fiche.hauteurChoisie, fiche.hauteurVoulue = nil, nil
 fiche.hauteurChoisie = nil
 fiche:Hide()
 
@@ -489,8 +527,13 @@ local function temporairesDe(ongletId)
     local noms = {}
     for _, bloc in ipairs((sante.pages[ongletId] or {}).blocs or {}) do
         for _, sl in ipairs(bloc.lignes or {}) do
-            if sl.lignes and sl.vide then
-                for _, r in ipairs(sl.lignes) do if r:IsShown() then noms[#noms + 1] = r.nom:GetText() end end
+            -- Le bloc des temporaires se montre dans les memes cases que celui
+            -- des etats portes depuis le 24 octobre 2026 : `temporaires` est ce
+            -- qui les distingue. La derniere case, libre, sert a en poser un.
+            if sl.temporaires then
+                for rang, r in ipairs(sl.emplacements) do
+                    if r:IsShown() and sl.liste[rang] then noms[#noms + 1] = r.nom:GetText() end
+                end
             end
         end
     end

@@ -94,6 +94,29 @@ class GoogleSheetBaseTest(unittest.TestCase):
             gsheet.canonical(["objets", "e", "E", "", False, gsheet.ACTIVE,
                               '{ id = "e", categorie = "arme", contenant = { taille = 1, retrait = 1 } }'])
 
+    def test_un_pourcentage_exige_son_montant(self):
+        # 24 octobre 2026 : un etat peut baisser une statistique d'un
+        # POURCENTAGE. Le montant reste dans `bonus` ; `pourcent` dit lesquels
+        # se lisent ainsi. Sans montant, l'addon refuse l'entree au chargement
+        # — donc il ne se charge plus du tout : le service refuse avant.
+        ok = ('{ id = "faiblesse", categorie = "etat", bonus = { force = -40 }, '
+              'pourcent = { "force" } }')
+        row = gsheet.canonical(["etats", "faiblesse", "Faiblesse", "", False, gsheet.ACTIVE, ok])
+        self.assertEqual(gsheet.canonical(row), row)
+        # L'ensemble { champ = true } d'un element construit passe aussi : les
+        # deux formes circulent.
+        gsheet.canonical(["etats", "f2", "F2", "", False, gsheet.ACTIVE,
+                          '{ id = "f2", categorie = "etat", bonus = { force = -40 }, '
+                          'pourcent = { force = true } }'])
+        for faux in ('{ id = "f3", categorie = "etat", pourcent = { "force" } }',
+                     '{ id = "f3", categorie = "etat", bonus = { vue = -2 }, '
+                     'pourcent = { "force" } }'):
+            with self.assertRaisesRegex(ValueError, "pourcentage sans montant"):
+                gsheet.canonical(["etats", "f3", "F3", "", False, gsheet.ACTIVE, faux])
+        self.assertEqual(gsheet.champs_declares({"force": True, "vue": False}), ["force"])
+        self.assertEqual(gsheet.champs_declares(["force"]), ["force"])
+        self.assertEqual(gsheet.champs_declares(None), [])
+
     def test_un_type_detat_designe_un_conteneur_connu(self):
         # 24 octobre 2026 : le conteneur d'un etat se lit sur son TYPE, une
         # entree de « Liste-Type-Etats ». L'addon refuse autre chose au
