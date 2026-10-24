@@ -1,0 +1,28 @@
+-- lcm-db: {"family": "poses", "id": "c6ad790a700156", "registry": "Poses", "side": "mj"}
+return {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad790a700156",
+        mapid = 1925,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792512167,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 13130.897460938,
+        y = 9354.6748046875,
+        z = -85.43968963623,
+    },
+    epoque = 27,
+    id = "c6ad790a700156",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+}
