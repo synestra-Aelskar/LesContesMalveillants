@@ -94,6 +94,27 @@ class GoogleSheetBaseTest(unittest.TestCase):
             gsheet.canonical(["objets", "e", "E", "", False, gsheet.ACTIVE,
                               '{ id = "e", categorie = "arme", contenant = { taille = 1, retrait = 1 } }'])
 
+    def test_un_type_detat_designe_un_conteneur_connu(self):
+        # 24 octobre 2026 : le conteneur d'un etat se lit sur son TYPE, une
+        # entree de « Liste-Type-Etats ». L'addon refuse autre chose au
+        # chargement, par error() : publie depuis le Sheet, un conteneur faux
+        # ne gate pas une entree, il empeche l'addon de se charger chez tout
+        # le monde.
+        for conteneur in gsheet.CONTENEURS_ETATS:
+            row = gsheet.canonical(["listes", "t_" + conteneur, "Type", "", False, gsheet.ACTIVE,
+                                    '{ id = "t_%s", liste = "type_etats", conteneur = "%s" }'
+                                    % (conteneur, conteneur)])
+            self.assertEqual(gsheet.canonical(row), row)
+        for faux in ('{ id = "t_faux", liste = "type_etats", conteneur = "armes" }',
+                     '{ id = "t_faux", liste = "type_etats", conteneur = "" }',
+                     # Le champ laisse vide : c'est le cas qui arrive.
+                     '{ id = "t_faux", liste = "type_etats" }'):
+            with self.assertRaisesRegex(ValueError, "conteneur d'un type d'etat"):
+                gsheet.canonical(["listes", "t_faux", "Type", "", False, gsheet.ACTIVE, faux])
+        # Une autre liste ne connait pas ce champ et n'a pas a le porter.
+        gsheet.canonical(["listes", "t_epee", "Epees", "", False, gsheet.ACTIVE,
+                          '{ id = "t_epee", liste = "armes" }'])
+
     def test_un_nombre_saisi_en_texte_vaut_le_nombre(self):
         # Un champ saisi en jeu reste parfois du texte dans le brouillon :
         # « 100 » plutot que 100. Le jeu le lit par tonumber, le service doit

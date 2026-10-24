@@ -37,12 +37,14 @@ for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- « Liste outils », 18 octobre). Trente-deux depuis la lanterne reprise
 -- d'OmegaSurvive (« Lanternes » et « Cristaux », 22 octobre). Trente-quatre
 -- depuis que bandages, baumes et boissons quittent les ressources
--- (« Liste consommable » et « Consommables », 23 octobre). C'est la
--- STRUCTURE de l'addon : elle se verifie en entier, contrairement au contenu
--- qui vit.
-attendu("34 categories", #C.categories, 34)
+-- (« Liste consommable » et « Consommables », 23 octobre). Trente-cinq depuis
+-- que le conteneur d'un etat se lit sur son TYPE (« Liste-Type-Etats »,
+-- 24 octobre). C'est la STRUCTURE de l'addon : elle se verifie en entier,
+-- contrairement au contenu qui vit.
+attendu("35 categories", #C.categories, 35)
 attendu("ordre", table.concat(ids, ","),
-    "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste origine,Liste ressources,"
+    "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste-Type-Etats,"
+    .. "Liste origine,Liste ressources,"
     .. "Liste consommable,"
     .. "Liste métiers,Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Consommables,"
     .. "Armes,Armures,Accessoires,Livres,Outils,Lanternes,Cristaux,Tentes,Accessoires de camping,Races,Traits,Etats,"

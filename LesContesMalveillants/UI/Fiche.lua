@@ -1704,7 +1704,7 @@ function Lignes.temporaires(bloc, c, conteneur)
                 LCM.EtatsTemporaires.Poser(ent, {
                     nom = etat.label, icone = etat.icone, description = etat.description,
                     bonus = etat.bonus, desavantage = etat.desavantage,
-                    rounds = rounds, conteneur = etat.categorie, id = etat.id,
+                    rounds = rounds, conteneur = LCM.Etats.Conteneur(etat), id = etat.id,
                 })
                 return true
             end)

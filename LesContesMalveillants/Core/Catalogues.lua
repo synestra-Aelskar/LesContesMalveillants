@@ -72,7 +72,7 @@ function LCM.Catalogue(def)
         if type(definition) ~= "table" then Erreur(def.nom .. " invalide") end
         local id = tostring(definition.id or "")
         if id == "" then Erreur(def.nom .. " sans identifiant") end
-        local categorie = tostring(definition.categorie or "")
+        local categorie = tostring((def.categorieDe and def.categorieDe(definition)) or definition.categorie or "")
         if categorie == "" and #def.categories == 1 then categorie = def.categories[1].id end
         if not CATEGORIE[categorie] then
             Erreur(id .. " : categorie inconnue « " .. categorie .. " »")
@@ -219,6 +219,11 @@ function LCM.Catalogue(def)
         if type(entity) ~= "table" then return false, "aucune entite." end
         local element = C.Get(id)
         if not element then return false, def.nom .. " inconnu." end
+        if def.categorieDe then
+            -- Le type a pu etre mis a jour depuis la construction du registre.
+            element = LCM.Copie(element)
+            element.categorie = def.categorieDe(element)
+        end
         -- Deux fois le meme cumulerait ses bonus : refuse — sauf pour une
         -- famille sans effets ou chaque exemplaire compte (deux sacs), et sauf
         -- pour les objets, ou porter deux dagues identiques est normal

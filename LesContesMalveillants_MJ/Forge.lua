@@ -273,11 +273,17 @@ function ForgeUI.Definition()
         -- Un type d'une autre liste (garde d'un transfert) est refuse, pas
         -- remplace en douce : c'est au MJ de choisir celui d'ici.
         local entree = LCM.Listes.Get(Texte(courant.type))
-        if entree and entree.liste ~= ForgeUI.ListeDuType(categorie) then
+        local ancienTypeEtat = categorie.famille == "etats" and courant.original
+            and courant.original.type == Texte(courant.type)
+            and (not entree or entree.liste ~= "type_etats")
+        if entree and entree.liste ~= ForgeUI.ListeDuType(categorie) and not ancienTypeEtat then
             return nil, string.format("« %s » n'est pas un type de %s : choisis-en un dans sa liste",
                 tostring(entree.label), categorie.label)
         end
         def.type = Texte(courant.type)
+        if categorie.famille == "etats" and entree and entree.liste == "type_etats" then
+            def.categorie = entree.conteneur
+        end
     end
     def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
     -- Une description vide n'est pas ecrite : le defaut de la categorie suit.

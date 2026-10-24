@@ -81,11 +81,16 @@ if ($Mode -eq 'recuperer') {
     if ($sale) {
         Stop-Erreur 'Le clone contient des changements locaux. Envoie-les d''abord, ou annule ton apercu de publication.'
     }
+    # Meme precaution qu'a l'envoi : `fetch` et `merge` ecrivent leur
+    # avancement sur stderr, que PowerShell transforme en erreur terminante.
+    $ancienneReaction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & git -C $clone fetch origin --prune
     if ($LASTEXITCODE -ne 0) { Stop-Erreur 'GitHub est inaccessible.' }
     & git -C $clone checkout $LcmBranch --quiet
     & git -C $clone merge --ff-only ('origin/' + $LcmBranch)
     if ($LASTEXITCODE -ne 0) { Stop-Erreur 'La recuperation demande une intervention Git manuelle.' }
+    $ErrorActionPreference = $ancienneReaction
     Executer-Base @('build')
     Ecrire-BaseConnue
     Ok 'Base recuperee et addons reconstruits. Fais /reload dans WoW.'
@@ -118,10 +123,20 @@ if ($Mode -eq 'envoyer') {
 
     if ($Message -eq '') { $Message = 'Base commune - ' + (Get-Date -Format 'yyyy-MM-dd HH:mm') }
     Info (($modifs | Measure-Object).Count.ToString() + ' fichier(s) de contenu modifie(s).')
+    # PowerShell enveloppe la sortie d'erreur d'un executable natif en erreur
+    # terminante : `git push`, qui ecrit son avancement sur stderr, faisait
+    # AVORTER le script juste apres un envoi REUSSI. Tout ce qui suit sautait,
+    # et `base.sha` restait sur l'ancien commit — la publication d'addon
+    # suivante croyait alors que le depot avait avance sans elle (constate le
+    # 24 octobre 2026). Meme remede que dans publier.ps1 : on rend la main au
+    # script, qui verifie $LASTEXITCODE lui-meme.
+    $ancienneReaction = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     & git -C $clone commit -m $Message
     if ($LASTEXITCODE -ne 0) { Stop-Erreur 'Le commit a echoue. Verifie ton nom et ton adresse Git.' }
     & git -C $clone push origin $LcmBranch
     if ($LASTEXITCODE -ne 0) { Stop-Erreur 'Le push a echoue. Ne recommence pas : recupere d''abord les changements distants.' }
+    $ErrorActionPreference = $ancienneReaction
     Ecrire-BaseConnue
     Ok 'Base commune envoyee sur GitHub.'
     exit 0

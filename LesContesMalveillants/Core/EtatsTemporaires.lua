@@ -124,13 +124,14 @@ end
 -- Le MJ demande au personnage de RETIRER un etat de sa propre fiche. Le
 -- pendant d'Envoyer : sans lui, le bouton « Retirer » d'une fiche consultee
 -- n'aurait agi que sur la copie recue, donc sur rien (le MJ, 24 octobre 2026).
-function Temporaires.EnvoyerRetrait(joueur, nom)
+function Temporaires.EnvoyerRetrait(joueur, nom, catalogue)
     joueur, nom = tostring(joueur or ""), tostring(nom or "")
     if joueur == "" then return false, "choisis un joueur." end
     if nom == "" then return false, "quel état ?" end
     if not LCM.IsMaster() then return false, "seul le maître du jeu peut retirer un état." end
     if joueur == tostring(LCM.PlayerId()) then return false, "utilise la fiche locale pour ton personnage." end
-    local ok, raison = LCM.Reseau.Envoyer("etat_mj-", { n = nom }, "WHISPER", joueur)
+    if not LCM.Reseau.DansLeGroupe(joueur) then return false, "ce joueur n'est pas dans le groupe." end
+    local ok, raison = LCM.Reseau.Envoyer("etat_mj-", { n = nom, c = catalogue == true or nil }, "WHISPER", joueur)
     if not ok then return false, raison or "le retrait n'a pas pu être envoyé." end
     return true
 end
@@ -319,7 +320,14 @@ LCM.WhenReady(function()
         if not entity then return end
         local nom = tostring(paquet and paquet.n or "")
         if nom == "" then return end
-        if Temporaires.RetirerForce(entity, nom) then
+        local retire
+        if paquet.c == true then
+            retire = LCM.Etats.Enlever(entity, nom)
+            if retire then LCM.Entities.Changed(entity, "etats") end
+        else
+            retire = Temporaires.RetirerForce(entity, nom)
+        end
+        if retire then
             LCM.Info(string.format("Le MJ retire « %s ».", nom))
         end
     end)
@@ -343,7 +351,7 @@ LCM.WhenReady(function()
             nom = definition.label, icone = definition.icone,
             description = definition.description, bonus = definition.bonus,
             desavantage = definition.desavantage,
-            rounds = rounds, conteneur = definition.categorie,
+            rounds = rounds, conteneur = LCM.Etats.Conteneur(definition),
             debuff = definition.debuff == true, id = definition.id,
         })
         LCM.Info(string.format("Le MJ vous impose « %s » (%s).", definition.label,

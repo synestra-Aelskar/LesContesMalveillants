@@ -273,6 +273,20 @@ if (Test-Path -LiteralPath $bancSource) {
         }
     }
 
+    # Un scenario ecrit DANS le clone (ce que fait Codex) n'existe nulle part
+    # ailleurs : les scenarios sont refaits a neuf depuis la copie de travail,
+    # donc il disparaissait au premier envoi. Meme reprise que pour les
+    # fichiers de la racine du banc, et avant d'effacer quoi que ce soit.
+    $scenariosSource = Join-Path $LcmBanc 'scenarios'
+    if (Test-Path -LiteralPath (Join-Path $bancCible 'scenarios')) {
+        foreach ($fichier in (Get-ChildItem -LiteralPath (Join-Path $bancCible 'scenarios') -File -Filter 'lcm_test_*.lua')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $scenariosSource $fichier.Name))) {
+                Copy-Item -LiteralPath $fichier.FullName -Destination (Join-Path $scenariosSource $fichier.Name) -Force
+                Alerte ('Banc' + [char]92 + 'scenarios' + [char]92 + $fichier.Name + " n'existait que dans le depot : recupere dans la copie de travail. RELANCE LE BANC.")
+            }
+        }
+    }
+
     # On ne rase plus tout `Banc\` : seuls les scenarios sont refaits a neuf.
     # Le dossier porte aussi ce que nous n'engendrons pas — `apercus\`, treize
     # captures de reference du binome — et un `Remove-Item -Recurse` les

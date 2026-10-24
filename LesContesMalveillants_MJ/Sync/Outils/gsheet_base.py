@@ -52,6 +52,11 @@ FAMILLES_AFFICHEES = {nom: "poses" for nom in [*NATURES_POSES.values(), POSE_SAN
 # Statut, et aucune colonne existante ne change de place.
 CREATEUR = "Créateur"
 
+# Les trois conteneurs d'etats de la fenetre Sante, dans l'ordre de
+# Core/Etats.lua. Un type d'etat (famille `listes`, liste `type_etats`) designe
+# l'un d'eux, et rien d'autre.
+CONTENEURS_ETATS = ("etat", "maladie", "intangible")
+
 
 def validate_tool_extensions(family: str, identifier: str, definition: dict) -> None:
     """Garde les nouveaux outils dans les familles existantes du Sheet.
@@ -105,6 +110,15 @@ def validate_tool_extensions(family: str, identifier: str, definition: dict) -> 
             by_type = bool(str(tool.get("typeOutil") or "").strip())
             if exact == by_type:
                 raise ValueError(f"prerequis d'outil ambigu : {identifier} #{index}")
+    if family == "listes" and definition.get("liste") == "type_etats":
+        # Un type d'etat dit OU l'etat se range (Core/Contenus.lua, 24 octobre
+        # 2026). L'addon refuse autre chose au CHARGEMENT, par error() : un
+        # conteneur faux publie depuis le Sheet n'abime pas une entree, il
+        # empeche l'addon de se charger — chez tout le monde. Il ne passe donc
+        # pas le service.
+        conteneur = str(definition.get("conteneur") or "").strip()
+        if conteneur not in CONTENEURS_ETATS:
+            raise ValueError(f"conteneur d'un type d'etat illisible : {identifier}")
 
 
 def sheet_bool(value: object) -> bool:

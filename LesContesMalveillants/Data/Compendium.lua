@@ -184,6 +184,15 @@ Liste("type_armures", "Type Armures", "type_armures")
 Liste("type_accessoires", "Type Accessoires", "type_accessoires")
 Liste("liste_armes", "Liste Armes", "armes")
 Liste("liste_outils", "Liste outils", "outils")
+C.Categorie({
+    id = "liste_type_etats", label = "Liste-Type-Etats", type = "list",
+    registre = "Listes", famille = "listes",
+    filtre = function(element) return element.liste == "type_etats" end,
+    defaut = { liste = "type_etats" },
+    champs = {
+        { cle = "conteneur", label = "Type", type = "liste", source = "conteneurs_etats", emplacement = "meta" },
+    },
+})
 Liste("liste_origine", "Liste origine", "origines")
 Liste("liste_ressources", "Liste ressources", "ressources")
 -- Ajout de l'addon (23 octobre 2026, le MJ) : les types de la categorie
@@ -575,19 +584,15 @@ Generique({ id = "traits", label = "Traits",
         { cle = "cout", label = "Coût", type = "nombre", emplacement = "meta", min = 1, max = 4, defaut = 1 },
     } })
 
-Generique({ id = "etats", label = "Etats", liste = "armes",
+Generique({ id = "etats", label = "Etats", liste = "type_etats",
     registre = "Etats", famille = "etats",
-    filtre = function(element) return element.categorie ~= "maladie" end,
+    filtre = function(element) return LCM.Etats.Conteneur(element) ~= "maladie" end,
     defaut = { categorie = "etat" },
-    extras = {
-        -- Ajout de l'addon : la fenetre Sante du template range aussi des
-        -- « Etats intangibles », que le compendium n'avait pas.
-        { cle = "categorie", label = "Conteneur", type = "liste", source = "etats", emplacement = "meta" },
-    } })
+    })
 
-Generique({ id = "maladies", label = "Maladies", liste = "armes",
+Generique({ id = "maladies", label = "Maladies", liste = "type_etats",
     registre = "Etats", famille = "etats",
-    filtre = function(element) return element.categorie == "maladie" end,
+    filtre = function(element) return LCM.Etats.Conteneur(element) == "maladie" end,
     defaut = { categorie = "maladie" } })
 
 Generique({ id = "apprentissages", label = "Apprentissage", liste = "armes",

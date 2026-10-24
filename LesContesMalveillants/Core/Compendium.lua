@@ -256,6 +256,10 @@ function Compendium.Options(champ)
         Ajouter(LCM.Traits.Accessibles())
     elseif source == "accessoires_camping" then
         Ajouter(LCM.AccessoiresCamping.list)
+    elseif source == "conteneurs_etats" then
+        for _, c in ipairs(LCM.Etats.CATEGORIES) do
+            out[#out + 1] = { id = c.id, label = c.id == "etat" and "États" or c.label }
+        end
     elseif source == "etats" then
         for _, c in ipairs(LCM.Etats.CATEGORIES) do
             if c.id ~= "maladie" then out[#out + 1] = { id = c.id, label = c.label } end

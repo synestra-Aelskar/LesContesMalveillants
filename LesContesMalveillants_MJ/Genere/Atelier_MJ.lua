@@ -1734,7 +1734,348 @@ LCM.Publier(LCM.Forge, {
 
 LCM.Publier(LCM.Forge, {
     categorie = "etats",
-    champs = {  },
+    champs = {
+        acrobaties = {
+            cout = 3,
+        },
+        adresse = {
+            cout = 4,
+        },
+        age = {
+            cout = 10,
+        },
+        communication = {
+            cout = 2,
+        },
+        constitution = {
+            cout = 2,
+        },
+        cosmique = {
+            cout = 2,
+        },
+        course = {
+            cout = 3,
+        },
+        crochetage = {
+            cout = 2,
+        },
+        def_agilite = {
+            cout = 2,
+        },
+        def_courage = {
+            cout = 2,
+        },
+        def_defense = {
+            cout = 2,
+        },
+        def_esprit_libre = {
+            cout = 2,
+        },
+        def_insensible = {
+            cout = 2,
+        },
+        def_mental = {
+            cout = 2,
+        },
+        def_stable = {
+            cout = 2,
+        },
+        deguisement = {
+            cout = 2,
+        },
+        depl_nage = {
+            cout = 2,
+        },
+        depl_terrestre = {
+            cout = 2,
+        },
+        depl_vol = {
+            verrou = true,
+        },
+        discretion = {
+            cout = 2,
+        },
+        elementaire = {
+            cout = 2,
+        },
+        endurance = {
+            cout = 3,
+        },
+        equilibre = {
+            cout = 3,
+        },
+        escalade = {
+            cout = 3,
+        },
+        escamotage = {
+            cout = 2,
+        },
+        esprit = {
+            cout = 4,
+        },
+        evasion = {
+            cout = 2,
+        },
+        existence_ame = {
+            cout = 10,
+        },
+        existence_esprit = {
+            cout = 10,
+        },
+        fatigue = {
+            cout = 1,
+        },
+        force = {
+            cout = 2,
+        },
+        initiative = {
+            cout = 2,
+        },
+        investigation = {
+            cout = 2,
+        },
+        meca_attaque_simple = {
+            cout = 2,
+        },
+        meca_attraction = {
+            cout = 2,
+        },
+        meca_bouclier = {
+            cout = 2,
+        },
+        meca_brise_armure = {
+            cout = 2,
+        },
+        meca_buff = {
+            cout = 2,
+        },
+        meca_confusion = {
+            cout = 2,
+        },
+        meca_controle_mental = {
+            cout = 2,
+        },
+        meca_creation = {
+            cout = 2,
+        },
+        meca_debuff = {
+            cout = 2,
+        },
+        meca_deviation = {
+            cout = 2,
+        },
+        meca_dissipation = {
+            cout = 2,
+        },
+        meca_dot = {
+            cout = 2,
+        },
+        meca_entrave = {
+            cout = 2,
+        },
+        meca_illusion = {
+            cout = 2,
+        },
+        meca_immobilisation = {
+            cout = 2,
+        },
+        meca_intervention = {
+            cout = 2,
+        },
+        meca_intimidation = {
+            cout = 2,
+        },
+        meca_levitation = {
+            cout = 2,
+        },
+        meca_perce_armure = {
+            cout = 2,
+        },
+        meca_permutation = {
+            cout = 2,
+        },
+        meca_peur = {
+            cout = 2,
+        },
+        meca_provocation = {
+            cout = 2,
+        },
+        meca_repulsion = {
+            cout = 2,
+        },
+        meca_soin = {
+            cout = 2,
+        },
+        mystique = {
+            cout = 2,
+        },
+        nage = {
+            cout = 3,
+        },
+        niveau = {
+            cout = 100,
+            verrou = true,
+        },
+        odorat_gout = {
+            cout = 2,
+        },
+        ouie = {
+            cout = 2,
+        },
+        pa = {
+            cout = 8,
+        },
+        pen_contondant = {
+            cout = 1,
+        },
+        pen_desordre = {
+            cout = 1,
+        },
+        pen_eau = {
+            cout = 1,
+        },
+        pen_esprit = {
+            cout = 1,
+        },
+        pen_feu = {
+            cout = 1,
+        },
+        pen_lumiere = {
+            cout = 1,
+        },
+        pen_mort = {
+            cout = 1,
+        },
+        pen_ombre = {
+            cout = 1,
+        },
+        pen_ordre = {
+            cout = 1,
+        },
+        pen_perforant = {
+            cout = 1,
+        },
+        pen_pourriture = {
+            cout = 1,
+        },
+        pen_terre = {
+            cout = 1,
+        },
+        pen_tranchant = {
+            cout = 1,
+        },
+        pen_vent = {
+            cout = 1,
+        },
+        pen_vie = {
+            cout = 1,
+        },
+        perception = {
+            cout = 2,
+        },
+        pistage = {
+            cout = 2,
+        },
+        poids = {
+            cout = 1,
+        },
+        prise = {
+            cout = 3,
+        },
+        projection = {
+            cout = 3,
+        },
+        puissance = {
+            cout = 2,
+        },
+        resi_contondant = {
+            cout = 1,
+        },
+        resi_desordre = {
+            cout = 1,
+        },
+        resi_eau = {
+            cout = 1,
+        },
+        resi_esprit = {
+            cout = 1,
+        },
+        resi_feu = {
+            cout = 1,
+        },
+        resi_lumiere = {
+            cout = 1,
+        },
+        resi_mort = {
+            cout = 1,
+        },
+        resi_ombre = {
+            cout = 1,
+        },
+        resi_ordre = {
+            cout = 1,
+        },
+        resi_perforant = {
+            cout = 1,
+        },
+        resi_pourriture = {
+            cout = 1,
+        },
+        resi_terre = {
+            cout = 1,
+        },
+        resi_tranchant = {
+            cout = 1,
+        },
+        resi_vent = {
+            cout = 1,
+        },
+        resi_vie = {
+            cout = 1,
+        },
+        resistance = {
+            cout = 3,
+        },
+        sabotage = {
+            cout = 2,
+        },
+        sec_deplacement = {
+            verrou = true,
+        },
+        sec_expertises = {
+            verrou = true,
+        },
+        sec_fatigue = {
+            verrou = true,
+        },
+        sec_initiative = {
+            verrou = true,
+        },
+        sec_mecanique = {
+            verrou = true,
+        },
+        sec_pa = {
+            verrou = true,
+        },
+        sec_penetration = {
+            verrou = true,
+        },
+        sec_resistance = {
+            verrou = true,
+        },
+        sec_vitalite = {
+            verrou = true,
+        },
+        toucher = {
+            cout = 2,
+        },
+        vol_a_la_tire = {
+            cout = 2,
+        },
+        vue = {
+            cout = 2,
+        },
+    },
     description = "",
     icone = "Interface\\Icons\\INV_Misc_QuestionMark",
     id = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8",
@@ -1744,43 +2085,8 @@ LCM.Publier(LCM.Forge, {
             couleur = "FF8CB8",
             id = "commun",
             label = "Commun",
-            points = 1,
-        },
-        {
-            couleur = "4DE04D",
-            id = "inhabituel",
-            label = "Inhabituel",
-            points = 5,
-        },
-        {
-            couleur = "4D8CFF",
-            id = "rare",
-            label = "Rare",
-            points = 9,
-        },
-        {
-            couleur = "FF9926",
-            id = "epique",
-            label = "Épique",
-            points = 14,
-        },
-        {
-            couleur = "FF3838",
-            id = "legendaire",
-            label = "Légendaire",
-            points = 20,
-        },
-        {
-            couleur = "BF4DFF",
-            id = "mythique",
-            label = "Mythique",
-            points = 30,
-        },
-        {
-            couleur = "9999A6",
-            id = "unique",
-            label = "Unique",
-            points = 50,
+            palierIC = "rose",
+            points = "10000",
         },
     },
 })
@@ -3578,4 +3884,1336 @@ LCM.Publier(LCM.Points, {
     id = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
     label = "Sac de gros de Inconnue",
     nature = "coffre",
+})
+
+-- ----- poses (42) ---------------------------------------------------
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad4b4e200161",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/couteau_a_depecer",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad10a50_0aa0cd22_0003_a57e3e",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 5,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 8,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792324834,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11101.619140625,
+        y = 10443.2109375,
+        z = -387.03329467773,
+    },
+    epoque = 27,
+    id = "c6ad4b4e200161",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
+        epoque = 27,
+        id = "c6ad64cab0049f",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/rempart_de_guerre",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad64e8d_1f333644_0002_031f9a",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792429227,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11080.10546875,
+        y = 10439.440429688,
+        z = -478.32897949219,
+    },
+    epoque = 27,
+    id = "c6ad64cab0049f",
+    label = "Coffre solidement verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
+        epoque = 27,
+        id = "c6ad6561a001d0",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad655bc_1f4f3bea_0001_191e68",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad65717_1f548f99_0004_7f5032",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693f0_20423093_0001_2f767b",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792431642,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11109.21875,
+        y = 10468.24609375,
+        z = -454.03039550781,
+    },
+    epoque = 27,
+    id = "c6ad6561a001d0",
+    label = "Coffre solidement verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
+        epoque = 27,
+        id = "c6ad6593e0027f",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                quantite = 1,
+            },
+            {
+                entree = "objets/trousse_de_veterinaire_de_terrain",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad0c1d8_0985bdbc_0003_781391",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432446,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 2,
+        version = 1,
+        x = 11104.03125,
+        y = 10427.775390625,
+        z = -387.03268432617,
+    },
+    epoque = 27,
+    id = "c6ad6593e0027f",
+    label = "Coffre solidement verrouillé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
+        epoque = 27,
+        id = "c6ad65a390010a",
+        mapid = 585,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432697,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = { true, true },
+        verrousRestants = 0,
+        version = 1,
+        x = 11124.173828125,
+        y = 10467.701171875,
+        z = -386.99127197266,
+    },
+    epoque = 27,
+    id = "c6ad65a390010a",
+    label = "Coffre solidement verrouillé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad65a3f00256",
+        mapid = 585,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432703,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = { false },
+        verrousRestants = 0,
+        version = 1,
+        x = 11124.896484375,
+        y = 10469.502929688,
+        z = -386.54049682617,
+    },
+    epoque = 27,
+    id = "c6ad65a3f00256",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad65ac6004d7",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/rempart_de_guerre",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432838,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11072.442382812,
+        y = 10502.9609375,
+        z = -426.45486450195,
+    },
+    epoque = 27,
+    id = "c6ad65ac6004d7",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad65b17005fd",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/epee_rouillee",
+                quantite = 1,
+            },
+            {
+                entree = "objets/harnois_blanc",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432919,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11099.672851562,
+        y = 10392.3203125,
+        z = -487.01937866211,
+    },
+    epoque = 27,
+    id = "c6ad65b17005fd",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad65b4000648",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad6a8b1_2093524d_0003_269275",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 2,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad691e4_203a41c9_0005_edf1c8",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792432960,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11035.676757812,
+        y = 10400.376953125,
+        z = -487.09683227539,
+    },
+    epoque = 27,
+    id = "c6ad65b4000648",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
+        epoque = 27,
+        id = "c6ad68fdd001e6",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 5,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad6a6b5_208b909d_0002_03630b",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792446429,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 2,
+        version = 1,
+        x = 11038.473632812,
+        y = 10394.931640625,
+        z = -478.36755371094,
+    },
+    epoque = 27,
+    id = "c6ad68fdd001e6",
+    label = "Coffre solidement verrouillé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad6913b0027d",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_aa9c40_6ad68e2f_202bb932_0001_d016e0",
+                quantite = 5,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6917e_2038b154_0002_0495e5",
+                quantite = 4,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 2,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad691e4_203a41c9_0005_edf1c8",
+                quantite = 3,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693f0_20423093_0001_2f767b",
+                quantite = 2,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792446779,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11068.036132812,
+        y = 10398.983398438,
+        z = -477.69436645508,
+    },
+    epoque = 27,
+    id = "c6ad6913b0027d",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad6953f_20475b27_0005_8e597a",
+        epoque = 27,
+        id = "c6ad695740013a",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad65c1f_1f683923_0006_eecba6",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792447860,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11092.603515625,
+        y = 10440.892578125,
+        z = -487.67208862305,
+    },
+    epoque = 27,
+    id = "c6ad695740013a",
+    label = "Cassier bloqué.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
+        epoque = 27,
+        id = "c6ad695b20023e",
+        mapid = 585,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792447922,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11090.657226562,
+        y = 10440.881835938,
+        z = -487.67208862305,
+    },
+    epoque = 27,
+    id = "c6ad695b20023e",
+    label = "Cassier fermé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
+        epoque = 27,
+        id = "c6ad695b6003d8",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad69649_204b6b9c_0008_8ea27e",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792447926,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11088.409179688,
+        y = 10440.693359375,
+        z = -487.67208862305,
+    },
+    epoque = 27,
+    id = "c6ad695b6003d8",
+    label = "Cassier fermé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
+        epoque = 27,
+        id = "c6ad695b80049f",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/epee_rouillee",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792447928,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11096.703125,
+        y = 10441.41015625,
+        z = -487.67208862305,
+    },
+    epoque = 27,
+    id = "c6ad695b80049f",
+    label = "Cassier fermé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad696d6_204d92ef_000a_e325e4",
+        epoque = 27,
+        id = "c6ad696da005c1",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad64b7b_1f2726d6_0001_9b532f",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792448218,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = {  },
+        verrousRestants = 0,
+        version = 1,
+        x = 11099.508789062,
+        y = 10441.655273438,
+        z = -486.81112670898,
+    },
+    epoque = 27,
+    id = "c6ad696da005c1",
+    label = "Table",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 349,
+        def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
+        epoque = 27,
+        id = "c6ad69985006ba",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad69940_2056ffd5_0011_2aebe3",
+                quantite = 3,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792448901,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = { false },
+        verrousRestants = 0,
+        version = 1,
+        x = 11197.934570312,
+        y = 10494.612304688,
+        z = -403.63278198242,
+    },
+    epoque = 27,
+    id = "c6ad69985006ba",
+    label = "Coffre solidement verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 349,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad699f50070b",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad69940_2056ffd5_0011_2aebe3",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792449013,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = { false },
+        verrousRestants = 0,
+        version = 1,
+        x = 11203.583007812,
+        y = 10480.244140625,
+        z = -402.81893920898,
+    },
+    epoque = 27,
+    id = "c6ad699f50070b",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 349,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad699fc008ca",
+        mapid = 585,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792449020,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = { false },
+        verrousRestants = 0,
+        version = 1,
+        x = 11199.540039062,
+        y = 10475.571289062,
+        z = -403.00555419922,
+    },
+    epoque = 27,
+    id = "c6ad699fc008ca",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 349,
+        def = "lcm_64a651_6ad69b2b_205e800a_0015_33aeef",
+        epoque = 27,
+        id = "c6ad69b41009b5",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad69c6a_20635e8c_0018_cf22e7",
+                quantite = 1,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792449345,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 2,
+        version = 1,
+        x = 11169.200195312,
+        y = 10492.509765625,
+        z = -402.66763305664,
+    },
+    epoque = 27,
+    id = "c6ad69b41009b5",
+    label = "Coffre ancien",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 204,
+        def = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
+        epoque = 27,
+        id = "c6ad6a2d900c20",
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                quantite = 2,
+            },
+            {
+                entree = "objets/katana",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad699e3_20597cb9_0012_35135e",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 4,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad6a129_2075e8c3_001c_b21b43",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693f0_20423093_0001_2f767b",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a1ac_2077e559_001e_3e8557",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad693b8_204164db_0008_1cbf44",
+                quantite = 4,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 25,
+            },
+        },
+        ouvert = true,
+        posePar = "Reïkä-Apertus",
+        quand = 1792451289,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = {  },
+        verrousRestants = 0,
+        version = 1,
+        x = -5550.7749023438,
+        y = 5560.2060546875,
+        z = 518.25244140625,
+    },
+    epoque = 27,
+    id = "c6ad6a2d900c20",
+    label = "Sac de gros de Inconnue",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad6a5a100166",
+        mapid = 585,
+        objets = {
+            {
+                entree = "ressources/lcm_64a651_6ad698e5_20559c3e_0010_d9c4c2",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 5,
+            },
+            {
+                entree = "devises/ecus",
+                quantite = 200,
+            },
+        },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792452001,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 11103.15625,
+        y = 10491.295898438,
+        z = -386.73672485352,
+    },
+    epoque = 27,
+    id = "c6ad6a5a100166",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 1606,
+        def = "lcm_64a651_6ad696d6_204d92ef_000a_e325e4",
+        epoque = 27,
+        id = "c6ad6b01c002cb",
+        mapid = 585,
+        objets = {
+            {
+                entree = "objets/lcm_64a651_6ad6a939_209564a6_0006_8050a9",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a1ac_2077e559_001e_3e8557",
+                quantite = 1,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad6a21c_20799d29_001f_2e1783",
+                quantite = 3,
+            },
+            {
+                entree = "ressources/lcm_64a651_6ad65961_1f5d7298_0001_bb9861",
+                quantite = 1,
+            },
+            {
+                entree = "objets/lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+                quantite = 1,
+            },
+        },
+        ouvert = true,
+        posePar = "Reïkä-Apertus",
+        quand = 1792454684,
+        source = "gps",
+        verrouille = false,
+        verrousOuverts = {  },
+        verrousRestants = 0,
+        version = 1,
+        x = 11068.447265625,
+        y = 10395.87890625,
+        z = -477.51574707031,
+    },
+    epoque = 27,
+    id = "c6ad6b01c002cb",
+    label = "Table",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad78c430019c",
+        mapid = 1925,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792511043,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 13130.935546875,
+        y = 9333.9482421875,
+        z = -85.439125061035,
+    },
+    epoque = 27,
+    id = "c6ad78c430019c",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
+        epoque = 27,
+        id = "c6ad790a700156",
+        mapid = 1925,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792512167,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 1,
+        version = 1,
+        x = 13130.897460938,
+        y = 9354.6748046875,
+        z = -85.43968963623,
+    },
+    epoque = 27,
+    id = "c6ad790a700156",
+    label = "Coffre verrouillé",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        auteur = "Reïkä-Apertus",
+        carte = 947,
+        def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
+        epoque = 13,
+        id = "c6ad8d9d6001cd",
+        mapid = 1270,
+        objets = {  },
+        ouvert = false,
+        posePar = "Reïkä-Apertus",
+        quand = 1792596438,
+        source = "gps",
+        verrouille = true,
+        verrousOuverts = {  },
+        verrousRestants = 2,
+        version = 1,
+        x = 7971.8481445312,
+        y = 2164.8237304688,
+        z = 231.07386779785,
+    },
+    epoque = 13,
+    id = "c6ad8d9d6001cd",
+    label = "Coffre solidement verrouillé.",
+    nature = "coffre",
+    version = 1,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        def = "lcm_64a651_6acfe4c4_06262ef9_0002_c341b0",
+        id = "m6acfe50600167",
+        quand = 1792009478,
+        source = "monde",
+        x = 13128.7998046875,
+        y = 9327.6005859375,
+    },
+    epoque = 0,
+    id = "m6acfe50600167",
+    label = "Epheron",
+    nature = "vendeur",
+    stock = {
+        ["lcm_64a651_6acfe4c4_06262ef9_0002_c341b0/lcm_64a651_6acff549_0666b210_0002_ed1a1c"] = 13,
+    },
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 349,
+        def = "lcm_64a651_6ad0d5c6_09d397ff_0003_13331c",
+        id = "r6ad4c16c00135",
+        quand = 1792328044,
+        source = "gps",
+        x = 11186.2529296875,
+        y = 10478.73828125,
+        z = -378.3488464355469,
+    },
+    epoque = 0,
+    id = "r6ad4c16c00135",
+    label = "lcm_64a651_6ad0d5c6_09d397ff_0003_13331c",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+        id = "r6ad658d5001c0",
+        quand = 1792432341,
+        source = "gps",
+        x = 11100.314453125,
+        y = 10484.1044921875,
+        z = -442.8186950683594,
+    },
+    epoque = 0,
+    id = "r6ad658d5001c0",
+    label = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+        id = "r6ad658f80020c",
+        quand = 1792432376,
+        source = "gps",
+        x = 11095.4453125,
+        y = 10443.00390625,
+        z = -452.4873657226563,
+    },
+    epoque = 0,
+    id = "r6ad658f80020c",
+    label = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+        id = "r6ad659230033c",
+        quand = 1792432419,
+        source = "gps",
+        x = 11044.546875,
+        y = 10473.591796875,
+        z = -386.0072937011719,
+    },
+    epoque = 0,
+    id = "r6ad659230033c",
+    label = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65dab_1f6e413b_0009_48aa6d",
+        id = "r6ad65db9002be",
+        quand = 1792433593,
+        source = "gps",
+        x = 11046.45703125,
+        y = 10434.7138671875,
+        z = -488.100830078125,
+    },
+    epoque = 0,
+    id = "r6ad65db9002be",
+    label = "lcm_64a651_6ad65dab_1f6e413b_0009_48aa6d",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65dd4_1f6ee441_000a_03df8e",
+        id = "r6ad65ddb003e1",
+        quand = 1792433627,
+        source = "gps",
+        x = 11024.09765625,
+        y = 10428.173828125,
+        z = -485.5959167480469,
+    },
+    epoque = 0,
+    id = "r6ad65ddb003e1",
+    label = "lcm_64a651_6ad65dd4_1f6ee441_000a_03df8e",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
+        id = "r6ad65e4a0044e",
+        quand = 1792433738,
+        source = "gps",
+        x = 11102.7255859375,
+        y = 10394.154296875,
+        z = -486.8223876953125,
+    },
+    epoque = 0,
+    id = "r6ad65e4a0044e",
+    label = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65f4c_1f74a128_000f_e3884b",
+        id = "r6ad65f4900586",
+        quand = 1792433993,
+        source = "gps",
+        x = 11083.9482421875,
+        y = 10388.1875,
+        z = -477.3483581542969,
+    },
+    epoque = 0,
+    id = "r6ad65f4900586",
+    label = "lcm_64a651_6ad65f4c_1f74a128_000f_e3884b",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65fa3_1f75f518_0011_f06db7",
+        id = "r6ad65f9d00692",
+        quand = 1792434077,
+        source = "gps",
+        x = 11078.4853515625,
+        y = 10378.56640625,
+        z = -487.6725158691406,
+    },
+    epoque = 0,
+    id = "r6ad65f9d00692",
+    label = "lcm_64a651_6ad65fa3_1f75f518_0011_f06db7",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
+        id = "r6ad66003007be",
+        quand = 1792434179,
+        source = "gps",
+        x = 11044.1494140625,
+        y = 10473.1484375,
+        z = -386.2335815429688,
+    },
+    epoque = 0,
+    id = "r6ad66003007be",
+    label = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 1606,
+        def = "lcm_64a651_6ad69808_20523dae_000c_d8935d",
+        id = "r6ad6980e0015d",
+        quand = 1792448526,
+        source = "gps",
+        x = 11102.4306640625,
+        y = 10287.5625,
+        z = 300.2156982421875,
+    },
+    epoque = 0,
+    id = "r6ad6980e0015d",
+    label = "lcm_64a651_6ad69808_20523dae_000c_d8935d",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 349,
+        def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
+        id = "r6ad797730011d",
+        lignes = {  },
+        mapid = 585,
+        quand = 1792513907,
+        source = "gps",
+        x = 11186.7158203125,
+        y = 10479.3955078125,
+        z = -378.5048522949219,
+    },
+    epoque = 0,
+    id = "r6ad797730011d",
+    label = "Récupérer les outils de crochetages.",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 349,
+        def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
+        id = "r6ad797db002b4",
+        lignes = {  },
+        mapid = 585,
+        quand = 1792514011,
+        source = "gps",
+        x = 11170.4990234375,
+        y = 10459.6650390625,
+        z = -403.6333923339844,
+    },
+    epoque = 0,
+    id = "r6ad797db002b4",
+    label = "Récupérer les outils de crochetages.",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 349,
+        def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
+        id = "r6ad7980b0035d",
+        lignes = {  },
+        mapid = 585,
+        quand = 1792514059,
+        source = "gps",
+        x = 11175.3486328125,
+        y = 10485.8984375,
+        z = -403.6337585449219,
+    },
+    epoque = 0,
+    id = "r6ad7980b0035d",
+    label = "Récupérer les outils de crochetages.",
+    nature = "ressource",
+    version = 0,
+})
+
+LCM.Publier(LCM.Poses, {
+    auteur = "Reïkä-Apertus",
+    donnees = {
+        carte = 349,
+        def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
+        id = "r6ad7983c004f6",
+        lignes = {  },
+        mapid = 585,
+        quand = 1792514108,
+        source = "gps",
+        x = 11201.7392578125,
+        y = 10474.630859375,
+        z = -402.7030639648438,
+    },
+    epoque = 0,
+    id = "r6ad7983c004f6",
+    label = "Récupérer les outils de crochetages.",
+    nature = "ressource",
+    version = 0,
 })

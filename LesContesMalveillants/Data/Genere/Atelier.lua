@@ -27,8 +27,23 @@ LCM.PublierPublique(LCM.Devises, "devises", {
     materiel = true,
 }, "f4e54a717e552624")
 
--- ----- etats (1) ---------------------------------------------------
+-- ----- etats (5) ---------------------------------------------------
 LCM.PublierPublique(LCM.Etats, "etats", {
+    avantage = {  },
+    bonus = {  },
+    categorie = "maladie",
+    couleurTitre = "FF8CB8",
+    desavantage = {  },
+    forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/commun",
+    icone = "Interface\\ICONS\\ability_ironmaidens_corruptedblood",
+    id = "infection_de_sang",
+    label = "Infection de sang",
+    tags = "Commun",
+    type = "lcm_64a651_6adc94a9_0ea39278_0008_86d1d0",
+}, "d5ed7f61ea676479")
+
+LCM.PublierPublique(LCM.Etats, "etats", {
+    avantage = {  },
     bonus = {
         acrobaties = -1,
         communication = -1,
@@ -49,15 +64,89 @@ LCM.PublierPublique(LCM.Etats, "etats", {
     },
     categorie = "etat",
     couleurTitre = "4DE04D",
+    desavantage = {  },
     description = "<Vous avez vraiment très mal au crâne.>",
     forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/inhabituel",
     icone = "Interface\\ICONS\\inv_misc_bone_humanskull_02",
     id = "lcm_64a651_6acd8c83_0ff8950c_0001_18d910",
     label = "Commossion Cérébrale.",
     tags = "Inhabituel",
-}, "0f159fc2b5e33cbc")
+    type = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
+}, "781d5850e95ecbf9")
 
--- ----- listes (33) --------------------------------------------------
+LCM.PublierPublique(LCM.Etats, "etats", {
+    avantage = {  },
+    bonus = {
+        acrobaties = -4,
+        adresse = -1,
+        constitution = -1,
+        course = -4,
+        def_defense = -1,
+        endurance = -4,
+        equilibre = -4,
+        escalade = -4,
+        esprit = -1,
+        force = -1,
+        mystique = -1,
+        odorat_gout = -4,
+        ouie = -4,
+        pen_feu = -10,
+        perception = -1,
+        resi_eau = -10,
+        resi_vent = -10,
+        resistance = -4,
+        toucher = -4,
+        vue = -4,
+    },
+    categorie = "etat",
+    couleurTitre = "FF9926",
+    desavantage = {  },
+    description = "ATTENTION : RISQUE DE MORT. \n\nSi vous ne trouvez pas une source de chaleur rapidement, ou un moyen de contrer ce processus, vous finirez congelé, et probablement M.O.R.T.",
+    forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/epique",
+    icone = "Interface\\ICONS\\ability_mage_frostjaw",
+    id = "lcm_64a651_6ad6b28b_20b9bf23_0001_a315f2",
+    label = "Congelation en cours",
+    tags = "Épique",
+    type = "lcm_64a651_6adc9409_0ea12403_0003_ffc54c",
+}, "3bbf5a67ff84e6df")
+
+LCM.PublierPublique(LCM.Etats, "etats", {
+    avantage = {  },
+    bonus = {
+        mystique = -10,
+    },
+    categorie = "etat",
+    couleurTitre = "FF9926",
+    desavantage = {  },
+    description = "Utiliser toute forme de magie inflige une douleur tétanisante, comme si vos os se craquaient sous un étau. - Et ce n'est pas qu'une impression ! -\nN'empêche pas l'utilisation de la magie, bien que la douleur - ou le risque de mort - dissuade le porteur de s'y risquer.\nPeut entrainer la mort par suffocation, ou par répétition de douleur.",
+    forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/epique",
+    icone = "Interface\\ICONS\\hd_silence_1",
+    id = "lcm_64a651_6ad6b4fc_20c35703_0003_18b5af",
+    label = "COLLIER DE SILENCE",
+    tags = "Épique",
+    type = "lcm_64a651_6adc94b2_0ea3b62b_0009_a682b7",
+}, "d685e56640cd3a22")
+
+LCM.PublierPublique(LCM.Etats, "etats", {
+    avantage = {  },
+    bonus = {
+        acrobaties = -1,
+        equilibre = -1,
+        escalade = -1,
+    },
+    categorie = "etat",
+    couleurTitre = "FF8CB8",
+    desavantage = {  },
+    description = "Une mélasse verte, nauséabonde, et visqueuse.. qui colle à vos vêtements..",
+    forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/commun",
+    icone = "Interface\\ICONS\\ability_creature_poison_02",
+    id = "lcm_aa9c40_6ad93309_016e48e4_0001_182b4e",
+    label = "Mélasse verte",
+    tags = "Commun",
+    type = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
+}, "1a1d29a15a22137a")
+
+-- ----- listes (42) --------------------------------------------------
 LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",
     icone = "Interface\\ICONS\\inv_jewelry_ring_03",
@@ -293,6 +382,69 @@ LCM.PublierPublique(LCM.Listes, "listes", {
     label = "Cristal",
     liste = "ressources",
 }, "433bd8608bbbc684")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "etat",
+    id = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
+    label = "Altérations physiques",
+    liste = "type_etats",
+}, "1fb8e7da4aa1cfc2")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "etat",
+    id = "lcm_64a651_6adc9409_0ea12403_0003_ffc54c",
+    label = "Altérations élémentaires",
+    liste = "type_etats",
+}, "18bd0f0f5d97689b")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "maladie",
+    id = "lcm_64a651_6adc941d_0ea17036_0004_2aa645",
+    label = "Altérations mentales",
+    liste = "type_etats",
+}, "fb0ffa1a76e907a4")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "intangible",
+    id = "lcm_64a651_6adc942b_0ea1a7ce_0005_2556b5",
+    label = "Altérations magiques",
+    liste = "type_etats",
+}, "f94ee0155cb8f508")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "etat",
+    id = "lcm_64a651_6adc9436_0ea1d18e_0006_2c7892",
+    label = "Altérations de mobilité",
+    liste = "type_etats",
+}, "4f8b666161d4bd52")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "etat",
+    id = "lcm_64a651_6adc943e_0ea1efdf_0007_597516",
+    label = "États incapacitants",
+    liste = "type_etats",
+}, "b9c868dc032d9c7e")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "maladie",
+    id = "lcm_64a651_6adc94a9_0ea39278_0008_86d1d0",
+    label = "Maladie",
+    liste = "type_etats",
+}, "dd4de6f244c691a1")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "etat",
+    id = "lcm_64a651_6adc94b2_0ea3b62b_0009_a682b7",
+    label = "Objet maudit",
+    liste = "type_etats",
+}, "4f47ab012bb3a974")
+
+LCM.PublierPublique(LCM.Listes, "listes", {
+    conteneur = "intangible",
+    id = "lcm_64a651_6adc94bc_0ea3dc90_000a_aabd5f",
+    label = "Malédictions",
+    liste = "type_etats",
+}, "52d660ef71600658")
 
 LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",

@@ -669,6 +669,11 @@ Radial.COURONNES = {
         Categories = function() return Radial.Categories() end,
         Entrees = function(categorie) return Radial.Entrees(categorie.id) end,
     },
+    {
+        id = "mj", label = "Panel MJ", nom = "LCM_RadialMJ", mjSeulement = true,
+        Categories = function() return LCM.IsMaster() and (UI.Menu.MJ or {}) or {} end,
+        Entrees = function(categorie) return categorie.enfants or {} end,
+    },
 }
 
 -- ===== Le lanceur ==========================================================
@@ -1111,10 +1116,14 @@ Dessiner = function(f, c, animeCategories, animeEntrees, animeSousMenu)
         end
         Bulle(b, entree.label, inconscient and "Vous êtes KO !"
             or (sousMenu and (c.sousChoisi == entree.id and "Clic : replier le sous-menu." or "Clic : déployer le sous-menu."))
-            or (prete and "Clic : ouvrir." or "Pas encore disponible."))
-        b:RegisterForClicks("LeftButtonUp")
-        b:SetScript("OnClick", function(bouton)
+            or (prete and (entree.onRightClick and "Clic gauche : panneau complet. Clic droit : menu MJ." or "Clic : ouvrir.") or "Pas encore disponible."))
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnClick", function(bouton, clic)
             local cible = bouton.cible
+            if clic == "RightButton" then
+                if type(cible.onRightClick) == "function" then cible.onRightClick() end
+                return
+            end
             if cible.enfants then
                 if Verrouille(c) then return end
                 c.sousChoisi = c.sousChoisi ~= cible.id and cible.id or nil
@@ -1225,8 +1234,10 @@ local function Construire()
     -- identifiant.
     f.couronnes = {}
     for i, def in ipairs(Radial.COURONNES) do
-        local c = ConstruireCouronne(f, def)
-        f.couronnes[i], f.couronnes[def.id] = c, c
+        if def.id ~= "mj" and (not def.mjSeulement or LCM.IsMaster()) then
+            local c = ConstruireCouronne(f, def)
+            f.couronnes[#f.couronnes + 1], f.couronnes[def.id] = c, c
+        end
     end
     -- Le sceau passe devant les couronnes : il reste cliquable.
     local niveau = 0
@@ -1362,6 +1373,42 @@ end
 
 -- Ouvre ou ferme une couronne : "fenetres" ou "actions" (par defaut).
 function Radial.Basculer(id)
+    if id == "mj" then
+        if not LCM.IsMaster() then return end
+        -- Le compagnon ne fait pas partie des modes du grimoire : son propre
+        -- support laisse intactes la couronne et la selection des fenetres.
+        local compagnon = Radial.compagnonMJ
+        if not compagnon then
+            compagnon = CreateFrame("Frame", "LCM_CompagnonMJ", UIParent)
+            compagnon:SetSize(Radial.FOND, Radial.FOND)
+            compagnon:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            compagnon:SetFrameStrata("DIALOG")
+            compagnon:SetClampedToScreen(true)
+            compagnon.couronnes = {}
+            for _, def in ipairs(Radial.COURONNES) do
+                if def.id == "mj" then
+                    local c = ConstruireCouronne(compagnon, def)
+                    compagnon.couronnes[1], compagnon.couronnes.mj = c, c
+                end
+            end
+            Radial.compagnonMJ = compagnon
+            compagnon.fermer = UI.Bouton(compagnon, "×", 24, 24, function()
+                FermerTout(compagnon, false)
+                compagnon:Hide()
+            end)
+            compagnon.fermer:SetPoint("CENTER", compagnon, "CENTER", 0, 0)
+            compagnon.fermer:SetFrameLevel(compagnon.couronnes.mj.niveauBoutons + 2)
+            compagnon:SetScript("OnHide", function() FermerTout(compagnon, false) end)
+            UISpecialFrames[#UISpecialFrames + 1] = "LCM_CompagnonMJ"
+        end
+        if compagnon:IsShown() and compagnon.couronnes.mj.ouvert then
+            compagnon:Hide()
+        else
+            compagnon:Show()
+            Basculer(compagnon, compagnon.couronnes.mj)
+        end
+        return
+    end
     local f = Radial.Fenetre()
     local c = f.couronnes[id or "actions"]
     if not c then
@@ -1373,6 +1420,8 @@ end
 
 -- Ferme une couronne, ou toutes sans argument.
 function Radial.Fermer(id)
+    if (id == nil or id == "mj") and Radial.compagnonMJ then Radial.compagnonMJ:Hide() end
+    if id == "mj" then return end
     local f = Radial.Fenetre()
     if id == nil then FermerTout(f, true) return end
     local c = f.couronnes[id]

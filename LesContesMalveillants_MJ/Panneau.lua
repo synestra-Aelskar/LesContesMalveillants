@@ -867,7 +867,7 @@ function Pages.etats(page)
     page.titre = Titre(page, "Imposer un état")
     page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
     page.aideEtats = UI.Texte(page,
-        "Fais glisser un état sur un joueur. La durée se compte en rounds de combat.", UI.C.discret)
+        "Glisse un état sur un joueur. Durée vide : jusqu’au retrait. Clique un joueur pour voir ses états.", UI.C.discret)
     UI.Police(page.aideEtats, 10)
     page.aideEtats:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -20)
     page.aideEtats:SetPoint("RIGHT", page, "RIGHT", -2, 0)
@@ -877,27 +877,37 @@ function Pages.etats(page)
     page.dureeLabel:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -43)
     page.duree = UI.Champ(page, 64, 22)
     page.duree:SetNumeric(true)
-    page.duree:SetText("3")
+    page.duree:SetText("")
     page.duree:SetPoint("LEFT", page.dureeLabel, "RIGHT", 8, 0)
     UI.Bulle(page.duree, "Durée de l’état",
         "Nombre de rounds avant expiration. Laisse vide pour un état sans expiration automatique.")
 
-    page.recherche = UI.Champ(page, 210, 22, function() page:Afficher() end)
-    -- Sur la ligne de la duree, au bord droit. Un seul ancrage « RIGHT » sur la
-    -- page la centrait VERTICALEMENT sur toute la page : elle tombait au
-    -- milieu de la liste des joueurs (21 octobre 2026).
-    page.recherche:SetPoint("TOPRIGHT", page, "TOPRIGHT", -2, -38)
+    page.recherche = UI.Champ(page, 126, 22, function() page:Afficher() end)
     page.recherche:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     page.recherche:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() end)
     page.recherche.label = UI.Texte(page, "Rechercher :", UI.C.libelle)
-    page.recherche.label:SetPoint("RIGHT", page.recherche, "LEFT", -8, 0)
 
     page.zoneEtats = UI.Defilement(page)
-    page.zoneEtats:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -76)
+    page.zoneEtats:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -96)
     page.zoneEtats:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
-    page.zoneEtats:SetWidth(322)
+    page.zoneEtats:SetWidth(210)
+    -- La recherche filtre le catalogue : elle reste dans sa colonne,
+    -- sous la duree et juste au-dessus des etats disponibles.
+    page.recherche:SetPoint("BOTTOMRIGHT", page.zoneEtats, "TOPRIGHT", 0, 6)
+    page.recherche.label:SetPoint("BOTTOMLEFT", page.zoneEtats, "TOPLEFT", 0, 11)
+    UI.Police(page.recherche.label, 10)
+    page.zoneActifs = UI.Defilement(page)
+    page.zoneActifs:SetPoint("TOPLEFT", page.zoneEtats, "TOPRIGHT", 12, 0)
+    page.zoneActifs:SetPoint("BOTTOMLEFT", page.zoneEtats, "BOTTOMRIGHT", 12, 0)
+    page.zoneActifs:SetWidth(240)
+    page.titreActifs = UI.Texte(page, "États du personnage", UI.C.libelle)
+    page.titreActifs:SetPoint("BOTTOMLEFT", page.zoneActifs, "TOPLEFT", 2, 6)
+    page.videActifs = UI.Texte(page.zoneActifs.contenu, "Sélectionne un personnage.", UI.C.discret)
+    page.videActifs:SetPoint("TOPLEFT", page.zoneActifs.contenu, "TOPLEFT", 4, -4)
+    page.videActifs:SetWidth(225)
+    page.lignesActifs = {}
     page.zoneJoueurs = UI.Defilement(page)
-    page.zoneJoueurs:SetPoint("TOPLEFT", page.zoneEtats, "TOPRIGHT", 12, 0)
+    page.zoneJoueurs:SetPoint("TOPLEFT", page.zoneActifs, "TOPRIGHT", 12, 0)
     page.zoneJoueurs:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
     page.lignesEtats, page.lignesJoueurs = {}, {}
     page.videEtats = UI.Texte(page.zoneEtats.contenu, "Aucun état dans le compendium.", UI.C.discret)
@@ -913,7 +923,8 @@ function Pages.etats(page)
     end
 
     function page:Appliquer(joueur, definition)
-        local texte = self.duree:GetText() or ""
+        self.joueurActif = joueur
+        local texte = (self.duree:GetText() or ""):match("^%s*(.-)%s*$")
         local rounds = nil
         if texte ~= "" then
             rounds = tonumber(texte)
@@ -930,7 +941,8 @@ function Pages.etats(page)
                 LCM.EtatsTemporaires.Poser(entity, {
                     nom = definition.label, icone = definition.icone,
                     description = definition.description, bonus = definition.bonus,
-                    rounds = rounds, conteneur = definition.categorie,
+                    desavantage = definition.desavantage,
+                    rounds = rounds, conteneur = LCM.Etats.Conteneur(definition),
                     debuff = definition.debuff == true, id = definition.id,
                 })
                 ok = true
@@ -938,6 +950,7 @@ function Pages.etats(page)
                 raison = "aucune fiche de personnage active."
             end
         else
+            self:DemanderEtats(joueur)
             ok, raison = LCM.EtatsTemporaires.Envoyer(joueur, definition.id, rounds)
         end
         if ok then
@@ -949,6 +962,96 @@ function Pages.etats(page)
             LCM.Alerte(tostring(raison))
         end
     end
+
+    function page:DemanderEtats(joueur)
+        -- La reception reste silencieuse tant que cet onglet suit ce joueur.
+        -- Ne pas reutiliser les demandes XP : une reponse tardive ne doit pas
+        -- avaler une consultation explicite faite depuis un autre onglet.
+        local ok, raison = LCM.Fiches.Demander(joueur)
+        if not ok then LCM.Alerte(tostring(raison)) end
+    end
+
+    function page:ChoisirJoueur(joueur)
+        self.joueurActif = joueur
+        if joueur and not EstMoi(joueur) then self:DemanderEtats(joueur) end
+        self:Afficher()
+    end
+
+    function page:RetirerEtat(ligne)
+        local joueur, etat = self.joueurActif, ligne.etat
+        if not joueur or not etat then return end
+        local ok, raison
+        if EstMoi(joueur) then
+            local entity = FicheJoueur(joueur)
+            if not entity then return end
+            if etat.catalogue then
+                ok = LCM.Etats.Enlever(entity, etat.id)
+                if ok then LCM.Entities.Changed(entity, "etats") end
+            else
+                ok, raison = LCM.EtatsTemporaires.RetirerForce(entity, etat.nom)
+            end
+        else
+            ok, raison = LCM.EtatsTemporaires.EnvoyerRetrait(joueur,
+                etat.catalogue and etat.id or etat.nom, etat.catalogue)
+            if ok then self:DemanderEtats(joueur) end
+        end
+        if not ok and raison then LCM.Alerte(tostring(raison)) end
+        self:AfficherActifs()
+    end
+
+    function page:AfficherActifs()
+        local entity = self.joueurActif and FicheJoueur(self.joueurActif)
+        local liste = {}
+        if entity then
+            for _, etat in ipairs(LCM.EtatsTemporaires.Liste(entity)) do
+                liste[#liste + 1] = { nom = etat.nom, icone = etat.icone,
+                    duree = LCM.EtatsTemporaires.Duree(etat) }
+            end
+            for _, categorie in ipairs(LCM.Etats.CATEGORIES) do
+                for _, id in ipairs(LCM.Etats.Ids(entity, categorie.id)) do
+                    local def = LCM.Etats.Get(id)
+                    liste[#liste + 1] = { nom = def and def.label or id,
+                        icone = def and def.icone, id = id, catalogue = true,
+                        duree = "jusqu’à retrait" }
+                end
+            end
+        end
+        for i, etat in ipairs(liste) do
+            local l = self.lignesActifs[i]
+            if not l then
+                l = BoutonLigne(self.zoneActifs.contenu, 42)
+                l.nom = UI.Texte(l, "", UI.C.texte)
+                l.nom:SetPoint("TOPLEFT", l, "TOPLEFT", 5, -4)
+                l.nom:SetPoint("RIGHT", l, "RIGHT", -30, 0)
+                l.nom:SetWordWrap(false)
+                l.duree = UI.Texte(l, "", UI.C.discret)
+                UI.Police(l.duree, 10)
+                l.duree:SetPoint("TOPLEFT", l.nom, "BOTTOMLEFT", 0, -3)
+                local ligne = l
+                l.retirer = UI.Bouton(l, "×", 22, 22, function() page:RetirerEtat(ligne) end)
+                l.retirer:SetPoint("RIGHT", l, "RIGHT", -3, 0)
+                self.lignesActifs[i] = l
+            end
+            l.etat = etat
+            l.nom:SetText(etat.nom)
+            l.duree:SetText(etat.duree)
+            l:ClearAllPoints()
+            l:SetPoint("TOPLEFT", self.zoneActifs.contenu, "TOPLEFT", 2, -(i - 1) * 46)
+            l:SetPoint("RIGHT", self.zoneActifs.contenu, "RIGHT", -2, 0)
+            l:Show()
+        end
+        for i = #liste + 1, #self.lignesActifs do self.lignesActifs[i]:Hide() end
+        self.videActifs:SetText(entity and "Aucun état sur ce personnage."
+            or (self.joueurActif and "Fiche indisponible : clique le personnage pour la demander." or "Sélectionne un personnage."))
+        self.videActifs:SetShown(#liste == 0)
+        self.zoneActifs:Regler(math.max(1, #liste * 46))
+    end
+
+    LCM.Entities.Ecouter(function(entity)
+        if page:IsVisible() and page.joueurActif and entity == FicheJoueur(page.joueurActif) then
+            page:AfficherActifs()
+        end
+    end)
 
     function page:Afficher()
         local recherche = tostring(self.recherche:GetText() or ""):lower()
@@ -996,6 +1099,9 @@ function Pages.etats(page)
         self.zoneEtats:Regler(math.max(1, y))
 
         local joueurs = Groupe()
+        local selectionPresente = false
+        for _, joueur in ipairs(joueurs) do if joueur == self.joueurActif then selectionPresente = true end end
+        if not selectionPresente then self.joueurActif = nil end
         local yJoueurs = 0
         for rang, joueur in ipairs(joueurs) do
             local l = self.lignesJoueurs[rang]
@@ -1005,6 +1111,7 @@ function Pages.etats(page)
                 l.nom:SetPoint("LEFT", l, "LEFT", 8, 0)
                 l.nom:SetPoint("RIGHT", l, "RIGHT", -8, 0)
                 l.nom:SetJustifyH("LEFT")
+                l:SetScript("OnClick", function(ligne) page:ChoisirJoueur(ligne.joueur) end)
                 UI.Glisser.Cible(l, function(objet)
                     return objet and objet.categorie == "etats" and type(objet.element) == "table",
                         "dépose ici un état du compendium"
@@ -1014,7 +1121,7 @@ function Pages.etats(page)
                 self.lignesJoueurs[rang] = l
             end
             l.joueur = joueur
-            l.nom:SetText(NomPersonnage(joueur) .. (EstMoi(joueur) and "  (vous)" or ""))
+            l.nom:SetText((joueur == self.joueurActif and "> " or "") .. NomPersonnage(joueur) .. (EstMoi(joueur) and "  (vous)" or ""))
             l:ClearAllPoints()
             l:SetPoint("TOPLEFT", self.zoneJoueurs.contenu, "TOPLEFT", 2, -yJoueurs)
             l:SetPoint("RIGHT", self.zoneJoueurs.contenu, "RIGHT", -2, 0)
@@ -1024,6 +1131,7 @@ function Pages.etats(page)
         for rang = #joueurs + 1, #self.lignesJoueurs do self.lignesJoueurs[rang]:Hide() end
         self.videJoueursEtats:SetShown(#joueurs == 0)
         self.zoneJoueurs:Regler(math.max(1, yJoueurs))
+        self:AfficherActifs()
     end
 end
 
@@ -1342,10 +1450,42 @@ local function Construire()
     f.raison = f.pages.joueurs.raison
 
     function f:Montrer(id)
+        self.modeSeul = nil
+        self:Titre("Panel MJ")
+        self.barre:Show()
+        for _, page in pairs(self.pages) do
+            page:ClearAllPoints()
+            page:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, -(hauteurBandeau + 10))
+        end
+        local outils = self.pages.outils
+        outils.barre:Show()
+        for _, sous in pairs(outils.sous) do
+            sous:ClearAllPoints()
+            sous:SetPoint("TOPLEFT", outils, "TOPLEFT", 0, -28)
+            sous:SetPoint("BOTTOMRIGHT", outils, "BOTTOMRIGHT", 0, 0)
+        end
         self:PlacerBas()
         self:Show()
         self:Onglet(id or self.onglet or "joueurs")
         self.nombreAffiche = self.pages.joueurs.nombreAffiche
+    end
+
+    function f:MontrerSeul(id, titre, sorte)
+        self:Montrer(id)
+        self.modeSeul = true
+        self:Titre(titre)
+        self.barre:Hide()
+        local page = self.pages[id]
+        page:ClearAllPoints()
+        page:SetPoint("TOPLEFT", self.contenu, "TOPLEFT", 0, 0)
+        self:PlacerBas()
+        if sorte then
+            page:Sous(sorte)
+            page.barre:Hide()
+            local sous = page.sous[sorte]
+            sous:ClearAllPoints()
+            sous:SetAllPoints(page)
+        end
     end
 
     return f
@@ -1358,12 +1498,44 @@ end
 
 function Ecran.Basculer()
     local f = Ecran.Fenetre()
-    if f:IsShown() then f:Hide() else f:Montrer() end
+    if f:IsShown() and not f.modeSeul then f:Hide() else f:Montrer() end
     return f
 end
 
+-- Ce menu appartient au compagnon MJ, sans dupliquer les panneaux ni leur
+-- logique reseau. Le clic gauche conserve le panneau complet.
+local artMJ = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\"
+local function Raccourci(id, label, icone, page, sorte)
+    return { id = id, label = label, icone = artMJ .. icone .. ".tga", onClick = function()
+        if not LCM.IsMaster() then return end
+        local f = Ecran.Fenetre()
+        if id == "mj_regain" then
+            f:Hide()
+            f.pages.joueurs.regainPanneau:Ouvrir()
+        else
+            f.pages.joueurs.regainPanneau:Hide()
+            f:MontrerSeul(page, label, sorte)
+        end
+    end }
+end
+UI.Menu.MJ = {
+    Raccourci("mj_joueurs", "Joueurs", "fenetres-personnages", "joueurs"),
+    Raccourci("mj_regain", "Regain", "actions-generation_soin", "joueurs"),
+    Raccourci("mj_etats", "État", "actions-generation_debuff", "etats"),
+    Raccourci("mj_combat", "Combats", "actions-offensives", "combat"),
+    { id = "mj_outils", label = "Outils", icone = artMJ .. "fenetres-outils.tga", enfants = {
+        Raccourci("mj_barres", "Barres", "actions-generation_bouclier", "outils", "barre"),
+        Raccourci("mj_compteurs", "Compteurs", "actions-competences", "outils", "compteur"),
+        Raccourci("mj_annonce", "Annonce", "actions-animation", "outils", "annonce"),
+        Raccourci("mj_notes", "Notes", "fenetres-grimoires", "outils", "note"),
+    } },
+}
+
 LCM.WhenReady(function()
     UI.Menu.Lier("panneau_mj", Ecran.Basculer)
+    UI.Menu.Trouver("panneau_mj").onRightClick = function()
+        if LCM.IsMaster() then UI.Radial.Basculer("mj") end
+    end
     -- L'annonce de presence transporte aussi le personnage actif. Elle peut
     -- arriver apres l'ouverture du panneau : le libelle se remplace alors
     -- sans attendre un clic sur Rafraichir.
@@ -1378,6 +1550,9 @@ LCM.WhenReady(function()
     LCM.Fiches.onRecue = function(joueur, entity, actualisation)
         if not actualisation then LCM.Info(string.format("fiche de %s reçue.", tostring(joueur))) end
         local silencieuse = PrendreDemandeXP(joueur)
+        local etats = Ecran.frame and Ecran.frame.pages.etats
+        if etats and etats:IsVisible() and etats.joueurActif
+            and NomCourt(etats.joueurActif) == NomCourt(joueur) then silencieuse = true end
         if Ecran.frame and Ecran.frame:IsShown() then Ecran.frame:Afficher() end
         if not silencieuse then
             local consultation = MJ.Consultation

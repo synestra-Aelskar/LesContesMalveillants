@@ -258,6 +258,7 @@ LCM.LISTES = {
     { id = "type_accessoires", label = "Type Accessoires" },
     { id = "armes",        label = "Liste Armes" },
     { id = "outils",       label = "Liste outils" },
+    { id = "type_etats",   label = "Liste-Type-Etats" },
     { id = "origines",     label = "Liste origine" },
     { id = "ressources",   label = "Liste ressources" },
     -- Ajout de l'addon (23 octobre 2026, le MJ) : les types de consommables
@@ -275,6 +276,13 @@ LCM.Listes = LCM.Registre({
             Erreur(element.id .. " : liste inconnue « " .. liste .. " »")
         end
         element.liste = liste
+        if liste == "type_etats" then
+            local destination = Texte(definition.conteneur)
+            if destination ~= "etat" and destination ~= "maladie" and destination ~= "intangible" then
+                Erreur(element.id .. " : choisis Maladie, Etats ou Intangible pour ce type d'etat")
+            end
+            element.conteneur = destination
+        end
         -- « Table de niveaux » du template : la seule qui existe est la table
         -- XP METIER de l'equilibrage.
         local niveaux = Texte(definition.niveaux)
