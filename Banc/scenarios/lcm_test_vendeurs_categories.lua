@@ -54,7 +54,12 @@ end
 
 dire("== creer une categorie depuis la bibliotheque")
 attendu("le catalogue n'a plus de champ categorie", f.creation.categorie, nil)
-attendu("sans categorie, pas d'en-tete", EnTete("") , nil)
+-- On ne demande plus l'ABSENCE de tout en-tete : la seance a desormais des
+-- vendeurs dont la categorie est une chaine vide, et ils forment leur propre
+-- groupe (24 octobre 2026). Un scenario ne compte que ses temoins — la
+-- categorie qu'on s'apprete a creer, et les etals qui n'en portent aucune.
+attendu("la categorie temoin n'existe pas encore", EnTete("Port témoin"), nil)
+attendu("  et les etals temoins n'en portent aucune", Points.Get("etal_temoin_a").categorie, nil)
 f.creerCategorie:Click()
 attendu("le bouton laisse place a la saisie", f.nomCategorie:IsShown() and not f.creerCategorie:IsShown(), true)
 f.nomCategorie:Saisir("Port témoin")

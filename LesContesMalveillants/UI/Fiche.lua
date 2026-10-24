@@ -1647,12 +1647,72 @@ end
 -- Les etats temporaires (Core/EtatsTemporaires.lua) : une ligne par etat —
 -- icone, nom, effets, duree. Le MJ peut retirer ; un etat qui se guerit par
 -- un jet propose « Guérir ». Aucun : une ligne le dit.
+-- Le joueur dont cette fiche est la copie, quand le MJ le consulte — ou nil
+-- quand on regarde sa propre fiche, ou celle de quelqu'un qu'on ne suit pas.
+-- C'est lui qui applique : une copie recue ne se modifie pas.
+local function Consulte(entity)
+    if type(entity) ~= "table" or not entity.distante then return nil end
+    local C = UI.ConsultationMJ
+    if not (C and C.joueur and C.entity == entity) then return nil end
+    return C.joueur
+end
+
 function Lignes.temporaires(bloc, c, conteneur)
     local l = CreateFrame("Frame", nil, bloc)
     l.lignes = {}
     l.vide = UI.Texte(l, "Aucun état temporaire.", UI.C.discret)
     UI.Police(l.vide, c.police * 0.85)
     l.vide:SetPoint("TOPLEFT", l, "TOPLEFT", 8, -6)
+
+    -- Poser un etat sans quitter la fiche qu'on regarde (le MJ, 24 octobre
+    -- 2026) : il fallait passer par l'onglet « Imposer un etat » du Panel MJ
+    -- et glisser l'etat sur le bon joueur, en lisant une autre fenetre.
+    l.poser = UI.Bouton(l, "+ État", 70, c.boutonH, function()
+        local ent = l.entity
+        if not ent then return end
+        local options = {}
+        for _, etat in ipairs((LCM.Etats and LCM.Etats.list) or {}) do
+            -- Chaque onglet ne propose que SES etats : on ne pose pas une
+            -- maladie dans la case des etats intangibles.
+            if not l.conteneur or (etat.categorie or "etat") == l.conteneur then
+                options[#options + 1] = { id = etat.id, label = etat.label }
+            end
+        end
+        table.sort(options, function(a, b) return tostring(a.label) < tostring(b.label) end)
+        if #options == 0 then LCM.Alerte("aucun état de cette sorte au compendium.") return end
+        l.choix = l.choix or UI.Choix("fiche_poser_etat", "Imposer un état")
+        l.choix:Proposer(l.poser, options, function(id)
+            local etat = LCM.Etats.Get(id)
+            if not etat then return end
+            UI.Demande():Demander(string.format("Combien de rounds pour « %s » ?\n"
+                .. "Laisse vide : jusqu'au retrait.", etat.label), "", function(texte)
+                local rounds = nil
+                if tostring(texte or ""):gsub("%s+", "") ~= "" then
+                    rounds = tonumber(texte)
+                    if not rounds or rounds ~= math.floor(rounds) or rounds < 1 then
+                        return false, "la durée doit être un nombre entier positif."
+                    end
+                end
+                local joueur = Consulte(ent)
+                if joueur then
+                    local ok, raison = LCM.EtatsTemporaires.Envoyer(joueur, id, rounds)
+                    if not ok then return false, raison end
+                    LCM.Ok(string.format("« %s » imposé à %s.", etat.label, joueur))
+                    return true
+                end
+                -- Sa propre fiche, ou celle d'un PNJ qu'on tient : on pose.
+                LCM.EtatsTemporaires.Poser(ent, {
+                    nom = etat.label, icone = etat.icone, description = etat.description,
+                    bonus = etat.bonus, desavantage = etat.desavantage,
+                    rounds = rounds, conteneur = etat.categorie, id = etat.id,
+                })
+                return true
+            end)
+        end)
+    end)
+    l.poser:SetPoint("TOPRIGHT", l, "TOPRIGHT", -4, -2)
+    UI.Police(l.poser.label, c.police * 0.8)
+    l.poser:Hide()
     function l:Actualiser(e)
         self.entity = e
         local T = LCM.EtatsTemporaires
@@ -1678,9 +1738,18 @@ function Lignes.temporaires(bloc, c, conteneur)
                     if et.guerison and et.guerison.mode == "rand" and not LCM.IsMaster() then
                         local _, ligne = T.Guerir(ent, et.nom)
                         if ligne then LCM.Actions.Annoncer(ligne) end
-                    else
-                        T.Retirer(ent, et.nom)
+                        return
                     end
+                    -- Une fiche CONSULTEE n'est qu'une copie : la retirer ici
+                    -- ne changerait rien chez le joueur, qui tient sa propre
+                    -- liste. On la lui demande (le MJ, 24 octobre 2026).
+                    local joueur = Consulte(ent)
+                    if joueur then
+                        local ok, raison = T.EnvoyerRetrait(joueur, et.nom)
+                        if not ok then LCM.Alerte(tostring(raison)) end
+                        return
+                    end
+                    T.Retirer(ent, et.nom)
                 end)
                 r.action:SetPoint("LEFT", r, "LEFT", c.action, 0)
                 UI.Police(r.action.label, c.police * 0.8)
@@ -1719,7 +1788,11 @@ function Lignes.temporaires(bloc, c, conteneur)
             Bulle(r, etat.nom, aide)
             local guerir = etat.guerison and etat.guerison.mode == "rand" and not LCM.IsMaster()
             r.action.label:SetText(guerir and string.format("Guérir (%s)", etat.guerison.competence) or "Retirer")
-            r.action:SetShown(not e.distante and (LCM.IsMaster() or guerir))
+            -- Sur une fiche consultee, le MJ garde son bouton : il agit par le
+            -- reseau. Une copie recue qu'on ne suit pas (un PNJ d'une autre
+            -- machine) n'offre rien, elle n'a personne a qui parler.
+            r.action:SetShown((not e.distante or Consulte(e) ~= nil)
+                and (LCM.IsMaster() or guerir))
             r:ClearAllPoints()
             r:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             r:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
@@ -1728,7 +1801,11 @@ function Lignes.temporaires(bloc, c, conteneur)
         end
         for i = #liste + 1, #self.lignes do self.lignes[i]:Hide() end
         self.vide:SetShown(#liste == 0)
+        -- Poser est un geste de MJ, sur sa fiche comme sur celle qu'il
+        -- consulte. Un joueur ne se pose pas d'etat a lui-meme.
+        self.poser:SetShown(LCM.IsMaster() and (not e.distante or Consulte(e) ~= nil))
         local h = math.max(#liste == 0 and 24 or 0, y)
+        if self.poser:IsShown() then h = math.max(h, self.poser:GetHeight() + 6) end
         if h ~= self.hauteur then
             self.hauteur = h
             self:SetHeight(h)

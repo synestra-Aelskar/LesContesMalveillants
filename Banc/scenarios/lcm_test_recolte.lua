@@ -128,11 +128,15 @@ c.entree:Click()
 local famillesPermises, temoinPropose, objetPropose, intertitre = true, false, false, false
 for _, ligne in ipairs(f.choixEntree.lignes) do
     if ligne:IsShown() then
-        -- Un filon donne ce qui se range : ressources, objets, livres, et
-        -- des sacs depuis le 20 octobre 2026.
+        -- Un filon donne ce qui se range : ressources, objets, livres, des
+        -- sacs depuis le 20 octobre 2026 et des consommables depuis le 23 —
+        -- la liste de RecoltesUI.lua (FAMILLES). Les consommables manquaient
+        -- ici : la seance n'en avait aucun, et le scenario ne le voyait pas
+        -- (24 octobre 2026).
         local famille = tostring(ligne.choix):match("^([%w_]+)/")
         if not (famille == "ressources" or famille == "objets"
-            or famille == "livres" or famille == "sacs") then
+            or famille == "livres" or famille == "sacs"
+            or famille == "consommables") then
             famillesPermises = false
         end
         if ligne.choix == REF then temoinPropose = true end

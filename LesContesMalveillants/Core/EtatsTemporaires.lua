@@ -77,6 +77,11 @@ function Temporaires.Poser(entity, etat)
     liste[#liste + 1] = {
         nom = tostring(etat.nom or "État"), icone = etat.icone, description = etat.description,
         bonus = etat.bonus or {}, restant = etat.rounds, lanceur = etat.lanceur,
+        -- Les jets que cet etat fait relancer en gardant le pire. Il voyage
+        -- avec lui, comme ses bonus : un etat n'impose plus le desavantage
+        -- parce qu'il retire des points, il l'impose parce qu'il le dit
+        -- (le MJ, 24 octobre 2026).
+        desavantage = type(etat.desavantage) == 'table' and LCM.Copie(etat.desavantage) or nil,
         debuff = etat.debuff == true, dissipation = etat.dissipation, cumul = etat.cumul,
         conteneur = Temporaires.ConteneurValide(etat.conteneur),
         -- Ce que la dissipation doit battre : le jet du lanceur, et sa
@@ -113,6 +118,20 @@ function Temporaires.Envoyer(joueur, id, rounds)
     end
     local ok, raison = LCM.Reseau.Envoyer("etat_mj", { i = id, r = rounds }, "WHISPER", joueur)
     if not ok then return false, raison or "l'état n'a pas pu être envoyé." end
+    return true
+end
+
+-- Le MJ demande au personnage de RETIRER un etat de sa propre fiche. Le
+-- pendant d'Envoyer : sans lui, le bouton « Retirer » d'une fiche consultee
+-- n'aurait agi que sur la copie recue, donc sur rien (le MJ, 24 octobre 2026).
+function Temporaires.EnvoyerRetrait(joueur, nom)
+    joueur, nom = tostring(joueur or ""), tostring(nom or "")
+    if joueur == "" then return false, "choisis un joueur." end
+    if nom == "" then return false, "quel état ?" end
+    if not LCM.IsMaster() then return false, "seul le maître du jeu peut retirer un état." end
+    if joueur == tostring(LCM.PlayerId()) then return false, "utilise la fiche locale pour ton personnage." end
+    local ok, raison = LCM.Reseau.Envoyer("etat_mj-", { n = nom }, "WHISPER", joueur)
+    if not ok then return false, raison or "le retrait n'a pas pu être envoyé." end
     return true
 end
 
@@ -246,11 +265,23 @@ function Temporaires.Duree(etat)
 end
 
 -- Une source d'effets comme les traits : ses elements ont un libelle, des
--- bonus et pas d'avantage.
+-- bonus, pas d'avantage, et le DESAVANTAGE que leur etat declare — un etat
+-- temporaire porte le meme que l'etat du compendium dont il vient (le MJ,
+-- 24 octobre 2026). Sans cela, poser un etat en seance n'aurait jamais pu
+-- faire jeter avec desavantage, meme coche.
 LCM.Effets.Source("état temporaire", function(entity)
     local out = {}
     for _, e in ipairs(Temporaires.Liste(entity)) do
-        out[#out + 1] = { label = e.nom, bonus = e.bonus or {}, avantage = VIDE }
+        -- L'etat porte son desavantage, comme il porte ses bonus. A defaut
+        -- (un etat pose avant le 24 octobre 2026, encore en sauvegarde), on
+        -- le relit sur son modele du compendium.
+        local declare = e.desavantage
+        if not declare and e.id and LCM.Etats then
+            local modele = LCM.Etats.Get(e.id)
+            declare = modele and modele.desavantage
+        end
+        out[#out + 1] = { label = e.nom, bonus = e.bonus or {}, avantage = VIDE,
+                          desavantage = declare or VIDE }
     end
     return out
 end)
@@ -279,6 +310,20 @@ end
 Temporaires.Vieillir = Vieillir
 
 LCM.WhenReady(function()
+    -- Le MJ retire un etat qu'il a pose. On FORCE : un etat de controle ne se
+    -- retire pas par sa cible, mais celui qui l'a pose doit pouvoir le lever.
+    LCM.Reseau.Ecouter("etat_mj-", function(expediteur, paquet)
+        if not LCM.Fiches.DansLeGroupe(expediteur) then return end
+        local entity = LCM.Entities.Personnage and LCM.Entities.Personnage()
+            or (LCM.Entities.Self and LCM.Entities.Self())
+        if not entity then return end
+        local nom = tostring(paquet and paquet.n or "")
+        if nom == "" then return end
+        if Temporaires.RetirerForce(entity, nom) then
+            LCM.Info(string.format("Le MJ retire « %s ».", nom))
+        end
+    end)
+
     LCM.Reseau.Ecouter("etat_mj", function(expediteur, paquet)
         if not LCM.Reseau.DansLeGroupe(expediteur) then return end
         local definition = LCM.Etats and LCM.Etats.Get(paquet.i)
@@ -297,6 +342,7 @@ LCM.WhenReady(function()
         Temporaires.Poser(entity, {
             nom = definition.label, icone = definition.icone,
             description = definition.description, bonus = definition.bonus,
+            desavantage = definition.desavantage,
             rounds = rounds, conteneur = definition.categorie,
             debuff = definition.debuff == true, id = definition.id,
         })

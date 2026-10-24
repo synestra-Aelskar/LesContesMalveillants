@@ -94,6 +94,38 @@ class GoogleSheetBaseTest(unittest.TestCase):
             gsheet.canonical(["objets", "e", "E", "", False, gsheet.ACTIVE,
                               '{ id = "e", categorie = "arme", contenant = { taille = 1, retrait = 1 } }'])
 
+    def test_un_nombre_saisi_en_texte_vaut_le_nombre(self):
+        # Un champ saisi en jeu reste parfois du texte dans le brouillon :
+        # « 100 » plutot que 100. Le jeu le lit par tonumber, le service doit
+        # le lire pareil — sinon une gourde parfaitement valable est refusee,
+        # et deux ecritures du MEME contenu passent pour un conflit.
+        texte = ('{ id = "gourde", categorie = "outil", contenant = { taille = "100", '
+                 'retrait = "20", types = { "t_boisson" } } }')
+        gsheet.canonical(["objets", "gourde", "Gourde", "", False, gsheet.ACTIVE, texte])
+        with self.assertRaisesRegex(ValueError, "contenant illisible"):
+            gsheet.canonical(["objets", "g3", "G3", "", False, gsheet.ACTIVE,
+                              '{ id = "g3", categorie = "outil", contenant = '
+                              '{ taille = "beaucoup", retrait = 1 } }'])
+
+        nombre = ['objets', 'gourde', 'Gourde', '', False, gsheet.ACTIVE,
+                  '{ id = "gourde", taille = 3, bonus = { force = 2 } }']
+        comme_texte = ['objets', 'gourde', 'Gourde', '', False, gsheet.ACTIVE,
+                       '{ id = "gourde", taille = "3", bonus = { force = "2" } }']
+        self.assertTrue(gsheet.equivalent_rows(nombre, comme_texte))
+        # L'empreinte, elle, ne bouge pas : la changer invaliderait les bases
+        # de comparaison deja ecrites.
+        self.assertNotEqual(gsheet.digest(nombre), gsheet.digest(comme_texte))
+        # Une vraie difference reste une difference, et un texte n'est jamais
+        # converti la ou on attend du texte.
+        autre = ['objets', 'gourde', 'Gourde', '', False, gsheet.ACTIVE,
+                 '{ id = "gourde", taille = 4, bonus = { force = 2 } }']
+        self.assertFalse(gsheet.equivalent_rows(nombre, autre))
+        mot = ['objets', 'gourde', 'Gourde', '', False, gsheet.ACTIVE,
+               '{ id = "gourde", taille = 3, bonus = { force = 2 }, nom = "3" }']
+        chiffre = ['objets', 'gourde', 'Gourde', '', False, gsheet.ACTIVE,
+                   '{ id = "gourde", taille = 3, bonus = { force = 2 }, nom = 3 }']
+        self.assertFalse(gsheet.equivalent_rows(mot, chiffre))
+
     def test_tabs_cover_each_family_once(self):
         plan = gsheet.feuilles()
         self.assertEqual(len(plan), len(gsheet.lcm_db.FAMILIES) + 5)

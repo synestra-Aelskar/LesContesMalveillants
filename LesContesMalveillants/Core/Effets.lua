@@ -3,7 +3,10 @@
 -- Un trait, un objet equipe : deux choses differentes, un seul langage.
 --   * `bonus`    : { [champ] = montant } — sur les six primaires, seulement
 --                  pour un objet (voir Lire) ;
---   * `avantage` : des jets relances, dont on garde le meilleur.
+--   * `avantage` : des jets relances, dont on garde le meilleur ;
+--   * `desavantage` : des jets relances, dont on garde le PIRE. Il se declare,
+--                  comme l'avantage : un bonus negatif ne l'impose pas (le MJ,
+--                  24 octobre 2026 — « c'est beaucoup trop punitif »).
 --
 -- Ce module tient la REGLE (ce qu'un effet a le droit de viser) et la SOMME
 -- (ce que tout ce qu'on porte donne sur un champ). Les registres (Traits,
@@ -14,6 +17,10 @@ local _, LCM = ...
 
 local Effets = { sources = {} }
 LCM.Effets = Effets
+
+-- Partagee et en lecture seule : un element qui ne declare aucun desavantage
+-- n'a pas besoin de sa propre table vide.
+local VIDE_DESAVANTAGE = {}
 
 -- Les six primaires sont hors de portee : c'est une regle de jeu, donc elle
 -- est verifiee par le code et pas seulement ecrite quelque part.
@@ -27,7 +34,7 @@ Effets.PRIMAIRES = {
 -- `primairesPermises` : un objet peut donner de la Force (le template en a),
 -- un trait jamais.
 function Effets.Lire(id, definition, Erreur, primairesPermises)
-    local bonus, avantage = {}, {}
+    local bonus, avantage, desavantage = {}, {}, {}
     for fieldId, value in pairs(definition.bonus or {}) do
         local cible = tostring(fieldId)
         if Effets.PRIMAIRES[cible] and not primairesPermises then
@@ -42,7 +49,14 @@ function Effets.Lire(id, definition, Erreur, primairesPermises)
     for _, fieldId in ipairs(definition.avantage or {}) do
         avantage[tostring(fieldId)] = true
     end
-    return bonus, avantage
+    -- Le desavantage se declare jet par jet, comme l'avantage. Avant le
+    -- 24 octobre 2026, il n'existait pas : c'est le SIGNE du bonus qui
+    -- l'imposait, et un etat qui retirait un point d'Adresse condamnait tous
+    -- les jets d'Adresse.
+    for _, fieldId in ipairs(definition.desavantage or {}) do
+        desavantage[tostring(fieldId)] = true
+    end
+    return bonus, avantage, desavantage
 end
 
 -- Une source : ce qu'une entite porte de ce genre. `portes(entity)` renvoie
@@ -122,11 +136,23 @@ end
 -- comme on choisit ses forces (regle du 5 octobre 2026).
 --
 -- Rend l'element fautif et le nom de sa source, comme Avantage.
+-- Les sources dont un bonus negatif n'impose PLUS le desavantage : les etats,
+-- qu'on subit. Un trait, lui, est un defaut qu'on a choisi a la creation — « on
+-- ne choisit pas ses faiblesses » reste vrai pour lui (le MJ, 24 octobre 2026).
+local SUBI = { ["etat"] = true, ["état temporaire"] = true }
+
+-- Le desavantage sur ce jet : celui qu'un element DECLARE, ou, pour ce qui
+-- n'est pas subi, celui qu'un bonus negatif impose encore.
 function Effets.Desavantage(entity, fieldId)
     local cible = tostring(fieldId)
     for _, source in ipairs(Effets.sources) do
         for _, element in ipairs(source.portes(entity)) do
-            if (element.bonus[cible] or 0) < 0 then return element, source.nom end
+            if (element.desavantage or VIDE_DESAVANTAGE)[cible] then
+                return element, source.nom
+            end
+            if not SUBI[source.nom] and (element.bonus[cible] or 0) < 0 then
+                return element, source.nom
+            end
         end
     end
     return nil

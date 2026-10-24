@@ -139,7 +139,7 @@ def stale_rows(before: dict | None, drafts: dict[str, list[object]],
     old = (before or {}).get("drafts", {})
     return {key for key, row in drafts.items()
             if (before is None or old.get(key) == db.digest(row))
-            and local.get(key) is not None and local[key] != row}
+            and local.get(key) is not None and not db.equivalent_rows(local[key], row)}
 
 
 def stage_changes(api: db.Sheets, sheet_id: str,
@@ -172,7 +172,7 @@ def stage_changes(api: db.Sheets, sheet_id: str,
                                 remote[1][4] if remote else family in db.lcm_db.RESERVED_MJ,
                                 db.DELETED, remote[1][6] if remote else ""])
         new_hash = db.digest(row)
-        if remote_hash == new_hash:
+        if remote_hash == new_hash or (remote is not None and db.equivalent_rows(row, remote[1])):
             continue
         if remote_hash != base_hash or (local_hash not in (base_hash, new_hash)):
             # Un point pose ne bloque pas la synchronisation : le plus recent

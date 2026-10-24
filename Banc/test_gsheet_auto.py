@@ -68,6 +68,36 @@ class AutoSyncTest(unittest.TestCase):
                 auto.stage_changes(sheet, "sheet", {"traits/temoin": edited}, set())
         self.assertEqual(sheet.rows, [remote])
 
+    def test_un_nombre_ecrit_en_texte_nest_pas_un_conflit(self):
+        # Meme contenu, deux ecritures : le cout saisi en jeu arrive en texte
+        # (« 2 »), la feuille le rend en nombre. L'empreinte differe, donc le
+        # service criait au conflit et la file d'envoi du MJ ne se vidait plus.
+        texte = auto.draft_row("traits", {"id": "temoin", "label": "Temoin", "cout": "2"})
+        nombre = auto.draft_row("traits", {"id": "temoin", "label": "Temoin", "cout": 2})
+        self.assertNotEqual(db.digest(texte), db.digest(nombre))
+
+        # Rien a renvoyer : le brouillon n'a pas bouge depuis le dernier
+        # passage, et la ligne locale dit deja la meme chose.
+        self.assertEqual(
+            auto.stale_rows({"drafts": {"traits/temoin": db.digest(texte)}},
+                            {"traits/temoin": texte}, {"traits/temoin": nombre}),
+            set())
+
+        # Et rien ne part vers la feuille, sans conflit ni ecriture inutile.
+        sheet = MemorySheet([nombre])
+        with patch.object(db, "load_state", return_value={"traits/temoin": db.digest(nombre)}), \
+             patch.object(db, "local_rows", return_value={"traits/temoin": nombre}):
+            self.assertEqual(
+                auto.stage_changes(sheet, "sheet", {"traits/temoin": texte}, set()), [])
+        self.assertEqual(sheet.rows, [nombre])
+
+        # Un cout qui change VRAIMENT repart, lui.
+        trois = auto.draft_row("traits", {"id": "temoin", "label": "Temoin", "cout": 3})
+        self.assertEqual(
+            auto.stale_rows({"drafts": {"traits/temoin": db.digest(trois)}},
+                            {"traits/temoin": trois}, {"traits/temoin": nombre}),
+            {"traits/temoin"})
+
     def test_cleanup_removes_only_published_drafts(self):
         with tempfile.TemporaryDirectory(dir=ROOT / "Banc") as directory:
             root = Path(directory)

@@ -758,6 +758,32 @@ SlashCmdList = {}
 function __sansCouleur(texte)
     return (tostring(texte or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
 end
+
+-- La forge ne voit plus, le temps d'un appel, que les jeux d'equilibrage que le
+-- scenario declare lui-meme pour cette categorie. La seance en cree : un
+-- scenario qui se posait sur leur ABSENCE devenait rouge des que le MJ en
+-- forgeait un, et deux jeux en vue empechaient la forge d'en choisir un seul
+-- (24 octobre 2026). Ce qui est ajoute pendant l'appel reste ; ce qu'on avait
+-- mis de cote revient a sa place.
+function __sansJeux(categorieId, fn)
+    local liste, copie, avant = LCM.Forge.list, {}, {}
+    for i, jeu in ipairs(liste) do copie[i] = jeu avant[jeu] = true end
+    local function Remplir(source)
+        for i = #liste, 1, -1 do liste[i] = nil end
+        for i, jeu in ipairs(source) do liste[i] = jeu end
+    end
+    local garde = {}
+    for _, jeu in ipairs(copie) do
+        if jeu.categorie ~= categorieId then garde[#garde + 1] = jeu end
+    end
+    Remplir(garde)
+    local ok, err = pcall(fn)
+    for _, jeu in ipairs(liste) do
+        if not avant[jeu] then copie[#copie + 1] = jeu end
+    end
+    Remplir(copie)
+    if not ok then error(err, 0) end
+end
 '''
 
 CHARGEUR = """

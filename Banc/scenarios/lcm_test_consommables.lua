@@ -60,31 +60,40 @@ dire("== La forge des consommables")
 local F = LCM.UI.Forge
 attendu("la forge sait creer un consommable", F.EstCategorie(cat), true)
 attendu("son Type vient de la liste consommable", F.ListeDuType(cat), "consommables")
--- Sans jeu, la forge refuse et dit pourquoi : le bareme bloque.
-local ok, raison = F.Ouvrir("consommables")
-attendu("sans jeu d'equilibrage : refus", ok, false)
-attendu("  qui dit quoi faire", tostring(raison):find("Jeux d'équilibrage") ~= nil, true)
+-- La seance a desormais ses propres jeux d'equilibrage pour les consommables
+-- (le MJ en a cree, base regeneree le 24 octobre 2026). Un scenario ne se tient
+-- pas sur le contenu de la seance : on les met de cote (__sansJeux), et la
+-- forge ne voit que le jeu temoin. Sans cela, « sans jeu : refus » ne se
+-- verifiait plus et, deux jeux etant en vue, la forge n'en choisissait aucun.
+local element
+__sansJeux("consommables", function()
+    -- Sans jeu, la forge refuse et dit pourquoi : le bareme bloque.
+    local ok, raison = F.Ouvrir("consommables")
+    attendu("sans jeu d'equilibrage : refus", ok, false)
+    attendu("  qui dit quoi faire", tostring(raison):find("Jeux d'équilibrage") ~= nil, true)
 
-LCM.Forge.Add({
-    id = "jeu_consommables_temoin", label = "Consommables témoin", categorie = "consommables",
-    raretes = { { id = "commun", label = "Commun", points = 10, couleur = "FFFFFF" } },
-    champs = { ["rend:pv"] = { cout = "1", base = "0", max = "5" } },
-})
-attendu("avec un jeu : la forge s'ouvre", F.Ouvrir("consommables"), true)
-F.courant.nom = "Bandage de lin"
-F.courant.type = "temoin_bandage"
--- Un critere, pas une statistique : depuis le 23 octobre 2026, une
--- statistique ne passe que par l'etat que le consommable pose, et ce
--- consommable n'en pose pas (Core/Consommation.lua).
-F.courant.valeurs["rend:pv"] = 2
-local cree, element = F.Creer()
-attendu("le consommable est cree", cree, true)
-attendu("  dans son registre", element and LCM.Consommables.Get(element.id) ~= nil, true)
-attendu("  pas parmi les ressources", element and LCM.Ressources.Get(element.id), nil)
-attendu("  avec son type", element and element.type, "temoin_bandage")
-attendu("  et sa forge", element and element.forge, "jeu_consommables_temoin/commun")
-attendu("  et son critere", element and element.bonus["rend:pv"], 2)
-F.Fenetre():Hide()
+    LCM.Forge.Add({
+        id = "jeu_consommables_temoin", label = "Consommables témoin", categorie = "consommables",
+        raretes = { { id = "commun", label = "Commun", points = 10, couleur = "FFFFFF" } },
+        champs = { ["rend:pv"] = { cout = "1", base = "0", max = "5" } },
+    })
+    attendu("avec un jeu : la forge s'ouvre", F.Ouvrir("consommables"), true)
+    F.courant.nom = "Bandage de lin"
+    F.courant.type = "temoin_bandage"
+    -- Un critere, pas une statistique : depuis le 23 octobre 2026, une
+    -- statistique ne passe que par l'etat que le consommable pose, et ce
+    -- consommable n'en pose pas (Core/Consommation.lua).
+    F.courant.valeurs["rend:pv"] = 2
+    local cree
+    cree, element = F.Creer()
+    attendu("le consommable est cree", cree, true)
+    attendu("  dans son registre", element and LCM.Consommables.Get(element.id) ~= nil, true)
+    attendu("  pas parmi les ressources", element and LCM.Ressources.Get(element.id), nil)
+    attendu("  avec son type", element and element.type, "temoin_bandage")
+    attendu("  et sa forge", element and element.forge, "jeu_consommables_temoin/commun")
+    attendu("  et son critere", element and element.bonus["rend:pv"], 2)
+    F.Fenetre():Hide()
+end)
 
 dire("== Il vit comme les autres familles")
 local ref = "consommables/" .. element.id

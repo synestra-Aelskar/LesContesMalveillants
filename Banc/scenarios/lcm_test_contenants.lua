@@ -115,10 +115,15 @@ attendu("l'eau passe", K.Accepte(seuleEau, "consommables/eau"), true)
 attendu("le lait, boisson pourtant, non", select(2, K.Accepte(seuleEau, "consommables/lait")),
     "« Gourde à eau » n'accepte, en Boisson témoin, que : Eau.")
 attendu("un type sans entree nommee reste entier", K.Accepte(gourde, "consommables/lait"), true)
-attendu("la definition le garde", (B.Enregistrer("objets", { id = "gourde_eau", label = "Gourde à eau",
-    categorie = "outil", contenant = seuleEau.contenant }, true)), true)
-attendu("la carte le dit", C.Get("outils").lire.contenantResume(LCM.Objets.Get("gourde_eau")),
-    "Boisson témoin (Eau) — taille 10, 1 par usage")
+-- Hors des jeux de la seance : depuis que le MJ en a forge un qui vise les
+-- outils, un enregistrement sans rarete est refuse POUR CELA, et ce n'est pas
+-- la regle qu'on verifie ici (24 octobre 2026).
+__sansJeux("outils", function()
+    attendu("la definition le garde", (B.Enregistrer("objets", { id = "gourde_eau", label = "Gourde à eau",
+        categorie = "outil", contenant = seuleEau.contenant }, true)), true)
+    attendu("la carte le dit", C.Get("outils").lire.contenantResume(LCM.Objets.Get("gourde_eau")),
+        "Boisson témoin (Eau) — taille 10, 1 par usage")
+end)
 
 dire("== Une case d'avant le transfert")
 -- La Gourde runique du MJ : ressource, puis consommable, puis outil. Sa case

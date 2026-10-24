@@ -54,6 +54,11 @@ LCM.db.coffresMJ = {
 __declencher("PLAYER_LOGIN")
 __personnage()
 __avancer(1)
+-- La seance tient maintenant ses propres coffres en garde — ceux que l'autre
+-- MJ a poses, livres par la base commune. Veiller() en reprenait vingt-six de
+-- plus que le coffre temoin (24 octobre 2026) : un scenario ne compte que ce
+-- qu'il a pose lui-meme.
+for id in pairs(LCM.db.coffresGarde or {}) do LCM.db.coffresGarde[id] = nil end
 local C, MJ = LCM.Coffres, LCM.CoffresMJ
 local MOI = LCM.PlayerId()
 

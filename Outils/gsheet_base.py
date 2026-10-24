@@ -13,10 +13,12 @@ import base64
 import gzip
 import hashlib
 import json
+import math
 import os
 import sys
 import time
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -74,6 +76,16 @@ def validate_tool_extensions(family: str, identifier: str, definition: dict) -> 
                 raise ValueError(f"contenant illisible : {identifier}")
             def entier(cle: str) -> int:
                 valeur = contenant.get(cle)
+                # Les champs saisis en jeu restent parfois du texte dans les
+                # brouillons. Contenants.Lire les accepte via tonumber : lire
+                # la meme valeur ici, sans modifier la definition sauvegardee.
+                if isinstance(valeur, str):
+                    try:
+                        valeur = float(valeur.strip())
+                    except ValueError:
+                        raise ValueError(f"{cle} du contenant illisible : {identifier}") from None
+                if isinstance(valeur, float) and not math.isfinite(valeur):
+                    raise ValueError(f"{cle} du contenant illisible : {identifier}")
                 if isinstance(valeur, bool) or not isinstance(valeur, (int, float)) or valeur != int(valeur) or valeur < 1:
                     raise ValueError(f"{cle} du contenant illisible : {identifier}")
                 return int(valeur)
@@ -190,6 +202,60 @@ def en_tetes(tab: str) -> list[str]:
 def digest(row: list[object]) -> str:
     payload = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def equivalent_rows(a: list[object], b: list[object]) -> bool:
+    """Compare les champs numeriques connus, sans reecrire le contenu.
+
+    Les empreintes historiques restent inchangees : changer digest invaliderait
+    les bases de comparaison existantes. Ni les textes ni les identifiants ne
+    sont convertis, et une valeur differente reste un vrai conflit.
+    """
+    if a == b:
+        return True
+    if a[:6] != b[:6]:
+        return False
+    family = a[0]
+
+    def numeric(path):
+        if family in {"objets", "traits", "races"} and len(path) == 2 and path[0] == "bonus":
+            return True
+        if family == "objets":
+            return path == ("taille",) or path in {( "etat", k) for k in ("courant", "max", "version")} or path in {("contenant", "taille"), ("contenant", "retrait")}
+        if family == "traits":
+            return path == ("cout",)
+        if family == "listes":
+            return path == ("maxEquipe",)
+        if family == "cristaux":
+            return path == ("duree",)
+        if family == "pnj":
+            return len(path) == 2 and path[0] in {"valeurs", "metiersNiveaux"}
+        if family == "jeux":
+            return len(path) == 3 and ((path[0] == "champs" and path[2] in {"base", "cout", "min", "max"}) or (path[0] == "raretes" and path[2] in {"points", "coutTrait"}))
+        return False
+
+    def equal(x, y, path=()):
+        if isinstance(x, dict) and isinstance(y, dict):
+            for key in set(x) | set(y):
+                if key not in x or key not in y:
+                    # Ces deux collections vides sont ajoutees au PNJ en jeu.
+                    if family == "pnj" and not path and key in {"apprentissages", "etats"} and (x[key] if key in x else y[key]) == {}:
+                        continue
+                    return False
+                if not equal(x[key], y[key], path + (key,)):
+                    return False
+            return True
+        if type(x) is type(y) and x == y:
+            return True
+        if numeric(path) and type(x) in (int, float, str) and type(y) in (int, float, str):
+            try:
+                nx, ny = Decimal(str(x)), Decimal(str(y))
+                return nx.is_finite() and ny.is_finite() and nx == ny
+            except InvalidOperation:
+                return False
+        return False
+
+    return equal(lcm_db.LuaParser(a[6]).value(), lcm_db.LuaParser(b[6]).value())
 
 
 def feuilles() -> dict[str, dict]:
@@ -783,7 +849,7 @@ def synchronise(api: Sheets, sheet_id: str, classeur: str, families: set[str],
                 appends.append(here)
         elif here is not None and there is not None:
             local_hash, remote_hash = digest(here), digest(there[1])
-            if local_hash == remote_hash:
+            if local_hash == remote_hash or equivalent_rows(here, there[1]):
                 continue
             if old == local_hash:
                 pulls.append(there[1])

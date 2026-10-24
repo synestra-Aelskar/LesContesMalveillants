@@ -3,6 +3,7 @@
 #   .\publier.ps1              -> publie l'addon ET le compagnon MJ
 #   .\publier.ps1 -Apercu      -> prepare tout sans rien pousser
 #   .\publier.ps1 -Message "…" -> impose le message de commit
+#   .\publier.ps1 -Forcer      -> passe outre les garde-fous (dernier recours)
 #
 # Le compagnon MJ part dans le MEME depot, dans son propre dossier : il n'y a
 # aucun secret dans son code, seulement du contenu. Ce qui protege les joueurs,
@@ -39,9 +40,47 @@ function Get-TocVersion($tocPath) {
     return '0.0.0'
 }
 
+# ----- empreintes : toujours celles du DEPOT, jamais celles du clone --------
+# Les garde-fous « a deux » comparent ce que le depot porte a ce qu'on avait
+# publie. Ils lisaient le fichier DANS LE CLONE — or le clone est reecrit par
+# chaque apercu et remis a plat (`reset --hard`) a chaque lancement : on
+# comparait donc notre propre copie a elle-meme, la reponse etait toujours
+# « rien n'a bouge », et le garde-fou a laisse passer une republication qui
+# annulait 46 lignes de README et 80 de CLAUDE.md ecrites par le binome.
+#
+# L'empreinte retenue est celle de git (`hash-object`), identique des deux
+# cotes puisque `.gitattributes` interdit toute normalisation de fins de ligne.
+# `ls-tree` sort vide et rend 0 quand le chemin n'existe pas : pas de sortie
+# d'erreur a attraper.
+function Empreinte-Commit($commit, $chemin) {
+    $ligne = & git -C $clone ls-tree $commit -- $chemin
+    if (-not $ligne) { return $null }
+    $champs = ($ligne -split '\s+')
+    if ($champs.Count -lt 3) { return $null }
+    return $champs[2]
+}
+function Empreinte-Depot($chemin) { return (Empreinte-Commit ('origin/' + $LcmBranch) $chemin) }
+
+# Une empreinte d'avant ce correctif est un SHA256 de fichier (64 caracteres) :
+# incomparable avec un identifiant git (40). On ne compare pas plutot que de
+# comparer faux ; la prochaine publication ecrit la nouvelle forme.
+function Empreinte-Comparable($valeur) {
+    return ($valeur -and $valeur.Length -eq 40 -and $valeur -match '^[0-9a-f]{40}$')
+}
+
+# Les deux fichiers que le depot porte et que nous ne publions plus. Sans cette
+# liste, le garde-fou de la fin crierait a la perte a chaque publication.
+$NePlusPublier = @(
+    # Atlas de glyphes engendre pour un lecteur de livres abandonne : il n'est
+    # declare dans aucun .toc, rien ne le cite, le jeu ne le charge donc pas.
+    'LesContesMalveillants/UI/LivresGlyphes.lua'
+)
+
 # Copie un dossier d'addon : uniquement ce que WoW charge (fichiers du .toc,
 # le .toc, version.txt) plus les textures. Les notes de travail restent ici.
-function Copy-Addon($source, $destination) {
+# `$extras` liste ce qui voyage sans etre charge par le jeu — du code que le
+# destinataire recoit par le depot (voir l'appel du compagnon MJ).
+function Copy-Addon($source, $destination, $extras) {
     if (-not (Test-Path -LiteralPath $source)) { Stop-Erreur "dossier introuvable : $source" }
     if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
@@ -77,16 +116,37 @@ function Copy-Addon($source, $destination) {
     # Les textures ne sont pas listees dans le .toc : elles sont chargees par leur
     # chemin depuis le Lua. Sans cette copie, l'addon arrive sans son habillage
     # et WoW affiche des carres verts a la place.
+    # Le *.txt n'est pas un oubli : les licences OFL des polices vivent a cote
+    # des .ttf et doivent les accompagner. Le filtre les laissait dehors, et la
+    # publication suivante effacait du depot les quinze licences deja parties.
     foreach ($dossier in @('Media', 'ressources')) {
         $chemin = Join-Path $source $dossier
         if (-not (Test-Path -LiteralPath $chemin)) { continue }
-        $sortie = & robocopy $chemin (Join-Path $destination $dossier) *.tga *.blp *.ttf /S /NFL /NDL /NJH /NJS /NP
+        $sortie = & robocopy $chemin (Join-Path $destination $dossier) *.tga *.blp *.ttf *.txt /S /NFL /NDL /NJH /NJS /NP
         if ($LASTEXITCODE -ge 8) { Write-Host ($sortie -join [Environment]::NewLine); Stop-Erreur ('copie de ' + $dossier + ' impossible.') }
         $global:LASTEXITCODE = 0
         $nombre = (Get-ChildItem -LiteralPath (Join-Path $destination $dossier) -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count
         Ok ((Split-Path $source -Leaf) + " : $nombre fichier(s) dans $dossier.")
     }
     Ok ((Split-Path $source -Leaf) + " : $copies fichier(s) du .toc.")
+
+    # Ce que le jeu ne charge pas mais que le depot doit porter quand meme.
+    $nExtras = 0
+    foreach ($motif in @($extras)) {
+        if (-not $motif) { continue }
+        $dossierSource = Join-Path $source (Split-Path $motif -Parent)
+        if (-not (Test-Path -LiteralPath $dossierSource)) { continue }
+        foreach ($fichier in (Get-ChildItem -LiteralPath $dossierSource -File -Filter (Split-Path $motif -Leaf))) {
+            $cible = Join-Path $destination ((Split-Path $motif -Parent) + [char]92 + $fichier.Name)
+            $dossier = Split-Path $cible -Parent
+            if (-not (Test-Path -LiteralPath $dossier)) { New-Item -ItemType Directory -Force -Path $dossier | Out-Null }
+            Copy-Item -LiteralPath $fichier.FullName -Destination $cible -Force
+            $nExtras++
+        }
+    }
+    if ($nExtras -gt 0) {
+        Ok ((Split-Path $source -Leaf) + " : $nExtras fichier(s) hors .toc (service, installeurs).")
+    }
 }
 
 Etape 'Preparation'
@@ -159,7 +219,20 @@ $aTracer = @()
 Etape 'Copie'
 $version = Get-TocVersion (Join-Path $LcmAddOns ($LcmAddonFolder + '\' + $LcmAddonFolder + '.toc'))
 Copy-Addon (Join-Path $LcmAddOns $LcmAddonFolder) (Join-Path $clone $LcmAddonFolder)
-Copy-Addon (Join-Path $LcmAddOns $LcmMasterFolder) (Join-Path $clone $LcmMasterFolder)
+# Le service de synchro voyage avec le compagnon : c'est par le depot que le
+# binome le recoit (decision du 21 octobre 2026, ecrite dans CLAUDE.md). Son
+# CODE seulement — ni la cle Google, ni les fichiers d'etat, ni `entries/`,
+# qui sont la base commune et vivent a la racine du depot.
+# Les fichiers sont nommes un par un, et non pris au motif `Sync\Outils\*` :
+# une cle ou un jeton depose la un jour partirait avec eux sans qu'on le voie.
+Copy-Addon (Join-Path $LcmAddOns $LcmMasterFolder) (Join-Path $clone $LcmMasterFolder) @(
+    'Sync\Outils\gsheet_auto.py',
+    'Sync\Outils\gsheet_base.py',
+    'Sync\Outils\feuilles_lcm.json',
+    'Sync\Outils\installer_sync.ps1',
+    'Sync\Outils\installer_sync.cmd',
+    'Sync\database\lcm_db.py'
+)
 
 # Le banc de test part avec l'addon : sans lui, personne d'autre ne peut
 # verifier son travail sans lancer le jeu. Les fichiers stables (lanceur,
@@ -181,10 +254,7 @@ if (Test-Path -LiteralPath $bancSource) {
     # republication qui annulait le mode d'emploi du banc reecrit par l'autre.
     $empreintesDepot = @{}
     foreach ($fichier in (Get-ChildItem -LiteralPath $bancSource -File)) {
-        $cible = Join-Path $bancCible $fichier.Name
-        if (Test-Path -LiteralPath $cible) {
-            $empreintesDepot[$fichier.Name] = (Get-FileHash -LiteralPath $cible).Hash
-        }
+        $empreintesDepot[$fichier.Name] = Empreinte-Depot ('Banc/' + $fichier.Name)
     }
     # Un fichier present dans le depot mais absent d'ici disparaitrait sans un
     # mot, efface par le Remove-Item et jamais recopie. On le rapatrie.
@@ -203,8 +273,14 @@ if (Test-Path -LiteralPath $bancSource) {
         }
     }
 
-    if (Test-Path -LiteralPath $bancCible) { Remove-Item -LiteralPath $bancCible -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path (Join-Path $bancCible 'scenarios') | Out-Null
+    # On ne rase plus tout `Banc\` : seuls les scenarios sont refaits a neuf.
+    # Le dossier porte aussi ce que nous n'engendrons pas — `apercus\`, treize
+    # captures de reference du binome — et un `Remove-Item -Recurse` les
+    # effacait du depot a chaque publication, sans un mot (la reprise d'un
+    # fichier « present dans le depot seulement » ne regardait que la racine).
+    $scenariosCible = Join-Path $bancCible 'scenarios'
+    if (Test-Path -LiteralPath $scenariosCible) { Remove-Item -LiteralPath $scenariosCible -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $scenariosCible | Out-Null
 
     foreach ($fichier in (Get-ChildItem -LiteralPath $bancSource -File)) {
         $cible = Join-Path $bancCible $fichier.Name
@@ -212,12 +288,12 @@ if (Test-Path -LiteralPath $bancSource) {
         $avant = $empreintesDepot[$fichier.Name]
         if ($avant -and (Test-Path -LiteralPath $trace)) {
             $publie = (Get-Content -LiteralPath $trace -Raw).Trim()
-            if ($publie -and $avant -ne $publie) {
+            if ((Empreinte-Comparable $publie) -and $avant -ne $publie) {
                 Stop-Erreur ('Banc' + [char]92 + $fichier.Name + " a ete modifie dans le depot depuis la derniere publication. Reporte ces changements dans Banc" + [char]92 + $fichier.Name + ", puis relance.")
             }
         }
         Copy-Item -LiteralPath $fichier.FullName -Destination $cible -Force
-        $aTracer += @{ trace = $trace; cible = $cible }
+        $aTracer += @{ trace = $trace; chemin = ('Banc/' + $fichier.Name) }
     }
     $moteur = Join-Path $LcmBanc 'scenarios\lcm_bench.py'
     if (-not (Test-Path -LiteralPath $moteur)) { Stop-Erreur "banc introuvable : $moteur" }
@@ -241,15 +317,15 @@ if (Test-Path -LiteralPath $depot) {
     foreach ($fichier in (Get-ChildItem -LiteralPath $depot -File)) {
         $cible = Join-Path $clone $fichier.Name
         $trace = Join-Path $traces ($fichier.Name + '.sha')
-        if ((Test-Path -LiteralPath $cible) -and (Test-Path -LiteralPath $trace)) {
+        if (Test-Path -LiteralPath $trace) {
             $publie = (Get-Content -LiteralPath $trace -Raw).Trim()
-            $actuel = (Get-FileHash -LiteralPath $cible).Hash
-            if ($actuel -ne $publie) {
+            $actuel = Empreinte-Depot $fichier.Name
+            if ((Empreinte-Comparable $publie) -and $actuel -and $actuel -ne $publie) {
                 Stop-Erreur ($fichier.Name + " a ete modifie dans le depot depuis la derniere publication. Reporte ces changements dans Depot" + [char]92 + $fichier.Name + ", puis relance.")
             }
         }
         Copy-Item -LiteralPath $fichier.FullName -Destination $cible -Force
-        $aTracer += @{ trace = $trace; cible = $cible }
+        $aTracer += @{ trace = $trace; chemin = $fichier.Name }
     }
     Ok ((Get-ChildItem -LiteralPath $depot -File | Measure-Object).Count.ToString() + ' fichier(s) de racine.')
 }
@@ -275,14 +351,15 @@ foreach ($fichier in (Get-ChildItem -LiteralPath $outils -File)) {
     $trace = Join-Path $tracesOutils ($fichier.Name + '.sha')
     # Meme garde-fou que les fichiers de racine : si le depot a bouge depuis
     # notre derniere publication, c'est que l'autre y a touche.
-    if ((Test-Path -LiteralPath $cible) -and (Test-Path -LiteralPath $trace)) {
+    if (Test-Path -LiteralPath $trace) {
         $publie = (Get-Content -LiteralPath $trace -Raw).Trim()
-        if ($publie -and (Get-FileHash -LiteralPath $cible).Hash -ne $publie) {
+        $actuel = Empreinte-Depot ('Outils/' + $fichier.Name)
+        if ((Empreinte-Comparable $publie) -and $actuel -and $actuel -ne $publie) {
             Stop-Erreur ('Outils' + [char]92 + $fichier.Name + " a ete modifie dans le depot depuis la derniere publication. Recupere-le, reporte tes changements, puis relance.")
         }
     }
     Copy-Item -LiteralPath $fichier.FullName -Destination $cible -Force
-    $aTracer += @{ trace = $trace; cible = $cible }
+    $aTracer += @{ trace = $trace; chemin = ('Outils/' + $fichier.Name) }
     $nOutils++
 }
 Ok ("$nOutils fichier(s) d'outillage.")
@@ -309,6 +386,42 @@ Set-Content -LiteralPath (Join-Path $clone 'VERSION.txt') -Value @(
     'LesContesMalveillants      : l''addon, pour tout le monde.',
     'LesContesMalveillants_MJ   : contenu du maitre du jeu, a ne pas distribuer.'
 ) -Encoding UTF8
+
+# ----- rien de suivi ne disparait sans un mot ------------------------------
+# Le garde-fou de dernier recours, et celui qui aurait attrape tous les autres.
+# Les precedents surveillent chacun SON dossier ; celui-ci regarde ce que le
+# depot porte et constate ce qui ne serait plus la. Il a trouve, la premiere
+# fois qu'il a tourne : quinze licences de polices, le service de synchro du
+# compagnon MJ et treize captures du banc, tous effaces en silence par les
+# publications precedentes.
+#
+# Ce qu'on retire volontairement se declare dans $NePlusPublier, avec la
+# raison. Un fichier qui n'y est pas arrete la publication : on prefere une
+# publication qui refuse a un depot qui maigrit sans qu'on le sache.
+Etape 'Verification'
+$suivis = & git -C $clone ls-tree -r --name-only ('origin/' + $LcmBranch)
+$perdus = @()
+foreach ($chemin in $suivis) {
+    if (-not $chemin) { continue }
+    if ($NePlusPublier -contains $chemin) { continue }
+    if (-not (Test-Path -LiteralPath (Join-Path $clone ($chemin -replace '/', [char]92)))) {
+        $perdus += $chemin
+    }
+}
+if ($perdus.Count -gt 0) {
+    Write-Host ''
+    Alerte 'Ces fichiers sont dans le depot et ne seraient plus publies :'
+    foreach ($p in $perdus) { Info ('  ' + $p) }
+    Write-Host ''
+    if (-not $Forcer) {
+        Stop-Erreur ("publier maintenant les effacerait du depot. S'ils doivent partir, " +
+            "inscris-les dans " + '$NePlusPublier' + " (avec la raison) en tete de ce script ; " +
+            "sinon remets-les dans le dossier qui les porte. Si tu sais ce que tu fais : publier.ps1 -Forcer")
+    }
+    Alerte '-Forcer : on publie quand meme, ces fichiers quittent le depot.'
+} else {
+    Ok ('Aucun fichier du depot ne disparait (' + ($suivis | Measure-Object).Count + ' suivis).')
+}
 
 if ($Apercu) {
     Alerte ('Apercu : rien n''a ete pousse. Contenu pret dans ' + $clone)
@@ -347,8 +460,11 @@ if ($apres) {
     Set-Content -LiteralPath $traceBase -Value $apres.Trim() -Encoding UTF8
 }
 
+# L'empreinte retenue est celle du contenu TEL QU'IL VIENT D'ETRE COMMITE :
+# c'est a elle que la prochaine publication comparera le depot.
 foreach ($t in $aTracer) {
-    Set-Content -LiteralPath $t.trace -Value (Get-FileHash -LiteralPath $t.cible).Hash -Encoding ASCII
+    $sha = Empreinte-Commit 'HEAD' $t.chemin
+    if ($sha) { Set-Content -LiteralPath $t.trace -Value $sha -Encoding ASCII }
 }
 $ErrorActionPreference = $ancienneReaction
 

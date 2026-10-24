@@ -82,6 +82,11 @@ local ORDRE_SECTIONS = { "ceintures", "sacs", "saccoches", "cristaux_usage" }
 -- titre « Saccoches » sont du MJ ; la couleur des Saccoches et la poche ont
 -- recu les leurs pour se distinguer.
 local SECTIONS = {
+    -- La Bourse ouvre la colonne (le MJ, 24 octobre 2026) : elle avait sa
+    -- fenetre et son cran du menu radial, qu'on a libere. Ce n'est pas une
+    -- categorie d'emplacements — ses lignes viennent de UI/Bourse.lua —, mais
+    -- elle porte le meme bandeau que les autres sections.
+    bourse         = { titre = "Bourse", couleur = { 0.72, 0.56, 0.18 } },
     ceintures      = { titre = "Ceinture", couleur = { 0.22, 0.42, 0.78 } },
     sacs           = { titre = "Sac", couleur = { 0.50, 0.32, 0.16 } },
     saccoches      = { titre = "Saccoches", couleur = { 0.22, 0.45, 0.28 } },
@@ -89,6 +94,14 @@ local SECTIONS = {
     cristaux_usage = { titre = "Cristaux", couleur = { 0.45, 0.30, 0.70 } },
 }
 local BANDEAU_H = 20
+
+-- La Bourse n'est pas une categorie d'emplacements : ce jeton lui donne un
+-- bandeau comme aux autres. Son identifiant sert aussi de CHOIX de la colonne
+-- (`f.choisi`), a cote des rangs de carte — d'ou une chaine et non un nombre.
+local SECTION_BOURSE = { id = "bourse", label = "Bourse" }
+local CHOIX_BOURSE = SECTION_BOURSE.id
+-- L'icone de la Bourse de l'addon : celle qui ornait son cran du menu radial.
+local ICONE_BOURSE = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\fenetres-bourse.tga"
 
 local function CategoriesEnOrdre()
     local out, vues = {}, {}
@@ -1079,6 +1092,53 @@ local function Carte(f)
     return c
 end
 
+-- La carte « Monnaies » (le MJ, 24 octobre 2026). Elle a l'allure d'un
+-- emplacement, mais elle n'en est pas un : rien ne s'y equipe, rien ne s'y
+-- reorganise. On la choisit, et la colonne de droite liste les devises — comme
+-- un sac montre son contenu. Une pile de monnaie lachee dessus retourne en
+-- bourse, quelle que soit la monnaie : la carte la route.
+local function CarteBourse(f)
+    local c = CreateFrame("Button", nil, f.colonne.contenu)
+    c:RegisterForClicks("LeftButtonUp")
+    c.fond = UI.Aplat(c, { 0, 0, 0, 0.2 })
+    c.fond:SetAllPoints(c)
+    UI.BordureFine(c, 0.30)
+    c.survol = UI.Aplat(c, UI.C.survol, "HIGHLIGHT")
+    c.survol:SetAllPoints(c)
+    c.icone = c:CreateTexture(nil, "ARTWORK")
+    c.icone:SetSize(34, 34)
+    c.icone:SetPoint("LEFT", c, "LEFT", 8, 0)
+    c.icone:SetTexture(ICONE_BOURSE)
+    c.nom = UI.Texte(c, "Monnaies", UI.C.titre, "GameFontNormal")
+    c.nom:SetWordWrap(false)
+    c.nom:SetPoint("TOPLEFT", c.icone, "TOPRIGHT", 10, 1)
+    c.nom:SetPoint("RIGHT", c, "RIGHT", -12, 0)
+    c.nom:SetJustifyH("LEFT")
+    c.description = UI.Texte(c, "Devises possédées.", UI.C.discret, "GameFontNormalSmall")
+    c.description:SetWordWrap(false)
+    c.description:SetPoint("TOPLEFT", c.nom, "BOTTOMLEFT", 0, -2)
+    c.description:SetPoint("RIGHT", c, "RIGHT", -12, 0)
+    c.description:SetJustifyH("LEFT")
+    UI.Glisser.Cible(c, function(objet)
+        if not (UI.Bourse and UI.Bourse.Accepte) then return false end
+        return UI.Bourse.Accepte(objet)
+    end, function(objet) UI.Bourse.Reposer(objet) end)
+    c:SetScript("OnClick", function()
+        f.choisi = CHOIX_BOURSE
+        f:Rafraichir()
+    end)
+    c:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Monnaies", 1, 0.82, 0)
+        GameTooltip:AddLine("Clic : voir tes devises.", 0.55, 0.55, 0.55)
+        GameTooltip:AddLine("Pose une pile de monnaie ici pour la remettre en bourse.",
+            0.8, 0.75, 0.62, true)
+        GameTooltip:Show()
+    end)
+    c:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return c
+end
+
 -- ===== La fenetre principale ==============================================
 
 local function Construire()
@@ -1130,6 +1190,7 @@ local function Construire()
         local liste = Emplacements()
         local y, section = 0, nil
         for _, b in pairs(self.bandeaux) do b:Hide() end
+        y = self:Bourse(entity, y)
         for rang, place in ipairs(liste) do
             -- Une nouvelle section : son bandeau d'abord.
             if place.onglet ~= section then
@@ -1170,6 +1231,62 @@ local function Construire()
         for _, c in ipairs(self.cartes) do
             if c:IsShown() and c.onglet == onglet and c.index == index then return c end
         end
+    end
+
+    -- La Bourse ouvre la colonne (le MJ, 24 octobre 2026 : « transvaser la
+    -- Bourse directement dans inventaires, au dessus de Ceintures »). Son
+    -- bandeau, puis UNE carte « Monnaies » : les soldes sont a droite, en
+    -- liste, comme le contenu d'un sac. Rend le `y` ou la suite reprend.
+    --
+    -- Rien quand aucune devise n'est declaree : pas de bandeau pour une section
+    -- vide.
+    function f:Bourse(entity, y)
+        local devises = LCM.Bourse and LCM.Bourse.Liste(entity) or {}
+        if #devises == 0 then
+            if self.carteBourse then self.carteBourse:Hide() end
+            return y
+        end
+        local b = self:Bandeau(SECTION_BOURSE)
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", self.colonne.contenu, "TOPLEFT", 0, -y)
+        -- Combien de monnaies on porte, sur celles qui existent.
+        local portees = 0
+        for _, devise in ipairs(devises) do
+            if (tonumber(devise.solde) or 0) > 0 then portees = portees + 1 end
+        end
+        b.compte:SetText(string.format("%d/%d", portees, #devises))
+        b:Show()
+        y = y + BANDEAU_H + 4
+
+        self.carteBourse = self.carteBourse or CarteBourse(self)
+        local c = self.carteBourse
+        c:SetSize(COLONNE_SACS - 10, CARTE_H_LISTE)
+        c:ClearAllPoints()
+        c:SetPoint("TOPLEFT", self.colonne.contenu, "TOPLEFT", 0, -y)
+        -- Celle qu'on regarde se voit, comme une carte d'emplacement.
+        c.fond:SetColorTexture(0, 0, 0, self.choisi == CHOIX_BOURSE and 0.55 or 0.2)
+        c:Show()
+        return y + CARTE_H_LISTE + 4
+    end
+
+    -- La droite quand c'est « Monnaies » qu'on regarde : les devises en liste,
+    -- les memes lignes que la fenetre Bourse — glissables vers un sac, et une
+    -- pile de monnaie se repose sur la sienne.
+    function f:ContenuBourse()
+        local entity = Entite()
+        self.titreContenu:SetText("Monnaies")
+        -- Les lignes de sac et celles de la bourse se partagent la zone : on
+        -- range les unes avant de poser les autres.
+        for _, l in ipairs(self.lignes) do l:Hide() end
+        self.panneauBourse = self.panneauBourse
+            or UI.Bourse.Panneau(self.zone.contenu, { hauteur = LIGNE_CONTENU + 6 })
+        local haut = self.panneauBourse:Poser(entity, 0)
+        local portees = 0
+        for _, devise in ipairs(LCM.Bourse.Liste(entity)) do
+            if (tonumber(devise.solde) or 0) > 0 then portees = portees + 1 end
+        end
+        self.occupation:SetText(string.format("%d / %d", portees, self.panneauBourse.nombre))
+        self.zone:Regler(math.max(1, haut))
     end
 
     -- Le bandeau d'une section, cree une fois par categorie.
@@ -1221,6 +1338,8 @@ local function Construire()
     -- La droite : le contenu du sac choisi, ligne par ligne.
     function f:Contenu(place)
         local entity = Entite()
+        -- Les devises partagent la zone avec les cases d'un sac : on les range.
+        if self.panneauBourse then self.panneauBourse:Masquer() end
         local e = place and Inv.Emplacement(entity, place.onglet, place.index)
         local contenant = Inv.Contenant(e)
         local sac = contenant and contenant.element
@@ -1434,14 +1553,20 @@ local function Construire()
         -- depuis le 23 octobre 2026, mais ouvrir l'inventaire doit toujours
         -- montrer son sac.
         local places = Emplacements()
-        if not self.choisi or self.choisi > #places then
+        -- « Monnaies » n'est pas un rang de la colonne : c'est un choix a part,
+        -- qui ne tient plus si plus aucune devise n'est declaree.
+        local bourse = self.choisi == CHOIX_BOURSE
+        if bourse and #(LCM.Bourse and LCM.Bourse.Liste(Entite()) or {}) == 0 then
+            self.choisi, bourse = nil, false
+        end
+        if not bourse and (not self.choisi or self.choisi > #places) then
             self.choisi = 1
             for rang, place in ipairs(places) do
                 if place.onglet == "sacs" then self.choisi = rang break end
             end
         end
         local liste = self:Colonne()
-        self:Contenu(liste[self.choisi])
+        if bourse then self:ContenuBourse() else self:Contenu(liste[self.choisi]) end
         Ecran.RafraichirSacs()
     end
 

@@ -185,9 +185,76 @@ attendu("le solde ne se clique pas", f.lignes[1].saisie:IsShown(), false)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
-dire("== l'entree du menu")
-attendu("liee", LCM.UI.Menu.EstLiee("bourse"), true)
+dire("== la Bourse a quitte le radial pour la colonne d'Inventaires")
+-- Le MJ, 24 octobre 2026 : « on va transvaser la Bourse directement dans
+-- inventaires, au dessus de Ceintures. Comme ca, on se libere un slot dans le
+-- menu radial. » La fenetre reste — le MJ consulte celle d'un autre — et la
+-- commande aussi ; seul le cran du radial est rendu.
+attendu("plus de cran radial", LCM.UI.Menu.EstLiee("bourse"), false)
+local dansObjets = false
+for _, e in ipairs(LCM.UI.Menu.Trouver("objets").enfants) do
+    if e.id == "bourse" then dansObjets = true end
+end
+attendu("  l'entree n'y est plus du tout", dansObjets, false)
+
 f:Hide()
+local inv = LCM.UI.Inventaires.Fenetre()
+inv:Show()   -- OnShow rafraichit : la colonne se dessine
+local bandeau = inv.bandeaux and inv.bandeaux.bourse
+attendu("la colonne porte une section Bourse", bandeau ~= nil and bandeau:IsShown(), true)
+attendu("  qui s'annonce", bandeau and bandeau.titre:GetText(), "Bourse")
+-- Combien de monnaies on porte, sur celles qui existent.
+attendu("  et compte ce qu'on porte", bandeau and bandeau.compte:GetText(), "2/4")
+-- Au-dessus de la Ceinture : la colonne descend, donc un y moins negatif.
+attendu("  au-dessus de la Ceinture",
+    select(5, bandeau:GetPoint(1)) > select(5, inv.bandeaux.ceintures:GetPoint(1)), true)
+
+-- A gauche, UNE carte ; les soldes sont a droite (le MJ, 24 octobre 2026).
+local carte = inv.carteBourse
+attendu("une carte, sous le bandeau", carte ~= nil and carte:IsShown(), true)
+attendu("  nommee Monnaies", carte and carte.nom:GetText(), "Monnaies")
+attendu("  et sous-titree", carte and carte.description:GetText(), "Devises possédées.")
+attendu("  avec l'icone de la Bourse",
+    tostring(carte and carte.icone:GetTexture()):find("fenetres%-bourse") ~= nil, true)
+attendu("  juste sous le bandeau",
+    select(5, carte:GetPoint(1)) < select(5, bandeau:GetPoint(1)), true)
+-- Une pile de monnaie lachee dessus retourne en bourse, quelle que soit la
+-- monnaie : la carte la route, on ne vise pas une ligne.
+attendu("  elle accueille une pile", carte.glisserAccepte ~= nil, true)
+
+dire("== on la choisit, et les devises s'affichent a droite, en liste")
+-- Au depart c'est un sac qu'on montre : « Monnaies » est un choix comme un
+-- autre, pas l'ecran d'accueil.
+attendu("un sac au depart", inv.choisi ~= "bourse", true)
+carte:Click()
+attendu("la carte est choisie", inv.choisi, "bourse")
+attendu("  le titre de droite le dit", inv.titreContenu:GetText(), "Monnaies")
+attendu("  et le compte aussi", inv.occupation:GetText(), "2 / 4")
+local lignes = inv.panneauBourse and inv.panneauBourse.lignes
+attendu("  les devises sont listees", inv.panneauBourse and inv.panneauBourse.nombre, #B.Liste(moi))
+attendu("  avec leurs noms", lignes and lignes[1].nom:GetText(), B.Liste(moi)[1].label)
+attendu("  et leurs soldes", lignes and lignes[1].solde:GetText(),
+    tostring(B.Solde(moi, B.Liste(moi)[1].id)))
+-- Les memes lignes que la fenetre : on en glisse une monnaie vers un sac, on y
+-- repose une pile.
+attendu("  qui se glissent", lignes[1]:GetScript("OnDragStart") ~= nil, true)
+attendu("  et accueillent une pile", lignes[1].glisserAccepte ~= nil, true)
+-- Les cases d'un sac et les devises se partagent la zone : chacune range
+-- l'autre, sinon les deux se superposent.
+attendu("aucune case de sac a l'ecran", (function()
+    for _, l in ipairs(inv.lignes) do if l:IsShown() then return false end end
+    return true
+end)(), true)
+-- Et l'inverse. Ce personnage ne porte aucun sac — une carte d'emplacement
+-- vide ne se choisit pas (CliquerEmplacement) : on repose le choix comme la
+-- fenetre le fait a l'ouverture.
+inv.choisi = nil
+inv:Rafraichir()
+attendu("on revient a un emplacement", inv.choisi ~= "bourse", true)
+attendu("  et les devises se rangent", lignes[1]:IsShown(), false)
+inv:Hide()
+
+dire("== la commande ouvre encore la fenetre")
 SlashCmdList.LCM("bourse")
 attendu("la commande ouvre la bourse", LCM.UI.Bourse.frame:IsShown(), true)
 

@@ -130,49 +130,60 @@ attendu("+5 resistance a l'eau", LCM.Effets.Bonus(moi, "resi_eau"), 5)
 attendu("le message dit l'etat", K.Texte(bilan):find("état « Ventre plein »") ~= nil, true)
 
 dire("== Les regles de l'enregistrement")
-local refus, raison = B.Enregistrer("consommables",
-    { id = "soupe_sans_etat", label = "Soupe sans état", bonus = { resi_vent = 5 } }, true)
-attendu("une statistique sans etat : refusee", refus, false)
-attendu("  et on dit pourquoi", tostring(raison):find("passent par l'état") ~= nil, true)
-attendu("un critere sans etat : accepte",
-    (B.Enregistrer("consommables", { id = "eau", label = "Eau", bonus = { ["rend:fatigue"] = 1 } }, true)), true)
-attendu("un type d'etat inconnu : refuse", (B.Enregistrer("consommables",
-    { id = "x", label = "X", etatApplique = { conteneur = "bizarre" } }, true)), false)
-attendu("une duree illisible : refusee", (B.Enregistrer("consommables",
-    { id = "y", label = "Y", etatApplique = { conteneur = "etat", rounds = "deux" } }, true)), false)
+-- Hors des jeux de la seance : depuis qu'un jeu vise les consommables, tout
+-- enregistrement sans rarete est d'abord refuse POUR CELA, et ce n'est pas la
+-- regle qu'on verifie ici (24 octobre 2026).
+__sansJeux("consommables", function()
+    local refus, raison = B.Enregistrer("consommables",
+        { id = "soupe_sans_etat", label = "Soupe sans état", bonus = { resi_vent = 5 } }, true)
+    attendu("une statistique sans etat : refusee", refus, false)
+    attendu("  et on dit pourquoi", tostring(raison):find("passent par l'état") ~= nil, true)
+    attendu("un critere sans etat : accepte",
+        (B.Enregistrer("consommables", { id = "eau", label = "Eau", bonus = { ["rend:fatigue"] = 1 } }, true)), true)
+    attendu("un type d'etat inconnu : refuse", (B.Enregistrer("consommables",
+        { id = "x", label = "X", etatApplique = { conteneur = "bizarre" } }, true)), false)
+    attendu("une duree illisible : refusee", (B.Enregistrer("consommables",
+        { id = "y", label = "Y", etatApplique = { conteneur = "etat", rounds = "deux" } }, true)), false)
+end)
 
 dire("== La forge regle l'etat")
-LCM.Forge.Add({
-    id = "jeu_conso_temoin", label = "Consommables témoin", categorie = "consommables",
-    raretes = { { id = "commun", label = "Commun", points = 20, couleur = "FFFFFF" } },
-    champs = { ["rend:pv"] = { cout = "1", base = "0", max = "10" },
-               resi_vent = { cout = "1", base = "0", max = "10" } },
-})
+-- Les jeux d'equilibrage de la seance restent dehors (__sansJeux) : depuis que
+-- le MJ en a forge pour les consommables, deux jeux etaient en vue et la forge
+-- n'en choisissait aucun (24 octobre 2026). Un scenario ne se tient pas sur le
+-- contenu de la seance.
 local F = LCM.UI.Forge
-attendu("la forge s'ouvre", F.Ouvrir("consommables"), true)
-local fe = F.Fenetre()
-attendu("le panneau « État posé » est la", fe.panelEtat:IsShown(), true)
-attendu("  case decochee au depart", fe.panelEtat.pose:EstCochee(), false)
-F.courant.nom = "Infusion"
-F.courant.valeurs.resi_vent = 3
-local cree, motif = F.Creer()
-attendu("une statistique sans etat : la forge refuse", cree, false)
-attendu("  avec la raison", tostring(motif):find("passent par l'état") ~= nil, true)
-fe.panelEtat.pose:Click()
-attendu("cocher la case", F.courant.etat.pose, true)
-F.courant.etat.conteneur, F.courant.etat.nom = "intangible", "Esprit clair"
-F.courant.etat.description, F.courant.etat.rounds = "Les idées se posent.", "2"
-local element
-cree, element = F.Creer()
-attendu("avec l'etat : cree", cree, true)
-attendu("  l'etat est enregistre", element and element.etatApplique and element.etatApplique.conteneur, "intangible")
-attendu("  sa duree", element and element.etatApplique.rounds, 2)
-attendu("  la carte le resume", C.Get("consommables").lire.etatPose(element), "Intangible « Esprit clair », 2 round(s)")
-F.OuvrirEdition(C.Get("consommables"), LCM.Consommables.Get("soupe"))
-attendu("reprise : la case est cochee", F.courant.etat.pose, true)
-attendu("  le nom revient", F.courant.etat.nom, "Ventre plein")
-attendu("  la duree aussi", F.courant.etat.rounds, "3")
-fe:Hide()
+__sansJeux("consommables", function()
+    LCM.Forge.Add({
+        id = "jeu_conso_temoin", label = "Consommables témoin", categorie = "consommables",
+        raretes = { { id = "commun", label = "Commun", points = 20, couleur = "FFFFFF" } },
+        champs = { ["rend:pv"] = { cout = "1", base = "0", max = "10" },
+                   resi_vent = { cout = "1", base = "0", max = "10" } },
+    })
+    attendu("la forge s'ouvre", F.Ouvrir("consommables"), true)
+    local fe = F.Fenetre()
+    attendu("le panneau « État posé » est la", fe.panelEtat:IsShown(), true)
+    attendu("  case decochee au depart", fe.panelEtat.pose:EstCochee(), false)
+    F.courant.nom = "Infusion"
+    F.courant.valeurs.resi_vent = 3
+    local cree, motif = F.Creer()
+    attendu("une statistique sans etat : la forge refuse", cree, false)
+    attendu("  avec la raison", tostring(motif):find("passent par l'état") ~= nil, true)
+    fe.panelEtat.pose:Click()
+    attendu("cocher la case", F.courant.etat.pose, true)
+    F.courant.etat.conteneur, F.courant.etat.nom = "intangible", "Esprit clair"
+    F.courant.etat.description, F.courant.etat.rounds = "Les idées se posent.", "2"
+    local element
+    cree, element = F.Creer()
+    attendu("avec l'etat : cree", cree, true)
+    attendu("  l'etat est enregistre", element and element.etatApplique and element.etatApplique.conteneur, "intangible")
+    attendu("  sa duree", element and element.etatApplique.rounds, 2)
+    attendu("  la carte le resume", C.Get("consommables").lire.etatPose(element), "Intangible « Esprit clair », 2 round(s)")
+    F.OuvrirEdition(C.Get("consommables"), LCM.Consommables.Get("soupe"))
+    attendu("reprise : la case est cochee", F.courant.etat.pose, true)
+    attendu("  le nom revient", F.courant.etat.nom, "Ventre plein")
+    attendu("  la duree aussi", F.courant.etat.rounds, "3")
+    fe:Hide()
+end)
 
 dire("== Administrer a un allie")
 __groupe({ "Nytherah-Apertus" })

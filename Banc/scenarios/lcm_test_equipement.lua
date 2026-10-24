@@ -138,8 +138,13 @@ dire("== Le MJ remplit un sac en glissant depuis le compendium")
 -- colonne de stat) : la ligne n'etait saisissable que par son nom.
 I.Vider(moi, "sacs", 1, 11)
 local Comp = LCM.UI.Compendium.Ouvrir("armes")
+-- Le compendium pagine a vingt lignes : depuis que la seance compte plus de
+-- vingt armes, l'epee temoin n'etait plus sur la page affichee et on cherchait
+-- une rangee qui n'existait pas (24 octobre 2026). On la nomme.
+Comp.champRecherche:Saisir("Épée d'essai")
 local rang
 for _, r in ipairs(Comp.rangees) do if r.element and r.element.id == "epee_d_essai" then rang = r end end
+attendu("l'epee temoin est a l'ecran", rang ~= nil, true)
 local cellule
 for _, c in ipairs(rang.cellules) do if c:IsShown() then cellule = c break end end
 attendu("une cellule a saisir", cellule ~= nil, true)

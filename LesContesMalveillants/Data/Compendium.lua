@@ -139,6 +139,12 @@ local function Generique(def)
     -- de carte, sans quoi il disparaitrait a la premiere modification.
     if def.avantage ~= false then
         champs[#champs + 1] = { cle = "avantage", label = "Avantage", type = "avantage", emplacement = "footer" }
+        -- Son symetrique (le MJ, 24 octobre 2026) : les jets que cette entree
+        -- fait relancer en gardant le PIRE. Avant, aucun champ ne le disait —
+        -- c'est le signe du bonus qui l'imposait, et un etat qui retirait un
+        -- point condamnait tous les jets de cette statistique.
+        champs[#champs + 1] = { cle = "desavantage", label = "Désavantage",
+                                type = "avantage", emplacement = "footer" }
     end
     return C.Categorie(def)
 end

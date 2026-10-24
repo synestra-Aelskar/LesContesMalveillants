@@ -58,8 +58,10 @@ Menu.STRUCTURE = {
       enfants = {
           { id = "equipement",  label = "Équipements", icone = RADIAL .. "fenetres-equipement.tga" },
           { id = "inventaires", label = "Inventaires", icone = RADIAL .. "fenetres-inventaires.tga" },
-          -- Ajout a la structure du template : chaque joueur voit sa bourse.
-          { id = "bourse",      label = "Bourse",      icone = RADIAL .. "fenetres-bourse.tga" },
+          -- « Bourse » occupait le cran suivant. Elle a rejoint la colonne
+          -- d'Inventaires, au-dessus de la Ceinture (le MJ, 24 octobre 2026) :
+          -- un cran de libre, et on ne garde plus deux fenetres ouvertes pour
+          -- sortir des ecus d'un sac. /lcm bourse ouvre encore la fenetre.
           { id = "metiers",     label = "Métiers",     icone = RADIAL .. "fenetres-metiers.tga" },
           -- Ajout de l'addon (22 octobre 2026) : ce qu'on tient en main. Pour
           -- l'instant la lanterne et son cristal (UI/Lanterne.lua) ; le nom
