@@ -1,5 +1,6 @@
 -- lcm-db: {"family": "etats", "id": "lcm_64a651_6acd8c83_0ff8950c_0001_18d910", "registry": "Etats", "side": "player"}
 return {
+    avantage = {  },
     bonus = {
         acrobaties = -1,
         communication = -1,
@@ -20,10 +21,12 @@ return {
     },
     categorie = "etat",
     couleurTitre = "4DE04D",
+    desavantage = {  },
     description = "<Vous avez vraiment très mal au crâne.>",
     forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/inhabituel",
     icone = "Interface\\ICONS\\inv_misc_bone_humanskull_02",
     id = "lcm_64a651_6acd8c83_0ff8950c_0001_18d910",
     label = "Commossion Cérébrale.",
     tags = "Inhabituel",
+    type = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
 }
