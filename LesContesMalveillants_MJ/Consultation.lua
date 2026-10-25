@@ -14,14 +14,21 @@ local Consultation = {}
 MJ.Consultation = Consultation
 UI.ConsultationMJ = Consultation
 
+-- La tranche recopie la navigation du JOUEUR, dans son ordre : les six
+-- fenetres de « Personnage » puis celles d'« Objets ». Un libelle qui s'ecarte
+-- de celui du menu finit par designer une autre page que celle qu'il ouvre —
+-- « Expertises » montrait deja la Capacite entiere (le MJ, 25 octobre 2026).
 Consultation.ONGLETS = {
     { id = "fiche", label = "Fiche" },
     { id = "sante", label = "Santé" },
-    { id = "expertise", label = "Expertises" },
+    { id = "expertise", label = "Capacité" },
     { id = "penetrations_resistances", label = "Pénétration & Résistances" },
+    { id = "statistiques", label = "Statistiques" },
     { id = "apprentissage", label = "Apprentissage" },
-    { id = "equipement", label = "Équipement" },
-    { id = "bourse", label = "Bourse" },
+    { id = "equipement", label = "Équipements" },
+    -- La Bourse n'a plus de fenetre a elle : c'est la colonne qui ouvre
+    -- l'inventaire. L'onglet suit (le MJ, 25 octobre 2026).
+    { id = "inventaires", label = "Inventaires" },
 }
 
 local RADIAL = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\"
@@ -36,6 +43,7 @@ end
 
 local function Fenetre(id)
     if id == "fiche" then return UI.Fiche.Fenetre() end
+    if id == "inventaires" then return UI.Inventaires.Fenetre() end
     if id == "bourse" then return UI.Bourse.Fenetre() end
     return UI.Vues.Fenetre(id)
 end

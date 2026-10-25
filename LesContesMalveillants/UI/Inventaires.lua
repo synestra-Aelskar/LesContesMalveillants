@@ -66,7 +66,41 @@ local function Sonner(f)
     end)
 end
 
-local function Entite() return LCM.Entities.Self() end
+-- La fenetre montre son propre inventaire, sauf quand le MJ la fait regarder
+-- ailleurs : `Ecran.cible` porte alors la fiche RECUE d'un joueur, celle que
+-- la consultation promene d'un onglet a l'autre (MJ/Consultation.lua).
+local function Entite() return Ecran.cible or LCM.Entities.Self() end
+
+-- Une fiche recue est une copie detachee : y ranger un objet ne partirait
+-- nulle part, et le MJ croirait avoir range. Les gestes qui deplacent quelque
+-- chose ne s'arment donc pas sur elle. On le demande une fois ici, et les
+-- enveloppes ci-dessous s'en servent pour toutes les cases, cases de sac et
+-- lignes de la fenetre (le MJ, 25 octobre 2026).
+local function Modifiable()
+    local e = Entite()
+    return e ~= nil and not e.distante
+end
+Ecran.Modifiable = Modifiable
+
+local REFUS_DISTANT = "fiche distante en lecture seule."
+
+-- Les trois portes du glissement, avec le refus en place. Une cible refusee
+-- s'eclaire en rouge sous le curseur : le MJ voit tout de suite que la fiche
+-- ne se laisse pas remplir, au lieu d'un rangement qui ne tient pas.
+local function Cible(cadre, accepte, depose)
+    return UI.Glisser.Cible(cadre, function(...)
+        if not Modifiable() then return false, REFUS_DISTANT end
+        return accepte(...)
+    end, depose and function(...)
+        if not Modifiable() then return false, REFUS_DISTANT end
+        return depose(...)
+    end or nil)
+end
+
+local function Commencer(objet)
+    if not Modifiable() then return false end
+    return UI.Glisser.Commencer(objet)
+end
 
 -- Les six emplacements d'affilee : deux sacs puis quatre sacoches. L'onglet a
 -- disparu de l'ecran le 3 octobre 2026, mais la categorie reste le modele —
@@ -294,6 +328,7 @@ end
 -- pris sa place.
 local confirmation
 local function Jeter(objet)
+    if not Modifiable() then return false end
     local o = type(objet) == "table" and objet.origine
     if not (o and (o.case or o.emplacement)) then return false end
     confirmation = confirmation or UI.Confirmer(UIParent, "", "Détruire")
@@ -773,6 +808,7 @@ end
 
 -- Le menu d'une selection : les memes gestes qu'un objet, pour toutes.
 local function MenuSelection(ancre, tete)
+    if not Modifiable() then return end
     local liste = Selection.Liste(tete)
     local entity = Entite()
     local options = {}
@@ -824,6 +860,7 @@ Ecran.MenuSelection = MenuSelection
 -- partie, sinon celui de l'objet seul — et la case devient la selection, pour
 -- qu'on voie de quoi parle le menu.
 local function MenuDeCase(ancre, onglet, index, case, extras)
+    if not Modifiable() then return end
     if Selection.Groupe(onglet, index, case) then
         MenuSelection(ancre, { onglet = onglet, index = index, case = case })
         return
@@ -894,6 +931,7 @@ Ecran.PoserAuSol = PoserAuSol
 
 if UI.Glisser then
     UI.Glisser.DansLeVide = function(objet)
+        if not Modifiable() then return false end
         if Creation(objet) or not objet.origine then return false end
         -- Une pile qu'on scinde, lachee hors d'une case : on n'en fait rien.
         -- Une selection non plus : elle se range dans un sac, ou se detruit
@@ -960,7 +998,7 @@ local function Carte(f)
     end
 
     -- On y depose un sac (ou une devise) glisse depuis le compendium.
-    UI.Glisser.Cible(c, function(objet)
+    Cible(c, function(objet)
         -- Une monnaie venue de la BOURSE se materialise dans ce sac. Sans
         -- cette branche, « transvaser » l'aurait prise pour un objet qu'on
         -- possede deja — et en aurait range un sans debiter la bourse
@@ -1075,7 +1113,7 @@ local function Carte(f)
         if not Inv.PeutRetirer(Entite(), self.onglet, self.index) then
             objet.ref, objet.element, objet.retirer, objet.rendre = nil, nil, nil, nil
         end
-        UI.Glisser.Commencer(objet)
+        Commencer(objet)
     end)
     c:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
     c:SetScript("OnClick", function(self, bouton) f:CliquerEmplacement(self, bouton) end)
@@ -1119,7 +1157,7 @@ local function CarteBourse(f)
     c.description:SetPoint("TOPLEFT", c.nom, "BOTTOMLEFT", 0, -2)
     c.description:SetPoint("RIGHT", c, "RIGHT", -12, 0)
     c.description:SetJustifyH("LEFT")
-    UI.Glisser.Cible(c, function(objet)
+    Cible(c, function(objet)
         if not (UI.Bourse and UI.Bourse.Accepte) then return false end
         return UI.Bourse.Accepte(objet)
     end, function(objet) UI.Bourse.Reposer(objet) end)
@@ -1180,7 +1218,12 @@ local function Construire()
     UI.Redimensionner(f, MIN_L, MIN_H, function() f:Rafraichir() end)
     f:HookScript("OnSizeChanged", function() if not f.enRedimension then f:Rafraichir() end end)
     f:HookScript("OnShow", function() f:Rafraichir() end)
-    f:HookScript("OnHide", function() f.choix:Hide() end)
+    -- La fenetre refermee cesse de viser la fiche d'un autre : la prochaine
+    -- ouverture, d'ou qu'elle vienne, montre a nouveau son propre inventaire.
+    f:HookScript("OnHide", function()
+        f.choix:Hide()
+        Ecran.Viser(nil)
+    end)
     Sonner(f)
 
     -- La colonne de gauche : les six emplacements, deux sacs puis quatre
@@ -1383,7 +1426,7 @@ local function Construire()
                     return o and l.place and o.onglet == l.place.onglet
                         and o.index == l.place.index and o.case == l.case
                 end
-                UI.Glisser.Cible(l, function(objet)
+                Cible(l, function(objet)
                     if Creation(objet) and not LCM.IsMaster() then
                         return false, "sortir un objet du compendium est un geste du maître du jeu."
                     end
@@ -1469,7 +1512,7 @@ local function Construire()
                     -- qu'elle autorise, pas la main qui prend.
                     if not self.place then return end
                     local objet = GlisserDepuis(self.place.onglet, self.place.index, self.case)
-                    if objet then UI.Glisser.Commencer(objet) end
+                    if objet then Commencer(objet) end
                 end)
                 l:SetScript("OnDragStop", function() UI.Glisser.Lacher() end)
                 -- Clic : choisir (Ctrl, Maj : plusieurs) ; double-clic : voir ;
@@ -1653,6 +1696,9 @@ local function Construire()
         end
         if bouton == "RightButton" then
             if not e then return end
+            -- Le clic gauche regarde, le clic droit agit : sur une fiche
+            -- recue, seul le premier a un sens.
+            if not Modifiable() then return end
             local options = {}
             if contenant then
                 -- Le clic droit ouvrait le sac sans rien proposer d'autre. Il
@@ -1755,7 +1801,7 @@ local function NouvelleCase(s, n)
     b.survol = UI.Aplat(b, { 0.80, 0.70, 0.40, 0.12 }, "HIGHLIGHT")
     b.survol:SetAllPoints(b)
     Surbrillance(b)
-    UI.Glisser.Cible(b, function(objet)
+    Cible(b, function(objet)
         if Creation(objet) and not LCM.IsMaster() then
             return false, "sortir un objet du compendium est un geste du maître du jeu."
         end
@@ -1832,7 +1878,7 @@ local function NouvelleCase(s, n)
         -- Son propre sac : on y prend ce qu'on veut. C'est la destination qui
         -- juge (12 octobre 2026).
         local objet = GlisserDepuis(s.onglet, s.index, self.index)
-        if objet then UI.Glisser.Commencer(objet) end
+        if objet then Commencer(objet) end
     end)
     -- Pas d'OnUpdate ici : c'est le fantome du kit qui bat la mesure, suit la
     -- souris et lache au relachement. En poser un second ferait le travail
@@ -2008,6 +2054,7 @@ local function ConstruireSac(onglet, index)
         local c = Inv.Case(e, b.index)
         if bouton == "RightButton" then
             if not c then return end
+            if not Modifiable() then return end
             local options = {}
             if LCM.IsMaster() then
                 -- « Quantite » vit maintenant dans MenuObjet, le menu partage :
@@ -2101,12 +2148,36 @@ end)
 
 function Ecran.Fenetre()
     if not Ecran.frame then Construire() end
+    -- `Montrer` est le contrat des fenetres de consultation : la tranche du MJ
+    -- promene la meme fiche recue d'un onglet a l'autre et appelle celui-ci
+    -- (MJ/Consultation.lua). Sans entite, on retrouve son propre inventaire.
+    if not Ecran.frame.Montrer then
+        function Ecran.frame:Montrer(entity)
+            Ecran.Viser(entity)
+            self:Show()
+            self:Rafraichir()
+        end
+    end
     return Ecran.frame
+end
+
+-- Changer de personnage regarde : les sacs ouverts sont ceux de l'ancien, ils
+-- se referment, et la selection en cours ne designe plus rien.
+function Ecran.Viser(entity)
+    if Ecran.cible == entity then return end
+    Ecran.FermerSacsOuverts()
+    Ecran.cible = entity
+    Selection.cases, Selection.ancre = {}, nil
 end
 
 function Ecran.Basculer()
     local f = Ecran.Fenetre()
-    if f:IsShown() then f:Hide() else f:Show() end
+    if f:IsShown() and not Ecran.cible then f:Hide() return end
+    -- Le menu du joueur ouvre toujours SON inventaire, meme si la fenetre
+    -- montrait encore la fiche d'un autre.
+    Ecran.Viser(nil)
+    f:Show()
+    f:Rafraichir()
 end
 
 LCM.WhenReady(function()

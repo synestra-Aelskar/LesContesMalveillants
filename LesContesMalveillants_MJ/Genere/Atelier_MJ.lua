@@ -4753,6 +4753,7 @@ LCM.Publier(LCM.Points, {
 -- ----- poses (43) ---------------------------------------------------
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4799,6 +4800,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4837,6 +4839,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4887,6 +4890,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4937,6 +4941,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4966,6 +4971,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -4995,6 +5001,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5037,6 +5044,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5075,6 +5083,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5129,6 +5138,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5175,6 +5185,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5225,6 +5236,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5259,6 +5271,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5288,6 +5301,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5322,6 +5336,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5356,6 +5371,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5394,6 +5410,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
@@ -5428,6 +5445,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
@@ -5462,6 +5480,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
@@ -5491,6 +5510,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
@@ -5525,6 +5545,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 204,
@@ -5594,6 +5615,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5636,6 +5658,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
@@ -5686,6 +5709,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
@@ -5714,6 +5738,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
@@ -5742,6 +5767,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 947,
@@ -5771,6 +5797,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         def = "lcm_64a651_6acfe4c4_06262ef9_0002_c341b0",
         id = "m6acfe50600167",
@@ -5816,6 +5843,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad0d5c6_09d397ff_0003_13331c",
@@ -5835,6 +5863,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5854,6 +5883,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5873,6 +5903,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5892,6 +5923,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65dab_1f6e413b_0009_48aa6d",
@@ -5911,6 +5943,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65dd4_1f6ee441_000a_03df8e",
@@ -5930,6 +5963,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
@@ -5949,6 +5983,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65f4c_1f74a128_000f_e3884b",
@@ -5968,6 +6003,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65fa3_1f75f518_0011_f06db7",
@@ -5987,6 +6023,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
@@ -6006,6 +6043,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad69808_20523dae_000c_d8935d",
@@ -6025,6 +6063,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6046,6 +6085,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6067,6 +6107,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6088,6 +6129,7 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",

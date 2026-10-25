@@ -22,6 +22,11 @@ moi.equipement = { arme = { "objet_absent" } }
 moi.usureArmure = { objet_absent = 1 }
 moi.bourse = { ecus = 17 }
 moi.xp = 23
+-- Un sac porte, avec quelque chose dedans : depuis que la Bourse est une
+-- colonne de l'inventaire, c'est cette fenetre que la tranche de consultation
+-- ouvre, et elle doit montrer ce que le joueur porte.
+LCM.Inventaire.Poser(moi, "sacs", 1, "gros_sac")
+LCM.Inventaire.Ranger(moi, "sacs", 1, 1, "objets/dague_d_assassin_du_culte", 1)
 
 dire("== le paquet d'une fiche")
 local paquet = F.Paquet(moi)
@@ -32,6 +37,27 @@ attendu("les traits partent avec la fiche", paquet.t[1], "escalade_jungle")
 attendu("les blessures partent avec la fiche", paquet.b.buste, 2)
 attendu("l'équipement part avec la fiche", paquet.eq.arme[1], "objet_absent")
 attendu("la bourse part avec la fiche", paquet.bo.ecus, 17)
+-- L'inventaire voyage en UNE chaine compacte : l'encodeur generique en
+-- faisait 71 morceaux, et la fiche repart a chaque changement.
+attendu("l'inventaire part en une chaîne", paquet.inv,
+    "sacs,1,sac,gros_sac,|1,objets/dague_d_assassin_du_culte,1")
+-- Aller-retour de la chaine compacte : chaque genre d'emplacement doit se
+-- relire tel quel, et un champ vide ne doit pas decaler les suivants.
+local varie = {
+    sacs = { [1] = { sac = "gros_sac", cases = { [2] = { ref = "ressources/eau", quantite = 3 } } } },
+    ceintures = { [1] = { ceinture = true } },
+    cristaux_usage = { [1] = { cristaux = true } },
+    devises = { [1] = { devise = "ecus", solde = 12 } },
+}
+local relu = F.DecoderInventaire(F.CoderInventaire(varie))
+attendu("relu : le sac", relu.sacs[1].sac, "gros_sac")
+attendu("relu : la quantité dans la case", relu.sacs[1].cases[2].quantite, 3)
+attendu("relu : la ceinture est un booléen", relu.ceintures[1].ceinture, true)
+attendu("relu : la poche à cristaux aussi", relu.cristaux_usage[1].cristaux, true)
+attendu("relu : la devise", relu.devises[1].devise, "ecus")
+attendu("relu : son solde", relu.devises[1].solde, 12)
+attendu("un inventaire vide ne s'écrit pas", F.CoderInventaire({}), nil)
+attendu("et rien ne se relit en rien", F.DecoderInventaire(nil), nil)
 -- Ce qui ne doit PAS partir : le MJ consulte une fiche, il ne fouille pas.
 LCM.Sorts.Ajouter(moi, { label = "Secret" })
 attendu("les sorts personnels restent chez moi", paquet.v.sorts, nil)
@@ -46,6 +72,8 @@ attendu("relue : l'équipement", refait.equipement.arme[1], "objet_absent")
 attendu("relue : l'usure", refait.usureArmure.objet_absent, 1)
 attendu("relue : la bourse", refait.bourse.ecus, 17)
 attendu("relue : l'expérience", refait.xp, 23)
+attendu("relue : le sac porté", refait.inventaire.sacs[1].sac, "gros_sac")
+attendu("relue : son contenu", refait.inventaire.sacs[1].cases[1].ref, "objets/dague_d_assassin_du_culte")
 attendu("elle se sait distante", refait.distante, true)
 
 dire("== seul le MJ demande")
@@ -135,7 +163,18 @@ recue = F.Recue("Nytherah-Apertus")
 attendu("une modification pousse une fiche actualisee", recue.values.force, 9)
 attendu("la consultation ouverte est actualisee", consultation.entity.values.force, 9)
 attendu("la fenetre existante affiche la nouvelle copie", LCM.UI.Fiche.frame.entity, recue)
-attendu("sept onglets de consultation", #consultation.barre.boutons, 7)
+-- La tranche recopie la navigation du joueur : les six fenetres de
+-- « Personnage », puis l'Equipement et les Inventaires.
+attendu("huit onglets de consultation", #consultation.barre.boutons, 8)
+local tranche = {}
+for i, b in ipairs(consultation.barre.boutons) do tranche[i] = b.consultationId end
+attendu("dans l'ordre du menu du joueur", table.concat(tranche, ","),
+    "fiche,sante,expertise,penetrations_resistances,statistiques,apprentissage,equipement,inventaires")
+for _, b in ipairs(consultation.barre.boutons) do
+    local entree = LCM.UI.Menu.Trouver(b.consultationId)
+    attendu("  « " .. b.consultationLabel .. " » porte le libellé du menu",
+        entree and entree.label, b.consultationLabel)
+end
 attendu("Fiche reprend l'icone du radial", consultation.barre.boutons[1].icone.__texture,
     LCM.UI.Menu.Trouver("fiche").icone)
 consultation.barre.boutons[2]:GetScript("OnEnter")(consultation.barre.boutons[2])
@@ -162,13 +201,25 @@ attendu("et la barre la suit", relatifApres, LCM.UI.Vues.Fenetre("sante"))
 attendu("  en gardant le meme espacement", xApres, consultation.ESPACEMENT_FEUILLE)
 attendu("le menu ne bouge pas horizontalement", xApres, xBarre)
 attendu("le menu ne bouge pas verticalement", yApres, yBarre)
-consultation.barre.boutons[6]:Click()
+consultation.barre.boutons[7]:Click()
 attendu("Équipement remplace la Santé", consultation.onglet, "equipement")
 attendu("l'équipement reste en lecture seule",
     LCM.UI.Vues.Fenetre("equipement").entity.distante, true)
-consultation.barre.boutons[7]:Click()
-attendu("Bourse utilise la même consultation", LCM.UI.Bourse.frame.entity, recue)
-attendu("Bourse devient l'onglet actif", consultation.barre.boutons[7].__selectionne, true)
+consultation.barre.boutons[8]:Click()
+attendu("Inventaires utilise la même consultation", LCM.UI.Inventaires.cible, recue)
+attendu("Inventaires devient l'onglet actif", consultation.barre.boutons[8].__selectionne, true)
+attendu("  la fenêtre est celle de l'inventaire", consultation.fenetre, LCM.UI.Inventaires.frame)
+-- Ce qu'on voit : le sac du joueur consulte, et non le sien.
+attendu("  elle montre le sac du joueur",
+    LCM.Inventaire.Emplacement(LCM.UI.Inventaires.cible, "sacs", 1).sac, "gros_sac")
+-- Et ce qu'on ne peut pas faire : une copie recue ne se range pas.
+attendu("  aucun geste ne s'y arme", LCM.UI.Inventaires.Modifiable(), false)
+attendu("  glisser ne demarre pas",
+    (LCM.UI.Glisser.DansLeVide({ origine = { case = 1 } })), false)
+LCM.UI.Inventaires.frame:Hide()
+attendu("refermée, elle ne vise plus personne", LCM.UI.Inventaires.cible, nil)
+attendu("  et redevient la sienne", LCM.UI.Inventaires.Modifiable(), true)
+consultation.barre.boutons[8]:Click()
 p:Afficher()
 -- Depuis le 3 octobre 2026, la ligne dit ce que la fiche apprend (niveau,
 -- PV) plutot que « fiche reçue ».
