@@ -104,5 +104,18 @@ attendu("40 points rendent 20", enPoints.credit, 20)
 attendu("40 % n'en rendent que 4", enPourcent.credit, 4)
 attendu("  soit cinq fois moins", enPoints.credit / enPourcent.credit, 5)
 
+dire("== une duree venue du reseau arrive en TEXTE")
+-- L'encodage du reseau ne rend que des chaines. Une fiche consultee portait
+-- donc `restant = "3"`, et l'affichage de la duree comparait un texte a 1 :
+-- la consultation s'arretait sur une erreur Lua (le MJ, 25 octobre 2026).
+attendu("trois rounds en texte s'affichent", T.Duree({ restant = "3" }), "3 rounds")
+attendu("un round en texte reste au singulier", T.Duree({ restant = "1" }), "1 round")
+attendu("sans durée, c'est jusqu'au retrait", T.Duree({}), "jusqu'à retrait")
+Vider()
+T.Poser(moi, { nom = "Texte témoin", rounds = "4" })
+local poseEnTexte = Temporaire("Texte témoin")
+attendu("une pose en texte se range en nombre", type(poseEnTexte.restant), "number")
+attendu("  et garde sa valeur", poseEnTexte.restant, 4)
+
 Vider()
 if ko == 0 then dire("TOUT PASSE") else dire(ko .. " ECHEC(S)") end

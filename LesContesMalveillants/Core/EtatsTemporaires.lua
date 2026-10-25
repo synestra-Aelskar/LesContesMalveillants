@@ -76,7 +76,9 @@ function Temporaires.Poser(entity, etat)
     end
     liste[#liste + 1] = {
         nom = tostring(etat.nom or "État"), icone = etat.icone, description = etat.description,
-        bonus = etat.bonus or {}, restant = etat.rounds, lanceur = etat.lanceur,
+        -- La duree se range en NOMBRE : elle arrive d'un champ de saisie du
+        -- Panel ou d'un paquet reseau, qui ne rendent que du texte.
+        bonus = etat.bonus or {}, restant = tonumber(etat.rounds), lanceur = etat.lanceur,
         -- Les jets que cet etat fait relancer en gardant le pire. Il voyage
         -- avec lui, comme ses bonus : un etat n'impose plus le desavantage
         -- parce qu'il retire des points, il l'impose parce qu'il le dit
@@ -369,9 +371,14 @@ function Temporaires.Guerir(entity, nom)
         ok and "réussie" or "ratée")
 end
 
+-- `restant` peut arriver en CHAINE. Une fiche consultee traverse l'encodage du
+-- reseau, qui ne rend que du texte : la duree se comparait alors a 1 et la
+-- consultation s'arretait sur une erreur (le MJ, 25 octobre 2026). On la relit
+-- en nombre ici, pour que l'affichage tienne quelle que soit la source.
 function Temporaires.Duree(etat)
-    if not etat.restant then return "jusqu'à retrait" end
-    return string.format("%d round%s", etat.restant, etat.restant > 1 and "s" or "")
+    local restant = tonumber(etat.restant)
+    if not restant then return "jusqu'à retrait" end
+    return string.format("%d round%s", restant, restant > 1 and "s" or "")
 end
 
 -- Une source d'effets comme les traits : ses elements ont un libelle, des
