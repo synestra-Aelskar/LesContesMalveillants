@@ -41,6 +41,8 @@ local function Equiper(id, place)
         local ok, raison = LCM.Lanterne.EquiperLanterne(identifiant)
         if not ok then return false, raison end
         entity.ceintureLanternePlace = place
+        -- La fiche montre aussi la lanterne parmi les outils : elle doit suivre.
+        if UI.Vues then UI.Vues.Rafraichir() end
         if UI.Inventaires then UI.Inventaires.Actualiser() end
         return true
     end

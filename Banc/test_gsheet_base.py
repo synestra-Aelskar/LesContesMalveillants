@@ -170,6 +170,19 @@ class GoogleSheetBaseTest(unittest.TestCase):
                    '{ id = "gourde", taille = 3, bonus = { force = 2 }, nom = 3 }']
         self.assertFalse(gsheet.equivalent_rows(mot, chiffre))
 
+        # Un etat retouche en jeu (24 octobre 2026) : ses bonus en texte, et
+        # sans les tables vides que l'editeur pose depuis le desavantage.
+        # Cinq etats ainsi bloquaient la synchronisation entiere.
+        brouillon = ['etats', 'gel', 'Gel', '', False, gsheet.ACTIVE,
+                     '{ id = "gel", bonus = { force = "-1" } }']
+        publie = ['etats', 'gel', 'Gel', '', False, gsheet.ACTIVE,
+                  '{ id = "gel", bonus = { force = -1 }, avantage = {}, desavantage = {} }']
+        self.assertTrue(gsheet.equivalent_rows(brouillon, publie))
+        # Un desavantage REMPLI n'est pas une table vide : vrai changement.
+        rempli = ['etats', 'gel', 'Gel', '', False, gsheet.ACTIVE,
+                  '{ id = "gel", bonus = { force = -1 }, desavantage = { force = true } }']
+        self.assertFalse(gsheet.equivalent_rows(brouillon, rempli))
+
     def test_tabs_cover_each_family_once(self):
         plan = gsheet.feuilles()
         self.assertEqual(len(plan), len(gsheet.lcm_db.FAMILIES) + 5)

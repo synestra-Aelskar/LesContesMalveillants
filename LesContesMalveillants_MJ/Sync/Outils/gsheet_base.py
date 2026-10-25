@@ -265,7 +265,10 @@ def equivalent_rows(a: list[object], b: list[object]) -> bool:
     family = a[0]
 
     def numeric(path):
-        if family in {"objets", "traits", "races"} and len(path) == 2 and path[0] == "bonus":
+        # Les bonus d'un etat aussi : saisis en jeu, ils restaient du texte
+        # (« -1 ») dans les brouillons, et chaque etat retouche bloquait la
+        # synchronisation entiere sur un faux conflit (24 octobre 2026).
+        if family in {"objets", "traits", "races", "etats"} and len(path) == 2 and path[0] == "bonus":
             return True
         if family == "objets":
             return path == ("taille",) or path in {( "etat", k) for k in ("courant", "max", "version")} or path in {("contenant", "taille"), ("contenant", "retrait")}
@@ -287,6 +290,12 @@ def equivalent_rows(a: list[object], b: list[object]) -> bool:
                 if key not in x or key not in y:
                     # Ces deux collections vides sont ajoutees au PNJ en jeu.
                     if family == "pnj" and not path and key in {"apprentissages", "etats"} and (x[key] if key in x else y[key]) == {}:
+                        continue
+                    # L'editeur pose ces tables vides sur toute entree
+                    # generique qu'il enregistre (Data/Compendium.lua, le
+                    # desavantage depuis le 24 octobre 2026) : vide ou
+                    # absente, c'est la meme entree.
+                    if not path and key in {"avantage", "desavantage", "bonus"} and (x[key] if key in x else y[key]) == {}:
                         continue
                     return False
                 if not equal(x[key], y[key], path + (key,)):

@@ -1436,7 +1436,9 @@ local function Emplacement(conteneur, c)
     -- viser le fondu. Le bouton ne capte donc plus la souris ; la ligne recoit
     -- le clic et allume le fondu a son survol.
     function l:Agir()
-        if self.elementId then conteneur:Retirer(self.elementId, self.rangPorte) else conteneur:Proposer(self.action) end
+        if self.lanterne then conteneur:RetirerLanterne()
+        elseif self.elementId then conteneur:Retirer(self.elementId, self.rangPorte)
+        else conteneur:Proposer(self.action) end
     end
     l.action = UI.BoutonDegrade(l, function() l:Agir() end)
     l.action:EnableMouse(false)
@@ -1465,6 +1467,9 @@ local function Emplacement(conteneur, c)
             if l.elementId then return false, "cet emplacement est déjà pris." end
             local ref = tostring(objet.ref or "")
             local famille, id = ref:match("^([%w_]+)/(.+)$")
+            if famille == "lanternes" and conteneur:EstCeinture() then
+                return conteneur:AccepteLanterne(id, objet)
+            end
             if not famille then
                 -- Glisse depuis le compendium : l'element porte sa categorie.
                 id = objet.element and objet.element.id
@@ -1483,7 +1488,13 @@ local function Emplacement(conteneur, c)
             return true
         end, function(objet)
             local ref = tostring(objet.ref or "")
-            local _, id = ref:match("^([%w_]+)/(.+)$")
+            local famille, id = ref:match("^([%w_]+)/(.+)$")
+            -- La lanterne se prend elle-meme dans le sac (EquiperLanterne) :
+            -- appeler aussi `objet.retirer` la ferait sortir deux fois.
+            if famille == "lanternes" and conteneur:EstCeinture() then
+                conteneur:EquiperLanterne(id)
+                return
+            end
             id = id or (objet.element and objet.element.id)
             local ok, raison = conteneur.catalogue.Placer(conteneur.entity, id,
                 objet.exemplaires and objet.exemplaires[1])
@@ -1514,7 +1525,9 @@ local function Emplacement(conteneur, c)
         -- 2026).
         l:RegisterForDrag("LeftButton")
         l:SetScript("OnDragStart", function(self)
-            if not self.elementId then return end
+            -- La lanterne ne se reprend pas en glissant : ce chemin passe par
+            -- le catalogue des objets, qui ne la connait pas. Le clic la retire.
+            if not self.elementId or self.lanterne then return end
             if not conteneur:Autorise(conteneur.entity) then return end
             local element = conteneur.catalogue.Get(self.elementId)
             local porte = self.elementId
@@ -1577,6 +1590,7 @@ local function Emplacement(conteneur, c)
 
     function l:Habiller(catalogue, id, mj)
         self.elementId = id
+        self.lanterne = nil
         local element = id and catalogue.Get(id)
         if not id then
             self.icone:SetTexture(VIDE)
@@ -1652,6 +1666,32 @@ local function Emplacement(conteneur, c)
                            texte = "N'existe pas dans cette version de l'addon : ne donne rien." }
             self.action:Signe("×", "Retirer", "Il ne donne rien : le retirer libère la place.")
         end
+        self.action:SetShown(mj)
+    end
+
+    -- La lanterne equipee, sur une place de la ceinture. Elle n'est pas un
+    -- objet (famille `lanternes`, Core/Lanternes.lua) : ni etat ni vies a
+    -- montrer, seulement ce qu'elle est.
+    function l:HabillerLanterne(id, mj)
+        local lanterne = LCM.Lanternes.Get(id)
+        self.elementId = id
+        self.lanterne = true
+        self.icone:SetTexture(lanterne and lanterne.icone or "Interface\\Icons\\INV_Misc_QuestionMark")
+        UI.TeinterBrise(self.icone, false)
+        self.vies.texte:SetText("")
+        self.vies:Hide()
+        local nom = lanterne and lanterne.label or ("? " .. tostring(id))
+        self.nom:SetText(nom)
+        local couleur = lanterne and UI.C.titre or UI.C.plein
+        self.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+        self.description:SetText(lanterne and lanterne.description or "")
+        self.effets:SetText("")
+        self.survol = nil
+        local texte = not lanterne and "N'existe pas dans cette version de l'addon."
+            or (lanterne.description and lanterne.description ~= "" and lanterne.description)
+            or "La lanterne de la ceinture."
+        self.bulle = { titre = nom, texte = texte }
+        self.action:Signe("×", "Retirer", "Remettre la lanterne dans un sac.")
         self.action:SetShown(mj)
     end
     return l
@@ -1907,6 +1947,48 @@ function Lignes.conteneur(bloc, def, c)
         return self:DepuisLesSacs() and LCM.Personnages.Actif() == entity
     end
 
+    -- La ceinture porte les outils ET la lanterne (le MJ, 24 octobre 2026) :
+    -- une lanterne est un outil, rangee dans sa propre famille du compendium
+    -- pour son editeur. La fiche ne proposait que la categorie « outil », et
+    -- la lanterne restait introuvable depuis l'emplacement.
+    function l:EstCeinture()
+        return self.catalogue == LCM.Objets and self.categorie == "outil" and LCM.Lanterne ~= nil
+    end
+
+    -- Equiper ou retirer une lanterne ne vaut que pour SOI : Core/Lanternes
+    -- agit sur le personnage joue, pas sur la fiche qu'on regarde.
+    function l:LanterneIci()
+        return self:EstCeinture() and self:DepuisLesSacs() and self.entity ~= nil
+            and self.entity == LCM.Entities.Self()
+    end
+
+    function l:AccepteLanterne(id, objet)
+        if not self:LanterneIci() then
+            return false, "une lanterne ne s'équipe que sur son propre personnage."
+        end
+        if not LCM.Lanternes.Get(id) then return false, "lanterne inconnue." end
+        if not (objet.origine and objet.origine.case) then
+            return false, "glisse la lanterne depuis tes sacs."
+        end
+        return true
+    end
+
+    function l:EquiperLanterne(id)
+        local ok, raison = LCM.Lanterne.EquiperLanterne(id)
+        if not ok then LCM.Alerte(raison) end
+        self:Actualiser(self.entity)
+        if UI.Inventaires then UI.Inventaires.Actualiser() end
+        return ok
+    end
+
+    function l:RetirerLanterne()
+        if not (self:Autorise(self.entity) and self:LanterneIci()) then return end
+        local ok, raison = LCM.Lanterne.RetirerLanterne()
+        if not ok then LCM.Alerte(raison) end
+        self:Actualiser(self.entity)
+        if UI.Inventaires then UI.Inventaires.Actualiser() end
+    end
+
     function l:Proposer(ancre)
         if not self:Autorise(self.entity) then return end
         local categorie = self.catalogue.Categorie(self.categorie)
@@ -1917,9 +1999,17 @@ function Lignes.conteneur(bloc, def, c)
         for _, element in ipairs(candidats) do
             options[#options + 1] = { id = element.id, label = element.label }
         end
+        -- Prefixees : un identifiant de lanterne pourrait aussi etre celui
+        -- d'un objet.
+        local lanternes = self:LanterneIci()
+        if lanternes then
+            for _, lanterne in ipairs(LCM.Lanterne.LanternesPortees()) do
+                options[#options + 1] = { id = "lanternes/" .. lanterne.id, label = lanterne.label }
+            end
+        end
         if #options == 0 then
-            LCM.Alerte(sacs
-                and string.format("aucun objet de type %s dans les sacs.", categorie.label:lower())
+            LCM.Alerte(lanternes and "aucun outil ni lanterne dans les sacs."
+                or sacs and string.format("aucun objet de type %s dans les sacs.", categorie.label:lower())
                 or string.format("rien a ajouter en %s.", categorie.label:lower()))
             return
         end
@@ -1927,6 +2017,11 @@ function Lignes.conteneur(bloc, def, c)
         local choix = Choix()
         choix.titre:SetText(categorie.label)
         choix:Proposer(ancre, options, function(id)
+            local lanterne = lanternes and tostring(id):match("^lanternes/(.+)$")
+            if lanterne then
+                self:EquiperLanterne(lanterne)
+                return
+            end
             local placer = sacs and self.catalogue.Equiper or self.catalogue.Placer
             local ok, raison = placer(self.entity, id)
             if not ok then
@@ -1969,6 +2064,12 @@ function Lignes.conteneur(bloc, def, c)
         -- main libre qu'il annonce (5 octobre 2026).
         local occupe = self.catalogue.Occupation and self.catalogue.Occupation(e, self.categorie)
             or #portes
+        -- La lanterne prend une place de la ceinture (Lanterne.PlacesCeinture) :
+        -- le compte et les lignes doivent la voir, sinon on annonce une place
+        -- que l'equipement refusera.
+        local lanterne = self:EstCeinture() and LCM.Lanterne.IdEquipe(e) or nil
+        if lanterne then occupe = occupe + 1 end
+        local prises = #portes + (lanterne and 1 or 0)
         -- Au-dessus du total (capacite reduite apres coup), le compte passe au
         -- rouge : rien n'est retire en douce.
         bloc.occupation:SetText(string.format("%d / %d", occupe, places))
@@ -1980,9 +2081,9 @@ function Lignes.conteneur(bloc, def, c)
         local categorie = self.catalogue.Categorie(self.categorie)
         -- Une case libre en plus seulement s'il RESTE une place : a cote d'une
         -- arme a deux mains, il n'y en a pas.
-        local n = (occupe < places) and (#portes + 1) or #portes
-        n = math.max(#portes, n)
-        if categorie and categorie.toutesLesCases then n = math.max(#portes, places) end
+        local n = (occupe < places) and (prises + 1) or prises
+        n = math.max(prises, n)
+        if categorie and categorie.toutesLesCases then n = math.max(prises, places) end
         local y = 0
         for index = 1, n do
             local ligne = self.emplacements[index]
@@ -1992,8 +2093,14 @@ function Lignes.conteneur(bloc, def, c)
             end
             -- Le rang AVANT l'habillage : c'est lui qui dit quel exemplaire
             -- montrer, et donc quel etat.
-            ligne.rangPorte = index
-            ligne:Habiller(self.catalogue, portes[index], mj)
+            -- Les outils d'abord, puis la lanterne, puis les places libres.
+            if lanterne and index == #portes + 1 then
+                ligne.rangPorte = nil
+                ligne:HabillerLanterne(lanterne, mj and self:LanterneIci())
+            else
+                ligne.rangPorte = index
+                ligne:Habiller(self.catalogue, portes[index], mj)
+            end
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", self, "TOPLEFT", 0, -y)
             ligne:SetPoint("TOPRIGHT", self, "TOPRIGHT", 0, -y)
