@@ -3,7 +3,7 @@ return {
     categorie = "etats",
     champs = {
         acrobaties = {
-            cout = 3,
+            cout = 2,
         },
         adresse = {
             cout = 4,
@@ -21,7 +21,7 @@ return {
             cout = 2,
         },
         course = {
-            cout = 3,
+            cout = 2,
         },
         crochetage = {
             cout = 2,
@@ -66,13 +66,13 @@ return {
             cout = 2,
         },
         endurance = {
-            cout = 3,
+            cout = 2,
         },
         equilibre = {
-            cout = 3,
+            cout = 2,
         },
         escalade = {
-            cout = 3,
+            cout = 2,
         },
         escamotage = {
             cout = 2,
@@ -177,7 +177,7 @@ return {
             cout = 2,
         },
         nage = {
-            cout = 3,
+            cout = 2,
         },
         niveau = {
             cout = 100,
@@ -247,10 +247,10 @@ return {
             cout = 1,
         },
         prise = {
-            cout = 3,
+            cout = 2,
         },
         projection = {
-            cout = 3,
+            cout = 2,
         },
         puissance = {
             cout = 2,
@@ -301,7 +301,7 @@ return {
             cout = 1,
         },
         resistance = {
-            cout = 3,
+            cout = 2,
         },
         sabotage = {
             cout = 2,
@@ -353,7 +353,7 @@ return {
             id = "commun",
             label = "Commun",
             palierIC = "rose",
-            points = "10000",
+            points = 10000,
         },
     },
 }

@@ -4,7 +4,7 @@ return {
     champs = {
         acrobaties = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         adresse = {
@@ -14,7 +14,7 @@ return {
             verrou = true,
         },
         communication = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         constitution = {
@@ -56,51 +56,51 @@ return {
             min = -2,
         },
         cosmique = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         course = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         crochetage = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         def_agilite = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_courage = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_defense = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_esprit_libre = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_insensible = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_mental = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         def_stable = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
@@ -111,21 +111,21 @@ return {
         },
         deguisement = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         depl_nage = {
-            cout = 1,
+            cout = 2,
         },
         depl_terrestre = {
-            cout = 1,
+            cout = 2,
         },
         depl_vol = {
             verrou = true,
         },
         discretion = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         duree_buff = {
@@ -139,27 +139,27 @@ return {
             min = -2,
         },
         elementaire = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         endurance = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         equilibre = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         escalade = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         escamotage = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         esprit = {
@@ -177,7 +177,7 @@ return {
         },
         evasion = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         existence_ame = {
@@ -187,7 +187,7 @@ return {
             verrou = true,
         },
         fatigue = {
-            cout = 2,
+            cout = 1,
         },
         force = {
             verrou = true,
@@ -238,129 +238,129 @@ return {
             min = -2,
         },
         initiative = {
-            cout = 1,
+            cout = 2,
         },
         investigation = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         meca_attaque_simple = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_attraction = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_bouclier = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_brise_armure = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_buff = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_confusion = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_controle_mental = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_creation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_debuff = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_deviation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_dissipation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_dot = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_entrave = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_illusion = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_immobilisation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_intervention = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_intimidation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_levitation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_perce_armure = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_permutation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_peur = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_provocation = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_repulsion = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
         meca_soin = {
-            cout = "2",
+            cout = 2,
             max = 4,
             min = -2,
         },
@@ -424,18 +424,18 @@ return {
         },
         nage = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         niveau = {
             verrou = true,
         },
         odorat_gout = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         ouie = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         pa = {
@@ -541,7 +541,7 @@ return {
             min = -2,
         },
         pistage = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         poids = {
@@ -549,17 +549,17 @@ return {
         },
         prise = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         projection = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         puissance = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         puissance_buff = {
@@ -634,12 +634,12 @@ return {
         },
         resistance = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         sabotage = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         sec_deplacement = {
@@ -670,16 +670,16 @@ return {
             verrou = true,
         },
         toucher = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         vol_a_la_tire = {
             base = 0,
-            cout = 2,
+            cout = "3",
             min = -2,
         },
         vue = {
-            cout = 2,
+            cout = "3",
             min = -2,
         },
     },
@@ -692,42 +692,49 @@ return {
             couleur = "FF8CB8",
             id = "commun",
             label = "Commun",
+            palierIC = "rose",
             points = 1,
         },
         {
             couleur = "4DE04D",
             id = "inhabituel",
             label = "Inhabituel",
+            palierIC = "vert",
             points = 5,
         },
         {
             couleur = "4D8CFF",
             id = "rare",
             label = "Rare",
+            palierIC = "bleu",
             points = 9,
         },
         {
             couleur = "FF9926",
             id = "epique",
             label = "Épique",
+            palierIC = "orange",
             points = 14,
         },
         {
             couleur = "FF3838",
             id = "legendaire",
             label = "Légendaire",
+            palierIC = "rouge",
             points = 20,
         },
         {
             couleur = "BF4DFF",
             id = "mythique",
             label = "Mythique",
+            palierIC = "violet",
             points = 30,
         },
         {
             couleur = "9999A6",
             id = "unique",
             label = "Unique",
+            palierIC = "noir",
             points = 50,
         },
     },

@@ -1,0 +1,28 @@
+-- lcm-db: {"family": "etats", "id": "lcm_64a651_6acfd093_05d74113_0001_db7615", "registry": "Etats", "side": "player"}
+return {
+    bonus = {
+        cosmique = "-5",
+        elementaire = "-5",
+        mystique = "-6",
+        pen_desordre = "-10",
+        pen_eau = "-10",
+        pen_esprit = "-10",
+        pen_feu = "-10",
+        pen_lumiere = "-10",
+        pen_mort = "-10",
+        pen_ombre = "-10",
+        pen_ordre = "-10",
+        pen_pourriture = "-10",
+        pen_terre = "-10",
+        pen_vent = "-10",
+        pen_vie = "-10",
+    },
+    categorie = "etat",
+    couleurTitre = "9999A6",
+    description = "||cff8f2e36M A L U S||r\n||cff7b0e16• Perte de santé en utilisant la magie.\n• Retrait manuel impossible.||r\n\n||cff7f80ffDescription :||r\n||cff4049aeMalheur ! Vous portez désormais un collier autour du cou, d'un métal froid et noir. \n\nUtiliser toute forme de magie inflige une douleur tétanisante, comme si vos os se craquaient sous un étau. - Et ce n'est pas qu'une impression ! -\n\nN'empêche pas l'utilisation de la magie, bien que la douleur - ou le risque de mort - dissuade le porteur de s'y risquer.\n\nLe",
+    forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/unique",
+    icone = "Interface\\ICONS\\achievement_dungeon_shadowmoonhideout",
+    id = "lcm_64a651_6acfd093_05d74113_0001_db7615",
+    label = "Collier noir.",
+    tags = "Unique",
+}

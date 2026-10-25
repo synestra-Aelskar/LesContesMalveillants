@@ -1,0 +1,30 @@
+-- lcm-db: {"family": "objets", "id": "lcm_64a651_6ad6a6b5_208b909d_0002_03630b", "registry": "Objets", "side": "player"}
+return {
+    avantage = {  },
+    bonus = {
+        acrobaties = -1,
+        escalade = -1,
+        force_brise_armure = 2,
+        meca_soin = 1,
+        mystique_brise_armure = 2,
+        pen_contondant = 6,
+        pen_terre = 8,
+        perception_brise_armure = 2,
+    },
+    categorie = "arme",
+    couleurTitre = "FF8CB8",
+    description = "Un bâton somme tout assez banal.. Des petites runes sur le coté indique un enchantement mineur..Et qui le porte sens la volonté de la terre l'animer.",
+    etat = {
+        ancienMax = 18,
+        courant = 28,
+        max = 28,
+        version = 2,
+    },
+    forge = "equilibrage_arme/commun",
+    icone = "Interface\\ICONS\\inv_staff_17",
+    id = "lcm_64a651_6ad6a6b5_208b909d_0002_03630b",
+    label = "Bâton brisé.",
+    tags = "Commun",
+    taille = 2,
+    type = "baton",
+}

@@ -5,7 +5,7 @@ return {
         auteur = "Reïkä-Apertus",
         carte = 349,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 27,
+        epoque = 29,
         id = "c6ad699f50070b",
         mapid = 585,
         objets = {
@@ -26,7 +26,7 @@ return {
         y = 10480.244140625,
         z = -402.81893920898,
     },
-    epoque = 27,
+    epoque = 29,
     id = "c6ad699f50070b",
     label = "Coffre verrouillé",
     nature = "coffre",

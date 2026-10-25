@@ -1,15 +1,17 @@
 -- lcm-db: {"family": "traits", "id": "lcm_64a651_6acabb9f_04f8b719_0002_c63df8", "registry": "Traits", "side": "player"}
 return {
+    avantage = {  },
     bonus = {
-        endurance = 1,
-        fatigue = 2,
-        puissance = 1,
+        def_courage = 1,
+        def_esprit_libre = 1,
+        def_mental = 1,
     },
     couleurTitre = "FF8CB8",
-    description = "Les chairs tordus de l’elfe lui confère une force démentielle bien plus que l’on pourrait en attendre d’une elfe de sa carrure, sans compter une résilience particulièrement notable.",
+    cout = 1,
+    description = "Peu importe que la Croisade ait disparu, les vœux de Kirsa sont immuable et renforce sa détermination en toute circonstance.",
     forge = "traits/commun",
-    icone = "Interface\\ICONS\\ability_demonhunter_consumemagic",
+    icone = "Interface\\ICONS\\ability_paladin_selflesshealer",
     id = "lcm_64a651_6acabb9f_04f8b719_0002_c63df8",
-    label = "Force Xorothienne",
+    label = "Serment",
     tags = "Commun",
 }

@@ -1,0 +1,53 @@
+-- lcm-db: {"family": "points", "id": "lcm_132159_6ad78dfb_10d4c284_0002_bf568f", "registry": "Points", "side": "mj"}
+return {
+    description = "",
+    id = "lcm_132159_6ad78dfb_10d4c284_0002_bf568f",
+    label = "Récolter la pierre",
+    nature = "ressource",
+    offres = {  },
+    recolte = {
+        dd = 0,
+        echecConsomme = false,
+        limite = 1,
+        metiers = {  },
+        rayon = 3,
+        ressources = {
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "ressources/lcm_64a651_6ad65d53_1f6ceb05_0008_ac7d09",
+                max = 1,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "ressources/lcm_64a651_6ad65c1f_1f683923_0006_eecba6",
+                max = 1,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "ressources/lcm_64a651_6ad65e22_1f70123b_000b_aa9a60",
+                max = 1,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+            {
+                aleatoire = false,
+                chance = 100,
+                entree = "ressources/lcm_64a651_6ad65ebf_1f7276d7_000e_4cb110",
+                max = 1,
+                min = 1,
+                minutes = 0,
+                regeneration = false,
+            },
+        },
+    },
+}

@@ -5,6 +5,7 @@ return {
     categorie = "maladie",
     couleurTitre = "FF8CB8",
     desavantage = {  },
+    description = "",
     forge = "lcm_64a651_6acd99d5_102ca8dd_0002_e477e8/commun",
     icone = "Interface\\ICONS\\ability_ironmaidens_corruptedblood",
     id = "infection_de_sang",
