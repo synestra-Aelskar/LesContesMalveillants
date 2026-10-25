@@ -416,67 +416,36 @@ attendu("elle retourne au sac", I.Chercher(moi, "lanternes/temoin_controle") ~= 
 attendu("son cristal aussi, avec sa charge", L.CristalPose(moi), nil)
 attendu("il est dans les sacs", I.Chercher(moi, "cristaux/temoin_mj") ~= nil, true)
 attendu("plus de lanterne qui eclaire", L.LanterneChoisie(), nil)
-ok, err = LCM.UI.Lanterne.Basculer()
-attendu("le menu Lanterne refuse de s'ouvrir", ok, false)
-contient("     raison", err, "ceinture")
 
-dire("== Objets > Outils")
+-- La ceinture porte-outils dessinee (Objets > Outils du menu radial) et le
+-- panneau repris de Survive ont ete retires le 25 octobre 2026. La lanterne
+-- se sert maintenant depuis « Mes Outils », et sa vue epuree s'ouvre par son
+-- « Voir » : lcm_test_mes_outils les tient. Ici, on passe par Core/Lanternes.
+-- L'equipement depuis la fiche est tenu par lcm_test_fiche_lanterne.
+dire("== equiper, poser un cristal, allumer")
 local M = LCM.UI.Menu
-local objets = M.Trouver("objets")
-local present = false
-for _, e in ipairs(objets.enfants) do present = present or e.id == "outils_portes" end
-attendu("le bouton est dans Objets", present, true)
-attendu("il s'appelle Outils", M.Trouver("outils_portes").label, "Outils")
-attendu("il est lie a sa fenetre", M.EstLiee("outils_portes"), true)
-M.Trouver("outils_portes").onClick()
-local ceinture = LCM.UI.Ceinture.frame
-attendu("la ceinture s'ouvre", ceinture and ceinture:IsShown(), true)
-attendu("place vide sans lanterne", ceinture.emplacements[1].plus:IsShown(), true)
+attendu("plus de bouton Outils dans Objets", M.Trouver("outils_portes"), nil)
+ok, err = LCM.UI.Lanterne.Basculer()
+attendu("sans lanterne equipee, sa vue refuse de s'ouvrir", ok, false)
+contient("     raison", err, "Équipements › Outils")
 attendu("plus d'objet « Lanterne » generique", LCM.Objets.Get("outil_lanterne"), nil)
-ceinture.emplacements[1]:Click()
-local choixCeinture = _G.LCM_Choix_ceinture_outils
-local ligneTemoin
-for _, ligne in ipairs(choixCeinture.lignes) do
-    if ligne:IsShown() and ligne.choix == "lanternes/temoin_simple" then ligneTemoin = ligne end
-end
-attendu("les lanternes des sacs sont proposees", ligneTemoin ~= nil, true)
-if ligneTemoin then ligneTemoin:Click() end
-attendu("la ceinture equipe la lanterne", L.IdEquipe(moi), "temoin_simple")
-attendu("elle est sur le premier crochet", ceinture.emplacements[1].porte.id, "temoin_simple")
-local nChats = #__chats
-ceinture.emplacements[1]:Click()
-for _, ligne in ipairs(LCM.UI.MenuContexte().lignes) do
-    if ligne:IsShown() and ligne.texte:GetText() == "Ouvrir" then ligne:Click() break end
-end
-local f = LCM.UI.Lanterne.frame
-attendu("le panneau lanterne s'ouvre", f and f:IsShown(), true)
-attendu("ouvrir se joue en emote", chat("examine sa lanterne.") ~= nil and #__chats > nChats, true)
--- Plus de liste « Lanterne » (le MJ, 23 octobre 2026) : elle se choisit en
--- l'equipant sur la ceinture.
-attendu("pas de liste de lanterne", f.lanterne, nil)
+attendu("la lanterne s'equipe", (L.EquiperLanterne("temoin_simple")), true)
+attendu("equipee", L.IdEquipe(moi), "temoin_simple")
 attendu("la lanterne equipee eclaire", L.LanterneChoisie() and L.LanterneChoisie().id, "temoin_simple")
-attendu("la liste des cristaux est utilisable", f.cristal:IsEnabled(), true)
+attendu("des cristaux sont dans les sacs", #L.CristauxPortes() > 0, true)
 local premier = L.CristauxPortes()[1]
-f.cristal.choisir(premier.id)
+L.ChoisirCristal(premier.id)
 attendu("le cristal choisi est pose", L.CristalPose(moi) ~= nil, true)
-f:Afficher()
-attendu("et affiche", f.cristal.label:GetText(), premier.label)
-attendu("le bouton propose d'allumer", f.allumer.label:GetText(), "Allumer")
-f.allumer:Click()
+L.Allumer()
 attendu("et allume", L.Allumee(), true)
-attendu("le bouton propose d'eteindre", f.allumer.label:GetText(), "Éteindre")
-f.reglages:Click()
-attendu("le volet des parametres s'ouvre", f.volet:IsShown(), true)
 
 dire("== sans cristal dans les sacs")
-f.cristal.choisir(false)
+L.ChoisirCristal(false)
 attendu("retirer le cristal l'eteint", L.Allumee(), false)
 for _, c in ipairs(Cs.list) do
     while I.Prendre(moi, "cristaux/" .. c.id) do end
 end
-f:Afficher()
-attendu("la liste le dit", f.cristal.label:GetText(), "Aucun cristal dans votre inventaire")
-attendu("et elle est grisee", f.cristal:IsEnabled(), false)
+attendu("plus aucun cristal porte", #L.CristauxPortes(), 0)
 
 -- Le MJ, 23 octobre 2026 : la poche n'apparait que lorsqu'elle tient un
 -- cristal. Videe, elle disparait de la fenetre, et de la sauvegarde.
@@ -490,19 +459,10 @@ end
 attendu("elle n'a plus de carte", carteVide, nil)
 attendu("ni de bandeau", LCM.UI.Inventaires.frame.bandeaux.cristaux_usage:IsShown(), false)
 LCM.UI.Menu.Trouver("inventaires").onClick()
-f:Hide()
-attendu("la lanterne se referme", f:IsShown(), false)
-attendu("ranger se joue en emote", chat("remet sa lanterne") ~= nil, true)
 
-dire("== la ceinture rend la lanterne")
-ceinture.emplacements[1]:Click()
-for _, ligne in ipairs(LCM.UI.MenuContexte().lignes) do
-    if ligne:IsShown() and ligne.texte:GetText() == "Retirer" then ligne:Click() break end
-end
+dire("== retirer rend la lanterne")
+attendu("retirer", (L.RetirerLanterne()), true)
 attendu("retiree", L.IdEquipe(moi), nil)
 attendu("au sac", I.Chercher(moi, "lanternes/temoin_simple") ~= nil, true)
-attendu("le crochet est libre", ceinture.emplacements[1].plus:IsShown(), true)
-M.Trouver("outils_portes").onClick()
-attendu("la ceinture se referme", ceinture:IsShown(), false)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

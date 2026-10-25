@@ -1,4 +1,4 @@
--- Ceinture porte-outils et puits de tonnerre : equipement, portee, console MJ.
+-- Puits de tonnerre et scanner : equipement, portee, console MJ.
 local ko = 0
 local function attendu(label, obtenu, voulu)
     local ok = tostring(obtenu) == tostring(voulu)
@@ -17,15 +17,11 @@ local ok, raison = O.Equiper(moi, "outil_scanner_valrazkah")
 attendu("sans scanner dans les sacs, equipement refuse", ok, false)
 attendu("portee de la ceinture", O.Capacite("outil"), 2)
 attendu("scanner mis dans les sacs", (I.Deposer(moi, "objets/outil_scanner_valrazkah", 1)), true)
-LCM.UI.Menu.Trouver("outils_portes").onClick()
-local ceinture = LCM.UI.Ceinture.frame
-attendu("la ceinture propose deux crochets", #ceinture.emplacements, 2)
-ceinture.emplacements[1]:Click()
-_G.LCM_Choix_ceinture_outils.lignes[1]:Click()
-attendu("scanner equipe depuis la ceinture", O.Porte(moi, "outil_scanner_valrazkah"), true)
+-- La ceinture dessinee (Objets > Outils) a ete retiree le 25 octobre 2026,
+-- a refaire : le scanner s'equipe par Core/Objets, comme depuis la fiche.
+attendu("scanner equipe", (O.Equiper(moi, "outil_scanner_valrazkah")), true)
+attendu("scanner porte", O.Porte(moi, "outil_scanner_valrazkah"), true)
 attendu("scanner parti des sacs", O.Possede(moi, "outil_scanner_valrazkah"), false)
-attendu("premiere place affiche le scanner", ceinture.emplacements[1].porte.id, "outil_scanner_valrazkah")
-attendu("deuxieme place libre", ceinture.emplacements[2].porte, nil)
 attendu("scanner ouvert", (LCM.UI.Scanner.Basculer()), true)
 local f = LCM.UI.Scanner.frame
 attendu("console MJ presente", f.poser ~= nil, true)

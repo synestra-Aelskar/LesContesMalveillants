@@ -127,7 +127,9 @@ attendu("ordre du radial des fenêtres", table.concat(noms, ","),
 attendu("Personnage : six fenetres et le level-up conditionnel", #M.Trouver("fiches_personnages").enfants, 7)
 -- Cinq le 22 octobre 2026 avec « Outils » (la lanterne) ; quatre depuis le
 -- 24 : la Bourse a rejoint la colonne d'Inventaires et a rendu son cran.
-attendu("Objets : quatre fenetres (la Bourse a rendu son cran)",
+-- Quatre encore depuis le 25 : « Outils » (la ceinture dessinee) est retire,
+-- « Mes Outils » (son bandeau, sous Inventaires) prend son cran.
+attendu("Objets : quatre fenetres (Mes Outils remplace Outils)",
     #M.Trouver("objets").enfants, 4)
 -- Neuf depuis le 10 octobre 2026 : le Campement y est range en attendant sa
 -- place, puis les Lieux. Huit etait le plafond parce qu'il n'existait que huit

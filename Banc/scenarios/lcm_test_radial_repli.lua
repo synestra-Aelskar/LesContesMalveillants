@@ -45,7 +45,8 @@ Bouton("objets"):Click()
 __avancer(1)
 -- Quatre entrees depuis le 24 octobre 2026 : Equipements, Inventaires,
 -- Metiers et « Outils » (la lanterne). La Bourse est descendue dans la colonne
--- d'Inventaires et a rendu son cran.
+-- d'Inventaires et a rendu son cran. Le 25 : « Outils » (la ceinture
+-- dessinee) est retire, et « Mes Outils », sous Inventaires, prend son cran.
 attendu("Objets deploye", c.choisi .. " " .. c.nombreEntrees, "objets 4")
 
 dire("== on change de dossier, et la fiche bouge pendant le repli")
