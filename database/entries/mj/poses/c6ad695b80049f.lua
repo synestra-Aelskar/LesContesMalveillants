@@ -5,7 +5,7 @@ return {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad695b80049f",
         mapid = 585,
         objets = {
@@ -26,7 +26,7 @@ return {
         y = 10441.41015625,
         z = -487.67208862305,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad695b80049f",
     label = "Cassier fermé.",
     nature = "coffre",

@@ -32,6 +32,24 @@ def ecrire_entree(base: Path, side: str, family: str, ident: str, label: str = "
     return chemin
 
 
+def ecrire_pose(base: Path, ident: str, epoque: int, description: str | None = None,
+                places: int = 10) -> Path:
+    chemin = base / "entries" / "mj" / "poses" / f"{ident}.lua"
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    tete = json.dumps({"family": "poses", "id": ident, "registry": "Poses", "side": "mj"})
+    lignes = [f"-- lcm-db: {tete}", "return {"]
+    if description is not None:
+        lignes.append(f"    description = \"{description}\",")
+    lignes += [
+        f"    epoque = {epoque},",
+        f"    places = {places},",
+        "    version = 3,",
+        "}",
+    ]
+    chemin.write_text("\n".join(lignes) + "\n", encoding="utf-8", newline="\n")
+    return chemin
+
+
 def ecrire_pierre(base: Path, family: str, ident: str, crlf: bool = False) -> Path:
     chemin = base / "tombstones" / family / f"{ident}.delete"
     chemin.parent.mkdir(parents=True, exist_ok=True)
@@ -90,6 +108,48 @@ class PontBaseTest(unittest.TestCase):
         copie = self.depot / "tombstones" / "objets" / "a_retirer.delete"
         self.assertNotIn(b"\r", copie.read_bytes(), "le depot declare les .delete en eol=lf")
         self.assertEqual(copie.read_text(encoding="utf-8"), "objets/a_retirer\n")
+
+    def test_l_arbitrage_de_seance_ne_compte_pas_pour_une_modification(self):
+        # `epoque` et `version` montent toutes seules pendant qu'on joue, et le
+        # classeur ajoute une description vide aux poses : les 42 poses de la
+        # campagne revenaient « modifiees » a chaque passage du pont.
+        ecrire_pose(self.depot, "coffre", epoque=29)
+        ecrire_pose(self.sheets, "coffre", epoque=35, description="")
+
+        plan = pont.comparer(self.depot, self.sheets)
+        self.assertEqual(plan["modifies"], [])
+        self.assertEqual([cle for cle, _ in plan["arbitrage"]], [("poses", "coffre")])
+
+        pont.appliquer(plan, self.depot, self.sheets)
+        self.assertIn("epoque = 29", (self.depot / "entries" / "mj" / "poses" / "coffre.lua")
+                      .read_text(encoding="utf-8"), "rien n'est recopie pour ce seul motif")
+
+    def test_un_vrai_changement_passe_malgre_l_arbitrage(self):
+        # Le filtre ne doit pas servir de couverture : si autre chose bouge, la
+        # modification se voit, et l'entree part telle quelle, epoque comprise.
+        ecrire_pose(self.depot, "coffre", epoque=29, places=10)
+        ecrire_pose(self.sheets, "coffre", epoque=35, places=14)
+
+        plan = pont.comparer(self.depot, self.sheets)
+        self.assertEqual([cle for cle, _ in plan["modifies"]], [("poses", "coffre")])
+        self.assertEqual(plan["arbitrage"], [])
+
+        pont.appliquer(plan, self.depot, self.sheets)
+        copie = (self.depot / "entries" / "mj" / "poses" / "coffre.lua").read_text(encoding="utf-8")
+        self.assertIn("places = 14", copie)
+        self.assertIn("epoque = 35", copie)
+
+    def test_vider_une_description_hors_des_poses_reste_une_modification(self):
+        ecrire_entree(self.depot, "player", "objets", "broche", label="Broche")
+        source = ecrire_entree(self.sheets, "player", "objets", "broche", label="Broche")
+        source.write_text(
+            source.read_text(encoding="utf-8").replace(
+                "    label = \"Broche\",", "    description = \"\",\n    label = \"Broche\","),
+            encoding="utf-8", newline="\n")
+
+        plan = pont.comparer(self.depot, self.sheets)
+        self.assertEqual([cle for cle, _ in plan["modifies"]], [("objets", "broche")])
+        self.assertEqual(plan["arbitrage"], [])
 
     def test_un_changement_de_cote_ne_laisse_pas_de_double(self):
         ancienne = ecrire_entree(self.depot, "player", "points", "bascule")

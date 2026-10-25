@@ -4753,12 +4753,11 @@ LCM.Publier(LCM.Points, {
 -- ----- poses (43) ---------------------------------------------------
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad4b4e200161",
         mapid = 585,
         objets = {
@@ -4791,7 +4790,7 @@ LCM.Publier(LCM.Poses, {
         y = 10443.2109375,
         z = -387.03329467773,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad4b4e200161",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -4800,12 +4799,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad64cab0049f",
         mapid = 585,
         objets = {
@@ -4830,7 +4828,7 @@ LCM.Publier(LCM.Poses, {
         y = 10439.440429688,
         z = -478.32897949219,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad64cab0049f",
     label = "Coffre solidement verrouillé",
     nature = "coffre",
@@ -4839,12 +4837,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6561a001d0",
         mapid = 585,
         objets = {
@@ -4881,7 +4878,7 @@ LCM.Publier(LCM.Poses, {
         y = 10468.24609375,
         z = -454.03039550781,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6561a001d0",
     label = "Coffre solidement verrouillé",
     nature = "coffre",
@@ -4890,12 +4887,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6593e0027f",
         mapid = 585,
         objets = {
@@ -4932,7 +4928,7 @@ LCM.Publier(LCM.Poses, {
         y = 10427.775390625,
         z = -387.03268432617,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6593e0027f",
     label = "Coffre solidement verrouillé.",
     nature = "coffre",
@@ -4941,12 +4937,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad65a390010a",
         mapid = 585,
         objets = {  },
@@ -4962,7 +4957,7 @@ LCM.Publier(LCM.Poses, {
         y = 10467.701171875,
         z = -386.99127197266,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad65a390010a",
     label = "Coffre solidement verrouillé.",
     nature = "coffre",
@@ -4971,12 +4966,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad65a3f00256",
         mapid = 585,
         objets = {  },
@@ -4992,7 +4986,7 @@ LCM.Publier(LCM.Poses, {
         y = 10469.502929688,
         z = -386.54049682617,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad65a3f00256",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5001,12 +4995,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad65ac6004d7",
         mapid = 585,
         objets = {
@@ -5035,7 +5028,7 @@ LCM.Publier(LCM.Poses, {
         y = 10502.9609375,
         z = -426.45486450195,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad65ac6004d7",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5044,12 +5037,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad65b17005fd",
         mapid = 585,
         objets = {
@@ -5074,7 +5066,7 @@ LCM.Publier(LCM.Poses, {
         y = 10392.3203125,
         z = -487.01937866211,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad65b17005fd",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5083,12 +5075,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad65b4000648",
         mapid = 585,
         objets = {
@@ -5129,7 +5120,7 @@ LCM.Publier(LCM.Poses, {
         y = 10400.376953125,
         z = -487.09683227539,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad65b4000648",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5138,12 +5129,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad68fdd001e6",
         mapid = 585,
         objets = {
@@ -5176,7 +5166,7 @@ LCM.Publier(LCM.Poses, {
         y = 10394.931640625,
         z = -478.36755371094,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad68fdd001e6",
     label = "Coffre solidement verrouillé.",
     nature = "coffre",
@@ -5185,12 +5175,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6913b0027d",
         mapid = 585,
         objets = {
@@ -5227,7 +5216,7 @@ LCM.Publier(LCM.Poses, {
         y = 10398.983398438,
         z = -477.69436645508,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6913b0027d",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5236,12 +5225,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad6953f_20475b27_0005_8e597a",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad695740013a",
         mapid = 585,
         objets = {
@@ -5262,7 +5250,7 @@ LCM.Publier(LCM.Poses, {
         y = 10440.892578125,
         z = -487.67208862305,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad695740013a",
     label = "Cassier bloqué.",
     nature = "coffre",
@@ -5271,12 +5259,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad695b20023e",
         mapid = 585,
         objets = {  },
@@ -5292,7 +5279,7 @@ LCM.Publier(LCM.Poses, {
         y = 10440.881835938,
         z = -487.67208862305,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad695b20023e",
     label = "Cassier fermé.",
     nature = "coffre",
@@ -5301,12 +5288,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad695b6003d8",
         mapid = 585,
         objets = {
@@ -5327,7 +5313,7 @@ LCM.Publier(LCM.Poses, {
         y = 10440.693359375,
         z = -487.67208862305,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad695b6003d8",
     label = "Cassier fermé.",
     nature = "coffre",
@@ -5336,12 +5322,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad6958c_20488800_0006_95616c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad695b80049f",
         mapid = 585,
         objets = {
@@ -5362,7 +5347,7 @@ LCM.Publier(LCM.Poses, {
         y = 10441.41015625,
         z = -487.67208862305,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad695b80049f",
     label = "Cassier fermé.",
     nature = "coffre",
@@ -5371,12 +5356,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad696d6_204d92ef_000a_e325e4",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad696da005c1",
         mapid = 585,
         objets = {
@@ -5401,7 +5385,7 @@ LCM.Publier(LCM.Poses, {
         y = 10441.655273438,
         z = -486.81112670898,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad696da005c1",
     label = "Table",
     nature = "coffre",
@@ -5410,12 +5394,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
         def = "lcm_64a651_6ad64b86_1f2763c4_0002_a79731",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad69985006ba",
         mapid = 585,
         objets = {
@@ -5436,7 +5419,7 @@ LCM.Publier(LCM.Poses, {
         y = 10494.612304688,
         z = -403.63278198242,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad69985006ba",
     label = "Coffre solidement verrouillé",
     nature = "coffre",
@@ -5445,12 +5428,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad699f50070b",
         mapid = 585,
         objets = {
@@ -5471,7 +5453,7 @@ LCM.Publier(LCM.Poses, {
         y = 10480.244140625,
         z = -402.81893920898,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad699f50070b",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5480,12 +5462,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad699fc008ca",
         mapid = 585,
         objets = {  },
@@ -5501,7 +5482,7 @@ LCM.Publier(LCM.Poses, {
         y = 10475.571289062,
         z = -403.00555419922,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad699fc008ca",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5510,12 +5491,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 349,
         def = "lcm_64a651_6ad69b2b_205e800a_0015_33aeef",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad69b41009b5",
         mapid = 585,
         objets = {
@@ -5536,7 +5516,7 @@ LCM.Publier(LCM.Poses, {
         y = 10492.509765625,
         z = -402.66763305664,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad69b41009b5",
     label = "Coffre ancien",
     nature = "coffre",
@@ -5545,12 +5525,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 204,
         def = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6a2d900c20",
         objets = {
             {
@@ -5606,7 +5585,7 @@ LCM.Publier(LCM.Poses, {
         y = 5560.2060546875,
         z = 518.25244140625,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6a2d900c20",
     label = "Sac de gros de Inconnue",
     nature = "coffre",
@@ -5615,12 +5594,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6a5a100166",
         mapid = 585,
         objets = {
@@ -5649,7 +5627,7 @@ LCM.Publier(LCM.Poses, {
         y = 10491.295898438,
         z = -386.73672485352,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6a5a100166",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5658,12 +5636,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad696d6_204d92ef_000a_e325e4",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad6b01c002cb",
         mapid = 585,
         objets = {
@@ -5700,7 +5677,7 @@ LCM.Publier(LCM.Poses, {
         y = 10395.87890625,
         z = -477.51574707031,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad6b01c002cb",
     label = "Table",
     nature = "coffre",
@@ -5709,11 +5686,10 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad78c430019c",
         mapid = 1925,
         objets = {  },
@@ -5729,7 +5705,7 @@ LCM.Publier(LCM.Poses, {
         y = 9333.9482421875,
         z = -85.439125061035,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad78c430019c",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5738,11 +5714,10 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 29,
+        epoque = 35,
         id = "c6ad790a700156",
         mapid = 1925,
         objets = {  },
@@ -5758,7 +5733,7 @@ LCM.Publier(LCM.Poses, {
         y = 9354.6748046875,
         z = -85.43968963623,
     },
-    epoque = 29,
+    epoque = 35,
     id = "c6ad790a700156",
     label = "Coffre verrouillé",
     nature = "coffre",
@@ -5767,12 +5742,11 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 947,
         def = "lcm_64a651_6ad0355b_0760f978_0002_69c19a",
-        epoque = 15,
+        epoque = 21,
         id = "c6ad8d9d6001cd",
         mapid = 1270,
         objets = {  },
@@ -5788,7 +5762,7 @@ LCM.Publier(LCM.Poses, {
         y = 2164.8237304688,
         z = 231.07386779785,
     },
-    epoque = 15,
+    epoque = 21,
     id = "c6ad8d9d6001cd",
     label = "Coffre solidement verrouillé.",
     nature = "coffre",
@@ -5797,7 +5771,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         def = "lcm_64a651_6acfe4c4_06262ef9_0002_c341b0",
         id = "m6acfe50600167",
@@ -5843,7 +5816,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad0d5c6_09d397ff_0003_13331c",
@@ -5863,7 +5835,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5883,7 +5854,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5903,7 +5873,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad658cb_1f5b36c6_0007_51af86",
@@ -5923,7 +5892,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65dab_1f6e413b_0009_48aa6d",
@@ -5943,7 +5911,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65dd4_1f6ee441_000a_03df8e",
@@ -5963,7 +5930,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
@@ -5983,7 +5949,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65f4c_1f74a128_000f_e3884b",
@@ -6003,7 +5968,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65fa3_1f75f518_0011_f06db7",
@@ -6023,7 +5987,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad65e4c_1f70b5dd_000c_6485f2",
@@ -6043,7 +6006,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 1606,
         def = "lcm_64a651_6ad69808_20523dae_000c_d8935d",
@@ -6063,7 +6025,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6085,7 +6046,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6107,7 +6067,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",
@@ -6129,7 +6088,6 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         carte = 349,
         def = "lcm_64a651_6ad79771_2437e8ec_0004_45e4ae",

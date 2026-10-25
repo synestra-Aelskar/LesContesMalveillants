@@ -87,6 +87,30 @@ def lire_pierres(base: Path) -> dict[tuple[str, str], Path]:
     return pierres
 
 
+# Ce qui ne fait pas une modification : l'arbitrage de seance.
+#
+# `epoque` monte a chaque reprise de garde d'un objet pose et `version` a
+# chaque geste ; ensemble, elles tranchent entre deux copies chez deux maitres
+# du jeu (MJ/Coffres.lua). Elles montent donc toutes seules pendant qu'on joue,
+# et les 42 poses de la campagne revenaient « modifiees » a chaque passage du
+# pont sans qu'un mot de leur contenu ait change (constate le 25 octobre 2026 :
+# epoque 29 -> 35, et rien d'autre). Un pont qui annonce quarante-deux
+# ecritures pour rien finit par ne plus se lire.
+#
+# La description vide ne compte que pour les POSES, ou le classeur l'ajoute par
+# defaut a des entrees qui n'en ont pas. Ailleurs, vider une description est un
+# geste, et il doit se voir.
+ARBITRAGE = re.compile(r'^[ \t]*(?:epoque|version)[ \t]*=[ \t]*\d+,?[ \t]*\r?\n', re.MULTILINE)
+DESCRIPTION_VIDE = re.compile(r'^[ \t]*description[ \t]*=[ \t]*""[ \t]*,?[ \t]*\r?\n', re.MULTILINE)
+
+
+def sans_arbitrage(chemin: Path, famille: str) -> str:
+    texte = ARBITRAGE.sub("", chemin.read_text(encoding="utf-8"))
+    if famille == "poses":
+        texte = DESCRIPTION_VIDE.sub("", texte)
+    return texte
+
+
 def etiquette(base: Path, cle: tuple[str, str], entrees: dict[tuple[str, str], Path]) -> str:
     """Le nom lisible d'une entree, pour que l'apercu se lise sans les ids."""
     chemin = entrees.get(cle)
@@ -109,6 +133,7 @@ def comparer(depot: Path, sheets: Path) -> dict[str, list]:
         "deplaces": [],
         "suppressions": [],
         "orphelins": [],
+        "arbitrage": [],
     }
 
     for cle, source in entreesSheets.items():
@@ -120,7 +145,10 @@ def comparer(depot: Path, sheets: Path) -> dict[str, list]:
             # endroits ferait echouer la reconstruction sur une entree en double.
             plan["deplaces"].append((cle, source, cible))
         elif cible.read_bytes() != source.read_bytes():
-            plan["modifies"].append((cle, source))
+            if sans_arbitrage(cible, cle[0]) == sans_arbitrage(source, cle[0]):
+                plan["arbitrage"].append((cle, source))
+            else:
+                plan["modifies"].append((cle, source))
 
     for cle, source in pierresSheets.items():
         if cle not in pierresDepot:
@@ -188,6 +216,8 @@ def main(argv=None) -> int:
     print(f"{'changent de cote':14} {len(plan['deplaces'])}")
     print(f"{'suppressions':14} {len(plan['suppressions'])}")
     print(f"{'orphelins':14} {len(plan['orphelins'])}")
+    if plan["arbitrage"]:
+        print(f"{'arbitrage seul':14} {len(plan['arbitrage'])}  (epoque/version montee en seance : rien a reporter)")
 
     # Une pierre tombale qui vise une entree encore presente dans le depot
     # RETIRE du contenu publie. C'est le seul effet du pont qui fait maigrir le
@@ -210,6 +240,7 @@ def main(argv=None) -> int:
             ("Ajouts", [cle for cle, _ in plan["ajouts"]]),
             ("Modifies", [cle for cle, _ in plan["modifies"]]),
             ("Changent de cote", [cle for cle, _, _ in plan["deplaces"]]),
+            ("Arbitrage seul", [cle for cle, _ in plan["arbitrage"]]),
         ):
             if not cles:
                 continue
