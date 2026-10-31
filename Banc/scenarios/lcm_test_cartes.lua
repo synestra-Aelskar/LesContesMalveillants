@@ -77,6 +77,26 @@ local contenu, raison = Cartes.Contenu(Cartes.Get("boucle_a"))
 attendu("une boucle ne se resout pas", contenu, nil)
 attendu("et le dit", raison, "les cartes se reprennent en boucle")
 
+dire("== le MJ voit tout, le joueur ce que son personnage a appris")
+-- La regle du 31 octobre 2026 : un MJ ne voit aucun nom masque — il prepare
+-- le jeu, y compris ce que l'autre MJ a cree. Un joueur ne sait que ce que SON
+-- personnage (la fiche LCM jouee) a appris. Ce qu'on APPREND se verifie donc
+-- en mode joueur.
+attendu("le MJ connait une region qu'on ne lui a pas apprise", ZG:HasLearnedZoneName(foret.id), true)
+LCM.db.settings.modeJoueur = true
+attendu("en joueur, il ne la connait pas", ZG:HasLearnedZoneName(foret.id), false)
+do
+    -- Deux fiches sur le meme personnage WoW ne partagent pas ce qu'elles savent.
+    local P = LCM.Personnages
+    local actif = P.Actif
+    local autre = { id = "fiche_temoin_2" }
+    P.Actif = function() return autre end
+    ZG:MarkLearnedZoneName(foret.id)
+    attendu("la seconde fiche l'apprend", ZG:HasLearnedZoneName(foret.id), true)
+    P.Actif = actif
+    attendu("la premiere ne le sait pas pour autant", ZG:HasLearnedZoneName(foret.id), false)
+end
+
 dire("== lire apprend les lieux devoiles, et seulement eux")
 attendu("avant : la region est inconnue", ZG:HasLearnedZoneName(foret.id), false)
 local vue, appris = Cartes.Lire("cartes/carte_foret")
@@ -89,6 +109,7 @@ local _, rien = Cartes.Lire("cartes/carte_foret")
 attendu("relire n'apprend plus rien", #rien, 0)
 local _, viaGravee = Cartes.Lire("cartes/carte_gravee")
 attendu("la carte gravee montre la meme chose", viaGravee and #viaGravee, 0)
+LCM.db.settings.modeJoueur = nil
 
 dire("== la vue ne montre que ce que la carte devoile")
 attendu("la carte s'ouvre", LCM.UI.Cartes.Ouvrir("cartes/carte_foret"), true)
@@ -245,6 +266,7 @@ for _, c in ipairs(Cartes.list) do if c.label == "Carte du pirate" then pirate =
 attendu("la carte est au compendium", pirate ~= nil, true)
 
 dire("== la carte du pirate, lue")
+LCM.db.settings.modeJoueur = true
 local vueP, apprisP = Cartes.Lire("cartes/" .. pirate.id)
 -- Ce que la carte DESSINE et ce qu'elle DEVOILE sont deux choses : Osol porte
 -- un repere, elle se dessine, mais sans son nom — la carte ne la devoile pas
@@ -256,6 +278,7 @@ attendu("Osol se dessine, pour placer son coffre", (function()
 attendu("mais la carte ne devoile pas Osol", vueP.regions[osol.id], nil)
 attendu("la lecture n'apprend donc pas la crique", ZG:KnowsPlaceName(crique), false)
 attendu("ni la region d'Osol", ZG:HasLearnedZoneName(osol.id), false)
+LCM.db.settings.modeJoueur = nil
 LCM.UI.Cartes.Ouvrir("cartes/" .. pirate.id)
 local zonesDessinees = {}
 for _, z in ipairs(LCMCrossingsRegionMap:Zones()) do zonesDessinees[z.id] = true end

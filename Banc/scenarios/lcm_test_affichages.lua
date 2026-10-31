@@ -107,10 +107,13 @@ fen.feuilles[2]:Click()
 attendu("l'affiche montre le lien de sa carte", fen.lecture.lien:IsShown(), true)
 attendu("pas encore rature", fen.lecture.lien.rature:IsShown(), false)
 attendu("sous son nom, entre crochets", fen.lecture.lien.texte:GetText(), "[Carte du marais]")
-attendu("avant : le marais est inconnu", ZG:HasLearnedZoneName(marais.id), false)
+-- Le MJ voit tout (31 octobre 2026) : ce qu'on APPREND se verifie en joueur.
+LCM.db.settings.modeJoueur = true
+attendu("avant : le marais est inconnu du joueur", ZG:HasLearnedZoneName(marais.id), false)
 fen.lecture.lien:Click()
 attendu("consulter ouvre la carte", LCMCrossingsRegionMap:IsShown() and LCMCrossingsRegionMap.carte ~= nil, true)
 attendu("et apprend ce qu'elle devoile", ZG:HasLearnedZoneName(marais.id) and ZG:KnowsPlaceName(tour), true)
+LCM.db.settings.modeJoueur = nil
 LCMCrossingsRegionMap:Hide()
 local moi = LCM.Entities.Self()
 attendu("avant : la carte n'est pas dans l'inventaire", LCM.Inventaire.Chercher(moi, "cartes/carte_marais") ~= nil, false)
