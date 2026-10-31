@@ -433,137 +433,74 @@ quelqu'un ; s'il a l'addon, une fenêtre s'ouvre des deux côtés. Ce qu'on offr
 **quitte le sac tout de suite** (mise en gage) et sait revenir ; tout changement
 de contenu remet les deux accords à zéro.
 
-**Les lieux** (`Core/Lieux.lua`, `UI/Banniere.lua`, `MJ/Lieux.lua`, branche
-**Lieux** du dossier Outils du menu radial, ou `/lcm atelier-lieux`). Nommer un
-endroit, et le dire à celui qui y entre. Un **lieu** porte des **seuils** ; franchir un
-seuil affiche une bannière avec le nom du lieu et celui du seuil.
+**Les lieux : Crossings** (31 octobre 2026). L'ancien outil Lieux (seuils,
+boussole, bannières maison) est **remplacé** par le module **Crossings**
+d'Omega Hub, de la même main, repris en entier : pays › régions › lieux ›
+passages (droit ou périmètre), bannières à thèmes et leur atelier, carte des
+régions sur la touche M, Connaissances, auras imposées, sort Arcanum par
+lieu. Sa documentation fonctionnelle est celle d'Omega (`README.md` du module
+ZoneGate) ; ici, seulement ce que l'adaptation a changé.
 
-L'idée vient du module **Zone Gate** d'Omega Hub (Akriaxx). Trois écarts, et
-chacun répare quelque chose :
+* **Où** : le moteur dans `Core/Crossings.lua`, la bannière, la carte et le
+  widget Arcanum dans `UI/Crossings/` (addon joueur) ; le panneau, l'atelier
+  des bannières, le tracé et les Connaissances dans
+  `LesContesMalveillants_MJ/Crossings/`. Il s'ouvre par la branche **Lieux**
+  du radial ; pas de commande slash.
+* **Tous les noms globaux sont renommés** (`LCMCrossings`, sauvegardes
+  `LCM_Crossings` / `LCM_CrossingsChar`, préfixe et canal `LCMCrossings`) :
+  Omega_Hub est installé dans le même dossier AddOns, et deux modules sur la
+  même table ou le même préfixe s'écraseraient. Le banc le vérifie.
+* **La position** passe par `ZG:GetPlayerPose`, seul point de lecture :
+  `UnitPosition`, sinon la position serveur de `DeplacementForce` (Epsilon ou
+  `.gps`), dans le **même repère** (X serveur au nord, Y à l'ouest, la carte
+  serveur en guise d'instance). La position « carte » n'est pas utilisée :
+  elle ne compte pas dans la même unité. Sur une carte d'instance, le cap
+  (`GetPlayerFacing`) peut manquer : le tracé tourne alors mal, la détection
+  non.
+* **Une commande serveur** (aura d'un lieu) passe par
+  `DeplacementForce.Commande`, comme `.gps`.
+* **OnUpdate plutôt que C_Timer** : le battement et les rappels différés
+  (`ZG.Apres`) tournent sur un cadre, que le banc sait faire avancer.
+* **L'interface est celle de LCM.** Les écrans gardent leur logique et leur
+  mise en page, mais `UI/Crossings/Kit.lua` construit chaque widget avec le
+  Kit (bouton, champ, case, liste) et `UI.Habiller` glisse chaque fenêtre
+  dans une `UI.Fenetre` (cadre A'hell'Raz'kah, titre couronné, place
+  retenue). Les menus déroulants, le curseur et les fonds Blizzard d'Omega
+  ont été remplacés par ceux du Kit. Un widget Crossings qui manque se
+  traduit dans ce fichier, jamais dans un écran.
+* **On est reparti de zéro** : les lieux et thèmes de l'ancien outil
+  (`LCM_DB`) ne sont pas convertis — ni effacés.
+* Les 42 compositions et les polices de `ressources/bannieres` étaient déjà
+  celles de Crossings, octet pour octet ; seules les musiques
+  (`ressources/bannieres/musiques`, 1,2 Mo) et un son ont été ajoutés.
 
-* **une porte se pose avec deux bornes**, pas avec l'orientation du personnage.
-  Zone Gate capture `GetPlayerFacing` et en déduit la normale de la porte ;
-  `UnitPosition` rend **y avant x**, et une normale calculée sur des axes
-  inversés se retourne sans prévenir. Deux bornes donnent en plus au passage sa
-  largeur réelle au lieu d'un nombre à deviner. Tant que la seconde manque, le
-  seuil est **inerte** et le dit ;
-* **la position passe par `LCM.DeplacementForce.Position`**, rendue publique
-  pour l'occasion. Zone Gate appelle `UnitPosition` directement — qui ne répond
-  pas sur une carte d'instance, et nos cartes de campagne en sont. Il y a trois
-  sources (le monde, la carte, `.gps`) et elles **ne comptent pas dans la même
-  unité** : un seuil retient celle qui l'a capturé et ne se mesure qu'avec elle.
-  Mélanger des yards du monde et des yards de carte ferait franchir une porte
-  sans bouger ;
-* **le nom se découvre en entrant**, par défaut. Zone Gate masque tout jusqu'à
-  ce que l'auteur débloque le nom joueur par joueur : utile pour un secret, pas
-  pour une région ordinaire. Le MJ coupe la découverte automatique sur ce qu'il
-  veut tenir caché, et révèle à la main (`Reveler`).
+**Les cartes** (`Core/Cartes.lua`, `UI/Cartes.lua`, `MJ/CartesUI.lua`,
+31 octobre 2026). Un objet du compendium (catégorie « Cartes », comme les
+Livres) rattaché à une région Crossings : le MJ coche les lieux qu'elle
+dévoile et pose des repères (une ressource, un vendeur, un coffre posés, ou
+une épingle libre). La lire apprend les noms pour de bon ; la vue se rouvre
+tant qu'on la possède. Le choix « objet du compendium » vient d'une étude de
+100 situations de MJ : un objet se trouve déjà dans un coffre, au sol et par
+échange. Une carte peut en **reprendre** une autre.
 
-Trois formes de seuil : **porte** (deux bornes, plus un débord toléré au-delà),
-**cercle** (centre et rayon) et **région** (contour de 3 à 20 points, qu'il faut
-*fermer*). Une bande morte de 1,5 m autour de la frontière évite qu'un
-personnage posté sur le seuil fasse clignoter la bannière. L'état de chaque
-seuil ne va **pas** en sauvegarde : au `/reload` on réarme, et le premier
-battement note le côté sans rien annoncer — se reconnecter dans un lieu ne doit
-pas faire croire qu'on vient d'y entrer.
+* La famille est **réservée au MJ** (comme `pnj`, `RESERVED_MJ` dans
+  `lcm_db.py`, absente de `BasePublique.REGISTRES`) : un joueur ne reçoit une
+  carte qu'en la trouvant, sa définition voyage avec l'objet. Une carte qui en
+  reprend une autre part **aplatie**.
+* Livres et cartes passent par **un seul aiguillage**, `LCM.Lisibles`
+  (`Definition`, `Importer`) : coffres, récolte, échange. Un troisième objet
+  lisible s'y ajoute, pas dans chaque module.
+* Les repères sont dans le repère de Crossings : un point posé (x, y de
+  `UnitPosition`) y entre **axes échangés** ; un point posé par la carte du
+  jeu (source « carte ») est refusé.
 
-L'atelier a un **radar** : le joueur au centre, nord en haut, et le seuil
-dessiné à l'échelle — le segment entre les deux bornes d'une porte avec ses
-côtés nommés ENTRÉE et RETOUR, le disque d'un cercle, le contour d'une région
-(ouvert tant qu'il n'est pas validé). Les boutons de pose sont **à côté** : on
-pose une frontière en marchant, il faut voir où l'on est au moment où l'on
-clique. L'échelle se choisit seule, parmi des paliers, pour que le seuil tienne
-toujours dedans.
-
-**Le nord se mesure, il ne se suppose pas** (`Lieux.Boussole`,
-`Lieux.Calibrer`, `Lieux.ResoudreBoussole`). Les trois sources de position ne
-nomment pas leurs axes pareil, et jusqu'à ce radar personne n'avait eu besoin
-de le savoir : une distance est la même quel que soit le sens des axes. Une
-carte, non — et un radar en miroir se lit très bien, on ne s'en aperçoit qu'en
-posant une porte à l'envers.
-
-La première version portait une table de conventions, déduite. Elle a été
-remplacée par une **mesure**, parce que le client sait répondre :
-`C_Map.GetPlayerMapPosition` rend une fraction du rectangle de carte, et une
-carte est au nord par construction — sa fraction *x* va vers l'est, sa *y*
-descend vers le sud. Ça, ce n'est pas une convention d'axes, c'est la
-définition d'une image de carte.
-
-Il suffit donc de regarder marcher le MJ, ce qu'il fait de toute façon pour
-poser ses bornes. Deux déplacements non parallèles donnent la matrice qui passe
-de la source à la carte ; son inverse, appliquée à l'est et au nord de la
-carte, donne l'est et le nord **dans la source**. On ne se sert que des
-directions, jamais de l'échelle : la mesure marche donc aussi sur une carte qui
-ne déclare pas sa taille — c'est-à-dire sur les cartes de campagne. Le résultat
-est gardé par carte et par source, en sauvegarde.
-
-**La carte n'est pas toujours là**, et c'est ce qui a mordu : sur une carte qui
-ne répond pas, la mesure n'aboutissait jamais, le radar restait sur « N ? » et
-la convention gardait les commandes — fausse d'un quart de tour, constaté en
-jeu. Il y a donc un **second chemin, sans la carte** : marcher droit devant,
-c'est avancer vers son cap. Deux trajets droits de caps différents donnent
-`theta = A·phi + C`, et C **est** le nord (`ResoudreBoussoleParMarche`). La
-carte reste préférée quand elle répond — elle tranche le sens sans rien
-supposer — et la marche prend le relais sinon.
-
-Et le MJ peut **redresser à la main** : « ¼ de tour » et « Miroir » dans
-l'atelier atteignent les huit orientations possibles. Une boussole posée ainsi
-se sait telle : l'écran dit « nord réglé à la main », jamais « mesuré ».
-
-Deux garde-fous : des déplacements trop parallèles sont refusés, et un est et
-un nord qui ne sortent pas perpendiculaires le sont aussi — c'est le signe que
-les deux relevés ne viennent pas du même repère. Mieux vaut jeter la mesure que
-poser un nord de travers.
-
-La table `Lieux.CONVENTION` reste, en **dernier recours**, pour le cas où la
-carte ne répond pas du tout ; l'atelier affiche alors « N ? » et « nord par
-convention — marche un peu pour le mesurer », pour qu'un nord supposé ne passe
-jamais pour un nord su. Le banc (`lcm_test_boussole`) vérifie le solveur sur
-des transformations connues, confirme que la convention de « monde » disait
-vrai, et mesure une carte tournée que la convention aurait ratée.
-
-Ce qui n'a **pas** été repris de Zone Gate : l'atelier de bannières (42
-modèles, 18 polices, musiques, ornements). Une bannière se lit en deux
-secondes. Le seul réglage d'apparence est la **couleur du lieu**, parce que
-c'est le seul qui raconte quelque chose.
-
-**Limite connue** : les lieux vivent dans `LCM_DB` et voyagent par le réseau
-(un message par lieu, clés courtes, points pliés en une chaîne). Ils ne passent
-**pas encore** par la base commune — deux MJ qui en créent chacun de leur côté
-ne les fusionnent pas, ils se les diffusent. Un lieu reçu n'écrase jamais un
-lieu dont on est l'auteur.
-
-**Les bannières** (`Core/Bannieres.lua`, `UI/Banniere.lua`, `MJ/Bannieres.lua`,
-`/lcm atelier-bannieres` ou le bouton « Atelier… » depuis un lieu). De quoi a
-l'air le nom d'un lieu quand on y entre : composition de fond, police,
-couleurs, filets, cadre, mouvement, place à l'écran, durées, sons.
-
-**Les images et les polices sont l'ouvrage d'Akriaxx**, reprises de son module
-Zone Gate avec son accord (10 octobre 2026) : 42 compositions et 15 polices
-(SIL Open Font License, les `OFL-*.txt` sont à côté des fichiers), dans
-`ressources/bannieres`. **C'est 47 Mo dans l'addon joueur** — de loin le plus
-gros poste de la distribution. À savoir avant d'en ajouter.
-
-Le rendu est porté de son `UI_Banner.lua`, avec deux simplifications : son
-groupe d'animation est abandonné (il était créé, configuré… et jamais joué —
-c'est `Chercher`, appelé par le OnUpdate, qui fait réellement l'alpha et les
-mouvements), et un franchissement pendant une bannière la relance au lieu de
-faire la queue, comme chez lui.
-
-Deux choses à savoir si on y touche :
-
-* **le formulaire de l'atelier est ENGENDRÉ** par `Bannieres.CHAMPS`. Ajouter
-  un réglage, c'est ajouter une ligne à cette table : le formulaire, la
-  validation et le transport réseau la lisent tous les trois. Vingt-quatre
-  contrôles posés à la main auraient divergé au premier ajout ;
-* **pas de galerie de vignettes**, contrairement à chez lui. Une composition
-  pèse un mégaoctet : les afficher ensemble, c'est 42 Mo de textures pour en
-  choisir une. La liste déroulante les range par famille et l'aperçu montre
-  celle qu'on vient de prendre — une image à la fois.
-
-Un thème se pose sur un **lieu** (tous ses seuils en héritent) ou sur un
-**seuil** en particulier, qui l'emporte. Il voyage avec le lieu sur le réseau,
-sinon le MJ verrait sa bannière et ses joueurs du texte nu.
+**Les panneaux d'affichage** (`Core/Affichages.lua`, `UI/Affichage.lua`,
+`MJ/Affichages.lua`, `MJ/AffichagesUI.lua`, `Data/Affichages.lua`). Un point
+de nature « affichage » : un support et des affiches (titre, texte, image),
+posé au GPS ; devant, « Lire » ouvre le panneau. Le circuit des vendeurs sans
+stock ni arbitre. Les **supports** sont de la structure (`Data/Affichages.lua`,
+format des textures documenté en tête) ; seul le support provisoire, dessiné
+par l'addon, existe tant que les textures ne sont pas fournies.
 
 **Un brouillon recouvre une entrée publiée** (`MJ/Brouillons.lua`). Modifier du
 contenu publié tenait le temps de la séance puis disparaissait au `/reload` :

@@ -56,6 +56,9 @@ MJ_OUTPUT = ADDONS / "LesContesMalveillants_MJ" / "Genere" / "Atelier_MJ.lua"
 FAMILIES = {
     "objets": "Objets",
     "livres": "Livres",
+    # Les cartes (31 octobre 2026) : reservees au MJ, comme les PNJ. Un
+    # joueur recoit une carte en la trouvant, sa definition voyage avec.
+    "cartes": "Cartes",
     "traits": "Traits",
     "races": "Races",
     "etats": "Etats",
@@ -85,7 +88,7 @@ FAMILIES = {
     "poses": "Poses",
 }
 REGISTRY_TO_FAMILY = {registry: family for family, registry in FAMILIES.items()}
-RESERVED_MJ = {"pnj", "jeux", "points", "poses"}
+RESERVED_MJ = {"pnj", "jeux", "points", "poses", "cartes"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

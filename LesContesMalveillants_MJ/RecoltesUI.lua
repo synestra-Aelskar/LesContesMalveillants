@@ -48,8 +48,9 @@ end
 -- Un filon donne ce qu'on peut ranger : des ressources, des livres, des
 -- objets, et des sacs (le MJ, 20 octobre 2026) — une besace oubliee au fond
 -- d'une caisse est une trouvaille comme une autre.
-local CATEGORIES = { "ressources", "consommables", "livres", "outils", "armes", "armures", "accessoires", "sacs" }
-local FAMILLES = { objets = true, ressources = true, consommables = true, livres = true, sacs = true }
+local CATEGORIES = { "ressources", "consommables", "livres", "cartes", "outils", "armes", "armures", "accessoires", "sacs" }
+-- Une carte se trouve aussi en fouillant (31 octobre 2026).
+local FAMILLES = { objets = true, ressources = true, consommables = true, livres = true, cartes = true, sacs = true }
 
 local function EstEntreeRecoltable(ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
@@ -456,7 +457,7 @@ local function Construire()
         end
         local function Accepter(objet)
             if objet and EstEntreeRecoltable(objet.ref) then return true end
-            return false, "on récolte des ressources, des livres, des objets ou des sacs."
+            return false, "on récolte des ressources, des livres, des cartes, des objets ou des sacs."
         end
         local function Ajouter(ref)
             local items = self.travail.recolte.ressources

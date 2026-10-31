@@ -2,7 +2,7 @@
 ## Title: Les Contes Malveillants |cffe8b451(MJ)|r
 ## Notes: Contenu et outils du maitre du jeu. Ne pas distribuer aux joueurs.
 ## Author: Syn'estra
-## Version: 0.2.9
+## Version: 0.3.0
 ## Dependencies: LesContesMalveillants
 ## SavedVariables: LCM_MJ_DB
 
@@ -18,6 +18,8 @@ Recoltes.lua
 RecoltesUI.lua
 Marchands.lua
 MarchandsUI.lua
+Affichages.lua
+AffichagesUI.lua
 Coffres.lua
 CoffresUI.lua
 Genere\Compendium_PNJ.lua
@@ -27,6 +29,7 @@ ActionsBoutons.lua
 Atelier.lua
 Forge.lua
 LivresUI.lua
+CartesUI.lua
 LumieresUI.lua
 Compendium.lua
 Transfert.lua
@@ -34,8 +37,12 @@ Consultation.lua
 Outils.lua
 OutilsUI.lua
 Panneau.lua
-Lieux.lua
-Bannieres.lua
+Crossings\Studio.lua
+Crossings\Trace.lua
+Crossings\Themes.lua
+Crossings\Atelier.lua
+Crossings\Connaissances.lua
+Crossings\Panneau.lua
 Incarner.lua
 Combat.lua
 ValidationMentale.lua

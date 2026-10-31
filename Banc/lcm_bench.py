@@ -465,6 +465,7 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetClipsChildren(v) self.__clips = v and true or false end
     function f:DoesClipChildren() return self.__clips == true end
     function f:SetFrameStrata(v) self.__strata = v end
+    function f:GetFrameStrata() return self.__strata or "MEDIUM" end
     function f:SetFrameLevel(v) self.__level = v end
     function f:GetFrameLevel() return self.__level or 1 end
     function f:SetToplevel() end
@@ -475,6 +476,12 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:GetName() return self.__name end
     function f:SetBackdrop() end
     function f:SetScrollChild(c) self.__scrollChild = c end
+    -- Defilement : retenu, pas dessine (Crossings lit et pose sa position).
+    function f:SetVerticalScroll(v) self.__vscroll = tonumber(v) or 0 end
+    function f:GetVerticalScroll() return self.__vscroll or 0 end
+    function f:SetHorizontalScroll(v) self.__hscroll = tonumber(v) or 0 end
+    function f:GetHorizontalScroll() return self.__hscroll or 0 end
+    function f:GetScrollChild() return self.__scrollChild end
     function f:GetChildren() return unpack(self.__children) end
     function f:GetRegions() return unpack(self.__regions) end
     function f:SetChecked(v) self.__checked = v and true or false end
@@ -484,6 +491,7 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:Disable() self.__enabled = false end
     function f:Enable() self.__enabled = true end
     function f:SetNormalTexture() end
+    function f:SetCheckedTexture(t) self.__checkedTexture = t end
     function f:SetAutoFocus() end
     function f:SetFocus() _G.__focus = self end
     function f:Tabuler()
@@ -516,6 +524,8 @@ local function NouveauCadre(kind, nom, parent, template)
         return t
     end
     function f:Click(bouton)
+        -- Une case du jeu (CheckButton) se coche AVANT que OnClick la lise.
+        if self.__kind == "CheckButton" then self.__checked = not self.__checked end
         local fn = self.__scripts.OnClick
         if fn then fn(self, bouton or "LeftButton") end
     end
@@ -671,6 +681,10 @@ function hooksecurefunc(nom, fn)
     if nom == "SetItemRef" then crochets[#crochets + 1] = fn end
 end
 function __cliquerLien(lien) SetItemRef(lien, lien, "LeftButton") end
+
+-- wipe : vide une table en place (fonction globale du jeu, aussi table.wipe).
+function wipe(t) for k in pairs(t) do t[k] = nil end return t end
+table.wipe = wipe
 
 UISpecialFrames = {}
 function InCombatLockdown() return false end

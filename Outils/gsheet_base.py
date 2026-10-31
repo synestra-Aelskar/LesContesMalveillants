@@ -42,7 +42,7 @@ DELETED = "SUPPRIME"
 # filtrant. Le nom n'est qu'un affichage — la nature fait foi dans le Lua, et
 # a la lecture tous ces noms redeviennent « poses ». Une suppression n'a plus
 # de Lua, donc plus de nature : elle s'affiche « Point posé ».
-NATURES_POSES = {"coffre": "Coffre", "ressource": "Récolte", "vendeur": "Vendeur"}
+NATURES_POSES = {"coffre": "Coffre", "ressource": "Récolte", "vendeur": "Vendeur", "affichage": "Panneau"}
 POSE_SANS_NATURE = "Point posé"
 FAMILLES_AFFICHEES = {nom: "poses" for nom in [*NATURES_POSES.values(), POSE_SANS_NATURE]}
 # L'onglet des points poses a une colonne de plus : le personnage qui a pose le

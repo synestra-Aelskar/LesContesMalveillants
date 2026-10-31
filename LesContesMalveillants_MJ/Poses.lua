@@ -27,7 +27,8 @@ local _, MJ = ...
 local LCM = _G.LCM
 if not LCM then return end
 
-local NATURES = { coffre = true, ressource = true, vendeur = true }
+-- Les panneaux d'affichage se posent aussi (31 octobre 2026).
+local NATURES = { coffre = true, ressource = true, vendeur = true, affichage = true }
 
 LCM.Poses = LCM.Registre({
     nom = "pose", prefixe = "Poses",

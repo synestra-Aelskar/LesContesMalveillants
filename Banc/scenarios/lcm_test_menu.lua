@@ -180,8 +180,10 @@ __avancer(1)
 attendu("Systeme conserve ses quatre entrees", F.nombreEntrees, 4)
 attendu("Interactions reste visible", entree("interactions"):IsShown(), true)
 attendu("second eventail ouvert", F.sousMenu.orbite:IsShown(), true)
-attendu("second eventail a trois branches", F.sousMenu.nombreEntrees, 3)
-attendu("fond adapte a trois branches", tostring(F.sousMenu.secteur.surface.__texture):find("fan%-3%.tga") ~= nil, true)
+-- Cinq branches depuis le 31 octobre 2026 : Cartes et Affichage ont rejoint
+-- Coffres, Vendeurs et Ressources (demande du MJ). C'etait trois avant.
+attendu("second eventail a cinq branches", F.sousMenu.nombreEntrees, 5)
+attendu("fond adapte a cinq branches", tostring(F.sousMenu.secteur.surface.__texture):find("fan%-5%.tga") ~= nil, true)
 -- Le second eventail est le MEME que le premier, decale vers l'exterieur, avec
 -- un espace entre les deux (16 octobre 2026, apres quatre essais concentriques :
 -- trop gros, ou colle). Meme taille, et le bord interieur du second reste a
@@ -199,9 +201,14 @@ end
 attendu("un espace au milieu", Ecart(0) >= R.ECART_SOUS_MENU - 0.5, true)
 attendu("  et aux bouts", Ecart(1.5 * math.pi / 8.75) >= R.ECART_BORDS - 0.5, true)
 local _, _, _, origineX, origineY = F.sousMenu.orbite:GetPoint(1)
-for i, id in ipairs({ "coffres", "vendeur", "ressources" }) do
+-- Cartes ouvre la categorie des cartes au compendium (MJ/CartesUI.lua),
+-- Affichage l'atelier des panneaux (MJ/AffichagesUI.lua). Les cinq branches
+-- doivent tenir dans l'eventail sans chevaucher.
+local branches = { coffres = true, vendeur = true, ressources = true, cartes = true, affichage = true }
+for i, id in ipairs({ "coffres", "vendeur", "ressources", "cartes", "affichage" }) do
     local bouton = F.sousMenu.boutonsEntree[i]
-    attendu(id .. " accessible", bouton.disponible, true)
+    attendu(id .. " a sa place", bouton.cible.id, id)
+    attendu(id .. (branches[id] and " accessible" or " eteint en attendant"), bouton.disponible, branches[id] or false)
     -- Aucun bouton du premier eventail ne se fait chevaucher. Le test exigeait
     -- d'etre plus bas que le parent d'un bouton entier, a la verticale : vrai
     -- pour un sous-menu large, faux pour celui-ci, plus serre (16 octobre
@@ -214,12 +221,14 @@ for i, id in ipairs({ "coffres", "vendeur", "ressources" }) do
     end
     attendu(id .. " sans chevauchement", libre, true)
     attendu(id .. " plus loin que le parent", origineY + bouton.ry < entree("interactions").ry, true)
-    local cible = M.Trouver(id)
-    local original, ouvert = cible.onClick, false
-    cible.onClick = function() ouvert = true end
-    bouton:Click("LeftButton")
-    attendu(id .. " lance sa fenetre", ouvert, true)
-    cible.onClick = original
+    if branches[id] then
+        local cible = M.Trouver(id)
+        local original, ouvert = cible.onClick, false
+        cible.onClick = function() ouvert = true end
+        bouton:Click("LeftButton")
+        attendu(id .. " lance sa fenetre", ouvert, true)
+        cible.onClick = original
+    end
 end
 entree("interactions"):Click("LeftButton")
 __avancer(1)

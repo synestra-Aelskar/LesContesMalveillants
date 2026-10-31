@@ -39,15 +39,17 @@ for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- depuis que bandages, baumes et boissons quittent les ressources
 -- (« Liste consommable » et « Consommables », 23 octobre). Trente-cinq depuis
 -- que le conteneur d'un etat se lit sur son TYPE (« Liste-Type-Etats »,
--- 24 octobre). C'est la STRUCTURE de l'addon : elle se verifie en entier,
+-- 24 octobre). Trente-six depuis les cartes, rangees apres les livres
+-- (« Cartes », 31 octobre : un objet lisible qui devoile des lieux de
+-- Crossings). C'est la STRUCTURE de l'addon : elle se verifie en entier,
 -- contrairement au contenu qui vit.
-attendu("35 categories", #C.categories, 35)
+attendu("36 categories", #C.categories, 36)
 attendu("ordre", table.concat(ids, ","),
     "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste-Type-Etats,"
     .. "Liste origine,Liste ressources,"
     .. "Liste consommable,"
     .. "Liste métiers,Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Consommables,"
-    .. "Armes,Armures,Accessoires,Livres,Outils,Lanternes,Cristaux,Tentes,Accessoires de camping,Races,Traits,Etats,"
+    .. "Armes,Armures,Accessoires,Livres,Cartes,Outils,Lanternes,Cristaux,Tentes,Accessoires de camping,Races,Traits,Etats,"
     .. "Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")
 
 dire("== Le contenu importe")

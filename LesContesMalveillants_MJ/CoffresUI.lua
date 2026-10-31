@@ -74,6 +74,13 @@ local function OptionsObjets(choix, exception, doublons)
                 out[#out + 1] = { id = ref, label = livre.label or livre.id, groupe = "Livres" }
             end
         end
+        -- Une carte trouvee au fond d'un coffre (31 octobre 2026).
+        for _, carte in ipairs((LCM.Cartes and LCM.Cartes.list) or {}) do
+            local ref = "cartes/" .. tostring(carte.id)
+            if not deja[ref] then
+                out[#out + 1] = { id = ref, label = carte.label or carte.id, groupe = "Cartes" }
+            end
+        end
         -- Un coffre contient aussi des ressources, et les monnaies qui ont une
         -- forme (le MJ, 19 octobre 2026). Une monnaie qui n'existe qu'en solde
         -- de bourse n'a rien a y poser : LCM.Coffres.Accepte en juge.

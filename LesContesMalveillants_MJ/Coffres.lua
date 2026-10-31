@@ -537,7 +537,7 @@ function Coffres.Traiter(expediteur, req)
                 local element = LCM.Compendium.Resoudre(ref)
                 MettreAJour(p)
                 Repondre(true, { e = ref, q = n,
-                    objet = (LCM.Livres and LCM.Livres.Definition(ref))
+                    objet = (LCM.Lisibles and LCM.Lisibles.Definition(ref))
                         or (LCM.Echange and LCM.Echange.DefinitionObjet(ref)) })
                 return
             end
@@ -555,7 +555,7 @@ function Coffres.Traiter(expediteur, req)
         local objets = {}
         for _, o in ipairs(p.objets or {}) do
             objets[#objets + 1] = { e = o.entree, q = o.quantite,
-                d = (LCM.Livres and LCM.Livres.Definition(o.entree))
+                d = (LCM.Lisibles and LCM.Lisibles.Definition(o.entree))
                     or (LCM.Echange and LCM.Echange.DefinitionObjet(o.entree)) or nil }
         end
         -- `w`, pas `o` : la reponse porte deja l'etat du coffre sous `o`.

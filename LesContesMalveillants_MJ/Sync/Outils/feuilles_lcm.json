@@ -1,6 +1,7 @@
 {
   "objets": {"titre": "Objets", "familles": ["objets"]},
   "livres": {"titre": "Livres", "familles": ["livres"]},
+  "cartes": {"titre": "Cartes", "familles": ["cartes"]},
   "traits": {"titre": "Traits", "familles": ["traits"]},
   "races": {"titre": "Races", "familles": ["races"]},
   "etats": {"titre": "Etats", "familles": ["etats"]},

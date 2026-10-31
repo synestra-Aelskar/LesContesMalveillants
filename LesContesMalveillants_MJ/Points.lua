@@ -30,7 +30,7 @@ LCM.Points = LCM.Registre({
     nom = "point", prefixe = "Points",
     construire = function(definition, element, Erreur)
         local nature = tostring(definition.nature or "ressource")
-        if nature ~= "vendeur" and nature ~= "ressource" and nature ~= "coffre" then
+        if nature ~= "vendeur" and nature ~= "ressource" and nature ~= "coffre" and nature ~= "affichage" then
             Erreur(element.id .. " : nature inconnue (" .. nature .. ")")
         end
         element.nature = nature
@@ -69,7 +69,7 @@ LCM.Points = LCM.Registre({
             -- La finesse des devises — seules les « materielles » se
             -- transportent — reste au moment du GESTE : un chargement ne doit
             -- pas dependre de l'ordre dans lequel les fichiers arrivent.
-            local familles = { objets = true, livres = true, ressources = true,
+            local familles = { objets = true, livres = true, cartes = true, ressources = true,
                                accessoires_camping = true, sacs = true, devises = true,
                                lanternes = true, cristaux = true, consommables = true }
             -- Un objet supprime du compendium ne fait plus tomber le coffre
@@ -200,6 +200,13 @@ LCM.Points = LCM.Registre({
                 Erreur(element.id .. " : un coffre verrouillé doit définir au moins une expertise pour l'ouvrir")
             end
             element.coffre = coffre
+        end
+        -- Un panneau d'affichage (31 octobre 2026) : son support et ses
+        -- affiches, verifies par la meme regle que ce qui arrive du reseau
+        -- (Core/Affichages.lua).
+        if nature == "affichage" then
+            element.affichage = LCM.Affichages.Normaliser(definition.affichage,
+                function(message) Erreur(element.id .. " : " .. message) end)
         end
         -- Les anciennes definitions ont une seule entree ; les nouvelles
         -- portent une liste de ressources, chacune avec ses propres regles.

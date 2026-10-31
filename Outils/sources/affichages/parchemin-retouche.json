@@ -1,0 +1,5 @@
+{
+  "outil": "image_gen intégré",
+  "transparent_background": true,
+  "prompt": "Edit target: attached parchment game UI texture. Remove the entire opaque beige rectangular backing outside the physical torn parchment silhouette. Make every exterior area around torn edges and curled corners genuinely transparent alpha, including gaps at all four sides. Preserve the golden parchment material, curled corners, portrait 2:3 proportions, blank readable center, overall artwork and composition. A single sheet of worn parchment isolated on transparency, no backing sheet, no rectangle behind it, no ground shadow, no checkerboard painted into image, no text. Leave a very narrow transparent margin so its irregular outer silhouette is fully visible, while keeping central 85 percent available for text. This is a production UI cutout which will overlay a wooden board."
+}
