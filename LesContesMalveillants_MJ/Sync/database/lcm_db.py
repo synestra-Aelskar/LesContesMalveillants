@@ -86,9 +86,13 @@ FAMILIES = {
     # contenu : un etat, pas un modele. Jamais livre aux joueurs, qui liraient
     # dans les fichiers ou sont les coffres caches (MJ/Poses.lua).
     "poses": "Poses",
+    # Les pays, regions, lieux, passages et themes de Crossings
+    # (MJ/CrossingsBase.lua, 31 octobre 2026) : un etat du monde comme les
+    # poses, reserve au MJ — les joueurs liraient les noms que Crossings masque.
+    "crossings": "CrossingsBase",
 }
 REGISTRY_TO_FAMILY = {registry: family for family, registry in FAMILIES.items()}
-RESERVED_MJ = {"pnj", "jeux", "points", "poses", "cartes"}
+RESERVED_MJ = {"pnj", "jeux", "points", "poses", "cartes", "crossings"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 

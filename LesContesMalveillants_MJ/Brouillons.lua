@@ -35,7 +35,10 @@ Brouillons.FAMILLES = { "traits", "races", "objets", "livres", "cartes", "etats"
     "jeux", "points", "tentes", "accessoires_camping", "lanternes", "cristaux", "consommables",
     -- Ce qui est pose dans le monde (MJ/Poses.lua) : un etat, pas un modele,
     -- mais il voyage par la meme file pour arriver dans la base.
-    "poses" }
+    "poses",
+    -- Les pays, regions, lieux, passages et themes de Crossings
+    -- (MJ/CrossingsBase.lua, 31 octobre 2026) : meme regle que les poses.
+    "crossings" }
 
 -- Version du modele de la sauvegarde. 2 : plus de brouillons dormants ni de
 -- masques « a reporter » (15 octobre 2026), voir la migration plus bas.

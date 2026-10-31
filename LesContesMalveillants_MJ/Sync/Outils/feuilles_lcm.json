@@ -23,6 +23,7 @@
   "lanternes": {"titre": "Lanternes", "familles": ["lanternes"]},
   "cristaux": {"titre": "Cristaux", "familles": ["cristaux"]},
   "poses": {"titre": "Poses", "familles": ["poses"]},
+  "crossings": {"titre": "Crossings", "familles": ["crossings"]},
   "reglages": {"titre": "Reglages", "familles": []},
   "comptes": {"titre": "Comptes", "familles": []},
   "fiches": {"titre": "Fiches", "familles": []},
