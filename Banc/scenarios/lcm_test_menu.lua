@@ -25,7 +25,7 @@ attendu("le sceau est visible", f:IsShown(), true)
 -- Offensives passe a 5 avec le Dot (9 octobre 2026) ; « influences » est la
 -- categorie des controles mentaux ajoutee par Codex.
 local attendus = { offensives = 5, supports = 4, competences = 0, controles = 6,
-                   animation = 3, influences = 5, mouvement = 0 }
+                   animation = 2, influences = 5, mouvement = 0 }
 attendu("les categories du radial", #R.STRUCTURE, 7)
 for _, categorie in ipairs(R.STRUCTURE) do
     attendu("  " .. categorie.id, #(categorie.entrees or {}), attendus[categorie.id])

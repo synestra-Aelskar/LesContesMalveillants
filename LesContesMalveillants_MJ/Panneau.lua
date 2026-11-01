@@ -1642,7 +1642,14 @@ LCM.WhenReady(function()
             if consultation.fenetre and consultation.fenetre:IsShown()
                 and consultation.joueur == joueur then
                 consultation.Ouvrir(entity, consultation.onglet or "fiche", joueur)
-            elseif not consultation.joueur then
+            elseif not consultation.joueur and not actualisation then
+                -- Seulement la PREMIERE fiche d'un joueur ouvre la fenetre.
+                -- Une actualisation en ouvrait une aussi : poser un etat ou
+                -- faire un regain depuis le panneau faisait repondre le
+                -- joueur, et la fiche de l'autre s'ouvrait toute seule au
+                -- milieu du geste (le MJ, 1er novembre 2026). Une
+                -- consultation explicite ouvre la fenetre d'elle-meme, avant
+                -- meme la reponse : elle ne passe pas par ici.
                 consultation.Ouvrir(entity, "fiche", joueur)
             end
         end

@@ -83,7 +83,7 @@ LCM.PublierPublique(LCM.Consommables, "consommables", {
     type = "lcm_64a651_6ad6a260_207aa4a3_0021_04ec5d",
 }, "5688ca0c261ec1cf")
 
--- ----- cristaux (3) ------------------------------------------------
+-- ----- cristaux (4) ------------------------------------------------
 LCM.PublierPublique(LCM.Cristaux, "cristaux", {
     consommable = true,
     description = "",
@@ -109,6 +109,15 @@ LCM.PublierPublique(LCM.Cristaux, "cristaux", {
     id = "lcm_132159_6adb706d_20015e68_0003_803248",
     label = "Cristal de test 3",
 }, "fd3a30cbf1842c39")
+
+LCM.PublierPublique(LCM.Cristaux, "cristaux", {
+    description = "Un cristal d'un vert jade qui semble luire légèrement d'une lueur verte..",
+    duree = 60,
+    icone = "Interface\\ICONS\\trade_archaeology_arakkoa_crystalshard",
+    id = "lcm_64a651_6ae6905d_1472829a_0003_16620d",
+    label = "Cristal d'aspecta rafiné",
+    pileMax = 35,
+}, "6ef23457db764b54")
 
 -- ----- devises (1) -------------------------------------------------
 LCM.PublierPublique(LCM.Devises, "devises", {
@@ -271,7 +280,7 @@ LCM.PublierPublique(LCM.Etats, "etats", {
     type = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
 }, "12aabeb45448de5a")
 
--- ----- lanternes (1) -----------------------------------------------
+-- ----- lanternes (2) -----------------------------------------------
 LCM.PublierPublique(LCM.Lanternes, "lanternes", {
     description = "Une lantere qui sert à faire des test",
     icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
@@ -279,6 +288,14 @@ LCM.PublierPublique(LCM.Lanternes, "lanternes", {
     label = "Lanterne d Test",
     multiplicateur = 1,
 }, "7e23f96b80a1b5cd")
+
+LCM.PublierPublique(LCM.Lanternes, "lanternes", {
+    description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées en minutes, heures et jours, permettent d'en mesurer la durée de combustion.",
+    icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
+    id = "lcm_64a651_6ae6910a_14752656_0004_cb8574",
+    label = "Lanterne d'aspecta",
+    multiplicateur = 1,
+}, "4b0141cd6183f33f")
 
 -- ----- listes (48) --------------------------------------------------
 LCM.PublierPublique(LCM.Listes, "listes", {

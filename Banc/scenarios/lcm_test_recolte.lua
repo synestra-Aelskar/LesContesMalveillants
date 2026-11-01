@@ -129,14 +129,15 @@ local famillesPermises, temoinPropose, objetPropose, intertitre = true, false, f
 for _, ligne in ipairs(f.choixEntree.lignes) do
     if ligne:IsShown() then
         -- Un filon donne ce qui se range : ressources, objets, livres, des
-        -- sacs depuis le 20 octobre 2026 et des consommables depuis le 23 —
-        -- la liste de RecoltesUI.lua (FAMILLES). Les consommables manquaient
-        -- ici : la seance n'en avait aucun, et le scenario ne le voyait pas
-        -- (24 octobre 2026).
+        -- sacs depuis le 20 octobre 2026, des consommables depuis le 23 et
+        -- des cartes depuis le 31 — la liste de RecoltesUI.lua (FAMILLES).
+        -- Chaque fois, le manque s'est vu le jour ou la seance a eu sa
+        -- premiere entree de la famille, pas le jour ou elle est arrivee
+        -- dans le code (consommables le 24 octobre, cartes le 1er novembre).
         local famille = tostring(ligne.choix):match("^([%w_]+)/")
         if not (famille == "ressources" or famille == "objets"
             or famille == "livres" or famille == "sacs"
-            or famille == "consommables") then
+            or famille == "consommables" or famille == "cartes") then
             famillesPermises = false
         end
         if ligne.choix == REF then temoinPropose = true end

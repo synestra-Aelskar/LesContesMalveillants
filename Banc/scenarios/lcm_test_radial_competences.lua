@@ -45,9 +45,11 @@ for i = 3, 12 do LCM.Sorts.Ajouter(moi, { label = "Sort " .. i }) end
 attendu("le personnage en a douze", LCM.Sorts.Compte(moi), 12)
 attendu("le lanceur en montre huit", #R.Entrees("competences"), R.MAX_ENTREES)
 
-dire("== Animation : « Resolution Test MJ » a laisse la place")
+dire("== Animation : ce qui reste apres les retraits")
 local animation = {}
 for _, e in ipairs(R.Entrees("animation")) do animation[#animation + 1] = e.id end
-attendu("les trois actions du MJ", table.concat(animation, ","), "degat_mj,buff_debuff_mj,attaque_mj")
+-- « Resolution Test MJ » est partie le 2 octobre 2026, « Degat MJ »
+-- (l'epreuve) le 1er novembre : peu pratique, peu utilisee.
+attendu("les deux actions du MJ", table.concat(animation, ","), "buff_debuff_mj,attaque_mj")
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

@@ -33,11 +33,11 @@ def ecrire_entree(base: Path, side: str, family: str, ident: str, label: str = "
 
 
 def ecrire_pose(base: Path, ident: str, epoque: int, description: str | None = None,
-                places: int = 10) -> Path:
+                places: int = 10, auteur: str = "Nytherah-Apertus") -> Path:
     chemin = base / "entries" / "mj" / "poses" / f"{ident}.lua"
     chemin.parent.mkdir(parents=True, exist_ok=True)
     tete = json.dumps({"family": "poses", "id": ident, "registry": "Poses", "side": "mj"})
-    lignes = [f"-- lcm-db: {tete}", "return {"]
+    lignes = [f"-- lcm-db: {tete}", "return {", f"    auteur = \"{auteur}\","]
     if description is not None:
         lignes.append(f"    description = \"{description}\",")
     lignes += [
@@ -123,6 +123,37 @@ class PontBaseTest(unittest.TestCase):
         pont.appliquer(plan, self.depot, self.sheets)
         self.assertIn("epoque = 29", (self.depot / "entries" / "mj" / "poses" / "coffre.lua")
                       .read_text(encoding="utf-8"), "rien n'est recopie pour ce seul motif")
+
+    def test_la_garde_qui_change_de_main_ne_compte_pas_non_plus(self):
+        # Sur une pose, `auteur` est le personnage qui en a la GARDE : il suit
+        # les reprises et les incarnations. Vingt-six coffres sont ainsi passes
+        # d'un personnage a l'autre en une seance, sans qu'un mot de leur
+        # contenu ait change (26 octobre 2026).
+        ecrire_pose(self.depot, "coffre", epoque=35, auteur="Reskes-Apertus")
+        ecrire_pose(self.sheets, "coffre", epoque=36, auteur="Nytherah-Apertus")
+
+        plan = pont.comparer(self.depot, self.sheets)
+        self.assertEqual(plan["modifies"], [])
+        self.assertEqual([cle for cle, _ in plan["arbitrage"]], [("poses", "coffre")])
+
+        pont.appliquer(plan, self.depot, self.sheets)
+        self.assertIn("Reskes-Apertus", (self.depot / "entries" / "mj" / "poses" / "coffre.lua")
+                      .read_text(encoding="utf-8"), "rien n'est recopie pour ce seul motif")
+
+    def test_un_auteur_qui_change_hors_des_poses_reste_une_modification(self):
+        # Ailleurs, l'auteur d'une entree dit qui l'a ecrite : c'est une
+        # information du contenu, et elle doit se voir changer.
+        ancienne = ecrire_entree(self.depot, "mj", "points", "epreuve")
+        nouvelle = ecrire_entree(self.sheets, "mj", "points", "epreuve")
+        for chemin, nom in ((ancienne, "Reskes-Apertus"), (nouvelle, "Nytherah-Apertus")):
+            chemin.write_text(
+                chemin.read_text(encoding="utf-8").replace(
+                    "return {", f"return {{\n    auteur = \"{nom}\","),
+                encoding="utf-8", newline="\n")
+
+        plan = pont.comparer(self.depot, self.sheets)
+        self.assertEqual([cle for cle, _ in plan["modifies"]], [("points", "epreuve")])
+        self.assertEqual(plan["arbitrage"], [])
 
     def test_un_vrai_changement_passe_malgre_l_arbitrage(self):
         # Le filtre ne doit pas servir de couverture : si autre chose bouge, la

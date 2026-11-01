@@ -100,14 +100,22 @@ def lire_pierres(base: Path) -> dict[tuple[str, str], Path]:
 # La description vide ne compte que pour les POSES, ou le classeur l'ajoute par
 # defaut a des entrees qui n'en ont pas. Ailleurs, vider une description est un
 # geste, et il doit se voir.
+#
+# `auteur` non plus, sur une pose : c'est le personnage qui en a la garde, pas
+# celui qui a cree l'entree. Il change donc avec `epoque`, a chaque reprise et
+# a chaque incarnation (constate le 26 octobre 2026 : vingt-six coffres passes
+# de Reskes-Apertus a Nytherah-Apertus, et rien d'autre). Ailleurs, l'auteur
+# d'une entree est une information, et elle doit se voir changer.
 ARBITRAGE = re.compile(r'^[ \t]*(?:epoque|version)[ \t]*=[ \t]*\d+,?[ \t]*\r?\n', re.MULTILINE)
 DESCRIPTION_VIDE = re.compile(r'^[ \t]*description[ \t]*=[ \t]*""[ \t]*,?[ \t]*\r?\n', re.MULTILINE)
+GARDE = re.compile(r'^[ \t]*auteur[ \t]*=[ \t]*"[^"]*",?[ \t]*\r?\n', re.MULTILINE)
 
 
 def sans_arbitrage(chemin: Path, famille: str) -> str:
     texte = ARBITRAGE.sub("", chemin.read_text(encoding="utf-8"))
     if famille == "poses":
         texte = DESCRIPTION_VIDE.sub("", texte)
+        texte = GARDE.sub("", texte)
     return texte
 
 
@@ -217,7 +225,7 @@ def main(argv=None) -> int:
     print(f"{'suppressions':14} {len(plan['suppressions'])}")
     print(f"{'orphelins':14} {len(plan['orphelins'])}")
     if plan["arbitrage"]:
-        print(f"{'arbitrage seul':14} {len(plan['arbitrage'])}  (epoque/version montee en seance : rien a reporter)")
+        print(f"{'arbitrage seul':14} {len(plan['arbitrage'])}  (garde et compteurs de seance : rien a reporter)")
 
     # Une pierre tombale qui vise une entree encore presente dans le depot
     # RETIRE du contenu publie. C'est le seul effet du pont qui fait maigrir le

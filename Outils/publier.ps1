@@ -119,10 +119,15 @@ function Copy-Addon($source, $destination, $extras) {
     # Le *.txt n'est pas un oubli : les licences OFL des polices vivent a cote
     # des .ttf et doivent les accompagner. Le filtre les laissait dehors, et la
     # publication suivante effacait du depot les quinze licences deja parties.
+    # Meme histoire le 1er novembre 2026 avec le son : les musiques des
+    # bannieres (.ogg), un .wav et le LIBRARY.md qui dit d'ou elles viennent
+    # etaient arrives par le depot, et la premiere publication d'ici les aurait
+    # tous effaces. Un filtre d'extensions se complete a chaque fois qu'un
+    # nouveau type de ressource entre dans l'addon.
     foreach ($dossier in @('Media', 'ressources')) {
         $chemin = Join-Path $source $dossier
         if (-not (Test-Path -LiteralPath $chemin)) { continue }
-        $sortie = & robocopy $chemin (Join-Path $destination $dossier) *.tga *.blp *.ttf *.txt /S /NFL /NDL /NJH /NJS /NP
+        $sortie = & robocopy $chemin (Join-Path $destination $dossier) *.tga *.blp *.ttf *.txt *.ogg *.wav *.md /S /NFL /NDL /NJH /NJS /NP
         if ($LASTEXITCODE -ge 8) { Write-Host ($sortie -join [Environment]::NewLine); Stop-Erreur ('copie de ' + $dossier + ' impossible.') }
         $global:LASTEXITCODE = 0
         $nombre = (Get-ChildItem -LiteralPath (Join-Path $destination $dossier) -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count

@@ -3010,13 +3010,26 @@ function UI.Demande()
     -- `bouton` : le verbe du geste (« Scinder »), « Valider » sinon.
     -- `longueur` : 15 caracteres suffisent a un montant, pas a une phrase
     -- (les emotes de la lanterne). Remis a chaque demande.
-    function d:Demander(titre, valeur, onValider, bouton, longueur)
+    -- `ancre` : la fenetre d'ou part la demande. Elle se pose alors EN HAUT
+    -- de celle-la, legerement decalee : au centre de l'ecran et dans la meme
+    -- strate, elle disparaissait derriere une fenetre `SetToplevel` qui se
+    -- releve au moindre clic — on nommait un jeu de choix sans le voir
+    -- (le MJ, 1er novembre 2026).
+    function d:Demander(titre, valeur, onValider, bouton, longueur, ancre)
         self.saisie:SetMaxLetters(longueur or 15)
         self.valider.label:SetText(bouton or "Valider")
         self.titre:SetText(titre)
         self.saisie:SetText(tostring(valeur or ""))
         self.message:SetText("")
         self.onValider = onValider
+        self:ClearAllPoints()
+        if ancre then
+            self:SetPoint("TOP", ancre, "TOP", 24, 24)
+        else
+            self:SetPoint("CENTER", UIParent, "CENTER", 0, 80)
+        end
+        -- Au-dessus de tout : c'est une demande, on y repond avant la suite.
+        self:SetFrameStrata("TOOLTIP")
         self:Show()
         self:Raise()
         self.saisie:SetFocus()

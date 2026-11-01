@@ -123,7 +123,8 @@ attendu("accepte : pose", T.Liste(moi)[1] and T.Liste(moi)[1].nom, "En lévitati
 
 dire("== /lcm etats")
 SlashCmdList["LCM"]("etats")
-attendu("la liste", aDit("En lévitation (3 rounds)"), true)
+-- Hors combat, la duree se dit en minutes : vingt par round (1er novembre).
+attendu("la liste", aDit("En lévitation (60 mn)"), true)
 SlashCmdList["LCM"]("etats retirer En lévitation")
 attendu("retire", #T.Liste(moi), 0)
 attendu("la sauvegarde ne garde pas de liste vide", moi.etatsTemporaires, nil)
@@ -150,7 +151,7 @@ attendu("le bloc existe", bloc ~= nil, true)
 local case = bloc.emplacements[1]
 attendu("l'etat y est", case and case:IsShown() and case.nom:GetText(), "Ralenti")
 attendu("avec ses effets et sa duree", case.description:GetText():find("Terrestre -2", 1, true) ~= nil
-    and case.description:GetText():find("2 rounds", 1, true) ~= nil, true)
+    and case.description:GetText():find("40 mn", 1, true) ~= nil, true)
 attendu("le MJ peut le retirer", case.action:IsShown() and case.action.titreBulle, "Retirer")
 case.action:Click()
 attendu("retire, la vue le dit", bloc.emplacements[1].nom:GetText(), "Aucun état temporaire.")

@@ -81,7 +81,9 @@ local db = ZG:GetDB()
 local sauve = LCM.Copie(db)
 db.countries, db.zones, db.themes = {}, {}, {}
 local rendus = Base.Rendre()
-attendu("tout revient", rendus, 4)
+-- Autant que la base en tient, pas quatre : le jeu a ses propres Crossings et
+-- un scenario ne doit jamais compter sur le contenu de la seance.
+attendu("tout revient", rendus, #Base.list)
 attendu("la region", db.zones[zone.id] and db.zones[zone.id].name, "Forêt d'Automne")
 attendu("son lieu", db.zones[zone.id] and db.zones[zone.id].places[lieu.id] ~= nil, true)
 local revenu = db.zones[zone.id] and db.zones[zone.id].subZones[sub.id]

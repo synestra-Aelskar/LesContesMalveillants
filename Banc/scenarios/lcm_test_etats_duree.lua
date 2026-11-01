@@ -108,9 +108,19 @@ dire("== une duree venue du reseau arrive en TEXTE")
 -- L'encodage du reseau ne rend que des chaines. Une fiche consultee portait
 -- donc `restant = "3"`, et l'affichage de la duree comparait un texte a 1 :
 -- la consultation s'arretait sur une erreur Lua (le MJ, 25 octobre 2026).
-attendu("trois rounds en texte s'affichent", T.Duree({ restant = "3" }), "3 rounds")
-attendu("un round en texte reste au singulier", T.Duree({ restant = "1" }), "1 round")
+-- Hors combat, la duree se lit en minutes : vingt par round (1er novembre
+-- 2026). Le round ne dit rien a qui n'est pas en train de se battre.
+attendu("trois rounds en texte font une heure", T.Duree({ restant = "3" }), "60 mn")
+attendu("un round en texte fait vingt minutes", T.Duree({ restant = "1" }), "20 mn")
 attendu("sans durée, c'est jusqu'au retrait", T.Duree({}), "jusqu'à retrait")
+
+dire("== en combat, la meme duree se compte en rounds")
+local combatAvant = LCM.Combat.etat
+LCM.Combat.etat = { s = "duree_temoin", mj = "Temoin", c = 1, t = 1, r = 1, rm = 1, entrees = {} }
+attendu("trois rounds restent trois rounds", T.Duree({ restant = "3" }), "3 rounds")
+attendu("  et un seul reste au singulier", T.Duree({ restant = "1" }), "1 round")
+attendu("  sans durée, rien ne change", T.Duree({}), "jusqu'à retrait")
+LCM.Combat.etat = combatAvant
 Vider()
 T.Poser(moi, { nom = "Texte témoin", rounds = "4" })
 local poseEnTexte = Temporaire("Texte témoin")

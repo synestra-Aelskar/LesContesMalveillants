@@ -247,7 +247,7 @@ local function Construire()
             local jeu = A.EnregistrerJeu(f.composeur.ctx.resolution.id, nom, f.composeur)
             LCM.Ok(string.format("jeu de choix « %s » enregistré.", jeu.nom))
             return true
-        end)
+        end, nil, nil, f)
     end)
     Placer(f.enregistrer, "LEFT", f.declarer, "RIGHT", 8, 0)
     -- L'accueil et la liste des jeux : de gros boutons, puis une ligne par jeu.
@@ -514,7 +514,7 @@ local function Jeux(f)
                     A.RenommerJeu(l.resolution, n, nom)
                     Ecran.Rendre()
                     return true
-                end)
+                end, nil, nil, Ecran.frame)
             end)
             l.renommer:SetPoint("RIGHT", l.supprimer, "LEFT", -3, 0)
             l.bas = Petit("v", function(n) A.DeplacerJeu(l.resolution, n, 1) end)

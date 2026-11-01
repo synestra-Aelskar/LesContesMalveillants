@@ -8,6 +8,106 @@
 local LCM = _G.LCM
 if not LCM then return end
 
+-- ----- cartes (1) --------------------------------------------------
+LCM.Publier(LCM.Cartes, {
+    icone = "INV_Misc_Map_01",
+    id = "lcm_132159_6ae68cdc_4b68b219_0002_f144b6",
+    label = "Filone de ....",
+    reperes = {
+        {
+            genre = "ressource",
+            label = "Filon de ...",
+            lieu = "pl_1793464059_4589",
+            lieuNom = "Bois aux Sorcières",
+            paysNom = "Osolninh",
+            point = "ressource:r6ae68cb100164",
+            region = "z_1793464041_5480",
+            regionNom = "Forêt Automnale",
+            x = "1907.8764648438",
+            y = "7142.8325195312",
+            z = "251.07691955566",
+        },
+        {
+            genre = "ressource",
+            label = "Filon de ...",
+            lieu = "pl_1793464059_4589",
+            lieuNom = "Bois aux Sorcières",
+            paysNom = "Osolninh",
+            point = "ressource:r6ae68cc000278",
+            region = "z_1793464041_5480",
+            regionNom = "Forêt Automnale",
+            x = "2002.4194335938",
+            y = "6968.1494140625",
+            z = "231.85214233398",
+        },
+    },
+})
+
+-- ----- crossings (2) -----------------------------------------------
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    donnees = {
+        auras = {
+            {
+                id = 1000509,
+                source = "phase",
+            },
+        },
+        borders = {
+            {
+                forward = true,
+                from = 1,
+                name = "Détention->Atrium",
+                to = 2,
+            },
+        },
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793488976_4623",
+        facing = 0.1317696422338486,
+        id = "sz_1793489042_1864",
+        mapID = 585,
+        name = "Atriem",
+        passage = true,
+        points = "10471.1,11119.6;10461.3,11121.4;10464.1,11143.9;10462.4,11144.1;10461.9,11139.0;10451.3,11140.7;10453.9,11158.9;10464.1,11155.6;10463.3,11149.8;10465.1,11150.1;10466.5,11162.6;10464.8,11162.6;10463.9,11156.7;10454.2,11158.9;10456.2,11174.8;10466.7,11173.4;10465.9,11167.9;10467.5,11167.7;10469.0,11179.1;10467.0,11179.8;10466.9,11174.8;10456.4,11176.3;10458.8,11192.7;10469.2,11191.2;10468.5,11185.2;10470.2,11184.9;10471.5,11197.3;10469.8,11197.6;10469.4,11192.6;10459.0,11194.5;10461.3,11210.5;10471.8,11209.0;10471.0,11203.6;10472.7,11203.3;10473.5,11208.8;10483.6,11207.3;10482.9,11201.7;10485.0,11201.6;10485.1,11206.9;10495.5,11205.6;10493.2,11189.3;10482.7,11190.8;10483.5,11195.8;10481.7,11196.0;10480.0,11184.2;10483.9,11183.5;10482.8,11189.5;10493.0,11188.1;10490.6,11171.5;10480.2,11172.9;10480.8,11177.9;10479.2,11178.2;10477.2,11166.0;10479.5,11166.0;10480.0,11171.5;10490.4,11170.0;10488.1,11153.6;10477.6,11155.2;10478.7,11160.2;10476.3,11160.4;10474.9,11148.5;10477.4,11148.1;10477.4,11153.7;10487.9,11152.1;10485.5,11135.8;10475.1,11137.3;10475.7,11142.3;10473.7,11142.7",
+        regionReady = true,
+        shape = "polygon",
+        width = 6,
+        x = 10473.37224264706,
+        y = 11172.54578354779,
+        zoneId = "z_1793488970_7834",
+    },
+    genre = "passage",
+    id = "sz_1793489042_1864",
+    label = "Tour d'Asrena / Atriem",
+    version = 1793494478,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    donnees = {
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793488976_4623",
+        facing = 1.041394114494324,
+        id = "sz_1793494499_3863",
+        mapID = 585,
+        name = "Atrium",
+        passage = true,
+        points = "10471.1,11119.6;10461.3,11121.4",
+        regionReady = false,
+        shape = "polygon",
+        width = 6,
+        x = 10466.2001953125,
+        y = 11120.50048828125,
+        zoneId = "z_1793488970_7834",
+    },
+    genre = "passage",
+    id = "sz_1793494499_3863",
+    label = "Tour d'Asrena / Atrium",
+    version = 1793494516,
+})
+
 -- ----- jeux (12) ----------------------------------------------------
 LCM.Publier(LCM.Forge, {
     categorie = "armes",
@@ -4165,7 +4265,7 @@ LCM.Publier(LCM.PNJ, {
     },
 })
 
--- ----- points (13) --------------------------------------------------
+-- ----- points (14) --------------------------------------------------
 LCM.Publier(LCM.Points, {
     categorie = "Osolninh - Horrig-Burg",
     description = "",
@@ -4299,6 +4399,59 @@ LCM.Publier(LCM.Points, {
                 minutes = 0,
                 regeneration = false,
             },
+        },
+    },
+})
+
+LCM.Publier(LCM.Points, {
+    affichage = {
+        affiches = {
+            {
+                texte = "Je vend mon vélo.",
+                theme = "papier",
+                titre = "A vendre",
+            },
+            {
+                texte = "Il y a une dinguerie dans la forêt, j'ai jamais vu autant de Wûlf de ma vie.",
+                theme = "parchemin",
+                titre = "Beaucoups de Wülf à exterminer",
+            },
+            {
+                carte = "lcm_132159_6ae623ff_49cf12ae_0004_1b5590",
+                police = "gothique",
+                texte = "Ici vous trouverez de quoi récolter une ressource. J'en veux.",
+                theme = "missive",
+                titre = "A récolter",
+            },
+            {
+                police = "numerique",
+                texte = ", , l,ikjonononiknknkjn",
+                theme = "numerique",
+                titre = "Nouvelle affiche",
+            },
+            {
+                police = "machine",
+                texte = "nnnnnnnnnnn",
+                theme = "guilde",
+                titre = "Nouvelle affiche",
+            },
+            {
+                police = "classique",
+                texte = " khbkjb n, n,; lkkm ",
+                theme = "marchand",
+                titre = "Nouvelle affiche",
+            },
+        },
+        support = "bois",
+    },
+    description = "",
+    id = "lcm_132159_6ae621ac_49c5fc1c_0002_06d886",
+    label = "Panneau de Quête",
+    nature = "affichage",
+    onglets = {
+        {
+            id = "onglet_1",
+            label = "Articles",
         },
     },
 })

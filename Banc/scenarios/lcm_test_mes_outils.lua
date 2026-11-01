@@ -111,6 +111,15 @@ local function Clic(label)
 end
 f.outils[1]:Click()
 attendu("ses actions", actions(), "Boire,Voir,Déséquiper")
+-- En colonne sous l'outil (1er novembre 2026) : en rangee, trois actions
+-- debordaient de l'ecran des que l'outil etait vers la droite du sceau.
+local function placeAction(i) local _, _, _, x, y = f.actions[i]:GetPoint(1) return x, y end
+local x1, y1 = placeAction(1)
+local x2, y2 = placeAction(2)
+local x3, y3 = placeAction(3)
+attendu("les trois actions sur une seule colonne", x1 == x2 and x2 == x3, true)
+attendu("  sous leur outil", x1, select(4, f.outils[1]:GetPoint(1)))
+attendu("  et l'une sous l'autre", y1 > y2 and y2 > y3, true)
 attendu("le rond choisi s'allume", f.outils[1].choisi, true)
 attendu("elle est pleine d'eau", K.Pourcent(K.Porte(moi, 1)), 100)
 LCM.Entities.SetGauge(moi, "fatigue", 0)
