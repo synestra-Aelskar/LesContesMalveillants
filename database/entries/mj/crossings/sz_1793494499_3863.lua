@@ -1,0 +1,25 @@
+-- lcm-db: {"family": "crossings", "id": "sz_1793494499_3863", "registry": "CrossingsBase", "side": "mj"}
+return {
+    auteur = "Reïkä",
+    donnees = {
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793488976_4623",
+        facing = 1.041394114494324,
+        id = "sz_1793494499_3863",
+        mapID = 585,
+        name = "Atrium",
+        passage = true,
+        points = "10471.1,11119.6;10461.3,11121.4",
+        regionReady = false,
+        shape = "polygon",
+        width = 6,
+        x = 10466.2001953125,
+        y = 11120.50048828125,
+        zoneId = "z_1793488970_7834",
+    },
+    genre = "passage",
+    id = "sz_1793494499_3863",
+    label = "Tour d'Asrena / Atrium",
+    version = 1793494516,
+}
