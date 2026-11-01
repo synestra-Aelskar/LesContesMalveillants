@@ -10,6 +10,7 @@ if not LCM then return end
 
 -- ----- cartes (1) --------------------------------------------------
 LCM.Publier(LCM.Cartes, {
+    description = "",
     icone = "INV_Misc_Map_01",
     id = "lcm_132159_6ae68cdc_4b68b219_0002_f144b6",
     label = "Filone de ....",
@@ -43,9 +44,70 @@ LCM.Publier(LCM.Cartes, {
     },
 })
 
--- ----- crossings (2) -----------------------------------------------
+-- ----- crossings (8) -----------------------------------------------
 LCM.Publier(LCM.CrossingsBase, {
     auteur = "Reïkä",
+    description = "",
+    donnees = {
+        creator = "Reïkä",
+        id = "c_1793487607_6145",
+        name = "Aelskar",
+    },
+    genre = "pays",
+    id = "c_1793487607_6145",
+    label = "Aelskar",
+    version = 1793487609,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        creator = "Reïkä",
+        id = "c_1793487628_2746",
+        name = "Aelrazkarh",
+    },
+    genre = "pays",
+    id = "c_1793487628_2746",
+    label = "Aelrazkarh",
+    version = 1793487630,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        auras = {
+            {
+                id = 1000788,
+                source = "phase",
+            },
+        },
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793487646_6571",
+        facing = 0.007765529677271843,
+        id = "sz_1793487861_3025",
+        mapID = 1925,
+        name = "1",
+        passage = true,
+        points = "9369.5,13034.1;9369.5,13065.3;9361.3,13065.7;9361.4,13130.7;9371.0,13130.6;9370.2,13099.1;9385.5,13099.1;9384.7,13130.9;9394.3,13130.7;9394.2,13098.6;9409.5,13098.6;9409.3,13130.7;9418.3,13130.7;9418.3,13098.8;9433.5,13098.6;9434.1,13131.4;9441.5,13130.8;9441.5,13144.8;9429.6,13144.7;9429.4,13146.7;9433.5,13146.1;9433.4,13177.5;9402.2,13177.5;9402.2,13146.5;9406.1,13146.5;9390.4,13145.0;9390.4,13146.4;9393.7,13146.0;9393.5,13177.5;9362.2,13177.5;9362.3,13145.7;9365.4,13145.6;9365.4,13144.5;9353.5,13144.9;9353.4,13177.1;9322.2,13177.5;9322.3,13120.7;9337.5,13120.6;9337.2,13130.7;9346.3,13131.0;9346.1,13065.3;9338.2,13065.3;9338.2,13034.1",
+        regionReady = true,
+        shape = "polygon",
+        width = 6,
+        x = 9384.237350109011,
+        y = 13126.28161337209,
+        zoneId = "z_1793487632_9415",
+    },
+    genre = "passage",
+    id = "sz_1793487861_3025",
+    label = "Âvre mouvant / 1",
+    version = 1793488590,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
     donnees = {
         auras = {
             {
@@ -85,6 +147,7 @@ LCM.Publier(LCM.CrossingsBase, {
 
 LCM.Publier(LCM.CrossingsBase, {
     auteur = "Reïkä",
+    description = "",
     donnees = {
         creator = "Reïkä",
         enabled = true,
@@ -106,6 +169,127 @@ LCM.Publier(LCM.CrossingsBase, {
     id = "sz_1793494499_3863",
     label = "Tour d'Asrena / Atrium",
     version = 1793494516,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        bannerWidth = 600,
+        bgColor = { 0.76, 0.68, 0.42, 0.85 },
+        bgEnabled = false,
+        creator = "Reïkä",
+        customFont = "",
+        design = "quiet_sacred",
+        fadeIn = 0.8,
+        fadeOut = 1.2,
+        font = "cinzel",
+        frameColor = { 0.93, 0.91, 0.84, 0.8 },
+        frameStyle = "none",
+        hold = 3.5,
+        id = "th_1793487708_4541",
+        letterSpacing = false,
+        midSepEnabled = false,
+        motion = "fade",
+        name = "Avre Mouvant",
+        outline = false,
+        placement = "top",
+        sepColor = { 0.93, 0.91, 0.84, 0.75 },
+        sepStyle = "none",
+        soundEnter = "",
+        soundExit = "",
+        subColor = { 0.7, 0.73, 0.7 },
+        titleColor = { 0.93, 0.91, 0.84 },
+        titleSize = 30,
+        uppercase = false,
+    },
+    genre = "theme",
+    id = "th_1793487708_4541",
+    label = "Avre Mouvant",
+    version = 1793488108,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        countryId = "c_1793487628_2746",
+        creator = "Reïkä",
+        grantedTo = {  },
+        id = "z_1793487632_9415",
+        name = "Âvre mouvant",
+        places = {
+            pl_1793487646_6571 = {
+                actionCommand = "",
+                actionEnterEnabled = false,
+                actionLeaveEnabled = false,
+                actionMessage = "",
+                aliases = {  },
+                arcEnterSpell = "",
+                arcExitSpell = "",
+                arcToggle = false,
+                arcVault = "phase",
+                grantedTo = {  },
+                id = "pl_1793487646_6571",
+                name = "Sanctuaire des Errants",
+                themeId = "th_1793487708_4541",
+                zoneId = "z_1793487632_9415",
+            },
+        },
+    },
+    genre = "region",
+    id = "z_1793487632_9415",
+    label = "Âvre mouvant",
+    version = 1793488608,
+})
+
+LCM.Publier(LCM.CrossingsBase, {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        countryId = "c_1793487607_6145",
+        creator = "Reïkä",
+        grantedTo = {  },
+        id = "z_1793488970_7834",
+        name = "Tour d'Asrena",
+        places = {
+            pl_1793488976_4623 = {
+                actionCommand = "",
+                actionEnterEnabled = false,
+                actionLeaveEnabled = false,
+                actionMessage = "",
+                aliases = {  },
+                arcEnterSpell = "",
+                arcExitSpell = "",
+                arcToggle = true,
+                arcVault = "phase",
+                grantedTo = {  },
+                id = "pl_1793488976_4623",
+                name = "Aile de détention.",
+                themeId = "th_1793487708_4541",
+                zoneId = "z_1793488970_7834",
+            },
+            pl_1793489450_6265 = {
+                actionCommand = "",
+                actionEnterEnabled = false,
+                actionLeaveEnabled = false,
+                actionMessage = "",
+                aliases = {  },
+                arcEnterSpell = "",
+                arcExitSpell = "",
+                arcToggle = true,
+                arcVault = "phase",
+                grantedTo = {  },
+                id = "pl_1793489450_6265",
+                name = "Atrium des lamentations.",
+                zoneId = "z_1793488970_7834",
+            },
+        },
+    },
+    genre = "region",
+    id = "z_1793488970_7834",
+    label = "Tour d'Asrena",
+    version = 1793489452,
 })
 
 -- ----- jeux (12) ----------------------------------------------------
@@ -5678,11 +5862,12 @@ LCM.Publier(LCM.Poses, {
 
 LCM.Publier(LCM.Poses, {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 204,
         def = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
-        epoque = 35,
+        epoque = 75,
         id = "c6ad6a2d900c20",
         objets = {
             {
@@ -5726,7 +5911,7 @@ LCM.Publier(LCM.Poses, {
                 quantite = 25,
             },
         },
-        ouvert = true,
+        ouvert = false,
         posePar = "Reïkä-Apertus",
         quand = 1792451289,
         source = "gps",
@@ -5738,7 +5923,7 @@ LCM.Publier(LCM.Poses, {
         y = 5560.2060546875,
         z = 518.25244140625,
     },
-    epoque = 35,
+    epoque = 75,
     id = "c6ad6a2d900c20",
     label = "Sac de gros de Inconnue",
     nature = "coffre",

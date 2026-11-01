@@ -83,33 +83,7 @@ LCM.PublierPublique(LCM.Consommables, "consommables", {
     type = "lcm_64a651_6ad6a260_207aa4a3_0021_04ec5d",
 }, "5688ca0c261ec1cf")
 
--- ----- cristaux (4) ------------------------------------------------
-LCM.PublierPublique(LCM.Cristaux, "cristaux", {
-    consommable = true,
-    description = "",
-    duree = 60,
-    icone = "Interface\\ICONS\\inv_enchanting_80_veiledcrystal",
-    id = "lcm_132159_6adaa530_1ce76f00_0002_059867",
-    label = "Cristal de Test",
-    pileMax = 50,
-}, "c8fc15cb1b5092e8")
-
-LCM.PublierPublique(LCM.Cristaux, "cristaux", {
-    description = "",
-    duree = 660,
-    icone = "Interface\\ICONS\\inv_enchanting_80_veiledcrystal",
-    id = "lcm_132159_6adb704d_2000e302_0002_8828e1",
-    label = "Cristal de TEst 2",
-}, "48050852aaf489a8")
-
-LCM.PublierPublique(LCM.Cristaux, "cristaux", {
-    description = "",
-    duree = 6000,
-    icone = "Interface\\ICONS\\inv_enchanting_80_veiledcrystal",
-    id = "lcm_132159_6adb706d_20015e68_0003_803248",
-    label = "Cristal de test 3",
-}, "fd3a30cbf1842c39")
-
+-- ----- cristaux (1) ------------------------------------------------
 LCM.PublierPublique(LCM.Cristaux, "cristaux", {
     description = "Un cristal d'un vert jade qui semble luire légèrement d'une lueur verte..",
     duree = 60,
@@ -280,15 +254,7 @@ LCM.PublierPublique(LCM.Etats, "etats", {
     type = "lcm_64a651_6adc93f5_0ea0d176_0002_0e8574",
 }, "12aabeb45448de5a")
 
--- ----- lanternes (2) -----------------------------------------------
-LCM.PublierPublique(LCM.Lanternes, "lanternes", {
-    description = "Une lantere qui sert à faire des test",
-    icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
-    id = "lcm_132159_6adaa616_1ceaef75_0002_d12bd4",
-    label = "Lanterne d Test",
-    multiplicateur = 1,
-}, "7e23f96b80a1b5cd")
-
+-- ----- lanternes (1) -----------------------------------------------
 LCM.PublierPublique(LCM.Lanternes, "lanternes", {
     description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées en minutes, heures et jours, permettent d'en mesurer la durée de combustion.",
     icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
