@@ -21,8 +21,22 @@ local function attendu(libelle, obtenu, voulu)
         ok and "" or ("(attendu " .. tostring(voulu) .. ")"))
 end
 
+-- Une entree deja en file au demarrage (1er novembre 2026) : la file se
+-- recharge par Brouillons.Registre, qui ignorait la famille « crossings ».
+-- Le MJ prenait « attempt to index local 'registre' (a nil value) » a chaque
+-- connexion, et les familles suivantes ne se rechargeaient plus.
+LCM.Brouillons.Set("crossings", { id = "cz_attente", genre = "theme", label = "En attente",
+    auteur = "Akriaxx", version = 1, donnees = { name = "En attente", creator = "Akriaxx" } })
+
 __declencher("PLAYER_LOGIN")
 __personnage()
+attendu("une entree crossings en file ne casse pas le demarrage",
+    LCM.Brouillons.Registre("crossings") == LCM.CrossingsBase, true)
+attendu("  et elle est rechargee dans le registre",
+    LCM.CrossingsBase.Get("cz_attente") ~= nil, true)
+-- Retiree aussitot : la suite compte ce que la base rend.
+LCM.CrossingsBase.Retirer("cz_attente")
+LCM.Brouillons.Remove("crossings", "cz_attente")
 LCM.db.settings.modeJoueur = nil
 LCM._masterCompanion = true
 

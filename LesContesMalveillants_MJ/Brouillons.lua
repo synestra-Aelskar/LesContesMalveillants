@@ -154,6 +154,9 @@ end
 local function Registre(famille)
     if tostring(famille or "") == "points" then return LCM.Points end
     if tostring(famille or "") == "poses" then return LCM.Poses end
+    -- Oubliee le 31 octobre : sans elle, une entree Crossings en attente
+    -- faisait planter le rechargement de la file au demarrage.
+    if tostring(famille or "") == "crossings" then return LCM.CrossingsBase end
     local nom = LCM.Compendium and LCM.Compendium.FAMILLES[tostring(famille or "")]
     return nom and LCM[nom] or nil
 end
