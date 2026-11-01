@@ -1,0 +1,26 @@
+-- lcm-db: {"family": "crossings", "id": "sz_1793548361_4547", "registry": "CrossingsBase", "side": "mj"}
+return {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793548319_5174",
+        facing = 0.7774643898010254,
+        id = "sz_1793548361_4547",
+        mapID = 1925,
+        name = "Mausolée des courones",
+        passage = true,
+        points = "9365.4,13145.7;9362.4,13146.7;9362.2,13177.3;9393.3,13177.2;9393.2,13146.7;9389.7,13146.3",
+        regionReady = true,
+        shape = "polygon",
+        width = 6,
+        x = 9377.7001953125,
+        y = 13156.65006510417,
+        zoneId = "z_1793487632_9415",
+    },
+    genre = "passage",
+    id = "sz_1793548361_4547",
+    label = "Âvre mouvant / Mausolée des courones",
+    version = 1793548397,
+}

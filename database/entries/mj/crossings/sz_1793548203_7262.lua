@@ -1,0 +1,26 @@
+-- lcm-db: {"family": "crossings", "id": "sz_1793548203_7262", "registry": "CrossingsBase", "side": "mj"}
+return {
+    auteur = "Reïkä",
+    description = "",
+    donnees = {
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793548172_5932",
+        facing = 0.0234784409403801,
+        id = "sz_1793548203_7262",
+        mapID = 1925,
+        name = "Entrainement",
+        passage = true,
+        points = "9349.0,13146.6;9326.5,13146.6;9327.1,13172.9;9348.9,13172.9",
+        regionReady = true,
+        shape = "polygon",
+        width = 6,
+        x = 9337.88767660514,
+        y = 13159.75698069899,
+        zoneId = "z_1793487632_9415",
+    },
+    genre = "passage",
+    id = "sz_1793548203_7262",
+    label = "Âvre mouvant / Entrainement",
+    version = 1793548272,
+}

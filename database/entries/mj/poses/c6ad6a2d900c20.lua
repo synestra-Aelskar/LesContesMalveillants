@@ -1,7 +1,6 @@
 -- lcm-db: {"family": "poses", "id": "c6ad6a2d900c20", "registry": "Poses", "side": "mj"}
 return {
     auteur = "Reïkä-Apertus",
-    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 204,
