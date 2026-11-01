@@ -1,6 +1,7 @@
 -- lcm-db: {"family": "crossings", "id": "sz_1793489042_1864", "registry": "CrossingsBase", "side": "mj"}
 return {
     auteur = "Reïkä",
+    description = "",
     donnees = {
         auras = {
             {

@@ -1,5 +1,6 @@
 -- lcm-db: {"family": "cartes", "id": "lcm_132159_6ae68cdc_4b68b219_0002_f144b6", "registry": "Cartes", "side": "mj"}
 return {
+    description = "",
     icone = "INV_Misc_Map_01",
     id = "lcm_132159_6ae68cdc_4b68b219_0002_f144b6",
     label = "Filone de ....",

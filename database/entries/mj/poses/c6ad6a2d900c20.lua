@@ -1,11 +1,12 @@
 -- lcm-db: {"family": "poses", "id": "c6ad6a2d900c20", "registry": "Poses", "side": "mj"}
 return {
     auteur = "Reïkä-Apertus",
+    description = "",
     donnees = {
         auteur = "Reïkä-Apertus",
         carte = 204,
         def = "lcm_64a651_6ad6a2e8_207cb95d_0024_f2e669",
-        epoque = 35,
+        epoque = 75,
         id = "c6ad6a2d900c20",
         objets = {
             {
@@ -49,7 +50,7 @@ return {
                 quantite = 25,
             },
         },
-        ouvert = true,
+        ouvert = false,
         posePar = "Reïkä-Apertus",
         quand = 1792451289,
         source = "gps",
@@ -61,7 +62,7 @@ return {
         y = 5560.2060546875,
         z = 518.25244140625,
     },
-    epoque = 35,
+    epoque = 75,
     id = "c6ad6a2d900c20",
     label = "Sac de gros de Inconnue",
     nature = "coffre",
