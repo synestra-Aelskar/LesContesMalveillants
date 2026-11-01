@@ -46,26 +46,21 @@ local function ZG() return LCM.Crossings end
 local function Moi() return UnitName and UnitName("player") or "" end
 
 -- ===== Points plies =========================================================
--- « x,y[,nom];… » : la meme forme que le reseau de Crossings (PackPoints).
+-- « x,y[,nom][~soudure];… ». C'est le format du reseau de Crossings, et on le
+-- lui EMPRUNTE plutot que d'en tenir une seconde ecriture : la copie qui
+-- vivait ici ignorait la soudure des sommets, donc une frontiere posee en
+-- seance ne serait jamais entree dans la base commune.
 
 local function Plier(points)
-    local out = {}
-    for _, p in ipairs(points or {}) do
-        local nom = p.name and (tostring(p.name):gsub("[;,]", " ")) or nil
-        out[#out + 1] = string.format("%.1f,%.1f", p.x, p.y) .. ((nom and nom ~= "") and ("," .. nom) or "")
-    end
-    return table.concat(out, ";")
+    local zg = ZG()
+    if not (zg and zg.PackPoints) then return "" end
+    return zg.PackPoints(points)
 end
 
 local function Deplier(texte)
-    local out = {}
-    for morceau in tostring(texte or ""):gmatch("[^;]+") do
-        local x, y, nom = morceau:match("^(-?[%d%.]+),(-?[%d%.]+),?(.*)$")
-        if tonumber(x) and tonumber(y) then
-            out[#out + 1] = { x = tonumber(x), y = tonumber(y), name = (nom and nom ~= "") and nom or nil }
-        end
-    end
-    return out
+    local zg = ZG()
+    if not (zg and zg.UnpackPoints) then return {} end
+    return zg.UnpackPoints(texte)
 end
 Base.Plier, Base.Deplier = Plier, Deplier
 

@@ -439,14 +439,90 @@ function ZG:CreatePlace(zoneId, name)
     end
     local id = NewId("pl_")
     zone.places[id] = NewPlace(id, zoneId, name)
+    -- Sa zone naît avec lui, sous son nom. Un lieu sans étendue n'existe pas
+    -- en pratique, et la créer à la main coûtait trois clics et un nom à
+    -- retaper. Elle démarre vide : on lui pose ses sommets en marchant.
+    ZG:CreateSubZone(zoneId, name, id, "polygon")
     ZG:ScheduleBroadcast()
     return zone.places[id]
 end
 
-function ZG:RenamePlace(id, name)
+-- ── Portes ───────────────────────────────────────────────────────────────
+-- Une PORTE est un lieu comme un autre — nom, bannière, effets, découverte —
+-- à ceci près que sa géométrie est une porte droite et non une étendue
+-- dessinée, et qu'elle se range SOUS le lieu qu'elle dessert.
+--
+-- Elle vit dans la même table que les lieux (`zone.places`), marquée
+-- `porte = true` : tout ce qui sait traiter un lieu la traite sans rien
+-- savoir d'elle. Seules les listes font le tri.
+
+function ZG:EstPorte(place) return place ~= nil and place.porte == true end
+
+-- Les lieux d'une région, sans les portes.
+function ZG:GetLieuList(zoneId)
+    local list = {}
+    for _, place in ipairs(ZG:GetPlaceList(zoneId)) do
+        if not place.porte then list[#list + 1] = place end
+    end
+    return list
+end
+
+-- Les portes d'une région. `parentId` : celles d'un lieu précis ; la chaîne
+-- vide, celles qui ne sont rangées sous aucun lieu.
+function ZG:GetPorteList(zoneId, parentId)
+    local list = {}
+    for _, place in ipairs(ZG:GetPlaceList(zoneId)) do
+        if place.porte then
+            if parentId == nil
+                or (parentId == "" and not place.parent)
+                or place.parent == parentId then
+                list[#list + 1] = place
+            end
+        end
+    end
+    return list
+end
+
+-- parentPlaceId (facultatif) : le lieu sous lequel la ranger.
+function ZG:CreateDoorPlace(zoneId, parentPlaceId, name)
+    local zone = ZG:GetZone(zoneId)
+    if not zone or zone.creator ~= MyName() then return nil end
+    name = Clean(name)
+    if name == "" then name = "Porte " .. (#ZG:GetPorteList(zoneId) + 1) end
+
+    local id = NewId("pl_")
+    local place = NewPlace(id, zoneId, name)
+    place.porte = true
+    place.parent = (parentPlaceId and parentPlaceId ~= "") and parentPlaceId or nil
+    zone.places[id] = place
+    -- Sa géométrie naît avec elle, à la position et au regard du joueur.
+    ZG:CreateSubZone(zoneId, name, id, "line")
+    ZG:ScheduleBroadcast()
+    return place
+end
+
+-- Ranger une porte sous un lieu, ou l'en sortir (parentPlaceId vide).
+function ZG:SetPorteParent(id, parentPlaceId)
     local place = MyPlace(id)
+    if not place or not place.porte then return false end
+    if parentPlaceId == id then return false end
+    place.parent = (parentPlaceId and parentPlaceId ~= "") and parentPlaceId or nil
+    ZG:ScheduleBroadcast()
+    return true
+end
+
+-- Renommer un lieu renomme la zone qui porte ENCORE son ancien nom : celle
+-- qui est née avec lui suit, celle qu'on a nommée soi-même ne bouge pas.
+function ZG:RenamePlace(id, name)
+    local place, zone = MyPlace(id)
     if not place then return end
+    local ancien = place.name
     place.name = name or ""
+    if zone and ancien and ancien ~= "" and ancien ~= place.name then
+        for _, sub in pairs(zone.subZones) do
+            if sub.enterPlace == id and sub.name == ancien then sub.name = place.name end
+        end
+    end
     ZG:ScheduleBroadcast()
 end
 
@@ -467,6 +543,12 @@ function ZG:RemovePlace(id)
     if not place then return end
     zone.places[id] = nil
     ZG:ForgetPlaceLinks(id)
+    -- Les portes rangées sous ce lieu ne disparaissent pas avec lui : elles
+    -- remontent d'un cran. Une porte perdue en supprimant son lieu serait une
+    -- perte silencieuse, et son tracé est du travail.
+    for _, autre in pairs(zone.places) do
+        if autre.parent == id then autre.parent = nil end
+    end
     ZG:ScheduleBroadcast()
 end
 
@@ -583,8 +665,40 @@ function ZG:GetPassageList(zoneId)
     return list
 end
 
+-- Les deux formes portent deux noms, parce qu'elles ne servent pas à la même
+-- chose : une ZONE est une étendue dessinée (shape="polygon", on est dedans ou
+-- dehors), un PASSAGE est une porte droite (shape="line", on la traverse dans
+-- un sens ou dans l'autre). Elles vivent dans la même table.
+function ZG:IsArea(sub) return sub ~= nil and sub.shape == "polygon" end
+
+function ZG:GetAreaList(zoneId)
+    local list = {}
+    for _, sub in ipairs(ZG:GetPassageList(zoneId)) do
+        if sub.shape == "polygon" then list[#list + 1] = sub end
+    end
+    return list
+end
+
+function ZG:GetDoorList(zoneId)
+    local list = {}
+    for _, sub in ipairs(ZG:GetPassageList(zoneId)) do
+        if sub.shape ~= "polygon" then list[#list + 1] = sub end
+    end
+    return list
+end
+
+-- Les zones qui mènent à ce lieu, toutes régions confondues.
+function ZG:GetPlaceAreas(placeId)
+    local list = {}
+    for _, entry in ipairs(ZG:GetPlacePassages(placeId)) do
+        if entry.sub.shape == "polygon" then list[#list + 1] = entry end
+    end
+    return list
+end
+
 -- enterPlace (facultatif) : lieu proposé d'office en entrant.
-function ZG:CreateSubZone(zoneId, name, enterPlace)
+-- shape (facultatif) : "polygon" pour une zone dessinée, sinon une porte.
+function ZG:CreateSubZone(zoneId, name, enterPlace, shape)
     local zone = ZG:GetZone(zoneId)
     if not zone or zone.creator ~= MyName() then return nil end
 
@@ -594,11 +708,16 @@ function ZG:CreateSubZone(zoneId, name, enterPlace)
         return nil
     end
 
+    local polygone = shape == "polygon"
     name = Clean(name)
     if name == "" then
+        -- Numéroté parmi ceux de sa forme : « Zone 3 » compte les zones, pas
+        -- les portes.
         local n = 0
-        for _ in pairs(zone.subZones) do n = n + 1 end
-        name = "Passage " .. (n + 1)
+        for _, sub in pairs(zone.subZones) do
+            if (sub.shape == "polygon") == polygone then n = n + 1 end
+        end
+        name = (polygone and "Zone " or "Passage ") .. (n + 1)
     end
 
     local id = NewId("sz_")
@@ -608,7 +727,7 @@ function ZG:CreateSubZone(zoneId, name, enterPlace)
         enabled = true,
         mapID = instanceID, x = px, y = py, facing = facing,
         width = DEFAULT_WIDTH,   -- largeur de porte (line), en yards
-        shape = "line",
+        shape = polygone and "polygon" or "line",
         points = {},             -- [i] = {x=,y=} — uniquement pour shape="polygon", voir AddRegionPoint
         regionReady = false,     -- polygone "fermé" (voir FinishRegion) — inerte tant que faux
         enterPlace = enterPlace, -- lieu atteint en entrant (côté vert / intérieur)
@@ -654,6 +773,7 @@ function ZG:RemoveSubZone(id)
     if not sub then return end
     zone.subZones[id] = nil
     ZG.state[id] = nil
+    ZG:PruneWelds()
     ZG:ScheduleBroadcast()
 end
 
@@ -775,6 +895,7 @@ function ZG:RemoveLastRegionPoint(subZoneId)
     RecomputeRegionCenter(sub)
     sub.regionReady = false
     ZG.state[subZoneId] = nil
+    ZG:PruneWelds()
     ZG:ScheduleBroadcast()
     return true
 end
@@ -785,8 +906,10 @@ end
 -- deux points d'un périmètre voisin aux coordonnées exactes : les deux
 -- contours se touchent sans trou ni chevauchement.
 
+-- Le tilde est réservé : il sépare le nom d'un sommet de sa soudure dans la
+-- forme pliée des points (voir PackPoints).
 local function CleanPointName(name)
-    return (Clean(name):gsub("[;,:|\n\r]", " "))
+    return (Clean(name):gsub("[;,:|~\n\r]", " "))
 end
 
 function ZG:SetRegionPointName(subZoneId, index, name)
@@ -869,13 +992,22 @@ function ZG:AddBorderPath(subZoneId, sourceId, from, to, forward)
         LCM.Info("Crossings : maximum " .. MAX_REGION_POINTS .. " points par périmètre.")
         return false
     end
+    -- Les points repris sont désormais SOUDÉS à ceux dont ils viennent : ils
+    -- étaient jusqu'ici deux fois aux mêmes coordonnées, et déplacer l'un
+    -- laissait l'autre derrière — un trou entre les deux zones, qu'aucun des
+    -- deux contours n'annonçait.
+    local nouveaux = {}
     for _, index in ipairs(path) do
         local p = source.points[index]
         table.insert(sub.points, { x = p.x, y = p.y, name = p.name })
+        nouveaux[#nouveaux + 1] = { ici = #sub.points, la = index }
     end
     RecomputeRegionCenter(sub)
     sub.regionReady = false
     ZG.state[subZoneId] = nil
+    for _, couple in ipairs(nouveaux) do
+        ZG:WeldPoints(sourceId, couple.la, subZoneId, couple.ici)
+    end
     ZG:ScheduleBroadcast()
     return true
 end
@@ -887,7 +1019,246 @@ function ZG:ClearRegionPoints(subZoneId)
     PruneBorders(sub)
     sub.regionReady = false
     ZG.state[subZoneId] = nil
+    ZG:PruneWelds()
     ZG:ScheduleBroadcast()
+end
+
+-- ── Soudures : deux sommets qui se confondent ────────────────────────────
+-- Deux sommets qui portent la MÊME soudure (point.weld) ne font qu'un :
+-- déplacer l'un déplace l'autre, pour toujours. C'est ce que dit « ils se
+-- confondent », et c'est ce qui manquait à la reprise de tronçon
+-- (AddBorderPath) : celle-ci ne sait qu'ajouter des points à la SUITE du
+-- tracé en cours, donc une troisième zone ne pouvait pas se coller à deux
+-- voisines à la fois. Une soudure, elle, se pose entre deux contours déjà
+-- dessinés, dans n'importe quel ordre et autant de fois qu'on veut.
+--
+-- Seuls MES sommets sont soudés : une soudure ne traverse pas les auteurs.
+-- Deux auteurs peuvent donc engendrer le même identifiant sans se gêner,
+-- puisque personne ne regarde jamais les deux ensembles à la fois.
+
+local function NewWeldId()
+    local db = EnsureDB()
+    db.weldSeq = (tonumber(db.weldSeq) or 0) + 1
+    return "w" .. db.weldSeq
+end
+
+-- Mes sommets soudés, rangés par soudure : { [weld] = { {sub=,zone=,index=} } }.
+local function WeldGroups()
+    local groups = {}
+    for _, zone in pairs(EnsureDB().zones) do
+        if zone.creator == MyName() then
+            for _, sub in pairs(zone.subZones) do
+                for index, point in ipairs(sub.points or {}) do
+                    if point.weld then
+                        local group = groups[point.weld]
+                        if not group then group = {}; groups[point.weld] = group end
+                        group[#group + 1] = { sub = sub, zone = zone, index = index }
+                    end
+                end
+            end
+        end
+    end
+    return groups
+end
+function ZG:WeldGroups() return WeldGroups() end
+
+-- Les autres sommets qui ne font qu'un avec celui-ci.
+function ZG:WeldMates(subZoneId, index)
+    local sub = ZG:FindSubZone(subZoneId)
+    local point = sub and sub.points and sub.points[index]
+    local out = {}
+    if not point or not point.weld then return out end
+    for _, entry in ipairs(WeldGroups()[point.weld] or {}) do
+        if not (entry.sub.id == subZoneId and entry.index == index) then out[#out + 1] = entry end
+    end
+    return out
+end
+
+-- Un sommet retiré laisse parfois une soudure à un seul membre : elle ne
+-- confond plus rien, on l'efface.
+function ZG:PruneWelds()
+    local changed = false
+    for _, group in pairs(WeldGroups()) do
+        if #group < 2 then
+            for _, entry in ipairs(group) do
+                entry.sub.points[entry.index].weld = nil
+                changed = true
+            end
+        end
+    end
+    return changed
+end
+
+-- Déplace un sommet, et avec lui tous ceux qui s'y confondent.
+--
+-- Le périmètre NE se rouvre PAS : le nombre de points ne change pas, la
+-- fermeture reste la fermeture. Rouvrir comme le fait AddRegionPoint rendrait
+-- la carte inutilisable — il faudrait revalider après chaque glissement.
+--
+-- `silencieux` : ne rien diffuser. C'est ce qu'appelle la carte des zones à
+-- chaque image d'un glissement ; elle rappelle la fonction sans l'option
+-- quand on lâche le sommet, et c'est ce dernier appel qui part sur le réseau.
+function ZG:MoveRegionPoint(subZoneId, index, x, y, silencieux)
+    local sub = MyPassage(subZoneId)
+    local point = sub and sub.shape == "polygon" and sub.points and sub.points[index]
+    if not point then return false end
+    x, y = tonumber(x), tonumber(y)
+    if not x or not y then return false end
+    local touched = { [sub] = true }
+    point.x, point.y = x, y
+    for _, mate in ipairs(ZG:WeldMates(subZoneId, index)) do
+        local twin = mate.sub.points[mate.index]
+        twin.x, twin.y = x, y
+        touched[mate.sub] = true
+    end
+    for other in pairs(touched) do
+        RecomputeRegionCenter(other)
+        ZG.state[other.id] = nil
+    end
+    if not silencieux then ZG:ScheduleBroadcast() end
+    return true
+end
+
+-- Soude deux sommets : celui de « b » rejoint celui de « a », aux mêmes
+-- coordonnées. Si l'un des deux était déjà soudé ailleurs, les deux groupes
+-- n'en font plus qu'un — un sommet partagé par trois zones est le cas
+-- normal au coin de trois régions.
+function ZG:WeldPoints(aId, aIndex, bId, bIndex)
+    if aId == bId and aIndex == bIndex then return false end
+    local a = MyPassage(aId)
+    local b = MyPassage(bId)
+    local pa = a and a.shape == "polygon" and a.points and a.points[aIndex]
+    local pb = b and b.shape == "polygon" and b.points and b.points[bIndex]
+    if not pa or not pb then return false end
+    if a.mapID ~= b.mapID then
+        LCM.Info("Crossings : ces deux sommets ne sont pas sur la même carte.")
+        return false
+    end
+
+    local weld = pa.weld or pb.weld or NewWeldId()
+    for _, ancienne in ipairs({ pa.weld, pb.weld }) do
+        if ancienne and ancienne ~= weld then
+            for _, entry in ipairs(WeldGroups()[ancienne] or {}) do
+                entry.sub.points[entry.index].weld = weld
+            end
+        end
+    end
+    pa.weld, pb.weld = weld, weld
+    -- « a » fait foi : c'est lui qu'on a désigné en premier. Le déplacement
+    -- sur place suffit à tirer « b » (et tout son groupe) jusqu'à lui.
+    ZG:MoveRegionPoint(aId, aIndex, pa.x, pa.y)
+    return true, weld
+end
+
+-- Remet des sommets dans l'état où ils étaient : coordonnées ET soudure.
+-- C'est le retour en arrière de la carte des zones (« Annuler »). Une seule
+-- fonction pour les trois gestes qui touchent la géométrie — glisser, souder,
+-- séparer — parce qu'ils laissent tous la même trace : une liste de sommets
+-- et ce qu'ils valaient avant.
+--
+-- `avant` : { { subId =, index =, x =, y =, weld = } }. Rend le nombre de
+-- sommets effectivement remis.
+function ZG:RestorePoints(avant)
+    local touched, remis = {}, 0
+    for _, trace in ipairs(avant or {}) do
+        local sub = MyPassage(trace.subId)
+        local point = sub and sub.points and sub.points[trace.index]
+        if point then
+            point.x, point.y, point.weld = trace.x, trace.y, trace.weld
+            touched[sub] = true
+            remis = remis + 1
+        end
+    end
+    for sub in pairs(touched) do
+        RecomputeRegionCenter(sub)
+        ZG.state[sub.id] = nil
+    end
+    -- Une soudure restée seule après le retour en arrière ne confond rien.
+    if remis > 0 then
+        ZG:PruneWelds()
+        ZG:ScheduleBroadcast()
+    end
+    return remis
+end
+
+-- Ce que valent des sommets AVANT qu'on y touche, dans la forme qu'attend
+-- RestorePoints. Les sommets qui se confondent avec eux sont pris aussi :
+-- ils vont bouger ensemble, ils doivent revenir ensemble.
+function ZG:SnapshotPoints(cibles)
+    local avant, vus = {}, {}
+    local function Prendre(subId, index)
+        local cle = subId .. ":" .. index
+        if vus[cle] then return end
+        local sub = ZG:FindSubZone(subId)
+        local point = sub and sub.points and sub.points[index]
+        if not point then return end
+        vus[cle] = true
+        avant[#avant + 1] = { subId = subId, index = index, x = point.x, y = point.y, weld = point.weld }
+    end
+    for _, cible in ipairs(cibles or {}) do
+        Prendre(cible.subId, cible.index)
+        for _, mate in ipairs(ZG:WeldMates(cible.subId, cible.index)) do
+            Prendre(mate.sub.id, mate.index)
+        end
+    end
+    return avant
+end
+
+function ZG:UnweldPoint(subZoneId, index)
+    local sub = MyPassage(subZoneId)
+    local point = sub and sub.points and sub.points[index]
+    if not point or not point.weld then return false end
+    point.weld = nil
+    ZG:PruneWelds()
+    ZG:ScheduleBroadcast()
+    return true
+end
+
+-- La frontière : deux suites de sommets qui se confondent deux à deux. Les
+-- sommets de « b » rejoignent ceux de « a ».
+--
+-- L'appariement suit le contour (les indices triés), dans un sens ou dans
+-- l'autre : on garde celui qui déplace le moins. Sans ça il faudrait désigner
+-- les sommets dans le « bon » ordre — et le bon ordre n'est pas celui qu'on a
+-- en tête en cliquant, puisque deux contours voisins se parcourent en sens
+-- inverse l'un de l'autre.
+--
+-- Rend la liste des couples { a = index, b = index }, ou nil.
+function ZG:WeldSeam(aId, aIndexes, bId, bIndexes)
+    if aId == bId then return nil end
+    local a = MyPassage(aId)
+    local b = MyPassage(bId)
+    if not a or not b or a.shape ~= "polygon" or b.shape ~= "polygon" then return nil end
+    if a.mapID ~= b.mapID then
+        LCM.Info("Crossings : ces deux zones ne sont pas sur la même carte.")
+        return nil
+    end
+
+    local ia, ib = {}, {}
+    for _, i in ipairs(aIndexes or {}) do if a.points and a.points[i] then ia[#ia + 1] = i end end
+    for _, i in ipairs(bIndexes or {}) do if b.points and b.points[i] then ib[#ib + 1] = i end end
+    if #ia == 0 or #ia ~= #ib then return nil end
+    table.sort(ia); table.sort(ib)
+
+    local function Ecart(renverse)
+        local total = 0
+        for k = 1, #ia do
+            local pa = a.points[ia[k]]
+            local pb = b.points[ib[renverse and (#ib - k + 1) or k]]
+            total = total + (pa.x - pb.x) ^ 2 + (pa.y - pb.y) ^ 2
+        end
+        return total
+    end
+    local renverse = Ecart(true) < Ecart(false)
+
+    local couples = {}
+    for k = 1, #ia do
+        couples[#couples + 1] = { a = ia[k], b = ib[renverse and (#ib - k + 1) or k] }
+    end
+    for _, couple in ipairs(couples) do
+        if not ZG:WeldPoints(aId, couple.a, bId, couple.b) then return nil end
+    end
+    return couples
 end
 
 -- ── Frontières déclarées ──────────────────────────────────────────────────
@@ -1804,6 +2175,38 @@ local function IsClosed(sub)
     return sub.shape == "polygon" and sub.regionReady and sub.points and #sub.points >= 3
 end
 
+local function AirePolygone(points)
+    local a = 0
+    for i = 1, #points do
+        local p, q = points[i], points[i % #points + 1]
+        a = a + p.x * q.y - q.x * p.y
+    end
+    return math.abs(a / 2)
+end
+
+-- Le lieu de la plus PETITE zone fermée qui contient ce point, et la zone
+-- elle-même. Une zone dessinée DANS une autre — un sanctuaire au milieu
+-- d'une forêt — rend le sanctuaire, pas la forêt : c'est la plus petite qui
+-- dit où l'on est.
+--
+-- C'est ce qui permet d'imbriquer sans rien déclarer. Deux zones qui se
+-- touchent par le côté se passent la main toutes seules (deux franchissements
+-- dans la même seconde, voir ZG:Tick) ; deux zones emboîtées, non — on sort
+-- de la petite sans entrer nulle part. Cette fonction comble ce trou.
+function ZG:LieuContenant(px, py, mapID, exclure)
+    local lieu, laZone, aireMin
+    for _, zone in pairs(EnsureDB().zones) do
+        for id, sub in pairs(zone.subZones) do
+            if id ~= exclure and sub.enabled and sub.mapID == mapID and sub.enterPlace
+                and IsClosed(sub) and PointInPolygon(sub.points, px, py) then
+                local aire = AirePolygone(sub.points)
+                if not aireMin or aire < aireMin then lieu, laZone, aireMin = sub.enterPlace, id, aire end
+            end
+        end
+    end
+    return lieu, laZone
+end
+
 -- ── Auras imposées ────────────────────────────────────────────────────────
 -- Tant que le joueur est dans un passage, ses auras sont posées et reposées
 -- si elles disparaissent (retirées à la main, mort, connexion). Dehors,
@@ -1988,8 +2391,20 @@ function ZG:Tick()
         exit.merged, entry.merged = true, true
         ZG:TriggerCrossing(entry.sub, exit.from, entry.to)
     end
+    -- Zone emboîtée : sortir de la petite ne mène pas « nulle part », mais
+    -- dans celle qui l'entoure. On le cherche APRÈS la fusion, sinon deux
+    -- zones voisines ne se reconnaîtraient plus comme un passage direct.
     for _, c in ipairs(crossings) do
-        if not c.merged then ZG:TriggerCrossing(c.sub, c.from, c.to) end
+        if not c.merged then
+            if c.from and not c.to then
+                local lieu, laZone = ZG:LieuContenant(px, py, instanceID, c.sub.id)
+                if lieu then
+                    c.to, c.retour = lieu, true
+                    ZG.here[lieu] = laZone
+                end
+            end
+            ZG:TriggerCrossing(c.sub, c.from, c.to, c.retour)
+        end
     end
 
     for placeId, source in pairs(ZG.here) do
@@ -2051,7 +2466,11 @@ end
 
 -- Bannière et son du lieu d'arrivée ; sans lieu d'arrivée, seulement le son
 -- de sortie du lieu quitté. Puis les actions : départ, ensuite arrivée.
-function ZG:TriggerCrossing(sub, fromId, toId)
+-- `retour` : on ne fait que retrouver le lieu qui nous entourait déjà (on
+-- sort d'une zone dessinée DANS une autre). La bannière s'affiche — c'est
+-- tout l'intérêt, on revient dans la grande forêt — mais pas les actions :
+-- on n'a jamais quitté ce lieu, son aura est encore posée.
+function ZG:TriggerCrossing(sub, fromId, toId, retour)
     local from, fromZone = ZG:FindPlace(fromId)
     local to, toZone = ZG:FindPlace(toId)
 
@@ -2066,6 +2485,7 @@ function ZG:TriggerCrossing(sub, fromId, toId)
         ZG:PlayCrossingSound(ZG:ResolveTheme(from, fromZone), "backward")
     end
 
+    if retour then return end
     if from and from ~= to then ZG:RunPlaceAction(from, "leave") end
     if to and to ~= from then ZG:RunPlaceAction(to, "enter") end
 end
@@ -2076,14 +2496,23 @@ end
 -- est chunké (l'état complet, potentiellement gros) — voir
 -- BroadcastInitiative/HandleInitiativeChunk dans Character/Core.lua.
 
--- Points d'une région, encodés "x1,y1;x2,y2;..." — pas de Enc() nécessaire
--- (que des chiffres/points/tirets/virgules/points-virgules, jamais de ":").
+-- Points d'une région, encodés "x1,y1[,nom][~soudure];x2,y2;..." — pas de
+-- Enc() nécessaire (que des chiffres/points/tirets/virgules/points-virgules,
+-- jamais de ":"). Le nom est libre, donc il vient en dernier de sa partie et
+-- le tilde sépare la soudure : CleanPointName retire les deux séparateurs.
+--
+-- Une chaîne écrite avant les soudures n'a pas de tilde et se relit telle
+-- quelle ; une chaîne qui en porte, relue par un addon plus ancien, verra la
+-- soudure finir dans le nom du sommet. C'est laid et sans conséquence : le
+-- nom d'un sommet ne sert qu'à le retrouver dans une liste.
 local function PackPoints(points)
     if not points or #points == 0 then return "" end
     local parts = {}
     for _, p in ipairs(points) do
-        local name = p.name and (p.name:gsub("[;,:|\n\r]", " ")) or nil
-        table.insert(parts, string.format("%.1f,%.1f", p.x, p.y) .. (name and name ~= "" and ("," .. name) or ""))
+        local name = p.name and (p.name:gsub("[;,:|~\n\r]", " ")) or nil
+        table.insert(parts, string.format("%.1f,%.1f", p.x, p.y)
+            .. (name and name ~= "" and ("," .. name) or "")
+            .. (p.weld and ("~" .. p.weld) or ""))
     end
     return table.concat(parts, ";")
 end
@@ -2125,13 +2554,23 @@ local function UnpackPoints(str)
     local points = {}
     if not str or str == "" then return points end
     for chunk in str:gmatch("[^;]+") do
-        local x, y, name = chunk:match("^(%-?[%d.]+),(%-?[%d.]+),?(.*)$")
+        local corps, weld = chunk:match("^([^~]*)~?(.*)$")
+        local x, y, name = (corps or ""):match("^(%-?[%d.]+),(%-?[%d.]+),?(.*)$")
         if x and y then
-            table.insert(points, { x = tonumber(x), y = tonumber(y), name = name ~= "" and name or nil })
+            table.insert(points, {
+                x = tonumber(x), y = tonumber(y),
+                name = name ~= "" and name or nil,
+                weld = weld ~= "" and weld or nil,
+            })
         end
     end
     return points
 end
+
+-- La base commune plie les points dans la MÊME forme (voir
+-- LesContesMalveillants_MJ/CrossingsBase.lua) : une seule écriture du format,
+-- sinon une l'oublie — ce qui est arrivé avec la soudure.
+ZG.PackPoints, ZG.UnpackPoints = PackPoints, UnpackPoints
 
 -- Une couleur, encodée "r,g,b" (ou "r,g,b,a" si withAlpha) — mêmes chiffres
 -- que PackPoints, pas de Enc() nécessaire non plus.
@@ -2204,6 +2643,10 @@ local function PackState()
                     Enc(place.arcEnterSpell or ""), Enc(place.arcExitSpell or ""),
                     Enc(place.arcVault or "phase"), (place.arcToggle == false) and 0 or 1,
                     table.concat(aliases, ","),
+                    -- Les deux champs de la porte, ajoutés en queue : un
+                    -- auteur plus ancien ne les envoie pas, et le lieu reçu
+                    -- est alors un lieu ordinaire, ce qu'il est.
+                    place.porte and 1 or 0, Enc(place.parent or ""),
                 }, SEP))
             end
             for sid, sub in pairs(zone.subZones) do
@@ -2282,6 +2725,8 @@ local function ApplyStateLine(line, sender)
             place.arcVault = (fields[12] == "personal") and "personal" or "phase"
             place.arcToggle = fields[13] ~= "0"
             for alias in (fields[14] or ""):gmatch("[^,]+") do place.aliases[alias] = true end
+            place.porte = fields[15] == "1" or nil
+            place.parent = (fields[16] and fields[16] ~= "") and fields[16] or nil
             zone.places[id] = place
         end
     elseif tag == "PASS" then

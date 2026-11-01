@@ -149,6 +149,13 @@ _G.__cible = function(nom, auras)
     end
 end
 function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0" end return nil end
+-- Les sorts : de quoi nommer une aura imposee. Le client rend bien plus de
+-- champs ; on s'en tient a ceux que LCM lit (nom, rang, icone).
+function GetSpellInfo(spellID)
+    spellID = tonumber(spellID)
+    if not spellID then return nil end
+    return "Sort " .. spellID, nil, 136243
+end
 -- L'horloge est pilotable : la repousse d'un stock se verifie en avancant le
 -- temps, pas en attendant.
 local horloge = 1000

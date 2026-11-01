@@ -40,6 +40,7 @@ OutilsUI.lua
 Panneau.lua
 Crossings\Studio.lua
 Crossings\Trace.lua
+Crossings\CarteZones.lua
 Crossings\Themes.lua
 Crossings\Atelier.lua
 Crossings\Connaissances.lua

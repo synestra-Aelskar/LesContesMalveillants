@@ -52,7 +52,12 @@ end
 local triCache=setmetatable({},{__mode="k"})
 local function Triangulate(points)
     local n=#points
-    local key=n..":"..(n>0 and (points[1].x..","..points[n].y) or "")
+    -- La clé regarde TOUS les sommets. Elle ne lisait que le premier et le
+    -- dernier : déplacer un sommet du milieu (ce que fait la carte des zones
+    -- du MJ) laissait le remplissage sur l'ancienne découpe.
+    local somme=0
+    for i=1,n do somme=somme+points[i].x*31+points[i].y*17 end
+    local key=n..":"..string.format("%.3f",somme)
     local cached=triCache[points]
     if cached and cached.key==key then return cached.tris end
     local idx={}
@@ -103,6 +108,14 @@ local function LineEnds(sub)
     local a=sub.facing or 0;local r=(sub.width or 6)/2
     return {x=sub.x-math.cos(a)*r,y=sub.y+math.sin(a)*r},{x=sub.x+math.cos(a)*r,y=sub.y-math.sin(a)*r}
 end
+
+-- La carte des zones du panneau MJ (Crossings/CarteZones.lua) dessine la même
+-- chose, en modifiable. Elle emprunte la géométrie d'ici plutôt que d'en tenir
+-- une seconde écriture : deux triangulations à maintenir, c'est une de trop.
+ZG.Geo = {
+    Area = Area, Triangulate = Triangulate, IsClosed = IsClosed,
+    PointInPolygon = PointInPolygon, LineEnds = LineEnds, Color = PlaceColor,
+}
 
 -- Région où se trouve le joueur : celle du lieu où il est, sinon celle dont
 -- un périmètre le contient, sinon celle du passage le plus proche (même carte).
@@ -313,7 +326,10 @@ local function Build()
             for _,sub in pairs(zone.subZones or {}) do
                 -- Une carte lue dessine TOUTE région qu'elle montre ; c'est
                 -- le dessin qui tait les noms qu'elle ne dévoile pas.
-                if sub.mapID==map and sub.enabled~=false then list[#list+1]={sub=sub,zone=zone} end
+                -- Une zone sans sommets, elle, n'a rien à montrer : depuis
+                -- qu'un lieu naît avec la sienne, toute région en porte.
+                local vide=sub.shape=="polygon" and #(sub.points or {})<2
+                if sub.mapID==map and sub.enabled~=false and not vide then list[#list+1]={sub=sub,zone=zone} end
             end
         end
         table.sort(list,function(a,b) return a.sub.id<b.sub.id end)

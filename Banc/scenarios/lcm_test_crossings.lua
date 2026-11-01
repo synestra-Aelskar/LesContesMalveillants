@@ -180,27 +180,30 @@ ZG:FinishRegion(perimetre.id)
 attendu("le perimetre est ferme", perimetre.regionReady, true)
 
 panneau:Toggle()
-for _, onglet in ipairs({ "places", "passages", "settings" }) do
+-- Les onglets de la region, remanies le 1er novembre 2026 : « passages »
+-- s'est scinde, la carte est passee en tete, et les zones se reglent
+-- desormais dans la fiche de leur lieu — la region n'en a plus l'onglet.
+for _, onglet in ipairs({ "carte", "places", "doors", "settings" }) do
     essai("region, onglet " .. onglet, function()
         panneau.mode, panneau.zoneId, panneau.zoneTab = "zone", region.id, onglet
         panneau.passageId = porte.id
         panneau:RefreshAll()
     end)
 end
-for _, onglet in ipairs({ "banner", "effects", "arcanum", "discovery" }) do
+for _, onglet in ipairs({ "zone", "aura", "banner", "effects", "arcanum", "discovery" }) do
     essai("lieu, onglet " .. onglet, function()
         panneau.mode, panneau.placeId, panneau.zoneId, panneau.placeTab = "place", village.id, region.id, onglet
         panneau:RefreshAll()
     end)
 end
 essai("le trace en direct", function()
-    panneau.mode, panneau.zoneId, panneau.zoneTab, panneau.passageId = "zone", region.id, "passages", porte.id
+    panneau.mode, panneau.zoneId, panneau.zoneTab, panneau.passageId = "zone", region.id, "doors", porte.id
     panneau:EnterTrace(porte.id)
     __avancer(0.5)
     panneau:ExitTrace()
 end)
 essai("les auras d'un passage", function()
-    panneau.mode, panneau.zoneId, panneau.zoneTab, panneau.passageId = "zone", region.id, "passages", porte.id
+    panneau.mode, panneau.zoneId, panneau.zoneTab, panneau.passageId = "zone", region.id, "doors", porte.id
     panneau:OpenPassageAuras()
     LCMCrossingsAuraManager:Hide()
 end)
