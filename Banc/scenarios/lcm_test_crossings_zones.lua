@@ -261,6 +261,31 @@ attendu("  une seule zone proposee", #proposees, 1)
 attendu("  c'est la sienne", proposees[1].value, A.id)
 panneau:Hide()
 
+dire("== ajouter un sommet sur une arete")
+-- Clic droit entre le 8 et le 9 : le nouveau devient le 9, l'ancien 9 passe
+-- 10. Sans ca, un contour ne s'affinait qu'en le refaisant.
+local carre = Tracer(ZG:CreateSubZone(region.id, "Le Carre", nil, "polygon"),
+    { { 0, 0 }, { 10, 0 }, { 10, 10 }, { 0, 10 } })
+ZG:FinishRegion(carre.id)
+ZG:DeclareBorder(carre.id, "Le cote nord", 3, 4, true)
+attendu("on insere entre le 1 et le 2", ZG:InsertRegionPoint(carre.id, 1, 5, 0), true)
+attendu("  il y a un sommet de plus", #carre.points, 5)
+attendu("  le nouveau prend le rang 2", carre.points[2].x .. "," .. carre.points[2].y, "5,0")
+attendu("  l'ancien 2 passe 3", carre.points[3].x .. "," .. carre.points[3].y, "10,0")
+-- Une frontiere declaree designe ses sommets par leur RANG : elle suit.
+attendu("la frontiere declaree a suivi", carre.borders[1].from .. ">" .. carre.borders[1].to, "4>5")
+attendu("la zone reste fermee", carre.regionReady, true)
+-- La fermeture est une arete comme une autre : on insere entre le dernier
+-- sommet et le premier.
+attendu("on insere sur la fermeture", ZG:InsertRegionPoint(carre.id, 5, -1, 5), true)
+attendu("  il se pose en queue", #carre.points, 6)
+attendu("  juste apres le dernier", carre.points[6].x .. "," .. carre.points[6].y, "-1,5")
+-- Et le retrait defait l'insertion, rang par rang.
+attendu("le retrait enleve le bon", ZG:RemoveRegionPointAt(carre.id, 2), true)
+attendu("  le carre a retrouve son cote", carre.points[2].x .. "," .. carre.points[2].y, "10,0")
+attendu("  et la frontiere est revenue", carre.borders[1].from .. ">" .. carre.borders[1].to, "3>4")
+ZG:RemoveSubZone(carre.id)
+
 dire("== annuler le dernier changement")
 -- Un sommet lache au mauvais endroit ne se remet pas a la main : on ne
 -- retrouve pas ses coordonnees au yard pres. La pile couvre les trois gestes
@@ -454,6 +479,263 @@ ZG:RemovePlace(porteDuRefuge.id)
 attendu("le parent se range", ZG:SetPorteParent(poterne.id, est.id), true)
 attendu("  et se relit", poterne.parent, est.id)
 attendu("un lieu ordinaire refuse d'etre range", ZG:SetPorteParent(ouest.id, est.id), false)
+
+dire("== un lieu se range dans un autre lieu")
+-- Du rangement seulement : la geometrie n'en sait rien. Un hameau dans sa
+-- foret, une crypte sous son mausolee.
+local foret = ZG:CreatePlace(region.id, "La Foret")
+local hameau = ZG:CreatePlace(region.id, "Le Hameau")
+local cave = ZG:CreatePlace(region.id, "La Cave")
+attendu("on range le hameau dans la foret", ZG:SetPlaceParent(hameau.id, foret.id), true)
+attendu("  et la cave dans le hameau", ZG:SetPlaceParent(cave.id, hameau.id), true)
+attendu("la foret contient le hameau", #ZG:GetChildPlaces(region.id, foret.id), 1)
+attendu("  le hameau contient la cave", #ZG:GetChildPlaces(region.id, hameau.id), 1)
+-- Les racines : ce qui n'est range sous rien.
+local racines = ZG:GetLieuList(region.id, true)
+local dansRacines = {}
+for _, p in ipairs(racines) do dansRacines[p.id] = true end
+attendu("la foret est une racine", dansRacines[foret.id], true)
+attendu("  le hameau, non", dansRacines[hameau.id], nil)
+-- Une boucle se refuse : un lieu range sous son propre descendant
+-- disparaitrait de l'arbre, et son parcours ne finirait jamais.
+attendu("on refuse la boucle directe", ZG:SetPlaceParent(foret.id, foret.id), false)
+attendu("on refuse la boucle indirecte", ZG:SetPlaceParent(foret.id, cave.id), false)
+attendu("  la foret n'a pas bouge", foret.parent, nil)
+-- Supprimer le parent fait remonter ses enfants, il ne les emporte pas.
+ZG:RemovePlace(hameau.id)
+attendu("la cave survit", ZG:FindPlace(cave.id) ~= nil, true)
+attendu("  et remonte a la racine", cave.parent, nil)
+ZG:RemovePlace(cave.id); ZG:RemovePlace(foret.id)
+
+dire("== le pays dessine toutes ses regions")
+local royaume = ZG:CreateCountry("Le Royaume")
+ZG:SetZoneCountry(region.id, royaume.id)
+local voisine = ZG:CreateZone("La Marche Haute", royaume.id)
+local V = Tracer(ZG:CreateSubZone(voisine.id, "Le Plateau", nil, "polygon"),
+    { { 600, 600 }, { 630, 600 }, { 630, 630 } })
+ZG:FinishRegion(V.id)
+essai("la fiche du pays s'ouvre", function()
+    panneau.mode, panneau.countryId = "country", royaume.id
+    panneau:RefreshAll()
+end)
+local cartePays = panneau.paysMap
+attendu("le pays a sa carte", cartePays ~= nil, true)
+local vuesPays = {}
+for _, e in ipairs(cartePays:Dessinables()) do vuesPays[e.sub.id] = e.mienne end
+attendu("les zones des DEUX regions y sont", vuesPays[A.id] and vuesPays[V.id], true)
+attendu("  et elles sont toutes a lui", vuesPays[V.id], true)
+attendu("la couleur distingue les regions", cartePays.parRegion, true)
+-- Dans UNE region, c'est l'inverse : une couleur par zone.
+carte:Dessinables()
+attendu("  mais pas dans une seule region", carte.parRegion, false)
+
+dire("== le mode nomade sort la carte du panneau")
+-- Le panneau entier occupe l'ecran et cache le jeu, or c'est en jeu qu'on
+-- releve un contour. En nomade, la page Carte DEMENAGE dans une petite
+-- fenetre : une seconde carte entretenue en double aurait fini par ne plus
+-- montrer la meme chose que la premiere.
+essai("la region s'ouvre sur sa carte", function()
+    panneau.mode, panneau.zoneId, panneau.zoneTab = "zone", region.id, "carte"
+    panneau:RefreshAll()
+end)
+local pageCarte = panneau.zonePages and panneau.zonePages.carte
+attendu("la page Carte existe", pageCarte ~= nil, true)
+local parentAvant = pageCarte and pageCarte:GetParent()
+attendu("le bouton Nomade est la", panneau.carteBoutons.nomade ~= nil, true)
+essai("on passe en nomade", function() panneau:ModeNomade(true) end)
+attendu("la fenetre s'ouvre", panneau.carteFenetre:IsShown(), true)
+attendu("  le panneau s'efface", panneau:IsShown(), false)
+attendu("  la page a demenage", pageCarte:GetParent() == panneau.carteFenetre, true)
+attendu("  le bouton propose de fermer", panneau.carteBoutons.nomade:GetText(), "Fermer")
+-- Les boutons de la carte sont venus avec elle : ce sont les memes.
+attendu("les gestes suivent la carte",
+    panneau.carteBoutons.weld:GetParent() == pageCarte, true)
+essai("on revient au panneau", function() panneau:ModeNomade(false) end)
+attendu("la fenetre se ferme", panneau.carteFenetre:IsShown(), false)
+attendu("  la page est rentree", pageCarte:GetParent() == parentAvant, true)
+attendu("  et le bouton reproposer le nomade", panneau.carteBoutons.nomade:GetText(), "Nomade")
+-- Fermee par Echap, la page rentre quand meme : sans ca le panneau rouvrirait
+-- sur un onglet Carte vide.
+panneau:ModeNomade(true)
+panneau.carteFenetre:Hide()
+attendu("fermee a la main, la page rentre", pageCarte:GetParent() == parentAvant, true)
+
+dire("== le terrain du jeu se pose en fond de la carte nomade")
+-- On voit sur quoi on pose ses sommets au lieu de les deviner sur un
+-- quadrillage vide. C'est l'IMAGE DE LA ZONE du jeu, en tuiles : des textures
+-- ordinaires, rognees au cadre, sur la zone entiere. La minimap avait ete
+-- essayee et retiree — un disque de 230 yards ne couvre pas une region, et le
+-- jeu refuse de la rogner.
+local coinAvant = Minimap:GetParent()
+__carte(1, 1000, 1000)
+panneau:ModeNomade(true)
+local bouton = panneau.carteBoutons.minimap
+attendu("le bouton de fond est la", bouton ~= nil, true)
+attendu("  on part sans fond", bouton:GetText(), "Fond : aucun")
+
+essai("un clic : le terrain", function() bouton:Click() end)
+attendu("le fond est pose", bouton:GetText(), "Fond : carte")
+attendu("  et la carte le sait", panneau.zoneMap.fondPose, true)
+-- La minimap du joueur n'est pas touchee : rien n'est emprunte.
+attendu("  la minimap reste dans son coin", Minimap:GetParent() == coinAvant, true)
+
+-- Les TUILES DE MINIMAP du client, une par bloc ADT de 533,33 yards. C'est
+-- la seule source qui existe sur une carte personnalisee, et c'est celle
+-- qu'on essaie en premier.
+__carteNom("Aelskar")
+local ADT = 533.33333
+-- Vue centree sur le bloc colonne 28, ligne 20 : la colonne compte vers
+-- l'OUEST, la ligne vers le NORD, toutes deux depuis le centre du monde (32).
+panneau.zoneMap.cx = (32 - 28.5) * ADT
+panneau.zoneMap.cy = (32 - 20.5) * ADT
+panneau.zoneMap.scale = 2
+bouton:Click(); bouton:Click()
+attendu("le dossier se devine du nom de la carte", panneau.zoneMap.fondDossier, "aelskar")
+local chemins = {}
+for _, t in ipairs(panneau.zoneMap.tuiles or {}) do
+    if t:GetTexture() then chemins[t:GetTexture()] = true end
+end
+attendu("la tuile du bloc survole est posee",
+    chemins["world\\minimaps\\aelskar\\map28_20.blp"], true)
+-- Le dossier se regle a la main quand la devinette tombe a cote : le nom
+-- n'est pas expose aux addons.
+ZG:SetMinimapDir(1, "monpatch")
+bouton:Click(); bouton:Click()
+attendu("le reglage a la main l'emporte", panneau.zoneMap.fondDossier, "monpatch")
+ZG:SetMinimapDir(1, "")
+
+essai("un second clic : plus de terrain", function() bouton:Click() end)
+attendu("on est revenu sans fond", bouton:GetText(), "Fond : aucun")
+
+-- Les deux sources muettes (carte personnalisee sans nom lisible et sans
+-- image publiee) : le fond se refuse et DIT pourquoi. Sans la raison, un
+-- mauvais dossier et une carte sans image se ressemblent.
+__carteArt(false)
+__carteNom("")
+bouton:Click()
+attendu("sans source, le fond se refuse", bouton:GetText(), "Fond : aucun")
+attendu("  et la raison s'affiche",
+    (panneau.carteBoutons.hint:GetText() or ""):find("Pas de terrain", 1, true) ~= nil, true)
+__carteArt(true)
+__carteNom("Carte")
+panneau:ModeNomade(false)
+
+dire("== coller deux regions depuis la carte du pays")
+-- Le meme geste que dans une region, mais entre deux REGIONS. Sans lui, deux
+-- regions voisines ne se collent pas : leur frontiere commune derive des deux
+-- cotes des qu'on retouche l'une d'elles.
+local paysBoutons = panneau.paysBoutons
+attendu("la carte du pays a ses boutons", paysBoutons ~= nil and paysBoutons.weld ~= nil, true)
+cartePays:Deselectionner()
+panneau:RefreshAll()
+attendu("rien de choisi : on ne soude pas", paysBoutons.weld:IsEnabled(), false)
+cartePays:Basculer(A.id, 3)
+panneau:RefreshAll()
+attendu("une seule region : pas encore", paysBoutons.weld:IsEnabled(), false)
+cartePays:Basculer(V.id, 1)
+panneau:RefreshAll()
+attendu("un sommet de chaque region : on peut", paysBoutons.weld:IsEnabled(), true)
+essai("les confondre", function() paysBoutons.weld:Click() end)
+attendu("les deux portent la meme soudure",
+    A.points[3].weld ~= nil and A.points[3].weld == V.points[1].weld, true)
+-- Deplacer l'un deplace l'autre, par-dela la limite des regions.
+ZG:MoveRegionPoint(A.id, 3, 777, 888)
+attendu("deplacer l'un deplace l'autre",
+    V.points[1].x .. "/" .. V.points[1].y, "777/888")
+-- Et le geste se defait, depuis la meme carte.
+cartePays:Deselectionner()
+cartePays:Basculer(A.id, 3)
+panneau:RefreshAll()
+attendu("un sommet soude : on peut separer", paysBoutons.unweld:IsEnabled(), true)
+essai("les separer", function() paysBoutons.unweld:Click() end)
+attendu("plus de soudure", A.points[3].weld, nil)
+attendu("  des deux cotes", V.points[1].weld, nil)
+-- On remet le sommet ou il etait : un essai ne laisse pas le decor tordu
+-- derriere lui, la suite du scenario compte sur la forme de ce carre.
+ZG:MoveRegionPoint(A.id, 3, 30, 30)
+
+dire("== la region a son propre contour")
+-- Hors de tout lieu mais dans la region, la banniere ne disait rien. La
+-- region a desormais sa propre etendue, qui contient ses lieux. Dans les
+-- donnees c'est un lieu marque `pourRegion`, que rien ne liste.
+local lieuxAvant = #ZG:GetLieuList(region.id)
+local nomRegion = ZG:GetZone(region.id).name
+local contour, lieuRegion = ZG:CreateRegionArea(region.id)
+attendu("le contour est cree", contour ~= nil, true)
+attendu("  sous le nom de la region", contour.name, nomRegion)
+attendu("  c'est une etendue", contour.shape, "polygon")
+attendu("  il n'ajoute aucun lieu", #ZG:GetLieuList(region.id), lieuxAvant)
+local dansLaListe = false
+for _, p in ipairs(ZG:GetPlaceList(region.id)) do
+    if p.id == lieuRegion.id then dansLaListe = true end
+end
+attendu("  et aucune liste ne le montre", dansLaListe, false)
+local dansLaListeComplete = false
+for _, p in ipairs(ZG:GetPlaceList(region.id, true)) do
+    if p.id == lieuRegion.id then dansLaListeComplete = true end
+end
+attendu("  sauf quand on le demande", dansLaListeComplete, true)
+-- Le redemander ne cree pas un second contour.
+attendu("  on n'en cree pas deux", (ZG:CreateRegionArea(region.id)).id, contour.id)
+
+-- Il porte le nom de la region, et le suit.
+ZG:RenameZone(region.id, "Le Bois Dormant")
+attendu("renommer la region renomme son contour", contour.name, "Le Bois Dormant")
+attendu("  et le lieu cache qui le porte", lieuRegion.name, "Le Bois Dormant")
+ZG:RenameZone(region.id, nomRegion)
+
+-- Il entoure les lieux : au coeur d'un lieu c'est le lieu qui parle, entre
+-- deux lieux c'est la region.
+Tracer(contour, { { 100, 100 }, { 400, 100 }, { 400, 400 }, { 100, 400 } })
+ZG:FinishRegion(contour.id)
+attendu("au coeur d'un lieu, c'est le lieu",
+    (ZG:LieuContenant(250, 250, G.mapID)), petite.id)
+attendu("entre deux lieux, c'est la region",
+    (ZG:LieuContenant(150, 150, G.mapID)), lieuRegion.id)
+local titreR, sousR = ZG:ResolveBannerText(lieuRegion, ZG:GetZone(region.id))
+attendu("sa banniere porte la region", titreR, nomRegion)
+attendu("  sans la repeter en sous-titre", sousR, nil)
+
+-- Le trajet : dehors, dans la region, dans un lieu, et retour a la region.
+local annonces = {}
+local vraiBanner = ZG.ShowBanner
+function ZG:ShowBanner(titre, sous, theme)
+    annonces[#annonces + 1] = sous or titre
+    return vraiBanner(self, titre, sous, theme)
+end
+-- Quitter un lieu pour la region est un RETOUR : l'arrivee est muette, mais
+-- le depart du lieu quitte doit partir quand meme, sinon son aura resterait
+-- sur le dos du joueur. Avec un contour de region, toute sortie est un retour.
+local partis = {}
+local vraieAction = ZG.RunPlaceAction
+function ZG:RunPlaceAction(place, mode) partis[#partis + 1] = (place.name or "?") .. ":" .. mode end
+ZG.quietUntil = 0
+Aller(600, 600)
+annonces, partis = {}, {}
+Aller(150, 150)
+attendu("on entre dans la region", annonces[#annonces], nomRegion)
+Aller(210, 210)
+attendu("puis dans un de ses lieux", annonces[#annonces], "La Grande Foret")
+Aller(150, 150)
+attendu("en ressortant, la region revient", annonces[#annonces], nomRegion)
+local depart = false
+for _, p in ipairs(partis) do if p == "La Grande Foret:leave" then depart = true end end
+attendu("  et le lieu quitte l'est pour de bon", depart, true)
+ZG.ShowBanner, ZG.RunPlaceAction = vraiBanner, vraieAction
+Aller(600, 600)
+
+-- Sur la carte, il se reconnait : c'est lui qu'on ne remplit pas.
+local marque
+for _, e in ipairs(carte:Dessinables()) do
+    if e.sub.id == contour.id then marque = e.region end
+end
+attendu("la carte le reconnait comme contour de region", marque, true)
+
+-- L'effacer efface le lieu cache : sans trace il ne sert plus a rien.
+local idCache = lieuRegion.id
+ZG:RemoveSubZone(contour.id)
+attendu("effacer le contour efface son lieu cache", (ZG:FindPlace(idCache)), nil)
+attendu("  et la region peut en reprendre un", ZG:CreateRegionArea(region.id) ~= nil, true)
 
 dire("== supprimer une zone ne laisse pas de soudure fantome")
 ZG:WeldPoints(A.id, 2, B.id, 1)

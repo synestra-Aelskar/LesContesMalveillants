@@ -28,8 +28,23 @@ local LIST_W   = 264
 local ROW_H    = 34
 local FORM_W   = PANEL_W - LIST_W - PAD * 2 - 24
 local PAGE_Y   = 140   -- haut des pages, sous l'en-tête et les onglets
--- Les portes, partout en rouge : dans l'arbre comme sur la carte.
-local COULEUR_PORTE = { 0.85, 0.45, 0.38 }
+-- Tout ce qui se crée depuis l'arbre — les couleurs, les trois lettres du
+-- bout de ligne, et les gestes eux-mêmes — dans UNE table : Lua 5.1 n'accepte
+-- que 200 variables locales dans le corps d'un fichier, et ce panneau est à
+-- son plafond (il l'a dépassé le 1er novembre 2026, et plus rien ne se
+-- chargeait).
+--
+-- Les portes, partout en rouge : dans l'arbre comme sur la carte. Les
+-- bâtiments, en violet, pour la même raison.
+local CREER = {
+    porte = { 0.85, 0.45, 0.38 },
+    batiment = { 0.70, 0.52, 0.88 },
+}
+CREER.lettres = {
+    { lettre = "L", mot = "Nouveau lieu",     c = { 0.42, 0.80, 0.45 } },
+    { lettre = "P", mot = "Nouvelle porte",   c = CREER.porte },
+    { lettre = "B", mot = "Nouveau bâtiment", c = CREER.batiment },
+}
 local M        = 16    -- marge intérieure des fiches
 local FIELD_H  = 32
 
@@ -224,6 +239,8 @@ Caption(footer, "Modifications enregistrées automatiquement", PAD, PANEL_H - 26
 
 function panel:Toggle()
     if self.traceWindow and self.traceWindow:IsShown() then self:ExitTrace(); return end
+    -- En nomade, la page Carte est sortie du panneau : on la rentre d'abord.
+    if self.carteFenetre and self.carteFenetre:IsShown() then self:ModeNomade(false); return end
     if self:IsShown() then
         self:Hide()
     else
@@ -355,21 +372,51 @@ local function CreateRegion(countryId)
     end)
 end
 
-local function CreatePlaceIn(zoneId)
+-- parentPlaceId (facultatif) : le lieu — ou le bâtiment — qui le contient.
+-- Dans un bâtiment, un lieu est une PIÈCE : il hérite de sa tranche
+-- d'altitude, sans quoi il déborderait des murs en hauteur.
+function CREER.Lieu(zoneId, parentPlaceId)
     local zone = ZG:GetZone(zoneId)
     if not zone then return end
-    AskCreate("Créer un nouveau lieu ?",
-        "Dans la région « " .. (zone.name or "") .. " ». Sa zone est créée avec lui, sous son nom : il ne restera qu'à en poser les sommets.",
+    local parent = parentPlaceId and ZG:FindPlace(parentPlaceId)
+    local dansBatiment = parent and ZG:EstBatiment(parent)
+    AskCreate(dansBatiment and "Créer une nouvelle pièce ?" or "Créer un nouveau lieu ?",
+        (parent and ("Dans « " .. (parent.name or "") .. " ». ") or ("Dans la région « " .. (zone.name or "") .. " ». "))
+            .. (dansBatiment
+                and "Elle reprend la hauteur du bâtiment ; il ne restera qu'à en poser les sommets."
+                or "Sa zone est créée avec lui, sous son nom : il ne restera qu'à en poser les sommets."),
         function(name)
-            local place = ZG:CreatePlace(zoneId, name)
+            local place
+            if dansBatiment then
+                place = ZG:CreateRoomPlace(parent.id, name)
+            else
+                place = ZG:CreatePlace(zoneId, name)
+                if place and parentPlaceId then ZG:SetPlaceParent(place.id, parentPlaceId) end
+            end
             -- On atterrit sur sa zone : c'est le geste suivant.
             if place then panel.placeTab = "zone"; Select("place", place.id, zoneId) end
         end)
 end
 
+-- Un bâtiment est un lieu dont l'étendue se referme en hauteur : on dessine
+-- son sol, puis on dit de combien il monte et descend. Il contient ses
+-- pièces comme une région contient ses lieux.
+function CREER.Batiment(zoneId, parentPlaceId)
+    local zone = ZG:GetZone(zoneId)
+    if not zone then return end
+    local parent = parentPlaceId and ZG:FindPlace(parentPlaceId)
+    AskCreate("Créer un nouveau bâtiment ?",
+        (parent and ("Dans « " .. (parent.name or "") .. " ». ") or "")
+            .. "On dessine son sol, puis on dit de combien il descend et monte, en yards. Il ne s'étale pas sur la carte de la région : il s'y marque d'un point, et sa propre carte s'ouvre quand on y entre.",
+        function(name)
+            local place = ZG:CreateBuildingPlace(zoneId, parentPlaceId, name)
+            if place then panel.placeTab = "carte"; Select("place", place.id, zoneId) end
+        end)
+end
+
 -- Une porte est un lieu dont la géométrie est une porte droite. Elle se pose
 -- là où se tient le joueur, orientée selon son regard : rien à dessiner.
-local function CreatePorteIn(zoneId, parentPlaceId)
+function CREER.Porte(zoneId, parentPlaceId)
     local zone = ZG:GetZone(zoneId)
     if not zone then return end
     local parent = parentPlaceId and ZG:FindPlace(parentPlaceId)
@@ -421,6 +468,7 @@ listSep:SetWidth(1)
 UI.ApplySeparator(listSep, true)
 
 local treeRows = {}
+panel.treeRows = treeRows   -- le banc lit les lignes rendues
 local treeEmpty = treeContent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 treeEmpty:SetPoint("TOPLEFT", 8, -8); treeEmpty:SetWidth(LIST_W - 16)
 treeEmpty:SetJustifyH("LEFT"); UI.ApplyMutedText(treeEmpty)
@@ -548,6 +596,32 @@ local function TreeRow(index)
     row.addBtn = UI.CreateAddButton(row, nil)
     row.addBtn:SetPoint("RIGHT", row, "RIGHT", -8, 0)
 
+    -- Trois lettres au bout de la ligne : L un lieu, P une porte, B un
+    -- bâtiment. Elles remplacent les lignes « + Nouveau lieu » et « + Porte »
+    -- qui se répétaient sous chaque lieu et mangeaient la colonne entière.
+    row.creer = {}
+    for i, def in ipairs(CREER.lettres) do
+        local b = CreateFrame("Button", nil, row)
+        b:SetSize(17, 17)
+        UI.Surface(b)
+        local chaud = b:CreateTexture(nil, "HIGHLIGHT")
+        chaud:SetAllPoints()
+        chaud:SetColorTexture(def.c[1], def.c[2], def.c[3], 0.22)
+        b.sign = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        b.sign:SetPoint("CENTER", 0, 0)
+        b.sign:SetText(def.lettre)
+        b.sign:SetTextColor(def.c[1], def.c[2], def.c[3])
+        b:SetPoint("RIGHT", row, "RIGHT", -8 - (#CREER.lettres - i) * 20, 0)
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.mot or def.mot, 1, 1, 1)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        b:SetScript("OnClick", function(self) if self.faire then self.faire() end end)
+        row.creer[i] = b
+    end
+
     treeRows[index] = row
     return row
 end
@@ -581,6 +655,30 @@ local function StyleRow(row, kind, inset, ruled)
     row.label:SetTextColor(unpack(style.text))
 end
 
+-- Les trois lettres au bout d'une ligne. `place` nil : c'est la région qui
+-- reçoit. Dans un bâtiment, un lieu s'appelle une pièce — c'est le même
+-- geste, et le même bouton.
+function CREER.Lettres(row, zoneId, place, estBatiment)
+    local sous = place and place.id or nil
+    local mots
+    if estBatiment then
+        mots = { "Nouvelle pièce", "Nouvelle porte dans ce bâtiment", "Nouveau bâtiment dedans" }
+    elseif place then
+        mots = { "Nouveau lieu dedans", "Nouvelle porte dedans", "Nouveau bâtiment dedans" }
+    else
+        mots = { "Nouveau lieu", "Nouvelle porte", "Nouveau bâtiment" }
+    end
+    local faire = {
+        function() CREER.Lieu(zoneId, sous) end,
+        function() CREER.Porte(zoneId, sous) end,
+        function() CREER.Batiment(zoneId, sous) end,
+    }
+    for i, b in ipairs(row.creer) do
+        b.mot, b.faire = mots[i], faire[i]
+        b:Show()
+    end
+end
+
 local function Matches(text, query)
     return query == "" or ((text or ""):lower():find(query, 1, true) ~= nil)
 end
@@ -599,40 +697,39 @@ local function BuildTree(query)
         if not zoneMatched and #places == 0 then return end
         local own = zone.creator == MyName()
         local open = searching or IsOpen(zone.id)
-        -- Une région à moi se déplie toujours : elle porte au moins « + Nouveau lieu ».
+        -- Une région vide ne se déplie plus sur rien : ses lignes de création
+        -- ont laissé la place aux trois lettres de sa propre ligne.
         entries[#entries + 1] = { kind = "zone", zone = zone, depth = depth, key = zone.id, open = open,
-            parent = #places > 0 or own, count = #ZG:GetLieuList(zone.id) }
+            parent = #places > 0, count = #ZG:GetLieuList(zone.id) }
         if not open then return end
-        -- Les portes se rangent SOUS le lieu qu'elles desservent, décalées
-        -- d'un cran ; celles qui n'ont pas de lieu restent au niveau des
-        -- lieux. Chaque lieu porte son propre « + Porte ».
-        local sousLieu = {}
+        -- Lieux et portes se rangent SOUS celui qui les contient, décalés d'un
+        -- cran, aussi profond qu'on veut : un village dans une forêt, sa
+        -- crypte sous son mausolée. Chaque lieu porte son « + Porte ».
+        local enfants, visibles = {}, {}
+        for _, place in ipairs(places) do visibles[place.id] = true end
         for _, place in ipairs(places) do
-            if place.porte and place.parent then
-                sousLieu[place.parent] = sousLieu[place.parent] or {}
-                table.insert(sousLieu[place.parent], place)
+            -- Un parent hors de la liste (filtré par la recherche, ou
+            -- supprimé) ne doit pas faire disparaître son enfant : il remonte.
+            local sous = place.parent
+            if sous and not visibles[sous] then sous = nil end
+            enfants[sous or ""] = enfants[sous or ""] or {}
+            table.insert(enfants[sous or ""], place)
+        end
+
+        -- Profondeur bornée : une boucle de rangement est refusée à l'écriture
+        -- (ZG:SetPlaceParent), mais un état reçu d'ailleurs pourrait en
+        -- porter une, et l'arbre ne doit pas tourner en rond.
+        local function poser(parentId, niveau)
+            if niveau > depth + 8 then return end
+            for _, place in ipairs(enfants[parentId or ""] or {}) do
+                entries[#entries + 1] = { kind = "place", zone = zone, place = place, depth = niveau }
+                -- Plus de lignes « + Nouveau lieu » / « + Porte » sous chaque
+                -- lieu : les trois lettres au bout de la ligne font le même
+                -- travail sans répéter deux rangées par niveau.
+                if not place.porte then poser(place.id, niveau + 1) end
             end
         end
-        for _, place in ipairs(places) do
-            if not (place.porte and place.parent) then
-                entries[#entries + 1] = { kind = "place", zone = zone, place = place, depth = depth + 1 }
-                if not place.porte then
-                    for _, porte in ipairs(sousLieu[place.id] or {}) do
-                        entries[#entries + 1] = { kind = "place", zone = zone, place = porte, depth = depth + 2 }
-                    end
-                    if own and not searching then
-                        -- `parent` est déjà pris par l'accordéon (« j'ai des
-                        -- enfants ») : le lieu visé s'appelle parentPlace.
-                        entries[#entries + 1] = { kind = "create", what = "porte", zone = zone,
-                            parentPlace = place, depth = depth + 2 }
-                    end
-                end
-            end
-        end
-        if own and not searching then
-            entries[#entries + 1] = { kind = "create", what = "place", zone = zone, depth = depth + 1 }
-            entries[#entries + 1] = { kind = "create", what = "porte", zone = zone, depth = depth + 1 }
-        end
+        poser(nil, depth + 1)
     end
 
     local countries = ZG:GetCountryList()
@@ -727,6 +824,7 @@ function panel:RefreshTree()
         row.addBtn:Hide()
         row.leftClick, row.context = nil, nil
         row.dragZone, row.dropCountry = nil, nil
+        for _, b in ipairs(row.creer) do b:Hide(); b.faire, b.mot = nil, nil end
         -- En toutes lettres : « 2 régions », « 1 lieu ».
         local n = entry.count or 0
         local noun = entry.kind == "zone" and (n > 1 and "lieux" or "lieu") or (n > 1 and "régions" or "région")
@@ -761,11 +859,14 @@ function panel:RefreshTree()
             row.leftClick = function() Select("zone", zone.id) end
             row.dragZone = own and zone.id or nil
             row.dropCountry = ZoneDropCountry(zone)
+            if own and query == "" then
+                CREER.Lettres(row, zone.id, nil, nil)
+            end
             if own then
                 row.context = {
                     { text = zone.name, title = true },
                     { text = "Ouvrir", func = row.leftClick },
-                    { text = "Nouveau lieu ici", func = function() CreatePlaceIn(zone.id) end },
+                    { text = "Nouveau lieu ici", func = function() CREER.Lieu(zone.id) end },
                     { text = "Supprimer la région…", func = function() panel:DeleteRegion(zone.id) end },
                 }
             end
@@ -777,11 +878,11 @@ function panel:RefreshTree()
             elseif entry.what == "porte" then
                 row.label:SetText("|cffd98b7a+  Porte|r")
                 row.leftClick = function()
-                    CreatePorteIn(entry.zone.id, entry.parentPlace and entry.parentPlace.id or nil)
+                    CREER.Porte(entry.zone.id, entry.parentPlace and entry.parentPlace.id or nil)
                 end
             else
                 row.label:SetText("+  Nouveau lieu")
-                row.leftClick = function() CreatePlaceIn(entry.zone.id) end
+                row.leftClick = function() CREER.Lieu(entry.zone.id) end
             end
         else
             local place, zone = entry.place, entry.zone
@@ -790,23 +891,32 @@ function panel:RefreshTree()
             row.label:SetText(text)
             -- Une porte se reconnaît à sa couleur, ici comme sur la carte :
             -- elle ne se règle pas du tout comme un lieu.
-            if place.porte then row.label:SetTextColor(unpack(COULEUR_PORTE)) end
+            if place.porte then row.label:SetTextColor(unpack(CREER.porte))
+            elseif place.batiment then row.label:SetTextColor(unpack(CREER.batiment)) end
             if not PlaceKnown(place, zone) then row.label:SetTextColor(0.55, 0.55, 0.57) end
             row.sel:SetShown(panel.mode == "place" and panel.placeId == place.id)
             row.leftClick = function() Select("place", place.id, zone.id) end
             row.dropCountry = ZoneDropCountry(zone)
+            -- Une porte ne contient rien : pas de lettres au bout de sa ligne.
+            if zone.creator == MyName() and query == "" and not place.porte then
+                CREER.Lettres(row, zone.id, place, ZG:EstBatiment(place))
+            end
             if zone.creator == MyName() then
                 row.context = {
                     { text = place.name, title = true },
                     { text = "Ouvrir", func = row.leftClick },
-                    { text = place.porte and "Supprimer la porte…" or "Supprimer le lieu…",
+                    { text = place.porte and "Supprimer la porte…"
+                        or (place.batiment and "Supprimer le bâtiment…" or "Supprimer le lieu…"),
                       func = function() panel:DeletePlace(place.id) end },
                 }
             end
         end
 
         row.count:ClearAllPoints()
-        row.count:SetPoint("RIGHT", row, "RIGHT", row.addBtn:IsShown() and -32 or -10, 0)
+        local marge = -10
+        if row.creer[1]:IsShown() then marge = -8 - #CREER.lettres * 20 - 4
+        elseif row.addBtn:IsShown() then marge = -32 end
+        row.count:SetPoint("RIGHT", row, "RIGHT", marge, 0)
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", row, "LEFT", textX, 0)
         row.label:SetPoint("RIGHT", row.count, "LEFT", -8, 0)
@@ -835,20 +945,36 @@ end
 
 -- ── Onglets ──────────────────────────────────────────────────────────────
 
+-- Un onglet peut se cacher : `tabs[clé].cache = true`, et les autres se
+-- repartagent la largeur sans laisser de trou. C'est ce qui permet à un
+-- bâtiment d'avoir sa Carte — celle de ses pièces — là où un lieu ordinaire
+-- n'en a pas besoin, sans rétrécir les onglets de tout le monde.
 local function Tabs(parent, entries, getter, setter)
-    local tabs, pages = {}, {}
-    local w = (FORM_W - 2 * M - (#entries - 1) * 10) / #entries
+    local tabs, pages, ordre = {}, {}, {}
     for i, entry in ipairs(entries) do
         local key = entry[1]
         local page = CreateFrame("Frame", nil, parent)
         Place(page, parent, 0, PAGE_Y, FORM_W, PANEL_H - HEADER_H - 42 - PAGE_Y)
         pages[key] = page
-        local tab = Button(parent, entry[2], M + (i - 1) * (w + 10), 100, w)
+        local tab = Button(parent, entry[2], M, 100, 10)
         tab:SetScript("OnClick", function() setter(key); panel:RefreshForm() end)
         tabs[key] = tab
+        ordre[i] = key
     end
     local function show()
         local current = getter()
+        local visibles = {}
+        for _, key in ipairs(ordre) do
+            if not tabs[key].cache then visibles[#visibles + 1] = key end
+        end
+        local w = (FORM_W - 2 * M - (#visibles - 1) * 10) / math.max(1, #visibles)
+        for i, key in ipairs(visibles) do
+            Place(tabs[key], parent, M + (i - 1) * (w + 10), 100, w)
+            tabs[key]:Show()
+        end
+        for _, key in ipairs(ordre) do
+            if tabs[key].cache then tabs[key]:Hide() end
+        end
         for key, page in pairs(pages) do
             page:SetShown(key == current)
             if tabs[key].accent then tabs[key].accent:SetShown(key == current) end
@@ -1022,6 +1148,107 @@ local function EditTheme(themeId)
     if themeId then LCMCrossingsThemePanel:EditTheme(themeId) else LCMCrossingsThemePanel:Toggle() end
 end
 
+-- ── Les gestes d'une carte ──────────────────────────────────────────────────
+-- Souder deux sommets, les séparer, revenir en arrière : les mêmes gestes sur
+-- la carte d'une région — où ils collent deux zones — et sur celle d'un pays,
+-- où ils collent deux RÉGIONS. Un seul jeu de boutons posé deux fois, plutôt
+-- que deux copies qui finiraient par diverger.
+--
+-- Tout tient dans UNE table : Lua 5.1 n'accepte que 200 variables locales dans
+-- le corps d'un fichier, et ce panneau en frôle le plafond.
+local Gestes = {}
+
+-- c : la table de la carte (c.map, c.hint, c.repos, c.etranger). Les boutons
+-- s'y rangent. y : la ligne du premier rang, le second 40 plus bas.
+function Gestes.Poser(c, page, y)
+    c.fit = Button(page, "Vue d'ensemble", M, y, 160)
+    c.fit:SetScript("OnClick", function() c.map:Fit(); c.map:Draw() end)
+    c.weld = Button(page, "Les confondre comme une frontière", M + 168, y, 282)
+    c.unweld = Button(page, "Séparer", M + 458, y, 120)
+    c.clear = Button(page, "Désélectionner", M, y + 40, 160)
+    c.clear:SetScript("OnClick", function() c.map:Deselectionner() end)
+    -- Un sommet lâché au mauvais endroit ne se remet pas à la main : il
+    -- faudrait retrouver ses coordonnées au yard près.
+    c.undo = Button(page, "Annuler le dernier changement", M + 168, y + 40, 282)
+    c.undo:SetScript("OnClick", function()
+        local quoi = c.map:Annuler()
+        panel:RefreshAll()
+        if quoi then c.hint:SetText("|cff66e673Annulé : " .. quoi .. ".|r") end
+    end)
+
+    c.weld:SetScript("OnClick", function()
+        local a, b = c.map:Cotes()
+        if not a or not b then return end
+        -- Avant de souder : où étaient les sommets, et à quoi ils tenaient.
+        local avant = c.map:Instantane(c.map.sel)
+        local couples = ZG:WeldSeam(a.id, a.index, b.id, b.index)
+        if not couples then
+            c.hint:SetText("|cffe6c94dImpossible : il faut autant de sommets de chaque côté, les deux contours sur la même carte du jeu, et tous deux de votre main.|r")
+            return
+        end
+        local subA, subB = ZG:FindSubZone(a.id), ZG:FindSubZone(b.id)
+        c.hint:SetText(string.format("|cff66e673%d sommet(s) de « %s » rejoignent « %s ». Déplacer l'un déplacera l'autre.|r",
+            #couples, subB and subB.name or "?", subA and subA.name or "?"))
+        c.map:Empiler(avant, "la frontière posée")
+        c.map:Oublier()
+        panel:RefreshAll()
+    end)
+
+    c.unweld:SetScript("OnClick", function()
+        local avant = c.map:Instantane(c.map.sel)
+        local defaits = 0
+        for _, s in ipairs(c.map.sel) do
+            if ZG:UnweldPoint(s.subId, s.index) then defaits = defaits + 1 end
+        end
+        if defaits > 0 then c.map:Empiler(avant, "la séparation des sommets") end
+        c.hint:SetText(defaits > 0
+            and string.format("%d sommet(s) ne se confondent plus.", defaits)
+            or "Aucun des sommets choisis n'était soudé.")
+        c.map:Oublier()
+        panel:RefreshAll()
+    end)
+end
+
+-- Ce que les boutons disent de la sélection : d'abord ce qu'il reste à faire
+-- pour souder, puis ce qu'on peut faire de ce qui est choisi.
+function Gestes.Dire(c, own)
+    if not c.weld then return end
+    local a, b, cotes = c.map:Cotes()
+    local soudes = 0
+    for _, s in ipairs(c.map.sel) do
+        local sub = ZG:FindSubZone(s.subId)
+        local point = sub and sub.points and sub.points[s.index]
+        if point and point.weld then soudes = soudes + 1 end
+    end
+    local pret = own and a ~= nil and b ~= nil and #a.index == #b.index
+
+    c.weld:SetEnabled(pret and true or false)
+    c.unweld:SetEnabled(own and soudes > 0)
+    c.clear:SetEnabled(#c.map.sel > 0)
+    local annulable = own and c.map:Annulable() or nil
+    c.undo:SetEnabled(annulable ~= nil)
+    c.undo:SetText(annulable and ("Annuler : " .. annulable) or "Annuler le dernier changement")
+    c.weld:SetText(pret
+        and string.format("Les confondre comme une frontière (%d)", #a.index)
+        or "Les confondre comme une frontière")
+
+    if not own then
+        c.hint:SetText(c.etranger or "")
+    elseif #c.map.sel == 0 then
+        c.hint:SetText(c.repos or "")
+    elseif cotes == 1 then
+        c.hint:SetText(string.format("%d sommet(s) d'un seul contour. Choisissez-en autant sur le contour voisin.", #c.map.sel))
+    elseif cotes and cotes > 2 then
+        c.hint:SetText("|cffe6c94dTrois contours ou plus : une frontière se pose entre deux à la fois.|r")
+    elseif not pret then
+        c.hint:SetText(string.format("|cffe6c94d%d sommet(s) d'un côté, %d de l'autre : il en faut autant des deux.|r", #a.index, #b.index))
+    else
+        local subA, subB = ZG:FindSubZone(a.id), ZG:FindSubZone(b.id)
+        c.hint:SetText(string.format("Prêt : %d sommet(s) de « %s » rejoindront « %s » (la première désignée fait foi).",
+            #b.index, subB and subB.name or "?", subA and subA.name or "?"))
+    end
+end
+
 -- ── Fiche Pays ──────────────────────────────────────────────────────────────
 
 local countryForm = CreateFrame("Frame", nil, form)
@@ -1038,6 +1265,43 @@ local countryAdd = Button(countryForm, "+ Nouvelle région dans ce pays", M, 140
 countryAdd:SetScript("OnClick", function() CreateRegion(panel.countryId) end)
 local countryDelete = DangerButton(countryForm, "Supprimer le pays", 220)
 countryDelete:SetScript("OnClick", function() panel:DeleteCountry(panel.countryId) end)
+-- Remonté sur la ligne de « + Nouvelle région » : le bas de la fiche revient
+-- aux boutons de la carte, qui servent, eux, à chaque geste.
+countryDelete:ClearAllPoints()
+Place(countryDelete, countryForm, FORM_W - M - 220, 140)
+
+-- La carte du pays : toutes les zones de toutes ses régions, une couleur par
+-- RÉGION — la vraie carte des régions. Même outil que celle d'une région, et
+-- donc mêmes gestes : glisser un sommet, clic droit pour en ajouter un,
+-- souder deux sommets. C'est ici qu'on colle deux RÉGIONS l'une à l'autre.
+local pays = { H = 400 }
+pays.map = ZG.CreateZoneMap(countryForm, FORM_W - 2 * M, pays.H, {
+    Regions = function()
+        local liste = {}
+        for _, zone in ipairs(ZG:GetZoneList()) do
+            if zone.countryId == panel.countryId then liste[#liste + 1] = zone end
+        end
+        return liste
+    end,
+    OuvrirZone = function(sub, zone)
+        if not sub or not zone then return end
+        -- Depuis un pays, le nom d'une zone ouvre sa RÉGION : on descend d'un
+        -- cran, on ne saute pas jusqu'au lieu.
+        panel.passageId = sub.id
+        panel.zoneTab = "carte"
+        Select("zone", zone.id)
+    end,
+    Change = function() Gestes.Dire(pays, pays.own) end,
+})
+Place(pays.map, countryForm, M, 185)
+panel.paysMap = pays.map
+pays.hint = Caption(countryForm, "", M, 185 + pays.H + 6, FORM_W - 2 * M)
+pays.hint:SetHeight(34); pays.hint:SetJustifyV("TOP")
+pays.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une zone ouvre sa région.\nPour coller deux régions : cliquez autant de sommets de l'une que de sa voisine, puis « Les confondre »."
+pays.etranger = "Pays d'un autre auteur : la carte se regarde, elle ne se modifie pas."
+Gestes.Poser(pays, countryForm, 185 + pays.H + 44)
+panel.paysBoutons = { fit = pays.fit, weld = pays.weld, unweld = pays.unweld,
+                      clear = pays.clear, undo = pays.undo, hint = pays.hint }
 
 local function RefreshCountryForm()
     local country = ZG:GetCountry(panel.countryId)
@@ -1052,6 +1316,23 @@ local function RefreshCountryForm()
         n, own and "" or "\nAuteur : " .. country.creator))
     countryAdd:SetShown(own)
     countryDelete:SetShown(own)
+
+    -- La vue se cadre une fois par pays : la refaire à chaque rafraîchissement
+    -- annulerait le zoom en cours.
+    if pays.map.cadree ~= country.id then
+        pays.map.cadree = country.id
+        pays.map:Fit()
+    end
+    pays.map:Draw()
+    -- Sans région, il n'y a rien à montrer ni à souder : la carte et ses
+    -- boutons s'effacent au lieu de rester vides.
+    pays.map:SetShown(n > 0)
+    pays.hint:SetShown(n > 0)
+    for _, b in ipairs({ pays.fit, pays.weld, pays.unweld, pays.clear, pays.undo }) do
+        b:SetShown(n > 0)
+    end
+    pays.own = own
+    Gestes.Dire(pays, own)
 end
 
 -- ── Fiche Région ────────────────────────────────────────────────────────────
@@ -1098,7 +1379,7 @@ local placesPage = zonePages.places
 Caption(placesPage, "Chaque lieu porte son nom, sa bannière et ses effets. Les zones et les passages des onglets suivants y mènent.", M, 0, FORM_W - 2 * M)
 local addPlaceBtn = Button(placesPage, "+ Nouveau lieu", M, 30, 220)
 addPlaceBtn:SetScript("OnClick", function()
-    CreatePlaceIn(panel.zoneId)
+    CREER.Lieu(panel.zoneId)
 end)
 local placesEmpty = Caption(placesPage, "Aucun lieu. Créez-en un, par exemple « Le bois des Anciens ».", M, 92, FORM_W - 2 * M)
 local placeButtons = {}
@@ -1260,6 +1541,34 @@ leavePicker.onSelect = function(value)
     ZG:SetPassagePlace(panel.passageId, "leave", value ~= "" and value or nil); panel:RefreshAll()
 end
 panel.pickers = { passage = passagePicker, enter = enterPicker, leave = leavePicker }
+
+-- La tranche d'altitude d'un intérieur. Elle prend la place du lieu « en
+-- sortant », qu'une étendue dessinée n'a pas. Rangée sur `panel` et non dans
+-- une table à elle : ce fichier est au plafond des 200 locaux de Lua 5.1.
+--
+-- On ne dessine pas un volume sommet par sommet : on dessine son sol, puis on
+-- dit de combien il descend et monte. Le repère, c'est le `z` relevé en
+-- posant la zone — « Reprendre le sol ici » le recale sur l'étage où l'on se
+-- tient.
+panel.hauteur = {}
+panel.hauteur.titre = Label(editor, "Intérieur : tranche d'altitude (yards)", FORM_W / 2 + 8, 68, FORM_W / 2 - M - 8)
+panel.hauteur.basMot = Caption(editor, "sous", FORM_W / 2 + 8, 94, 36)
+panel.hauteur.bas = EditBox(editor, FORM_W / 2 + 44, 86, 58, FIELD_H, 4)
+panel.hauteur.hautMot = Caption(editor, "sur", FORM_W / 2 + 110, 94, 30)
+panel.hauteur.haut = EditBox(editor, FORM_W / 2 + 142, 86, 58, FIELD_H, 4)
+panel.hauteur.sol = Button(editor, "Reprendre le sol ici", FORM_W / 2 + 210, 86, FORM_W / 2 - M - 218)
+panel.hauteur.Poser = function()
+    if panel.suppressEvents or not panel.passageId then return end
+    ZG:SetSubZoneHeights(panel.passageId, panel.hauteur.bas:GetText(), panel.hauteur.haut:GetText())
+    panel:RefreshForm()
+end
+for _, champ in ipairs({ panel.hauteur.bas, panel.hauteur.haut }) do
+    champ:SetScript("OnEnterPressed", panel.hauteur.Poser)
+    champ:SetScript("OnEditFocusLost", panel.hauteur.Poser)
+end
+panel.hauteur.sol:SetScript("OnClick", function()
+    if panel.passageId and ZG:RecaptureSubZoneHeight(panel.passageId) then panel:RefreshForm() end
+end)
 
 local radarRow = CreateFrame("Frame", nil, editor)
 Place(radarRow, editor, M, 140, FORM_W - 2 * M, 284)
@@ -1972,6 +2281,9 @@ back:SetScript("OnClick", function() panel:ExitTrace() end)
 function panel:EnterTrace(id)
     local sub = ZG:FindSubZone(id)
     if not sub or sub.shape ~= "polygon" then return end
+    -- Le tracé rend la main au panneau : la page Carte doit y être rentrée,
+    -- sinon on reviendrait sur un onglet Carte vide.
+    if panel.carteFenetre and panel.carteFenetre:IsShown() then panel:ModeNomade(false) end
     panel.tracingId, panel.passageId = id, id
     panel:Hide()   -- libère la minimap du tracé du panneau avant de la prendre ici
     trace:ClearAllPoints()
@@ -1979,10 +2291,9 @@ function panel:EnterTrace(id)
     if pos then trace:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4]) else trace:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 180) end
     Refresh()
     trace:Show()
-    -- Contour vide et frontières déclarées à proximité : on propose d'en partir.
-    if #(sub.points or {}) == 0 and #ZG:GetDeclaredBorders(id) > 0 then
-        borderPick:GetScript("OnClick")(borderPick)
-    end
+    -- On n'ouvre plus la fenêtre des frontières d'office : elle surgissait
+    -- dès qu'on commençait un tracé, devant le tracé, alors que la frontière
+    -- se pose maintenant sur la carte, après coup.
 end
 
 function panel:ExitTrace()
@@ -1990,8 +2301,10 @@ function panel:ExitTrace()
     local sub, zone = ZG:FindSubZone(panel.tracingId)
     panel.tracingId = nil
     -- Un tracé revient chez le lieu qu'il dessert ; sans lieu, sur la carte
-    -- de la région, d'où une zone orpheline se rattache.
-    if sub and sub.enterPlace and ZG:FindPlace(sub.enterPlace) then
+    -- de la région, d'où une zone orpheline se rattache. Le contour de la
+    -- région n'a pas de fiche de lieu : il revient sur la carte, comme elle.
+    local lieu = sub and sub.enterPlace and ZG:FindPlace(sub.enterPlace)
+    if lieu and not lieu.pourRegion then
         panel.mode, panel.placeId, panel.passageId, panel.placeTab =
             "place", sub.enterPlace, sub.id, "zone"
         if zone then panel.zoneId = zone.id end
@@ -2060,9 +2373,11 @@ zoneDelete:SetScript("OnClick", function() panel:DeleteRegion(panel.zoneId) end)
 -- Tout l'onglet dans UNE table : Lua 5.1 n'accepte que 200 variables locales
 -- dans le corps d'un fichier, et ce panneau en frôle le plafond (il l'a
 -- dépassé le 1er novembre 2026, et plus rien ne se chargeait).
-local carte = { page = zonePages.carte, H = 440 }
-local cartePage, CARTE_H = carte.page, carte.H
-carte.map = ZG.CreateZoneMap(cartePage, FORM_W - 2 * M, CARTE_H, {
+-- Une ligne au-dessus de la carte pour le contour de la RÉGION : CARTE_H est
+-- le BAS de la carte, pour que tout ce qui se pose dessous ne bouge pas.
+local carte = { page = zonePages.carte, H = 408, Y = 32 }
+local cartePage, CARTE_H = carte.page, 32 + 408
+carte.map = ZG.CreateZoneMap(cartePage, FORM_W - 2 * M, carte.H, {
     Region = function() return ZG:GetZone(panel.zoneId) end,
     OuvrirZone = function(sub, zone)
         if not sub then return end
@@ -2070,11 +2385,22 @@ carte.map = ZG.CreateZoneMap(cartePage, FORM_W - 2 * M, CARTE_H, {
         -- Zone : c'est là qu'on la règle. Une zone qui ne mène nulle part n'a
         -- pas de fiche où aller — on la désigne ici, et le menu de
         -- rattachement apparaît sous la carte.
+        --
+        -- En nomade, on quitte d'abord la petite fenêtre : la fiche visée est
+        -- dans le panneau, et la carte seule ne sait pas la montrer.
+        if carte.fenetre and carte.fenetre:IsShown() then panel:ModeNomade(false) end
         local place = sub.enterPlace and ZG:FindPlace(sub.enterPlace)
         panel.passageId = sub.id
-        if place then
+        if place and place.pourRegion then
+            -- Le contour de la région n'a pas de fiche de lieu : il EST la
+            -- région, dont on regarde déjà la carte.
             carte.orpheline = nil
-            panel.placeTab = "zone"
+            panel:RefreshAll()
+        elseif place then
+            carte.orpheline = nil
+            -- Un bâtiment s'ouvre sur SA carte : c'est son intérieur qu'on
+            -- vient voir en cliquant son point.
+            panel.placeTab = place.batiment and "carte" or "zone"
             Select("place", place.id, zone and zone.id or panel.zoneId)
         else
             carte.orpheline = sub.id
@@ -2083,26 +2409,32 @@ carte.map = ZG.CreateZoneMap(cartePage, FORM_W - 2 * M, CARTE_H, {
     end,
     Change = function() if panel.RefreshCarte then panel:RefreshCarte() end end,
 })
-Place(carte.map, cartePage, M, 0)
+Place(carte.map, cartePage, M, carte.Y)
 panel.zoneMap = carte.map
+
+-- Le contour de la région : l'étendue qui contient ses lieux. Hors de tout
+-- lieu mais dedans, c'est elle qui donne la bannière — et c'est elle qu'on
+-- soude aux régions voisines depuis la carte du pays.
+carte.contour = Button(cartePage, "Dessiner le contour de la région", M, 0, 300)
+carte.contour:SetScript("OnClick", function()
+    local sub = ZG:CreateRegionArea(panel.zoneId)
+    if sub then panel:EnterTrace(sub.id) end
+end)
+-- Mode nomade : la carte seule, dans une fenêtre à part. Le panneau entier
+-- occupe tout l'écran et cache le jeu — or c'est en jeu qu'on relève un
+-- contour, et il faut voir où l'on marche pendant qu'on le retouche.
+carte.nomade = Button(cartePage, "Nomade", M + 310, 0, 110)
+carte.nomade:SetScript("OnClick", function() panel:ModeNomade() end)
+carte.contourMot = Caption(cartePage, "", M + 430, 2, FORM_W - 2 * M - 430)
+carte.contourMot:SetHeight(28)
+carte.contourMot:SetJustifyV("TOP")
 
 carte.hint = Caption(cartePage, "", M, CARTE_H + 6, FORM_W - 2 * M)
 carte.hint:SetHeight(34)
 carte.hint:SetJustifyV("TOP")
-carte.fit = Button(cartePage, "Vue d'ensemble", M, CARTE_H + 44, 160)
-carte.fit:SetScript("OnClick", function() carte.map:Fit(); carte.map:Draw() end)
-carte.weld = Button(cartePage, "Les confondre comme une frontière", M + 168, CARTE_H + 44, 282)
-carte.unweld = Button(cartePage, "Séparer", M + 458, CARTE_H + 44, 120)
-carte.clear = Button(cartePage, "Désélectionner", M, CARTE_H + 84, 160)
-carte.clear:SetScript("OnClick", function() carte.map:Deselectionner() end)
--- Un sommet lâché au mauvais endroit ne se remet pas à la main : il faudrait
--- retrouver ses coordonnées au yard près.
-carte.undo = Button(cartePage, "Annuler le dernier changement", M + 168, CARTE_H + 84, 282)
-carte.undo:SetScript("OnClick", function()
-    local quoi = carte.map:Annuler()
-    panel:RefreshAll()
-    if quoi then carte.hint:SetText("|cff66e673Annulé : " .. quoi .. ".|r") end
-end)
+carte.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une zone ouvre son lieu.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre »."
+carte.etranger = "Région d'un autre auteur : la carte se regarde, elle ne se modifie pas."
+Gestes.Poser(carte, cartePage, CARTE_H + 44)
 -- Une zone qui ne mène à aucun lieu n'a plus de fiche où se régler depuis que
 -- l'onglet Zones a disparu. On la rattache ici, et elle rejoint son lieu.
 carte.rattacherLabel = Label(cartePage, "", M + 458, CARTE_H + 70, FORM_W - 2 * M - 458)
@@ -2127,69 +2459,160 @@ end
 
 panel.carteBoutons = { fit = carte.fit, weld = carte.weld, unweld = carte.unweld,
                        clear = carte.clear, undo = carte.undo, hint = carte.hint,
-                       rattacher = carte.rattacher }
+                       rattacher = carte.rattacher, contour = carte.contour,
+                       contourMot = carte.contourMot, nomade = carte.nomade }
 
--- Combien de sommets choisis portent déjà une soudure.
-local function SouduresChoisies()
-    local n = 0
-    for _, s in ipairs(carte.map.sel) do
-        local sub = ZG:FindSubZone(s.subId)
-        local point = sub and sub.points and sub.points[s.index]
-        if point and point.weld then n = n + 1 end
-    end
-    return n
+-- ── Mode nomade ─────────────────────────────────────────────────────────
+-- La page Carte entière déménage dans une petite fenêtre, et le panneau
+-- s'efface. C'est le même procédé que l'éditeur de géométrie (geoPage change
+-- de parent) : une seconde carte, entretenue en double, aurait fini par ne
+-- plus montrer la même chose que la première.
+carte.H_PAGE = 32 + 408 + 84 + 32   -- hauteur utile de la page Carte
+carte.fenetre = CreateFrame("Frame", "LCMCrossingsNomade", UIParent)
+carte.fenetre:SetSize(FORM_W + 2 * PAD, carte.H_PAGE + 2 * PAD + 30)
+carte.fenetre:SetFrameStrata("HIGH"); carte.fenetre:SetClampedToScreen(true)
+carte.fenetre:SetMovable(true); carte.fenetre:EnableMouse(true)
+carte.fenetre:RegisterForDrag("LeftButton")
+carte.fenetre:SetScript("OnDragStart", carte.fenetre.StartMoving)
+carte.fenetre:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+    local point, _, relPoint, x, y = self:GetPoint()
+    LCM_CrossingsChar = LCM_CrossingsChar or {}
+    LCM_CrossingsChar.nomadePos = { point, relPoint, x, y }
+end)
+UI.Surface(carte.fenetre); carte.fenetre:Hide()
+carte.fenetreTitre = Label(carte.fenetre, "", PAD, 10, FORM_W - 460)
+carte.fenetreFin = Button(carte.fenetre, "Panneau complet", FORM_W + PAD - 150, 6, 150, 24)
+carte.fenetreFin:SetScript("OnClick", function() panel:ModeNomade(false) end)
+panel.carteFenetre = carte.fenetre
+
+-- ── Le terrain sous le tracé ────────────────────────────────────────────
+-- L'image de la zone derrière le dessin, à la même échelle : on voit sur quoi
+-- on pose ses sommets au lieu de les deviner sur un quadrillage vide.
+--
+-- La MINIMAP a été essayée et retirée. Deux raisons, et la seconde suffit :
+-- elle ne montre qu'un disque de 230 yards au mieux, donc elle ne couvrira
+-- jamais une région ; et comme le jeu refuse de la rogner, la faire tenir
+-- derrière une page qui déménage entre le panneau et la fenêtre nomade
+-- demandait de forcer caches et niveaux d'affichage — ce qui a rendu le
+-- panneau transparent. L'image de zone n'a aucun de ces défauts : ce sont des
+-- textures ordinaires, dans le cadre, sur la zone entière.
+carte.MODES = { "aucun", "carte" }
+carte.MOT_FOND = { aucun = "Fond : aucun", carte = "Fond : carte" }
+carte.modeFond = "aucun"
+carte.minimapBtn = Button(carte.fenetre, "Fond : aucun", FORM_W + PAD - 272, 6, 116, 24)
+panel.carteBoutons.minimap = carte.minimapBtn
+
+-- Le dossier des tuiles de minimap, réglable : le nom n'est pas exposé aux
+-- addons, on le devine depuis le nom de la carte et on le corrige ici quand
+-- la devinette tombe à côté.
+carte.dossier = EditBox(carte.fenetre, FORM_W + PAD - 420, 6, 140, 24, 32)
+carte.dossier:SetScript("OnEnterPressed", function(self)
+    local _, mapID = carte.map:Dessinables()
+    if mapID then ZG:SetMinimapDir(mapID, self:GetText()) end
+    self:ClearFocus()
+    if carte.modeFond == "carte" then carte.PoserMode("carte") end
+end)
+carte.dossierMot = Caption(carte.fenetre, "Tuiles", FORM_W + PAD - 480, 12, 56)
+
+-- Revient au fond uni.
+function carte.FondOff()
+    if carte.modeFond == "aucun" then return end
+    carte.modeFond = "aucun"
+    carte.map.fondCarte = nil
+    carte.minimapBtn:SetText(carte.MOT_FOND.aucun)
+    carte.map:Draw()
 end
 
-carte.weld:SetScript("OnClick", function()
-    local a, b = carte.map:Cotes()
-    if not a or not b then return end
-    -- Avant de souder : où étaient les sommets, et à quoi ils tenaient.
-    local avant = carte.map:Instantane(carte.map.sel)
-    local couples = ZG:WeldSeam(a.id, a.index, b.id, b.index)
-    if not couples then
-        carte.hint:SetText("|cffe6c94dImpossible : il faut autant de sommets de chaque côté, et les deux zones sur la même carte.|r")
+function carte.PoserMode(mode)
+    carte.FondOff()
+    if mode == "aucun" then return end
+    carte.modeFond = "carte"
+    carte.map.fondCarte = true
+    carte.map:Draw()
+    if not carte.map.fondPose then
+        local pourquoi = carte.map.fondPourquoi
+        carte.FondOff()
+        -- La raison en clair, et le dossier essayé : une carte muette, un
+        -- mauvais nom de dossier et une carte sans image ne se corrigent pas
+        -- pareil, et de dehors elles se ressemblent toutes les trois.
+        carte.hint:SetText("|cffe6c94dPas de terrain ici : " .. (pourquoi or "le jeu ne donne pas de carte")
+            .. (carte.map.fondDossier and (" (dossier essayé : " .. carte.map.fondDossier .. ")") or "") .. ".|r")
         return
     end
-    local subA, subB = ZG:FindSubZone(a.id), ZG:FindSubZone(b.id)
-    carte.hint:SetText(string.format("|cff66e673%d sommet(s) de « %s » rejoignent « %s ». Déplacer l'un déplacera l'autre.|r",
-        #couples, subB and subB.name or "?", subA and subA.name or "?"))
-    carte.map:Empiler(avant, "la frontière posée")
-    carte.map:Oublier()
-    panel:RefreshAll()
-end)
-
-carte.unweld:SetScript("OnClick", function()
-    local avant = carte.map:Instantane(carte.map.sel)
-    local defaits = 0
-    for _, s in ipairs(carte.map.sel) do
-        if ZG:UnweldPoint(s.subId, s.index) then defaits = defaits + 1 end
+    carte.minimapBtn:SetText(carte.MOT_FOND.carte)
+    if carte.map.fondDossier then
+        panel.suppressEvents = true
+        carte.dossier:SetText(carte.map.fondDossier)
+        panel.suppressEvents = false
     end
-    if defaits > 0 then carte.map:Empiler(avant, "la séparation des sommets") end
-    carte.hint:SetText(defaits > 0
-        and string.format("%d sommet(s) ne se confondent plus.", defaits)
-        or "Aucun des sommets choisis n'était soudé.")
-    carte.map:Oublier()
+end
+
+carte.minimapBtn:SetScript("OnClick", function()
+    carte.PoserMode(carte.modeFond == "aucun" and "carte" or "aucun")
+end)
+UISpecialFrames = UISpecialFrames or {}
+table.insert(UISpecialFrames, "LCMCrossingsNomade")
+
+-- actif : true pour partir, false pour revenir, nil pour basculer.
+function panel:ModeNomade(actif)
+    if actif == nil then actif = not carte.fenetre:IsShown() end
+    if actif then
+        if not ZG:GetZone(panel.zoneId) then return end
+        panel.mode, panel.zoneTab = "zone", "carte"
+        Place(cartePage, carte.fenetre, PAD, PAD + 30, FORM_W, carte.H_PAGE)
+        carte.fenetre:SetScale(panel:GetScale())
+        carte.fenetre:ClearAllPoints()
+        local pos = LCM_CrossingsChar and LCM_CrossingsChar.nomadePos
+        if pos then carte.fenetre:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+        else carte.fenetre:SetPoint("CENTER") end
+        carte.fenetre:Show()
+        panel:Hide()
+    else
+        -- Le terrain d'abord rendu : la minimap doit retrouver son coin avant
+        -- que la page ne quitte la fenêtre.
+        carte.FondOff()
+        -- La page retrouve sa place dans les onglets, à l'identique.
+        Place(cartePage, zoneForm, 0, PAGE_Y, FORM_W, PANEL_H - HEADER_H - 42 - PAGE_Y)
+        carte.fenetre:Hide()
+        panel:Show()
+    end
+    carte.nomade:SetText(actif and "Fermer" or "Nomade")
     panel:RefreshAll()
+end
+
+-- Fermée par Échap : la page doit rentrer, sinon le panneau rouvrirait sur un
+-- onglet Carte vide.
+carte.fenetre:SetScript("OnHide", function()
+    if cartePage:GetParent() == carte.fenetre then panel:ModeNomade(false) end
 end)
 
--- Ce que la carte dit d'elle-même : d'abord ce qu'il reste à faire pour
--- souder, puis ce qu'on peut faire de la sélection.
+-- Ce que la carte dit d'elle-même : les boutons et la phrase sont partagés
+-- avec la carte du pays (voir Gestes), le rattachement d'une zone orpheline
+-- est propre à la région.
 function panel:RefreshCarte()
     local zone = ZG:GetZone(panel.zoneId)
     local own = zone and zone.creator == MyName()
-    local a, b, cotes = carte.map:Cotes()
-    local soudes = SouduresChoisies()
-    local pret = own and a ~= nil and b ~= nil and #a.index == #b.index
 
-    carte.weld:SetEnabled(pret and true or false)
-    carte.unweld:SetEnabled(own and soudes > 0)
-    carte.clear:SetEnabled(#carte.map.sel > 0)
-    local annulable = own and carte.map:Annulable() or nil
-    carte.undo:SetEnabled(annulable ~= nil)
-    carte.undo:SetText(annulable and ("Annuler : " .. annulable) or "Annuler le dernier changement")
-    carte.weld:SetText(pret
-        and string.format("Les confondre comme une frontière (%d)", #a.index)
-        or "Les confondre comme une frontière")
+    -- En nomade, la petite fenêtre dit de quelle région il s'agit : son nom
+    -- n'est plus nulle part ailleurs à l'écran.
+    carte.fenetreTitre:SetText("CARTE · " .. string.upper(zone and ZoneTitle(zone) or ""))
+
+    -- Le contour de la région : à dessiner, ou à reprendre.
+    local contour = ZG:GetRegionArea(panel.zoneId)
+    carte.contour:SetShown(own and true or false)
+    carte.contourMot:SetShown(own and true or false)
+    if own then
+        local trace = contour and contour.points and #contour.points > 0
+        carte.contour:SetText(trace and "Reprendre le contour de la région" or "Dessiner le contour de la région")
+        if not trace then
+            carte.contourMot:SetText("L'étendue de la région entière : hors de tout lieu mais dedans, c'est elle qui s'affiche.")
+        elseif contour.regionReady then
+            carte.contourMot:SetText(string.format("%d sommet(s), fermé. Ses sommets se soudent aux régions voisines depuis la fiche du pays.", #contour.points))
+        else
+            carte.contourMot:SetText(string.format("|cffe6c94d%d sommet(s), pas encore fermé : il ne s'affichera pas tant qu'il ne l'est pas.|r", #contour.points))
+        end
+    end
 
     -- Le menu de rattachement ne sort que pour une zone orpheline désignée.
     local orpheline = carte.orpheline and ZG:FindSubZone(carte.orpheline)
@@ -2201,21 +2624,7 @@ function panel:RefreshCarte()
         carte.rattacher:SetText("Rattacher à un lieu…")
     end
 
-    if not own then
-        carte.hint:SetText("Région d'un autre auteur : la carte se regarde, elle ne se modifie pas.")
-    elseif #carte.map.sel == 0 then
-        carte.hint:SetText("Glissez un sommet pour le déplacer. Le nom d'une zone ouvre son lieu.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre ».")
-    elseif cotes == 1 then
-        carte.hint:SetText(string.format("%d sommet(s) d'une seule zone. Choisissez-en autant sur la zone voisine.", #carte.map.sel))
-    elseif cotes and cotes > 2 then
-        carte.hint:SetText("|cffe6c94dTrois zones ou plus : une frontière se pose entre deux zones à la fois.|r")
-    elseif not pret then
-        carte.hint:SetText(string.format("|cffe6c94d%d sommet(s) d'un côté, %d de l'autre : il en faut autant des deux.|r", #a.index, #b.index))
-    else
-        local subA, subB = ZG:FindSubZone(a.id), ZG:FindSubZone(b.id)
-        carte.hint:SetText(string.format("Prêt : %d sommet(s) de « %s » rejoindront « %s » (la première désignée fait foi).",
-            #b.index, subB and subB.name or "?", subA and subA.name or "?"))
-    end
+    Gestes.Dire(carte, own)
 end
 
 -- L'éditeur de géométrie, dans l'onglet où il est appelé. `scope` vaut
@@ -2282,6 +2691,26 @@ local function RefreshGeoEditor(page, scope, own)
     SetDropdownEnabled(enterPicker, own); SetDropdownEnabled(leavePicker, own)
     -- Périmètre : ce qu'on trouve en sortant dépend du périmètre voisin (frontière).
     leaveCaption:SetShown(not isPolygon); leavePicker:SetShown(not isPolygon)
+
+    -- La tranche d'altitude prend la place du lieu « en sortant », et ne sort
+    -- que pour un intérieur : une zone à ciel ouvert monte sans fin, exprès.
+    local lieuZone = sub.enterPlace and ZG:FindPlace(sub.enterPlace)
+    local interieur = isPolygon and lieuZone ~= nil
+        and (lieuZone.batiment == true or ZG:BatimentDe(lieuZone) ~= nil)
+    for _, w in pairs(panel.hauteur) do
+        if type(w) == "table" and w.SetShown then w:SetShown(interieur and true or false) end
+    end
+    if interieur then
+        panel.suppressEvents = true
+        panel.hauteur.bas:SetText(sub.bas and tostring(math.floor(sub.bas)) or "")
+        panel.hauteur.haut:SetText(sub.haut and tostring(math.floor(sub.haut)) or "")
+        panel.suppressEvents = false
+        panel.hauteur.bas:SetEnabled(own); panel.hauteur.haut:SetEnabled(own)
+        panel.hauteur.sol:SetShown(own)
+        panel.hauteur.titre:SetText(sub.z
+            and string.format("Intérieur : tranche d'altitude (yards), sol à %d", math.floor(sub.z))
+            or "|cffe6c94dIntérieur : altitude du sol inconnue|r")
+    end
 
     widthLabel:SetShown(not isPolygon); widthEB:SetShown(not isPolygon)
     sliderTrack:SetShown(not isPolygon); sliderHandle:SetShown(not isPolygon)
@@ -2398,23 +2827,112 @@ end
 
 local placeForm = CreateFrame("Frame", nil, form)
 placeForm:SetAllPoints()
-local placeHeader = Label(placeForm, "", M, 4, FORM_W - 2 * M)
-local placeName = EditBox(placeForm, M, 24, FORM_W - 2 * M)
+local placeHeader = Label(placeForm, "", M, 4, FORM_W - 2 * M - 268)
+local placeName = EditBox(placeForm, M, 24, FORM_W - 2 * M - 268)
 placeName:SetScript("OnTextChanged", function(self)
     if panel.suppressEvents or panel.mode ~= "place" then return end
     ZG:RenamePlace(panel.placeId, self:GetText())
     panel:RefreshTree()
 end)
+-- Un lieu peut en contenir d'autres : une crypte sous son mausolée, un
+-- hameau dans sa forêt. Du rangement seulement — la géométrie n'en sait rien.
+Label(placeForm, "Dans", FORM_W - M - 252, 4, 252)
+local placeParent = Dropdown(placeForm, FORM_W - M - 252, 24, 252)
+placeParent.items = function()
+    local items = { { text = "(Directement dans la région)", value = "" } }
+    for _, autre in ipairs(ZG:GetLieuList(panel.zoneId)) do
+        -- Ni soi-même, ni ses propres descendants : ZG:SetPlaceParent les
+        -- refuserait, autant ne pas les proposer.
+        if autre.id ~= panel.placeId then
+            local boucle, courant, garde = false, autre, 0
+            while courant and courant.parent and garde < 32 do
+                if courant.parent == panel.placeId then boucle = true; break end
+                courant = ZG:FindPlace(courant.parent)
+                garde = garde + 1
+            end
+            if not boucle then items[#items + 1] = { text = autre.name, value = autre.id } end
+        end
+    end
+    return items
+end
+placeParent.onSelect = function(value)
+    ZG:SetPlaceParent(panel.placeId, value)
+    panel:RefreshAll()
+end
 local placeStatus = Caption(placeForm, "", M + 2, 70, FORM_W - 2 * M)
 
 -- L'onglet Zone : la zone de CE lieu se règle là où on règle le lieu. Il
 -- fallait sinon revenir sur la région, ouvrir ses passages et retrouver le
 -- bon dans une liste.
 local placePages, placeTabs, ShowPlaceTab = Tabs(placeForm,
-    { { "zone", "Zone" }, { "aura", "Aura" }, { "banner", "Bannière" },
+    { { "carte", "Carte" }, { "zone", "Zone" }, { "aura", "Aura" }, { "banner", "Bannière" },
       { "effects", "Effets" }, { "arcanum", "Arcanum" }, { "discovery", "Découverte" } },
     function() return panel.placeTab end, function(key) panel.placeTab = key end)
 panel.placePages = placePages
+panel.placeTabs = placeTabs
+
+-- ── Onglet Carte d'un bâtiment ──────────────────────────────────────────
+-- Un bâtiment se tient comme une région : son empreinte au sol en guise de
+-- contour, ses pièces dedans, et les mêmes gestes pour poser leurs cloisons.
+-- L'onglet se cache pour un lieu ordinaire (voir Tabs).
+--
+-- Les réglages de hauteur vivent dans cette table mais se posent sur
+-- geoPage : ils appartiennent à l'onglet Zone, et une table de plus coûterait
+-- un local dont ce fichier n'a plus.
+local bati = { page = placePages.carte, H = 408, Y = 32 }
+bati.map = ZG.CreateZoneMap(bati.page, FORM_W - 2 * M, bati.H, {
+    Batiment = function() return ZG:FindPlace(panel.placeId) end,
+    OuvrirZone = function(sub)
+        local lieu = sub and sub.enterPlace and ZG:FindPlace(sub.enterPlace)
+        -- Le nom de l'empreinte, c'est le bâtiment lui-même : on y est déjà.
+        if lieu and lieu.id ~= panel.placeId then
+            panel.passageId = sub.id
+            panel.placeTab = "zone"
+            Select("place", lieu.id, lieu.zoneId)
+        end
+    end,
+    Change = function() Gestes.Dire(bati, bati.own) end,
+})
+Place(bati.map, bati.page, M, bati.Y)
+panel.batiMap = bati.map
+bati.contour = Button(bati.page, "Reprendre l'empreinte au sol", M, 0, 300)
+bati.contour:SetScript("OnClick", function()
+    local sub = ZG:GetBatimentArea(panel.placeId)
+    if sub then panel:EnterTrace(sub.id) end
+end)
+bati.mot = Caption(bati.page, "", M + 310, 8, FORM_W - 2 * M - 310)
+bati.hint = Caption(bati.page, "", M, 32 + 408 + 6, FORM_W - 2 * M)
+bati.hint:SetHeight(34); bati.hint:SetJustifyV("TOP")
+bati.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une pièce ouvre sa fiche.\nPour une cloison : cliquez autant de sommets d'une pièce que de sa voisine, puis « Les confondre »."
+bati.etranger = "Bâtiment d'un autre auteur : la carte se regarde, elle ne se modifie pas."
+Gestes.Poser(bati, bati.page, 32 + 408 + 44)
+panel.batiBoutons = { fit = bati.fit, weld = bati.weld, unweld = bati.unweld,
+                      clear = bati.clear, undo = bati.undo, hint = bati.hint,
+                      contour = bati.contour }
+
+function panel:RefreshBatiCarte(own)
+    bati.own = own
+    local empreinte = ZG:GetBatimentArea(panel.placeId)
+    local pieces = #ZG:GetPieceList(panel.placeId)
+    bati.contour:SetShown(own and empreinte ~= nil)
+    if empreinte then
+        local n = #(empreinte.points or {})
+        bati.mot:SetText(string.format("Empreinte : %d sommet(s)%s · %s%s",
+            n, empreinte.regionReady and ", fermée" or ", |cffe6c94dpas encore fermée|r",
+            pieces > 0 and (pieces .. " pièce(s)") or "aucune pièce",
+            (empreinte.bas or empreinte.haut)
+                and string.format(" · %d yd sous, %d yd sur le sol", empreinte.bas or 0, empreinte.haut or 0)
+                or " · |cffe6c94dhauteur infinie : ce n'est pas encore un intérieur|r"))
+    else
+        bati.mot:SetText("")
+    end
+    if bati.map.cadree ~= panel.placeId then
+        bati.map.cadree = panel.placeId
+        bati.map:Fit()
+    end
+    bati.map:Draw()
+    Gestes.Dire(bati, own)
+end
 
 -- ── Onglet Aura du lieu ─────────────────────────────────────────────────
 -- Les auras imposées vivaient sur la ZONE, derrière un bouton de l'éditeur de
@@ -2588,20 +3106,33 @@ Caption(discoveryPage, "Le nom de la région et celui du lieu se révèlent sép
 local function RefreshPlaceForm()
     local place, zone = ZG:FindPlace(panel.placeId)
     local own = zone.creator == MyName()
-    placeHeader:SetText("LIEU · " .. ZoneTitle(zone))
+    placeHeader:SetText((ZG:EstPorte(place) and "PORTE · "
+        or (ZG:EstBatiment(place) and "BÂTIMENT · " or "LIEU · ")) .. ZoneTitle(zone))
     panel.suppressEvents = true
     placeName:SetText(PlaceTitle(place, zone))
     panel.suppressEvents = false
     placeName:SetEnabled(own)
     local links = ZG:GetPlacePassages(place.id)
-    placeStatus:SetText(string.format("%s · atteint par %d accès%s",
+    local dedans = #ZG:GetChildPlaces(zone.id, place.id)
+    placeStatus:SetText(string.format("%s · atteint par %d accès%s%s",
         own and "|cff66e673Vous êtes l'auteur|r" or ("Auteur : " .. zone.creator), #links,
+        dedans > 0 and string.format(" · contient %d lieu(x)", dedans) or "",
         ZG:IsInPlace(place.id) and " · |cff66e673vous y êtes|r" or ""))
+
+    local parent = place.parent and ZG:FindPlace(place.parent)
+    placeParent:SetText(parent and parent.name or "(Directement dans la région)")
+    SetDropdownEnabled(placeParent, own)
+
+    -- Seul un bâtiment a une carte : celle de ses pièces.
+    local batiment = ZG:EstBatiment(place)
+    placeTabs.carte.cache = not batiment
+    if panel.placeTab == "carte" and not batiment then panel.placeTab = "zone" end
 
     -- L'onglet Zone emprunte l'éditeur de géométrie de la région, limité aux
     -- zones qui mènent ICI.
     if panel.placeTab == "zone" then RefreshGeoEditor(placePages.zone, "place", own) end
     if panel.placeTab == "aura" then panel:RefreshPlaceAuras(own) end
+    if panel.placeTab == "carte" then panel:RefreshBatiCarte(own) end
 
     local theme = place.themeId and ZG:GetTheme(place.themeId)
     placeTheme:SetText(theme and theme.name or "(Bannière de la région)")

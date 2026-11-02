@@ -171,10 +171,10 @@ local function StandIn()
     f:Hide();standInFrame=f
     return f
 end
-local function BorrowMinimap(guide,canvas,layer)
-    if not Minimap or (borrowed and borrowed.guide==guide) then return end
-    -- Encore prêtée à l'autre tracé (panneau / fenêtre de tracé) : on la reprend.
-    if borrowed then ReleaseMinimap() end
+-- Met de côté tout ce qu'il faudra rendre, et pose le cadre de remplacement
+-- dans le coin. Commun aux deux emprunts : le radar (qui la fait tourner et se
+-- centre dessus) et le fond de carte (nord en haut, à l'échelle du dessin).
+local function PrendreMinimap(proprietaire)
     local m=Minimap
     borrowed={parent=m:GetParent(),points={},w=m:GetWidth(),h=m:GetHeight(),scale=m:GetScale(),
         strata=m:GetFrameStrata(),level=m:GetFrameLevel(),zoom=m:GetZoom(),alpha=m:GetAlpha(),
@@ -199,25 +199,44 @@ local function BorrowMinimap(guide,canvas,layer)
             child:SetPoint(p,(rel==m or rel==nil) and standIn or rel,rp,x,y)
         end
     end
+    borrowed.guide=proprietaire
+    m:SetScale(1);m:SetAlpha(1)
+    m:EnableMouse(false);m:EnableMouseWheel(false)
+    if m.SetMaskTexture then m:SetMaskTexture(ROUND_MASK) end
+end
+
+local function BorrowMinimap(guide,canvas,layer)
+    if not Minimap or (borrowed and borrowed.guide==guide) then return end
+    -- Encore prêtée à l'autre tracé (panneau / fenêtre de tracé) : on la reprend.
+    if borrowed then ReleaseMinimap() end
+    PrendreMinimap(guide)
+    local m=Minimap
     -- Rattachée à la fenêtre elle-même (pas au cadre du tracé) : un enfant est
     -- toujours dessiné au-dessus de son parent, il faut qu'elle passe dessous.
     -- Ordre : fond de fenêtre, minimap, caches, puis tout le reste.
     local root=RootOf(guide)
     local base=root:GetFrameLevel()
     m:SetParent(root);m:ClearAllPoints();m:SetPoint("CENTER",canvas,"CENTER")
-    m:SetSize(MAP_SIZE,MAP_SIZE);m:SetScale(1);m:SetAlpha(1)
+    m:SetSize(MAP_SIZE,MAP_SIZE)
     m:SetFrameStrata(root:GetFrameStrata());m:SetFrameLevel(base+1)
     local covers=Covers(guide,canvas,root)
     covers:SetFrameStrata(root:GetFrameStrata());covers:SetFrameLevel(base+2);covers:Show()
     -- Les fonds du tracé cacheraient la minimap, désormais en dessous d'eux.
     for _,frame in ipairs({guide,canvas}) do if frame.surfaceBg then frame.surfaceBg:SetAlpha(0) end end
-    borrowed.guide,borrowed.canvas=guide,canvas
+    borrowed.canvas=canvas
     layer:SetFrameLevel(canvas:GetFrameLevel()+10)
-    m:EnableMouse(false);m:EnableMouseWheel(false)
-    if m.SetMaskTexture then m:SetMaskTexture(ROUND_MASK) end
     -- The guide is always facing up: the map turns, never the arrow.
     SetCVar("rotateMinimap","1")
 end
+
+-- On a essayé de l'emprunter aussi comme FOND d'une carte dessinée (nord en
+-- haut, à l'échelle du tracé). Abandonné : elle ne montre qu'un disque de 230
+-- yards au mieux, donc elle ne couvrira jamais une région, et le jeu refuse
+-- de la rogner — la faire tenir derrière une page qui déménage demandait des
+-- caches et des niveaux d'affichage forcés, qui ont fini par rendre le
+-- panneau transparent. Le fond d'une carte dessinée, c'est l'image de la zone
+-- (voir map:PoserFondCarte dans CarteZones.lua) : des textures ordinaires,
+-- rognées au cadre, sur la zone entière.
 function ReleaseMinimap()
     if not borrowed then return end
     local m,b=Minimap,borrowed;borrowed=nil

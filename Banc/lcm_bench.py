@@ -206,6 +206,10 @@ function _G.__carteAxes(a, b, c, d)
     ca, cb, cc, cd = a or 1, b or 0, c or 0, d or 1
 end
 
+-- Le nom de la carte, tel que C_Map.GetMapInfo le rend.
+local carteNom = "Carte"
+function _G.__carteNom(nom) carteNom = tostring(nom or "Carte") end
+
 C_Map = {
     GetBestMapForUnit = function() return carteId end,
     GetMapWorldSize = function(id)
@@ -219,7 +223,45 @@ C_Map = {
         return { x = (ca * posX + cb * posY) / carteL,
                  y = (cc * posX + cd * posY) / carteH }
     end,
+    -- Les coins de la carte en coordonnees du MONDE : x est le nord, y
+    -- l'ouest, comme dans le client. (0,0) est le coin nord-ouest.
+    GetWorldPosFromMapPos = function(id, point)
+        if id ~= carteId or type(point) ~= "table" then return nil end
+        if carteL <= 0 or carteH <= 0 then return nil end
+        return 1, { x = carteH - (point.y or 0) * carteH,
+                    y = carteL - (point.x or 0) * carteL }
+    end,
+    -- L'image de la carte, en tuiles. Deux colonnes sur deux lignes, dont la
+    -- derniere n'est remplie qu'a moitie : de quoi verifier le rognage.
+    GetMapArtLayers = function(id)
+        if id ~= carteId then return nil end
+        return { { layerWidth = 384, layerHeight = 384, tileWidth = 256, tileHeight = 256 } }
+    end,
+    GetMapArtLayerTextures = function(id, couche)
+        if id ~= carteId or couche ~= 1 then return nil end
+        return { 101, 102, 103, 104 }
+    end,
+    -- Le nom de la carte. Le dossier des tuiles de minimap s'en deduit :
+    -- world\minimaps\<nom en minuscules>\mapXX_YY.blp.
+    GetMapInfo = function(id)
+        if id ~= carteId then return nil end
+        return { mapID = id, name = carteNom }
+    end,
 }
+-- `__carteArt(false)` fait taire l'image : une carte personnalisee qui ne
+-- declare rien, ou un interieur. L'addon doit alors proposer la minimap.
+local carteArt = true
+_G.__carteArt = function(actif)
+    carteArt = actif ~= false
+    if carteArt then
+        C_Map.GetMapArtLayers = function(id)
+            if id ~= carteId then return nil end
+            return { { layerWidth = 384, layerHeight = 384, tileWidth = 256, tileHeight = 256 } }
+        end
+    else
+        C_Map.GetMapArtLayers = function() return nil end
+    end
+end
 
 -- Le personnage du joueur. L'addon ne le fabrique plus tout seul (il naissait
 -- sans race ni points des qu'on ouvrait une fenetre) : un scenario qui a besoin
@@ -454,7 +496,8 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:IsMouseEnabled() return self.__souris == true end
     function f:EnableKeyboard(v) self.__keyboard = v end
     function f:SetPropagateKeyboardInput(v) self.__propagateKeyboard = v end
-    function f:EnableMouseWheel() end
+    function f:EnableMouseWheel(v) self.__molette = v and true or false end
+    function f:IsMouseWheelEnabled() return self.__molette == true end
     function f:RegisterForDrag() end
     function f:RegisterForClicks()
         -- Reservee aux boutons, comme dans le jeu.
@@ -562,6 +605,25 @@ end
 
 UIParent = NouveauCadre("Frame", "UIParent", nil, nil)
 UIParent:SetSize(1920, 1080)
+
+-- La minimap. Crossings l'EMPRUNTE : le radar de tracé la fait tourner, et la
+-- carte nomade la pose en fond. De quoi verifier qu'elle est bien rendue.
+Minimap = NouveauCadre("Frame", "Minimap", UIParent, nil)
+Minimap:SetSize(140, 140)
+Minimap:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -20)
+local minimapZoom = 0
+function Minimap:GetZoom() return minimapZoom end
+function Minimap:SetZoom(v) minimapZoom = math.max(0, math.min(5, tonumber(v) or 0)) end
+function Minimap:GetZoomLevels() return 6 end
+-- Rayons du client (valeurs HereBeDragons), en yards.
+local RAYONS_MINIMAP = { 233.33, 200, 166.67, 133.33, 100, 66.67 }
+C_Minimap = { GetViewRadius = function() return RAYONS_MINIMAP[minimapZoom + 1] end }
+function IsIndoors() return false end
+
+local cvars = {}
+function GetCVar(nom) return cvars[nom] end
+function SetCVar(nom, valeur) cvars[nom] = tostring(valeur) end
+_G.__cvar = function(nom) return cvars[nom] end
 
 -- Le monde, sous l'interface. Ce que la souris survole : le monde par defaut ;
 -- `__focusSouris(cadre)` la pose sur une fenetre (nil la rend au monde). Sert a
@@ -692,6 +754,23 @@ function __cliquerLien(lien) SetItemRef(lien, lien, "LeftButton") end
 -- wipe : vide une table en place (fonction globale du jeu, aussi table.wipe).
 function wipe(t) for k in pairs(t) do t[k] = nil end return t end
 table.wipe = wipe
+
+-- strsplit : decoupe sur un separateur LITTERAL et rend les morceaux en
+-- valeurs multiples. C'est par la que passe l'etat reseau de Crossings
+-- (ApplyStateLine), qu'un scenario doit pouvoir rejouer.
+function strsplit(sep, s, limit)
+    local out, pos = {}, 1
+    s = tostring(s or "")
+    while not limit or #out < limit - 1 do
+        local a, b = s:find(sep, pos, true)
+        if not a then break end
+        out[#out + 1] = s:sub(pos, a - 1)
+        pos = b + 1
+    end
+    out[#out + 1] = s:sub(pos)
+    return unpack(out)
+end
+function strjoin(sep, ...) return table.concat({ ... }, sep) end
 
 UISpecialFrames = {}
 function InCombatLockdown() return false end

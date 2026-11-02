@@ -35,11 +35,15 @@ local function Teinte(id)
 end
 local function Clair(c) return { math.min(1, c[1] + .35), math.min(1, c[2] + .35), math.min(1, c[3] + .35) } end
 
--- Les portes, toujours en rouge, ici comme dans la liste de gauche.
+-- Les portes, toujours en rouge, ici comme dans la liste de gauche ; les
+-- bâtiments, en violet.
 local PORTE = { 0.85, 0.45, 0.38 }
+local BATIMENT = { 0.70, 0.52, 0.88 }
 
 -- `hooks` :
 --   Region()        → la région affichée (table zone), ou nil
+--   Regions()       → plusieurs régions à la fois (carte d'un pays) ; prend
+--                     le pas sur Region() quand elle existe
 --   OuvrirZone(sub, zone) → clic sur le nom d'une zone
 --   Change()        → appelé quand la géométrie a bougé (rafraîchir la fiche)
 function ZG.CreateZoneMap(parent, width, height, hooks)
@@ -178,6 +182,201 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         c.point:SetShown(soude and true or false)
     end
 
+    -- Un bâtiment ne s'étale pas sur la carte de sa région : il s'y marque
+    -- d'un rond, son nom au-dessus. Sa carte à lui s'ouvre d'un clic — un
+    -- intérieur dessiné à plat sur l'extérieur ne se lisait pas, et ses
+    -- cloisons noyaient le reste.
+    local rondPool, nRond = {}, 0
+    local function Rond(x, y, color)
+        nRond = nRond + 1
+        local t = rondPool[nRond]
+        if not t then
+            t = sommets:CreateTexture(nil, "OVERLAY")
+            t:SetTexture("Interface\\COMMON\\Indicator-Gray")
+            t:SetSize(18, 18)
+            rondPool[nRond] = t
+        end
+        t:SetVertexColor(color[1], color[2], color[3], 1)
+        t:ClearAllPoints(); t:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        t:Show()
+    end
+
+    -- ── Le terrain sous le tracé ─────────────────────────────────────────
+    -- Deux sources, essayées dans cet ordre :
+    --
+    --   1. les TUILES DE MINIMAP du client. Le jeu range la minimap de chaque
+    --      carte en BLP, une par bloc ADT de 533,33 yards, sous
+    --      world\minimaps\<carte>\mapXX_YY.blp. C'est ce que Noggit exporte,
+    --      et ça se lit comme n'importe quelle texture. Donc la minimap EST
+    --      disponible en fond de carte — pas en empruntant le cadre du coin,
+    --      qui n'est qu'un disque de 230 yards et que le jeu refuse de
+    --      rogner, mais en lisant les mêmes fichiers que lui. C'est la seule
+    --      source qui marche sur une carte personnalisée.
+    --
+    --   2. l'IMAGE DE ZONE publiée par le jeu (celle de la carte du monde),
+    --      pour les cartes Blizzard qui en ont une.
+    --
+    -- Les deux sont de simples textures : le cadre les rogne, elles couvrent
+    -- la carte entière, et personne n'a rien à rendre.
+    local ADT = 533.33333      -- côté d'un bloc, en yards
+    local MAX_TUILES = 240     -- au-delà, on est trop dézoomé pour que ça serve
+    local tuilesFrame = CreateFrame("Frame", nil, map)
+    tuilesFrame:SetAllPoints(); tuilesFrame:SetFrameLevel(map:GetFrameLevel() + 1)
+    tuilesFrame:Hide()
+    local tuiles = {}
+    map.tuiles = tuiles   -- exposées pour le banc : il lit les chemins posés
+    local function Tuile(i)
+        local t = tuiles[i]
+        if not t then t = tuilesFrame:CreateTexture(nil, "BACKGROUND"); tuiles[i] = t end
+        t:SetTexCoord(0, 1, 0, 1)
+        return t
+    end
+
+    -- Le dossier des tuiles pour cette carte du jeu. Réglé à la main une fois
+    -- (ZG:SetMinimapDir), sinon deviné depuis le nom de la carte : sur Epsilon
+    -- le dossier porte le nom de la carte, en minuscules.
+    local function Dossier(mapID)
+        local uiMap = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        -- La clé, c'est la carte du jeu où vivent les sommets. Quand elle est
+        -- inconnue (le client se tait sur certaines cartes d'instance), on se
+        -- rabat sur celle du joueur : c'est là qu'il se tient de toute façon.
+        local regle = ZG:GetMinimapDir(mapID or uiMap)
+        if regle and regle ~= "" then return regle end
+        local info = uiMap and C_Map.GetMapInfo and C_Map.GetMapInfo(uiMap)
+        local nom = (info and info.name or ""):gsub("[%s'’%-]", ""):lower()
+        return nom ~= "" and nom or nil
+    end
+
+    -- Les tuiles de minimap visibles. Index des blocs ADT : la colonne compte
+    -- vers l'OUEST et la ligne vers le NORD, toutes deux depuis le centre du
+    -- monde (32) — la numérotation des fichiers .adt, que les minimaps
+    -- reprennent telle quelle.
+    function map:PoserTuiles(mapID)
+        local dossier = Dossier(mapID)
+        if not dossier then return false, "je ne sais pas comment s'appelle cette carte" end
+        self.fondDossier = dossier
+        local ouestMax = self.cx + (width / 2) / self.scale
+        local ouestMin = self.cx - (width / 2) / self.scale
+        local nordMax  = self.cy + (height / 2) / self.scale
+        local nordMin  = self.cy - (height / 2) / self.scale
+        local colMin = math.max(0, math.floor(32 - ouestMax / ADT))
+        local colMax = math.min(63, math.floor(32 - ouestMin / ADT))
+        local ligMin = math.max(0, math.floor(32 - nordMax / ADT))
+        local ligMax = math.min(63, math.floor(32 - nordMin / ADT))
+        if colMax < colMin or ligMax < ligMin then
+            return false, "la vue est hors de la carte du jeu"
+        end
+        if (colMax - colMin + 1) * (ligMax - ligMin + 1) > MAX_TUILES then
+            return false, "trop dézoomé pour le terrain"
+        end
+        local cote = ADT * self.scale
+        local i = 0
+        for lig = ligMin, ligMax do
+            for col = colMin, colMax do
+                i = i + 1
+                local t = Tuile(i)
+                t:SetTexture(string.format("world\\minimaps\\%s\\map%02d_%02d.blp", dossier, col, lig))
+                local x, y = self:ToScreen((32 - col) * ADT, (32 - lig) * ADT)
+                t:ClearAllPoints()
+                t:SetPoint("TOPLEFT", map, "TOPLEFT", x, -y)
+                -- Un yard de rab : sans ça un liseré du fond passe entre deux
+                -- tuiles dès que l'échelle tombe mal.
+                t:SetSize(cote + 1, cote + 1)
+                t:SetAlpha(self.fondAlpha or 1)
+                t:Show()
+            end
+        end
+        return i > 0
+    end
+
+    -- Les deux coins de l'image en coordonnées du MONDE, celles des sommets.
+    -- La carte du jeu va du coin (0,0) au coin (1,1) ; le monde compte x vers
+    -- l'ouest et y vers le nord (voir GetPlayerPose), et C_Map rend un
+    -- Vector2D dont x est le nord et y l'ouest — le même repère, dans l'autre
+    -- ordre. Prendre les deux coins plutôt que la taille déclarée évite de
+    -- supposer où est l'origine.
+    local function CoinsMonde(uiMap)
+        if not (C_Map and C_Map.GetWorldPosFromMapPos) then return nil end
+        local ok1, _, a = pcall(C_Map.GetWorldPosFromMapPos, uiMap, { x = 0, y = 0 })
+        local ok2, _, b = pcall(C_Map.GetWorldPosFromMapPos, uiMap, { x = 1, y = 1 })
+        if not (ok1 and ok2 and a and b) then return nil end
+        if not (a.x and a.y and b.x and b.y) then return nil end
+        if a.x == b.x or a.y == b.y then return nil end
+        return a.y, a.x, b.y, b.x
+    end
+
+    -- L'image de zone publiée par le jeu. Rend false et le POURQUOI : sans la
+    -- raison, une carte muette et une carte sans image se ressemblent, et on
+    -- ne sait pas quoi corriger.
+    function map:PoserImageZone()
+        local uiMap = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+        if not uiMap then
+            return false, "le jeu ne déclare aucune carte ici"
+        end
+        -- `a and f(a)` ne rendrait qu'UNE valeur : il faut un vrai `if`.
+        local o1, n1, o2, n2 = CoinsMonde(uiMap)
+        if not o1 then
+            return false, "le jeu ne dit pas où cette carte commence et finit"
+        end
+        local couches = C_Map.GetMapArtLayers and C_Map.GetMapArtLayers(uiMap)
+        local couche = couches and couches[1]
+        local images = couche and C_Map.GetMapArtLayerTextures and C_Map.GetMapArtLayerTextures(uiMap, 1)
+        if not (couche and images and #images > 0
+            and (couche.layerWidth or 0) > 0 and (couche.tileWidth or 0) > 0) then
+            return false, "cette carte n'a pas d'image"
+        end
+
+        local x1, y1 = self:ToScreen(o1, n1)   -- coin de la carte en (0,0)
+        local x2, y2 = self:ToScreen(o2, n2)   -- coin en (1,1)
+        local larg, haut = x2 - x1, y2 - y1
+        local colonnes = math.ceil(couche.layerWidth / couche.tileWidth)
+        local lignes = math.ceil(couche.layerHeight / couche.tileHeight)
+        local i = 0
+        for ligne = 0, lignes - 1 do
+            for col = 0, colonnes - 1 do
+                i = i + 1
+                local image = images[i]
+                if image then
+                    -- Les tuiles du bord sont remplies de vide : on n'en prend
+                    -- que la part utile, sans quoi la carte serait étirée.
+                    local tw = math.min(couche.tileWidth, couche.layerWidth - col * couche.tileWidth)
+                    local th = math.min(couche.tileHeight, couche.layerHeight - ligne * couche.tileHeight)
+                    local t = Tuile(i)
+                    t:SetTexture(image)
+                    t:SetTexCoord(0, tw / couche.tileWidth, 0, th / couche.tileHeight)
+                    t:ClearAllPoints()
+                    t:SetPoint("TOPLEFT", map, "TOPLEFT",
+                        x1 + larg * (col * couche.tileWidth) / couche.layerWidth,
+                        -(y1 + haut * (ligne * couche.tileHeight) / couche.layerHeight))
+                    t:SetSize(math.max(1, larg * tw / couche.layerWidth),
+                              math.max(1, haut * th / couche.layerHeight))
+                    t:SetAlpha(self.fondAlpha or 1)
+                    t:Show()
+                end
+            end
+        end
+        return true
+    end
+
+    -- Le terrain sous le tracé : les tuiles de minimap du client d'abord —
+    -- seules à exister sur une carte personnalisée — puis l'image de zone
+    -- publiée par le jeu. Retient le résultat pour que la fiche puisse dire
+    -- ce qui a manqué.
+    function map:PoserFondCarte(mapID)
+        for _, t in ipairs(tuiles) do t:Hide() end
+        self.fondPose, self.fondPourquoi, self.fondDossier = false, nil, nil
+        if not self.fondCarte then tuilesFrame:Hide(); return false end
+        local pose, pourquoi = self:PoserTuiles(mapID)
+        if not pose then
+            local poseZone, pourquoiZone = self:PoserImageZone()
+            pose = poseZone
+            pourquoi = poseZone and nil or (pourquoiZone or pourquoi)
+        end
+        tuilesFrame:SetShown(pose and true or false)
+        self.fondPose, self.fondPourquoi = pose and true or false, pourquoi
+        return self.fondPose, pourquoi
+    end
+
     -- ── Repère ───────────────────────────────────────────────────────────
 
     function map:ToScreen(x, y)
@@ -195,11 +394,21 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         return mx / es - left, top - my / es
     end
 
-    -- La carte du jeu affichée : celle où la région a ses zones.
-    local function CarteDuJeu(zone)
+    -- Les régions montrées : une seule (fiche Région) ou toutes celles d'un
+    -- pays (fiche Pays).
+    local function Montrees()
+        if hooks.Regions then return hooks.Regions() or {} end
+        local zone = hooks.Region and hooks.Region() or nil
+        return zone and { zone } or {}
+    end
+
+    -- La carte du jeu affichée : celle où ces régions ont le plus de zones.
+    local function CarteDuJeu(zones)
         local comptes, meilleure = {}, nil
-        for _, sub in pairs(zone and zone.subZones or {}) do
-            if sub.mapID then comptes[sub.mapID] = (comptes[sub.mapID] or 0) + 1 end
+        for _, zone in ipairs(zones) do
+            for _, sub in pairs(zone.subZones or {}) do
+                if sub.mapID then comptes[sub.mapID] = (comptes[sub.mapID] or 0) + 1 end
+            end
         end
         for id, n in pairs(comptes) do
             if not meilleure or n > comptes[meilleure] then meilleure = id end
@@ -214,30 +423,119 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     -- Les PORTES de la région s'y ajoutent, en rouge : elles ne se soudent
     -- pas, mais on a besoin de voir où elles coupent les zones.
     function map:Dessinables()
-        local zone = hooks.Region and hooks.Region() or nil
-        if not zone then return {}, nil end
-        local carte = CarteDuJeu(zone)
-        local liste = {}
-        for _, sub in pairs(zone.subZones or {}) do
-            if sub.shape == "polygon" and sub.mapID == carte and sub.points and #sub.points >= 2 then
-                liste[#liste + 1] = { sub = sub, zone = zone, mienne = true }
+        -- Carte d'un BÂTIMENT : son empreinte en guise de contour, ses pièces
+        -- dedans. Un bâtiment est à ses pièces ce qu'une région est à ses
+        -- lieux, et c'est le même outil qui les montre.
+        if hooks.Batiment then return self:DessinablesBatiment() end
+        local zones = Montrees()
+        if #zones == 0 then return {}, nil end
+        local carte = CarteDuJeu(zones)
+        -- Plusieurs régions à l'écran (carte d'un pays) : la couleur distingue
+        -- les RÉGIONS, pas les zones — c'est la carte des régions qu'on veut
+        -- lire. Dans une seule région, c'est l'inverse.
+        self.parRegion = #zones > 1
+        local liste, miennes = {}, {}
+        for _, zone in ipairs(zones) do
+            miennes[zone.id] = true
+            -- Un pays peut contenir la région d'un autre auteur : elle se
+            -- montre, mais rien n'y bouge — le noyau refuserait, et des
+            -- poignées mortes feraient croire le contraire.
+            local tenue = zone.creator == Moi()
+            for _, sub in pairs(zone.subZones or {}) do
+                if sub.mapID == carte then
+                    -- Le contour de la région contient tous les autres : le
+                    -- remplir les cacherait, et son nom au centre tomberait
+                    -- au milieu d'eux.
+                    local lieu = sub.enterPlace and zone.places and zone.places[sub.enterPlace]
+                    local pourRegion = lieu ~= nil and lieu.pourRegion == true
+                    -- Un intérieur ne s'étale pas ici : les pièces d'un
+                    -- bâtiment n'ont rien à faire sur la carte de la région,
+                    -- et le bâtiment lui-même s'y marque d'un point. Sa carte
+                    -- à lui s'ouvre d'un clic sur ce point.
+                    if ZG:EstInterieur(sub) then
+                        -- rien
+                    elseif lieu and lieu.batiment and sub.shape == "polygon"
+                        and sub.points and #sub.points >= 1 then
+                        liste[#liste + 1] = { sub = sub, zone = zone, mienne = true,
+                                              tenue = tenue, marqueur = true, place = lieu }
+                    elseif sub.shape == "polygon" and sub.points and #sub.points >= 2 then
+                        liste[#liste + 1] = { sub = sub, zone = zone, mienne = true,
+                                              tenue = tenue, region = pourRegion }
+                    elseif sub.shape ~= "polygon" and sub.x then
+                        liste[#liste + 1] = { sub = sub, zone = zone, mienne = true, porte = true, tenue = tenue }
+                    end
+                end
             end
         end
-        for _, sub in pairs(zone.subZones or {}) do
-            if sub.shape ~= "polygon" and sub.mapID == carte and sub.x then
-                liste[#liste + 1] = { sub = sub, zone = zone, mienne = true, porte = true }
-            end
-        end
+        -- Les voisines : ce n'est pas contre elles qu'on travaille, mais une
+        -- frontière ne s'arrête pas au bord d'une région, et sans elles on
+        -- souderait à l'aveugle.
         for _, autre in ipairs(ZG:GetZoneList()) do
-            if autre.id ~= zone.id and autre.creator == Moi() then
+            if not miennes[autre.id] and autre.creator == Moi() then
                 for _, sub in pairs(autre.subZones or {}) do
-                    if sub.shape == "polygon" and sub.mapID == carte and sub.points and #sub.points >= 2 then
+                    if sub.shape == "polygon" and sub.mapID == carte and sub.points and #sub.points >= 2
+                        and not ZG:EstInterieur(sub) then
                         liste[#liste + 1] = { sub = sub, zone = autre, mienne = false }
                     end
                 end
             end
         end
-        table.sort(liste, function(a, b) return a.sub.id < b.sub.id end)
+        -- Les contours de région d'abord : ils passent dessous, et leurs noms
+        -- ne recouvrent pas ceux des lieux qu'ils contiennent.
+        table.sort(liste, function(a, b)
+            if (a.region or false) ~= (b.region or false) then return a.region == true end
+            return a.sub.id < b.sub.id
+        end)
+        return liste, carte
+    end
+
+    -- La carte d'un bâtiment : son empreinte au sol en guise de contour
+    -- (comme celui d'une région), et les zones de ses pièces dedans. Rien
+    -- d'autre — on y travaille les cloisons, pas le voisinage.
+    function map:DessinablesBatiment()
+        local batiment = hooks.Batiment and hooks.Batiment() or nil
+        if not batiment then return {}, nil end
+        local zone = ZG:GetZone(batiment.zoneId)
+        if not zone then return {}, nil end
+        local tenue = zone.creator == Moi()
+        self.parRegion = false
+
+        -- Les pièces : les descendants du bâtiment, aussi profond qu'on veut
+        -- (une alcôve dans une salle), portes comprises.
+        local dedans = { [batiment.id] = true }
+        local reste, bouge = {}, true
+        for _, place in ipairs(ZG:GetPlaceList(zone.id)) do reste[#reste + 1] = place end
+        while bouge do
+            bouge = false
+            for _, place in ipairs(reste) do
+                if not dedans[place.id] and place.parent and dedans[place.parent] then
+                    dedans[place.id] = true
+                    bouge = true
+                end
+            end
+        end
+
+        local liste, carte = {}, nil
+        for _, sub in pairs(zone.subZones or {}) do
+            local lieu = sub.enterPlace and zone.places[sub.enterPlace]
+            if lieu and dedans[lieu.id] then
+                carte = carte or sub.mapID
+                if lieu.id == batiment.id then
+                    if sub.points and #sub.points >= 2 then
+                        liste[#liste + 1] = { sub = sub, zone = zone, mienne = true,
+                                              tenue = tenue, region = true }
+                    end
+                elseif sub.shape == "polygon" and sub.points and #sub.points >= 2 then
+                    liste[#liste + 1] = { sub = sub, zone = zone, mienne = true, tenue = tenue }
+                elseif sub.shape ~= "polygon" and sub.x then
+                    liste[#liste + 1] = { sub = sub, zone = zone, mienne = true, porte = true, tenue = tenue }
+                end
+            end
+        end
+        table.sort(liste, function(a, b)
+            if (a.region or false) ~= (b.region or false) then return a.region == true end
+            return a.sub.id < b.sub.id
+        end)
         return liste, carte
     end
 
@@ -292,10 +590,20 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     -- cibles : { {subId=, index=} }. Rend l'instantané, à passer à Empiler.
     function map:Instantane(cibles) return ZG:SnapshotPoints(cibles) end
 
+    local function Pousser(entree)
+        map.pile[#map.pile + 1] = entree
+        while #map.pile > PROFONDEUR do table.remove(map.pile, 1) end
+    end
+
     function map:Empiler(avant, libelle)
         if not avant or #avant == 0 then return end
-        self.pile[#self.pile + 1] = { avant = avant, libelle = libelle }
-        while #self.pile > PROFONDEUR do table.remove(self.pile, 1) end
+        Pousser({ avant = avant, libelle = libelle })
+    end
+
+    -- Un sommet AJOUTÉ ne se défait pas en restituant des coordonnées : il
+    -- faut le retirer. D'où cette seconde sorte d'entrée dans la pile.
+    function map:EmpilerRetrait(subId, index, libelle)
+        Pousser({ retrait = { subId = subId, index = index }, libelle = libelle })
     end
 
     function map:Annulable()
@@ -306,7 +614,11 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     function map:Annuler()
         local dernier = table.remove(self.pile)
         if not dernier then return nil end
-        ZG:RestorePoints(dernier.avant)
+        if dernier.retrait then
+            ZG:RemoveRegionPointAt(dernier.retrait.subId, dernier.retrait.index)
+        else
+            ZG:RestorePoints(dernier.avant)
+        end
         self:Oublier()
         self:Draw()
         if hooks.Change then hooks.Change() end
@@ -330,6 +642,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
     local poignees = {}   -- sommets attrapables du dernier dessin : { {subId=,index=,x=,y=} }
     local nomsCliquables = {}  -- { {subId=, zoneId=, x=, y=, w=, h=} }
+    local segments = {}   -- arêtes de MES zones : { {subId=, index=, x1=,y1=,x2=,y2=} }
 
     function map:Draw()
         geo = geo or ZG.Geo
@@ -339,17 +652,22 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         for i = 1, nCarre do
             carrePool[i].bord:Hide(); carrePool[i].coeur:Hide(); carrePool[i].point:Hide()
         end
-        nTri, nTrait, nTex, nCarre = 0, 0, 0, 0
-        poignees, nomsCliquables = {}, {}
+        for i = 1, nRond do rondPool[i]:Hide() end
+        nTri, nTrait, nTex, nCarre, nRond = 0, 0, 0, 0, 0
+        poignees, nomsCliquables, segments = {}, {}, {}
 
         local liste, carte = self:Dessinables()
-        local zone = hooks.Region and hooks.Region() or nil
+        -- Le terrain suit la vue : il se repose à chaque dessin, comme le reste.
+        self:PoserFondCarte(carte)
+        local zone = Montrees()[1]
         if #liste == 0 then
             -- La carte s'ouvre la première : son message vide doit dire quoi
             -- faire ensuite, et ce n'est pas la même chose selon qu'il y a
             -- déjà des lieux ou non.
             local texte = "Choisissez une région."
-            if zone then
+            if hooks.Batiment then
+                texte = "Ce bâtiment n'a pas encore d'empreinte.\nTracez son sol, puis créez ses pièces avec le bouton L de sa ligne."
+            elseif zone then
                 texte = (#ZG:GetPlaceList(zone.id) == 0)
                     and "Cette région n'a pas encore de lieu.\nCréez-en un dans l'onglet Lieux : sa zone naîtra avec lui."
                     or "Aucune zone dessinée ici.\nOuvrez un lieu, onglet Zone, et posez les sommets de son contour."
@@ -364,14 +682,47 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         -- Les sommets d'abord comptés : au-delà de MAX_POIGNEES, on les montre
         -- sans les rendre attrapables plutôt que de rendre la carte poussive.
         local total = 0
-        for _, e in ipairs(liste) do if e.mienne then total = total + #e.sub.points end end
+        for _, e in ipairs(liste) do
+            if e.mienne and e.tenue and e.sub.points then total = total + #e.sub.points end
+        end
         local attrapables = total <= MAX_POIGNEES
 
         local soudures = ZG:WeldGroups()
         for _, e in ipairs(liste) do
+            -- Un bâtiment : un rond violet, son nom au-dessus. Son tracé et
+            -- ses pièces se travaillent sur SA carte, qu'un clic ouvre.
+            if e.marqueur then
+                local cx, cy, n = 0, 0, 0
+                for _, p in ipairs(e.sub.points or {}) do
+                    local x, y = self:ToScreen(p.x, p.y)
+                    cx, cy, n = cx + x, cy + y, n + 1
+                end
+                if n > 0 then
+                    cx, cy = cx / n, cy / n
+                elseif e.sub.x then
+                    -- Empreinte pas encore tracée : le point de pose fait foi.
+                    cx, cy = self:ToScreen(e.sub.x, e.sub.y)
+                    n = 1
+                end
+                if n > 0 then
+                    if cx > -60 and cx < width + 60 and cy > -40 and cy < height + 40 then
+                        Rond(cx, cy, BATIMENT)
+                        local nom = Texte(cx, cy - 17, e.sub.name or "", Clair(BATIMENT), false, 150)
+                        local large = math.min(150, nom:GetStringWidth()) + 10
+                        nomsCliquables[#nomsCliquables + 1] = {
+                            subId = e.sub.id, zoneId = e.zone.id, x = cx, y = cy - 17,
+                            w = large, h = nom:GetStringHeight() + 6,
+                        }
+                        -- Le rond se clique aussi : c'est lui qu'on vise.
+                        nomsCliquables[#nomsCliquables + 1] = {
+                            subId = e.sub.id, zoneId = e.zone.id, x = cx, y = cy, w = 20, h = 20,
+                        }
+                    end
+                end
+
             -- Une porte : un segment rouge, son nom au-dessus. Elle n'a ni
             -- remplissage ni sommets à saisir — on la déplace depuis sa fiche.
-            if e.porte then
+            elseif e.porte then
                 local a, b = geo.LineEnds(e.sub)
                 local x1, y1 = self:ToScreen(a.x, a.y)
                 local x2, y2 = self:ToScreen(b.x, b.y)
@@ -386,7 +737,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                 end
             else
 
-            local sub, color = e.sub, Teinte(e.sub.id)
+            local sub = e.sub
+            local color = Teinte(self.parRegion and e.zone.id or sub.id)
             local ecran, cx, cy = {}, 0, 0
             for i, p in ipairs(sub.points) do
                 local x, y = self:ToScreen(p.x, p.y)
@@ -403,7 +755,9 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             local largeur
             if ferme and geo and geo.Triangulate then
                 local triangles = geo.Triangulate(sub.points)
-                if PEUT_REMPLIR then
+                -- Le contour de la région ne se remplit pas : il entoure tous
+                -- les autres, et son aplat les noierait.
+                if PEUT_REMPLIR and not e.region then
                     local alpha = e.mienne and .28 or .10
                     for _, t in ipairs(triangles) do
                         Tri(ecran[t[1]], ecran[t[2]], ecran[t[3]], color, alpha)
@@ -422,12 +776,36 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                 end
                 if largeur then largeur = math.max(52, math.min(220, largeur - 8)) end
             end
+            -- Le nom de la région se pose en HAUT de son contour : au centre,
+            -- il tomberait sur ses propres lieux.
+            if e.region then
+                local haut, gauche, droite = ecran[1][2], ecran[1][1], ecran[1][1]
+                for i = 2, #ecran do
+                    haut = math.min(haut, ecran[i][2])
+                    gauche = math.min(gauche, ecran[i][1])
+                    droite = math.max(droite, ecran[i][1])
+                end
+                cx, cy = (gauche + droite) / 2, haut + 13
+                largeur = math.max(80, math.min(260, droite - gauche - 8))
+            end
             local alphaTrait = e.mienne and .95 or .40
+            -- Sans remplissage, le contour de la région ne se lit que par son
+            -- trait : on le donne plus épais.
+            local epaisseur = e.region and 3 or 2
+            -- Les arêtes sont retenues : un clic droit sur l'une d'elles y
+            -- insère un sommet (voir SegmentSous).
+            local function Arete(i, x1, y1, x2, y2)
+                if e.mienne and e.tenue then
+                    segments[#segments + 1] = { subId = sub.id, index = i, x1 = x1, y1 = y1, x2 = x2, y2 = y2 }
+                end
+            end
             for i = 2, #ecran do
-                Trait(ecran[i - 1][1], ecran[i - 1][2], ecran[i][1], ecran[i][2], color, 2, alphaTrait)
+                Trait(ecran[i - 1][1], ecran[i - 1][2], ecran[i][1], ecran[i][2], color, epaisseur, alphaTrait)
+                Arete(i - 1, ecran[i - 1][1], ecran[i - 1][2], ecran[i][1], ecran[i][2])
             end
             if ferme then
-                Trait(ecran[#ecran][1], ecran[#ecran][2], ecran[1][1], ecran[1][2], color, 2, alphaTrait)
+                Trait(ecran[#ecran][1], ecran[#ecran][2], ecran[1][1], ecran[1][2], color, epaisseur, alphaTrait)
+                Arete(#ecran, ecran[#ecran][1], ecran[#ecran][2], ecran[1][1], ecran[1][2])
             elseif e.mienne then
                 -- Zone ouverte : la fermeture se devine, en pointillé clair,
                 -- pour qu'on voie ce que « Fermer la zone » va relier.
@@ -436,7 +814,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
             -- Les sommets, seulement pour mes zones : on ne modifie pas celles
             -- d'un autre auteur, et des poignées mortes tromperaient.
-            if e.mienne then
+            if e.mienne and e.tenue then
                 for i, p in ipairs(sub.points) do
                     local x, y = ecran[i][1], ecran[i][2]
                     if x > -20 and x < width + 20 and y > -20 and y < height + 20 then
@@ -456,13 +834,17 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                 -- se ressemblent — ils naissent identiques, et les afficher
                 -- deux fois n'apprenait rien.
                 local sous
-                if e.mienne then
+                if self.parRegion or not e.mienne then
+                    -- Sur la carte d'un pays, c'est la région qui situe.
+                    sous = e.zone.name
+                elseif e.region then
+                    -- Le contour de la région EST la région : rien à situer.
+                    sous = nil
+                else
                     local lieu = sub.enterPlace and ZG:FindPlace(sub.enterPlace)
                     sous = lieu and lieu.name or "(aucun lieu)"
-                    if sous == (sub.name or "") then sous = nil end
-                else
-                    sous = e.zone.name
                 end
+                if sous == (sub.name or "") then sous = nil end
                 local nom = Texte(cx, cy, sub.name or "", Clair(color), e.mienne, largeur)
                 if e.mienne then
                     nomsCliquables[#nomsCliquables + 1] = {
@@ -524,6 +906,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
     -- ── Souris ───────────────────────────────────────────────────────────
 
+    -- Un Frame reçoit le nom du bouton dans OnMouseDown : pas de
+    -- RegisterForClicks, qui n'existe que sur un Button.
     map:EnableMouse(true); map:EnableMouseWheel(true)
 
     map:SetScript("OnMouseWheel", function(_, delta)
@@ -556,7 +940,42 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         end
     end
 
+    -- L'arête la plus proche du curseur, et le point du segment qui lui fait
+    -- face : le sommet inséré se pose SUR la ligne, pas à côté.
+    local function SegmentSous(ox, oy)
+        local best, bestD, bx, by
+        for _, s in ipairs(segments) do
+            local dx, dy = s.x2 - s.x1, s.y2 - s.y1
+            local long = dx * dx + dy * dy
+            local t = long > 0 and math.max(0, math.min(1, ((ox - s.x1) * dx + (oy - s.y1) * dy) / long)) or 0
+            local px, py = s.x1 + t * dx, s.y1 + t * dy
+            local d = (px - ox) ^ 2 + (py - oy) ^ 2
+            if d <= ACCROCHE * ACCROCHE and (not bestD or d < bestD) then
+                best, bestD, bx, by = s, d, px, py
+            end
+        end
+        return best, bx, by
+    end
+
     map:SetScript("OnMouseDown", function(_, bouton)
+        -- Clic droit sur une arête : un sommet s'y insère, à sa place dans
+        -- l'ordre du contour. Entre le 8 et le 9, le nouveau devient le 9 et
+        -- l'ancien 9 passe 10.
+        if bouton == "RightButton" then
+            local ox, oy = Curseur()
+            if not ox then return end
+            local segment, px, py = SegmentSous(ox, oy)
+            if not segment then return end
+            local wx, wy = map:ToWorld(px, py)
+            if ZG:InsertRegionPoint(segment.subId, segment.index, wx, wy) then
+                map:EmpilerRetrait(segment.subId, segment.index + 1, "le sommet ajouté")
+                -- Les rangs ont glissé : une sélection retenue viserait à côté.
+                map:Oublier()
+                map:Draw()
+                if hooks.Change then hooks.Change() end
+            end
+            return
+        end
         if bouton ~= "LeftButton" then return end
         local ox, oy = Curseur()
         if not ox then return end
