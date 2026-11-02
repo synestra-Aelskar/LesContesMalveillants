@@ -182,6 +182,149 @@ local function Ligne(sous, champ, y)
     return l, y + l:GetHeight() + 6
 end
 
+-- ===== La mise en page d'une annonce ========================================
+-- Refaite le 2 novembre 2026 (« refais toute la structure », le MJ) : les neuf
+-- reglages tombaient en liste, l'icone chevauchait le texte, les couleurs
+-- n'etaient que des codes, et la portee flottait loin en bas. Les CHAMPS ne
+-- changent pas (LCM.Outils.CHAMPS, memes lignes, meme ecriture) : on les
+-- RANGE en trois parties, et on montre ce que les joueurs verront.
+--   Contenu    le titre, le texte en grand, l'icone ;
+--   Apparence  les trois couleurs a gauche, les trois tailles a droite ;
+--   Apercu     l'annonce telle qu'elle s'affichera, a l'echelle.
+-- En pied : la portee, « Vider » a gauche, « Annoncer » a droite.
+local function MiseEnPageAnnonce(sous)
+    local e = sous.editeur
+    e:ClearAllPoints()
+    e:SetPoint("TOPLEFT", sous, "TOPLEFT", COLONNE + 14, 0)
+    e:SetPoint("BOTTOMRIGHT", sous, "BOTTOMRIGHT", 0, 60)
+
+    local parCle = {}
+    for _, ligne in ipairs(sous.lignes) do parCle[ligne.champ.cle] = ligne end
+
+    local function Section(texte, y)
+        local t = UI.Texte(e, UI.Majuscules(texte), UI.C.libelle, "GameFontNormalSmall")
+        UI.Police(t, 10)
+        t:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -y)
+        local filet = UI.Filet(e, true)
+        filet:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -(y + 15))
+        filet:SetPoint("TOPRIGHT", e, "TOPRIGHT", 0, -(y + 15))
+        return t
+    end
+    -- Re-poser une ligne : a `x`, `y`, avec une etiquette de `largeurLabel`.
+    -- `pleine` : elle s'etire jusqu'au bord droit.
+    local function Placer(l, x, y, largeurLabel, pleine, largeur)
+        if not l then return end
+        l:ClearAllPoints()
+        l:SetPoint("TOPLEFT", e, "TOPLEFT", x, -y)
+        if pleine then l:SetPoint("TOPRIGHT", e, "TOPRIGHT", 0, -y)
+        else l:SetWidth(largeur or 230) end
+        l.label:SetWidth(largeurLabel)
+    end
+
+    -- ----- Contenu ---------------------------------------------------------
+    sous.sectionContenu = Section("Contenu", 0)
+    local titre = parCle.libelle
+    Placer(titre, 0, 22, 56, true)
+    if titre then
+        titre.saisie:ClearAllPoints()
+        titre.saisie:SetPoint("LEFT", titre.label, "RIGHT", 4, 0)
+        titre.saisie:SetPoint("RIGHT", titre, "RIGHT", 0, 0)
+    end
+    local texte = parCle.texte
+    Placer(texte, 0, 50, 56, true)
+    if texte then
+        texte:SetHeight(86)
+        texte.label:ClearAllPoints()
+        texte.label:SetPoint("TOPLEFT", texte, "TOPLEFT", 0, -4)
+        texte.saisie:ClearAllPoints()
+        texte.saisie:SetPoint("TOPLEFT", texte, "TOPLEFT", 60, 0)
+        texte.saisie:SetPoint("RIGHT", texte, "RIGHT", 0, 0)
+        texte.saisie:SetHeight(84)
+        -- La boite de saisie suit la largeur du cadre, et non plus ses 300.
+        texte.saisie.saisie:SetPoint("RIGHT", texte.saisie, "RIGHT", -6, 0)
+    end
+    Placer(parCle.icone, 0, 142, 56, true)
+
+    -- ----- Apparence -------------------------------------------------------
+    sous.sectionApparence = Section("Apparence", 172)
+    local y = 194
+    for _, cle in ipairs({ "couleurFond", "couleurTitre", "couleurTexte" }) do
+        Placer(parCle[cle], 0, y, 56, false, 170)
+        y = y + 26
+    end
+    y = 194
+    for _, cle in ipairs({ "policeTitre", "police", "largeur" }) do
+        Placer(parCle[cle], 190, y, 104, false, 260)
+        y = y + 26
+    end
+
+    -- ----- Apercu ----------------------------------------------------------
+    sous.sectionApercu = Section("Aperçu", 278)
+    local a = CreateFrame("Frame", nil, e)
+    a:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -300)
+    a.fond = UI.Aplat(a, { 0, 0, 0, 0.85 })
+    a.fond:SetAllPoints(a)
+    UI.BordureFine(a, 0.35)
+    a.icone = a:CreateTexture(nil, "ARTWORK")
+    a.icone:SetSize(26, 26)
+    a.icone:SetPoint("TOPLEFT", a, "TOPLEFT", 10, -10)
+    a.icone:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    a.titre = UI.Texte(a, "", UI.C.titre)
+    a.titre:SetJustifyH("LEFT")
+    a.titre:SetWordWrap(false)
+    a.texte = UI.Texte(a, "", UI.C.texte)
+    a.texte:SetJustifyH("LEFT")
+    a.texte:SetWordWrap(true)
+    sous.apercu = a
+
+    -- L'apercu est a l'ECHELLE (0,8) : une annonce large de 720 ne tiendrait
+    -- pas dans le panneau ; les proportions, elles, sont justes.
+    local ECHELLE = 0.8
+    function sous:AfficherApercu()
+        local c = self:Cible() or {}
+        local function Defaut(cle)
+            for _, champ in ipairs(O().Champs("annonce")) do
+                if champ.cle == cle then return champ.defaut end
+            end
+        end
+        local largeur = math.floor((tonumber(c.largeur) or Defaut("largeur") or 420) * ECHELLE)
+        local policeTitre = math.max(8, math.floor((tonumber(c.policeTitre) or Defaut("policeTitre") or 20) * ECHELLE))
+        local police = math.max(8, math.floor((tonumber(c.police) or Defaut("police") or 16) * ECHELLE))
+        a:SetWidth(largeur)
+        a.fond:SetColorTexture(O().Teinte(c.couleurFond, Defaut("couleurFond")))
+        local icone = tostring(c.icone or "")
+        a.icone:SetShown(icone ~= "")
+        if icone ~= "" then a.icone:SetTexture(LCM.Icone(icone)) end
+        local gauche = icone ~= "" and 44 or 12
+        a.titre:ClearAllPoints()
+        a.titre:SetPoint("TOPLEFT", a, "TOPLEFT", gauche, -10)
+        a.titre:SetPoint("RIGHT", a, "RIGHT", -12, 0)
+        UI.Police(a.titre, policeTitre)
+        a.titre:SetText(tostring(c.libelle or ""))
+        a.titre:SetTextColor(O().Teinte(c.couleurTitre, Defaut("couleurTitre")))
+        a.texte:ClearAllPoints()
+        a.texte:SetPoint("TOPLEFT", a.titre, "BOTTOMLEFT", 0, -6)
+        a.texte:SetPoint("RIGHT", a, "RIGHT", -12, 0)
+        UI.Police(a.texte, police)
+        local corps = tostring(c.texte or "")
+        a.texte:SetText(corps ~= "" and corps or "|cff808080(le texte de l'annonce)|r")
+        a.texte:SetTextColor(O().Teinte(c.couleurTexte, Defaut("couleurTexte")))
+        -- La hauteur suit le texte, comme l'annonce en jeu.
+        local hauteurTexte = a.texte:GetStringHeight() or 0
+        if hauteurTexte <= 0 then hauteurTexte = police * 2 end
+        a:SetHeight(math.max(icone ~= "" and 46 or 40, 10 + policeTitre + 6 + hauteurTexte + 12))
+    end
+
+    -- ----- le pied ---------------------------------------------------------
+    sous.pied:SetHeight(56)
+    sous.annoncer:ClearAllPoints()
+    sous.annoncer:SetPoint("BOTTOMRIGHT", sous.pied, "BOTTOMRIGHT", 0, 4)
+    sous.neuve:ClearAllPoints()
+    sous.neuve:SetPoint("BOTTOMLEFT", sous.pied, "BOTTOMLEFT", 0, 4)
+    UI.Bulle(sous.annoncer, "Annoncer", "Envoie l'annonce à la portée choisie. Elle s'affiche en grand, puis s'efface.")
+    UI.Bulle(sous.neuve, "Vider", "Repart d'une annonce neuve. Ce qui est gardé en bibliothèque reste.")
+end
+
 -- ===== Un sous-onglet ======================================================
 
 local function Sous(page, f, sorte)
@@ -355,6 +498,9 @@ local function Sous(page, f, sorte)
         sous.neuve:SetPoint("BOTTOMRIGHT", pied, "BOTTOMRIGHT", 0, 4)
     end
 
+    -- L'annonce a sa propre mise en page (MiseEnPageAnnonce, plus haut).
+    if sorte == "annonce" then MiseEnPageAnnonce(sous) end
+
     -- ----- dessiner ---------------------------------------------------------
     local function LigneTable(rang)
         local l = sous.lignesTable[rang]
@@ -479,6 +625,7 @@ local function Sous(page, f, sorte)
             self.editeur:SetShown(self.outilId ~= nil)
             self.pied:SetShown(self.outilId ~= nil)
         end
+        if self.AfficherApercu then self:AfficherApercu() end
     end
 
     sous:Hide()

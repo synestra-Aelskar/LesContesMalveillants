@@ -161,6 +161,13 @@ local onglets = {}
 for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
 attendu("les entrées de la navigation", #p.barre.boutons, 11)
 attendu("pas d'entrée États à part", onglets.etats, nil)
+-- « Compendium » remplace la page Contenus (2 novembre 2026) : une porte, pas
+-- une page. On reste sur la page ou l'on etait.
+local pageAvant = p.onglet
+onglets.compendium:Click()
+attendu("Compendium ouvre le compendium", LCM.UI.Compendium.Fenetre():IsShown(), true)
+attendu("  et le panel reste sur sa page", p.onglet, pageAvant)
+LCM.UI.Compendium.Fenetre():Hide()
 p:Onglet("etats")
 local pageEtats = p.pages.etats
 attendu("« etats » mène à la page Groupe", p.onglet == "joueurs" and pageEtats:IsVisible(), true)

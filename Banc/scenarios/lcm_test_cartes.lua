@@ -315,7 +315,21 @@ f:Hide()
 
 dire("== le radial")
 attendu("l'entree Cartes est liee", LCM.UI.Menu.EstLiee("cartes"), true)
+-- Depuis le 2 novembre 2026, l'entree sert a POSER des cartes a trouver : elle
+-- ouvre l'atelier des ressources en mode cartes (le MJ). Une carte se cree
+-- toujours au compendium.
 LCM.UI.Menu.Trouver("cartes").onClick()
-attendu("elle ouvre le compendium sur les cartes", LCM.UI.Compendium.Fenetre().actif, "cartes")
+local atelier = LCM.UI.Recoltes.frame
+attendu("elle ouvre l'atelier des cartes à trouver", atelier and atelier:IsShown() and LCM.UI.Recoltes.mode, "cartes")
+for _, point in ipairs(LCM.UI.Recoltes.Definitions()) do
+    local carte = false
+    for _, lot in ipairs(point.recolte.ressources or {}) do
+        if tostring(lot.entree):match("^cartes/") then carte = true end
+    end
+    attendu("  la liste ne montre que des points à carte : " .. tostring(point.label), carte, true)
+end
+LCM.UI.Menu.Trouver("ressources").onClick()
+attendu("Ressources rouvre en mode ressources", LCM.UI.Recoltes.mode, "ressources")
+atelier:Hide()
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

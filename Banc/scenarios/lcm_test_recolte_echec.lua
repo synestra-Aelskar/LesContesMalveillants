@@ -13,6 +13,10 @@ end
 
 LCM.Brouillons.Set("ressources", { id = "plante_echec", label = "Plante témoin" })
 __declencher("PLAYER_LOGIN")
+-- Ce scenario enchaine des clics au MEME instant d'horloge : la garde
+-- « un clic, un jet » (2 novembre 2026) les prendrait pour un double clic.
+-- Elle a son propre scenario (lcm_test_recolte_rebond).
+LCM.Recolte.ANTI_REBOND = 0
 __personnage()
 local R, Rs = LCM.Recolte, LCM.Recoltes
 local f = LCM.UI.Recoltes.Fenetre()
@@ -26,7 +30,13 @@ c.ajouter.__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
 c.ajouter.__survol = nil
-c.dd:Saisir("15")
+-- Un jet sans metier requis : une ligne « Aucun métier », dont le DD se
+-- regle sur la ligne (2 novembre 2026 ; avant, un champ DD du point).
+c.metier:Click()
+for _, ligne in ipairs(f.choixMetier.lignes) do
+    if ligne:IsShown() and ligne.choix == R.METIER_AUCUN then ligne:Click() end
+end
+c.lignesMetiers[1].ddLibre:Saisir("15")
 c.limite:Saisir("2")
 attendu("raté gratuit par défaut", f.travail.recolte.echecConsomme, nil)
 c.echecConsomme:Click()

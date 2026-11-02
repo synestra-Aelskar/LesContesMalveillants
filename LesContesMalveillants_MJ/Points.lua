@@ -234,15 +234,36 @@ LCM.Points = LCM.Registre({
                 local id = type(choixMetier) == "table" and choixMetier.id or choixMetier
                 id = tostring(id or "")
                 if id ~= "" and (id == LCM.Recolte.METIER_AUCUN or LCM.Metiers.Get(id)) and not vus[id] then
+                    -- `dd` et `fatigue` PAR METIER (le MJ, 2 novembre 2026) : un
+                    -- mineur et un bucheron n'affrontent pas le meme filon.
+                    -- Absents (un point d'avant), le jet reprend le DD du point.
+                    local ddPropre = type(choixMetier) == "table" and tonumber(choixMetier.dd)
+                    local fatigue = type(choixMetier) == "table" and tonumber(choixMetier.fatigue)
                     metiers[#metiers + 1] = { id = id,
                         bonus = id ~= LCM.Recolte.METIER_AUCUN
-                            and (type(choixMetier) ~= "table" or choixMetier.bonus ~= false) }
+                            and (type(choixMetier) ~= "table" or choixMetier.bonus ~= false),
+                        dd = ddPropre and math.max(0, math.floor(ddPropre)) or nil,
+                        fatigue = fatigue and fatigue > 0 and math.floor(fatigue) or nil }
                     vus[id] = true
+                end
+            end
+            -- Les outils autorises (2 novembre 2026) : un TYPE de la « Liste
+            -- outils », lie a une ligne de metier du point, ou a toutes.
+            local outils = {}
+            for _, o in ipairs(type(r.outils) == "table" and r.outils or {}) do
+                local typeOutil = type(o) == "table" and tostring(o.type or "") or ""
+                local liste = typeOutil ~= "" and LCM.Listes and LCM.Listes.Get(typeOutil)
+                if liste and liste.liste == "outils" then
+                    local metier = tostring(o.metier or "")
+                    outils[#outils + 1] = { type = typeOutil,
+                        metier = (metier ~= "" and vus[metier]) and metier or nil,
+                        consomme = o.consomme == true or nil }
                 end
             end
             element.recolte = {
                 ressources = ressources,
                 metiers = metiers,
+                outils = outils[1] and outils or nil,
                 -- Ces champs restent lisibles par les anciens consommateurs.
                 entree = ressources[1] and ressources[1].entree or "",
                 min = ressources[1] and ressources[1].min or 1,

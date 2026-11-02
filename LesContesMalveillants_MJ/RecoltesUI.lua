@@ -52,13 +52,48 @@ local CATEGORIES = { "ressources", "consommables", "livres", "cartes", "outils",
 -- Une carte se trouve aussi en fouillant (31 octobre 2026).
 local FAMILLES = { objets = true, ressources = true, consommables = true, livres = true, cartes = true, sacs = true }
 
+-- Le MODE de l'atelier (2 novembre 2026). « ressources » : tout, comme avant.
+-- « cartes » : l'entree Cartes du radial ouvre le meme atelier pour poser des
+-- cartes a trouver dans le monde — seules les cartes au catalogue, seuls les
+-- points qui en donnent dans la liste. Meme systeme derriere (pose, ramassage,
+-- synchro) : une carte se trouvait deja en fouillant un point (31 octobre).
+Ecran.mode = "ressources"
+local MODES = {
+    ressources = { titre = "Ressources", categories = CATEGORIES, familles = FAMILLES },
+    cartes = { titre = "Cartes à trouver", categories = { "cartes" }, familles = { cartes = true } },
+}
+local function Mode() return MODES[Ecran.mode] or MODES.ressources end
+
 local function EstEntreeRecoltable(ref)
     local famille = tostring(ref or ""):match("^([%w_]+)/")
-    return FAMILLES[famille] ~= nil
+    return Mode().familles[famille] ~= nil
 end
+
+-- Un point qui donne au moins une carte.
+local function DonneUneCarte(point)
+    local r = point and point.recolte
+    if not r then return false end
+    for _, lot in ipairs(r.ressources or { r }) do
+        if tostring(lot.entree or ""):match("^cartes/") then return true end
+    end
+    return false
+end
+
+-- Les points que l'atelier montre, selon son mode.
+local function Definitions()
+    local tous = Points.Nature("ressource")
+    if Ecran.mode ~= "cartes" then return tous end
+    local out = {}
+    for _, point in ipairs(tous) do
+        if DonneUneCarte(point) then out[#out + 1] = point end
+    end
+    return out
+end
+Ecran.Definitions = Definitions
 
 local function OptionsEntrees()
     local options = {}
+    local CATEGORIES = Mode().categories
     for _, id in ipairs(CATEGORIES) do
         local categorie = LCM.Compendium.Get(id)
         if categorie then
@@ -112,13 +147,26 @@ local function Travail(point)
             copie.recolte.metiers = copie.recolte.metier
                 and { { id = copie.recolte.metier, bonus = true } } or {}
         end
+        -- Le DD est passe du point a chaque metier (2 novembre 2026). Un point
+        -- d'avant donne le sien a ses lignes ; sans ligne, son DD devient une
+        -- ligne « Aucun métier » — le meme jet, pose la ou on le regle.
+        local ddPoint = math.max(0, math.floor(tonumber(copie.recolte.dd) or 0))
+        for _, regle in ipairs(copie.recolte.metiers) do
+            if regle.dd == nil then regle.dd = ddPoint end
+            if regle.fatigue == nil then regle.fatigue = 0 end
+        end
+        if #copie.recolte.metiers == 0 and ddPoint > 0 then
+            copie.recolte.metiers[1] = { id = LCM.Recolte.METIER_AUCUN, bonus = false,
+                dd = ddPoint, fatigue = 0 }
+        end
+        if type(copie.recolte.outils) ~= "table" then copie.recolte.outils = {} end
         return copie
     end
     return {
         id = LCM.Brouillons.NouvelIdentifiant(), nature = "ressource",
         label = "", description = "", offres = {},
         recolte = { ressources = {},
-                    metiers = {}, limite = 1, dd = 0, rayon = Eq().rayon },
+                    metiers = {}, outils = {}, limite = 1, dd = 0, rayon = Eq().rayon },
     }
 end
 
@@ -285,33 +333,84 @@ local function Construire()
     c.enteteMetiers:SetHeight(23)
     local fondMetiers = UI.Aplat(c.enteteMetiers, { 0.07, 0.07, 0.07, 0.30 })
     fondMetiers:SetAllPoints(c.enteteMetiers)
-    local enteteNom = Libelle(c.enteteMetiers, "MÉTIER", 0, -6)
-    enteteNom:SetWidth(260)
-    enteteNom:SetJustifyH("CENTER")
-    local enteteBonus = Libelle(c.enteteMetiers, "BONUS DE JET", 260, -6)
-    enteteBonus:SetWidth(214)
-    enteteBonus:SetJustifyH("CENTER")
-    local divisionMetiers = UI.Filet(c.enteteMetiers, false, true)
-    divisionMetiers:SetPoint("TOPLEFT", c.enteteMetiers, "TOPLEFT", 260, 0)
-    divisionMetiers:SetPoint("BOTTOMLEFT", c.enteteMetiers, "BOTTOMLEFT", 260, 0)
+    -- Metier · Bonus de jet · DD · Fatigue · croix (le MJ, 2 novembre 2026) :
+    -- le DD et la fatigue vivent sur chaque metier, pas sur le point.
+    for _, col in ipairs({ { "MÉTIER", 0, 170 }, { "BONUS", 170, 80 }, { "DD", 250, 140 },
+                           { "FATIGUE", 390, 75 } }) do
+        local t = Libelle(c.enteteMetiers, col[1], col[2], -6)
+        t:SetWidth(col[3])
+        t:SetJustifyH("CENTER")
+        if col[2] > 0 then
+            local division = UI.Filet(c.enteteMetiers, false, true)
+            division:SetPoint("TOPLEFT", c.enteteMetiers, "TOPLEFT", col[2], 0)
+            division:SetPoint("BOTTOMLEFT", c.enteteMetiers, "BOTTOMLEFT", col[2], 0)
+        end
+    end
     c.zoneMetiers = UI.Defilement(c.tableauMetiers)
     c.zoneMetiers:SetPoint("TOPLEFT", c.tableauMetiers, "TOPLEFT", 1, -24)
     c.zoneMetiers:SetPoint("TOPRIGHT", c.tableauMetiers, "TOPRIGHT", -1, -24)
     c.zoneMetiers:SetHeight(28)
     c.lignesMetiers = {}
 
+    -- Les outils autorises (le MJ, 2 novembre 2026) : un TYPE d'outil de la
+    -- « Liste outils », lie a une ligne de metier — « Pioche est liée à
+    -- Mineur ». Un outil lie est obligatoire pour sa ligne ; « consommé », il
+    -- se perd a chaque tentative. Meme dessin que le tableau des metiers.
+    c.titreOutils = UI.Texte(g, "Outils autorisés", UI.C.discret, "GameFontNormalSmall")
+    c.titreOutils:SetPoint("TOPLEFT", c.tableauMetiers, "BOTTOMLEFT", 0, -12)
+    c.tableauOutils = CreateFrame("Frame", nil, g)
+    c.tableauOutils:SetPoint("TOPLEFT", c.tableauMetiers, "BOTTOMLEFT", 0, -29)
+    c.tableauOutils:SetPoint("TOPRIGHT", c.tableauMetiers, "BOTTOMRIGHT", 0, -29)
+    c.tableauOutils:SetHeight(51)
+    UI.BordureFine(c.tableauOutils, 0.18)
+    c.enteteOutils = CreateFrame("Frame", nil, c.tableauOutils)
+    c.enteteOutils:SetPoint("TOPLEFT", c.tableauOutils, "TOPLEFT", 1, -1)
+    c.enteteOutils:SetPoint("TOPRIGHT", c.tableauOutils, "TOPRIGHT", -1, -1)
+    c.enteteOutils:SetHeight(23)
+    local fondOutils = UI.Aplat(c.enteteOutils, { 0.07, 0.07, 0.07, 0.30 })
+    fondOutils:SetAllPoints(c.enteteOutils)
+    for _, col in ipairs({ { "TYPE D'OUTIL", 0, 200 }, { "LIÉ À", 200, 170 }, { "CONSOMMÉ", 370, 100 } }) do
+        local t = Libelle(c.enteteOutils, col[1], col[2], -6)
+        t:SetWidth(col[3])
+        t:SetJustifyH("CENTER")
+        if col[2] > 0 then
+            local division = UI.Filet(c.enteteOutils, false, true)
+            division:SetPoint("TOPLEFT", c.enteteOutils, "TOPLEFT", col[2], 0)
+            division:SetPoint("BOTTOMLEFT", c.enteteOutils, "BOTTOMLEFT", col[2], 0)
+        end
+    end
+    c.zoneOutils = UI.Defilement(c.tableauOutils)
+    c.zoneOutils:SetPoint("TOPLEFT", c.tableauOutils, "TOPLEFT", 1, -24)
+    c.zoneOutils:SetPoint("TOPRIGHT", c.tableauOutils, "TOPRIGHT", -1, -24)
+    c.zoneOutils:SetHeight(28)
+    c.lignesOutils = {}
+
     c.apresMetiers = CreateFrame("Frame", nil, g)
-    c.apresMetiers:SetPoint("TOPLEFT", c.tableauMetiers, "BOTTOMLEFT", 0, -12)
-    c.apresMetiers:SetPoint("TOPRIGHT", c.tableauMetiers, "BOTTOMRIGHT", 0, -12)
+    c.apresMetiers:SetPoint("TOPLEFT", c.tableauOutils, "BOTTOMLEFT", 0, -12)
+    c.apresMetiers:SetPoint("TOPRIGHT", c.tableauOutils, "BOTTOMRIGHT", 0, -12)
     c.apresMetiers:SetHeight(80)
     local a = c.apresMetiers
-    Libelle(a, "DD", 0, -7)
+    -- Le DD du point n'est plus saisi ici : il est sur chaque metier, au-dessus.
+    -- Les deux controles restent (le banc et l'ancien code les lisent), caches.
+    c.libelleDD = Libelle(a, "DD", 0, -7)
+    c.libelleDD:Hide()
     c.dd = UI.Champ(a, 50, 22, function(texte)
         if f.travail then f.travail.recolte.dd = texte end
     end)
     c.dd:SetPoint("TOPLEFT", a, "TOPLEFT", 110, -1)
+    -- Le DD se CHOISIT dans les difficultes de l'equilibrage (le MJ,
+    -- 2 novembre 2026) : « DD 15 · Rose » plutot qu'un nombre tape a la
+    -- volee. Le choix remplit le champ, que l'enregistrement lit comme avant.
+    -- Sans difficulte posee, le champ libre reste.
+    c.choixDD = UI.Deroulant(a, 170, 22, function()
+        return LCM.Difficultes.Options({ id = 0, label = "Sans jet (DD 0)" })
+    end, function(valeur)
+        c.dd:SetText(tostring(valeur))
+        if f.travail then f.travail.recolte.dd = tostring(valeur) end
+    end)
+    c.choixDD:SetPoint("TOPLEFT", a, "TOPLEFT", 110, -1)
     c.aideJet = UI.Texte(a, "", UI.C.discret, "GameFontNormalSmall")
-    c.aideJet:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -28)
+    c.aideJet:SetPoint("TOPLEFT", a, "TOPLEFT", 0, -6)
     c.aideJet:SetPoint("RIGHT", a, "RIGHT", 0, 0)
     c.aideJet:SetJustifyH("LEFT")
 
@@ -703,12 +802,14 @@ local function Construire()
                 local fond = UI.Aplat(ligne, { 0.07, 0.07, 0.07, 0.10 })
                 fond:SetAllPoints(ligne)
                 UI.BordureFine(ligne, 0.14)
-                local division = UI.Filet(ligne, false, true)
-                division:SetPoint("TOPLEFT", ligne, "TOPLEFT", 260, -3)
-                division:SetPoint("BOTTOMLEFT", ligne, "BOTTOMLEFT", 260, 3)
+                for _, x in ipairs({ 170, 250, 390 }) do
+                    local division = UI.Filet(ligne, false, true)
+                    division:SetPoint("TOPLEFT", ligne, "TOPLEFT", x, -3)
+                    division:SetPoint("BOTTOMLEFT", ligne, "BOTTOMLEFT", x, 3)
+                end
                 ligne.nom = CreateFrame("Button", nil, ligne)
                 ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 8, -2)
-                ligne.nom:SetSize(246, 24)
+                ligne.nom:SetSize(156, 24)
                 ligne.nom.label = UI.Texte(ligne.nom, "", UI.C.texte, "GameFontNormalSmall")
                 ligne.nom.label:SetAllPoints(ligne.nom)
                 ligne.nom.label:SetJustifyH("LEFT")
@@ -732,9 +833,29 @@ local function Construire()
                         f:AfficherMetiers()
                     end
                 end)
-                ligne.bonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 320, -5)
+                ligne.bonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 186, -5)
                 ligne.sansBonus = UI.Texte(ligne, "—", UI.C.discret, "GameFontNormalSmall")
-                ligne.sansBonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 320, -7)
+                ligne.sansBonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 204, -7)
+                -- Le DD de CE metier, choisi dans les difficultes ; sans liste,
+                -- un champ libre.
+                ligne.dd = UI.Deroulant(ligne, 130, 20, function()
+                    return LCM.Difficultes.Options({ id = 0, label = "Sans jet (DD 0)" })
+                end, function(valeur)
+                    local courant = f.travail.recolte.metiers[ligne.index]
+                    if courant then courant.dd = valeur end
+                end)
+                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 255, -4)
+                ligne.ddLibre = UI.Champ(ligne, 50, 20, function(texte)
+                    local courant = f.travail.recolte.metiers[ligne.index]
+                    if courant then courant.dd = texte end
+                end)
+                ligne.ddLibre:SetPoint("TOPLEFT", ligne, "TOPLEFT", 295, -4)
+                ligne.fatigue = UI.Champ(ligne, 50, 20, function(texte)
+                    local courant = f.travail.recolte.metiers[ligne.index]
+                    if courant then courant.fatigue = texte end
+                end)
+                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 402, -4)
+                UI.Bulle(ligne.fatigue, "Fatigue", "PF payés à chaque tentative avec ce métier. Sans assez de PF, la tentative est refusée.")
                 ligne.retirer = CreateFrame("Button", nil, ligne)
                 ligne.retirer:SetSize(24, 22)
                 ligne.retirer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 477, -3)
@@ -757,6 +878,13 @@ local function Construire()
                 or (regle.bonus ~= false and "Oui" or "Non"))
             ligne.bonus:SetShown(not sansMetier)
             ligne.sansBonus:SetShown(sansMetier)
+            local liste = LCM.Difficultes.Actives()
+            local dd = tonumber(regle.dd) or 0
+            ligne.dd:SetShown(liste)
+            ligne.ddLibre:SetShown(not liste)
+            ligne.dd:Definir(dd, dd == 0 and "Sans jet (DD 0)" or LCM.Difficultes.Libelle(dd))
+            if not ligne.ddLibre:HasFocus() then ligne.ddLibre:SetText(tostring(regle.dd or 0)) end
+            if not ligne.fatigue:HasFocus() then ligne.fatigue:SetText(tostring(regle.fatigue or 0)) end
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", c.zoneMetiers.contenu, "TOPLEFT", 0, -(index - 1) * pas)
             ligne:SetPoint("TOPRIGHT", c.zoneMetiers.contenu, "TOPRIGHT", 0, -(index - 1) * pas)
@@ -780,7 +908,7 @@ local function Construire()
                     OptionsMetiers(f.travail.recolte.metiers), function(id)
                         local items = f.travail.recolte.metiers
                         items[#items + 1] = { id = id,
-                            bonus = id ~= LCM.Recolte.METIER_AUCUN }
+                            bonus = id ~= LCM.Recolte.METIER_AUCUN, dd = 0, fatigue = 0 }
                         f:AfficherMetiers()
                     end)
             end)
@@ -794,8 +922,134 @@ local function Construire()
         c.zoneMetiers:SetHeight(visible)
         c.zoneMetiers:Regler(hauteur)
         c.tableauMetiers:SetHeight(24 + visible)
-        c.communs:SetHeight(201 + visible)
+        self.visibleMetiers = visible
+        self:AfficherOutils()
         -- Hauteur stable : les deux pages defilent dans leurs tableaux.
+    end
+
+    -- « Toutes les lignes », puis chaque ligne de metier du point.
+    local TOUTES = "*"
+    local function OptionsLien()
+        local out = { { id = TOUTES, label = "Toutes les lignes" } }
+        for _, regle in ipairs(f.travail and f.travail.recolte.metiers or {}) do
+            local metier = LCM.Metiers.Get(regle.id)
+            out[#out + 1] = { id = regle.id, label = regle.id == LCM.Recolte.METIER_AUCUN
+                and "Aucun métier" or (metier and metier.label or tostring(regle.id)) }
+        end
+        return out
+    end
+    local function OptionsTypes()
+        local out = {}
+        for _, typeOutil in ipairs(LCM.Listes.De("outils")) do
+            out[#out + 1] = { id = typeOutil.id, label = typeOutil.label }
+        end
+        return out
+    end
+    local function LibelleLien(metierId)
+        if not metierId then return "Toutes les lignes" end
+        if metierId == LCM.Recolte.METIER_AUCUN then return "Aucun métier" end
+        local metier = LCM.Metiers.Get(metierId)
+        return metier and metier.label or tostring(metierId)
+    end
+
+    function f:AfficherOutils()
+        local outils = self.travail and self.travail.recolte.outils or {}
+        local pas = 28
+        for index, outil in ipairs(outils) do
+            local ligne = c.lignesOutils[index]
+            if not ligne then
+                ligne = CreateFrame("Frame", nil, c.zoneOutils.contenu)
+                ligne:SetHeight(pas)
+                local fond = UI.Aplat(ligne, { 0.07, 0.07, 0.07, 0.10 })
+                fond:SetAllPoints(ligne)
+                UI.BordureFine(ligne, 0.14)
+                for _, x in ipairs({ 200, 370 }) do
+                    local division = UI.Filet(ligne, false, true)
+                    division:SetPoint("TOPLEFT", ligne, "TOPLEFT", x, -3)
+                    division:SetPoint("BOTTOMLEFT", ligne, "BOTTOMLEFT", x, 3)
+                end
+                ligne.type = UI.Deroulant(ligne, 186, 20, OptionsTypes, function(id)
+                    local courant = f.travail.recolte.outils[ligne.index]
+                    if courant then courant.type = id end
+                end)
+                ligne.type:SetPoint("TOPLEFT", ligne, "TOPLEFT", 6, -4)
+                ligne.lien = UI.Deroulant(ligne, 158, 20, OptionsLien, function(id)
+                    local courant = f.travail.recolte.outils[ligne.index]
+                    if courant then courant.metier = id ~= TOUTES and id or nil end
+                end)
+                ligne.lien:SetPoint("TOPLEFT", ligne, "TOPLEFT", 206, -4)
+                UI.Bulle(ligne.lien, "Lié à", "La ligne de métier qui EXIGE cet outil. « Toutes les lignes » : il est exigé quel que soit le métier du jet.")
+                ligne.consomme = UI.Case(ligne, "Oui", function(coche)
+                    local courant = f.travail.recolte.outils[ligne.index]
+                    if courant then
+                        courant.consomme = coche or nil
+                        ligne.consomme.label:SetText(coche and "Oui" or "Non")
+                    end
+                end)
+                ligne.consomme:SetPoint("TOPLEFT", ligne, "TOPLEFT", 396, -5)
+                UI.Bulle(ligne.consomme, "Consommé", "L'outil se perd à chaque tentative, réussie ou non — comme dans les coffres.")
+                ligne.retirer = CreateFrame("Button", nil, ligne)
+                ligne.retirer:SetSize(24, 22)
+                ligne.retirer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 477, -3)
+                ligne.retirer.label = UI.Texte(ligne.retirer, "×", UI.C.discret, "GameFontNormalSmall")
+                ligne.retirer.label:SetAllPoints(ligne.retirer)
+                ligne.retirer.label:SetJustifyH("CENTER")
+                ligne.retirer:SetScript("OnClick", function()
+                    table.remove(f.travail.recolte.outils, ligne.index)
+                    f:AfficherOutils()
+                end)
+                c.lignesOutils[index] = ligne
+            end
+            ligne.index = index
+            local typeOutil = LCM.Listes.Get(outil.type)
+            ligne.type:Definir(outil.type, typeOutil and typeOutil.label
+                or ("Type supprimé : " .. tostring(outil.type)))
+            ligne.lien:Definir(outil.metier or TOUTES, LibelleLien(outil.metier))
+            ligne.consomme:Cocher(outil.consomme == true)
+            ligne.consomme.label:SetText(outil.consomme and "Oui" or "Non")
+            ligne:ClearAllPoints()
+            ligne:SetPoint("TOPLEFT", c.zoneOutils.contenu, "TOPLEFT", 0, -(index - 1) * pas)
+            ligne:SetPoint("TOPRIGHT", c.zoneOutils.contenu, "TOPRIGHT", 0, -(index - 1) * pas)
+            ligne:Show()
+        end
+        for index = #outils + 1, #c.lignesOutils do c.lignesOutils[index]:Hide() end
+        if not c.ajouterOutil then
+            c.ajouterOutil = CreateFrame("Button", nil, c.zoneOutils.contenu)
+            c.ajouterOutil:SetHeight(pas)
+            local fond = UI.Aplat(c.ajouterOutil, { 0.07, 0.07, 0.07, 0.10 })
+            fond:SetAllPoints(c.ajouterOutil)
+            UI.BordureFine(c.ajouterOutil, 0.14)
+            c.ajouterOutil.label = UI.Texte(c.ajouterOutil, "+ Ajouter un outil", UI.C.discret, "GameFontNormalSmall")
+            c.ajouterOutil.label:SetAllPoints(c.ajouterOutil)
+            c.ajouterOutil.label:SetJustifyH("CENTER")
+            local survol = UI.Aplat(c.ajouterOutil, { 0.85, 0.75, 0.40, 0.08 }, "HIGHLIGHT")
+            survol:SetAllPoints(c.ajouterOutil)
+            c.ajouterOutil:SetScript("OnClick", function()
+                local types = OptionsTypes()
+                -- Rien a lier tant que la liste est vide : on le dit plutot
+                -- que d'ouvrir une ligne qu'on ne pourra pas remplir.
+                if #types == 0 then
+                    LCM.Alerte("la « Liste outils » est vide : crée d'abord un type d'outil dans le Compendium.")
+                    return
+                end
+                local items = f.travail.recolte.outils
+                -- Lie par defaut a la premiere ligne de metier : c'est le cas
+                -- courant (une pioche pour le mineur).
+                local premiere = f.travail.recolte.metiers[1]
+                items[#items + 1] = { type = types[1].id, metier = premiere and premiere.id or nil }
+                f:AfficherOutils()
+            end)
+        end
+        c.ajouterOutil:ClearAllPoints()
+        c.ajouterOutil:SetPoint("TOPLEFT", c.zoneOutils.contenu, "TOPLEFT", 0, -#outils * pas)
+        c.ajouterOutil:SetPoint("TOPRIGHT", c.zoneOutils.contenu, "TOPRIGHT", 0, -#outils * pas)
+        local hauteur = (#outils + 1) * pas
+        local visible = math.min(hauteur, 112)
+        c.zoneOutils:SetHeight(visible)
+        c.zoneOutils:Regler(hauteur)
+        c.tableauOutils:SetHeight(24 + visible)
+        -- 29 : le titre et son ecart au-dessus du tableau des outils.
+        c.communs:SetHeight(201 + (self.visibleMetiers or 28) + 29 + 24 + visible)
     end
     function f:Remplir()
         local t = self.travail
@@ -827,8 +1081,15 @@ local function Construire()
         c.libelleLimite:SetShown(tonumber(r.limite) ~= 0)
         c.echecConsomme:Cocher(r.echecConsomme == true)
         c.dd:SetText(tostring(r.dd or 0))
+        -- Un DD absent de la liste (une ressource d'avant, une difficulte
+        -- retiree) reste tel quel et se dit « hors liste » : on ne le change
+        -- pas dans le dos du MJ.
+        c.choixDD:Hide()
+        c.dd:Hide()
+        local dd = tonumber(r.dd) or 0
+        c.choixDD:Definir(dd, dd == 0 and "Sans jet (DD 0)" or LCM.Difficultes.Libelle(dd))
         local des = Eq().des or {}
-        c.aideJet:SetText(string.format("Jet : D%d ; bonus selon le métier coché.", des.max or 15))
+        c.aideJet:SetText(string.format("Jet : D%d + bonus du métier, contre le DD de sa ligne ; le joueur prend le métier qui lui laisse la meilleure marge.", des.max or 15))
         c.rayon:SetText(tostring(r.rayon or Eq().rayon or 3))
     end
     -- Un refus dit pourquoi, et ne corrige rien en douce.
@@ -878,17 +1139,46 @@ local function Construire()
             end
             if deja[id] then return nil, "un métier ne peut apparaître qu'une fois." end
             deja[id] = true
+            local ddLigne = Entier(choix.dd or 0)
+            if not ddLigne or ddLigne < 0 then
+                return nil, "le DD de chaque métier doit être un entier positif (0 : réussite assurée)."
+            end
+            local fatigue = Entier(choix.fatigue or 0)
+            if not fatigue or fatigue < 0 then
+                return nil, "la fatigue de chaque métier doit être un entier positif ou nul."
+            end
             metiers[#metiers + 1] = { id = id,
-                bonus = id ~= LCM.Recolte.METIER_AUCUN and choix.bonus ~= false }
+                bonus = id ~= LCM.Recolte.METIER_AUCUN and choix.bonus ~= false,
+                dd = ddLigne, fatigue = fatigue }
         end
-        local dd = Entier(r.dd)
-        if not dd or dd < 0 then return nil, "le DD doit être un entier positif (0 : réussite assurée)." end
+        local outils, paires = {}, {}
+        for _, outil in ipairs(r.outils or {}) do
+            local typeOutil = LCM.Listes.Get(outil.type)
+            if not typeOutil or typeOutil.liste ~= "outils" then
+                return nil, "un outil autorisé n'est plus dans la « Liste outils » : choisis-en un autre ou retire la ligne."
+            end
+            local metier = outil.metier
+            if metier and not deja[metier] then
+                return nil, string.format("l'outil « %s » est lié à un métier qui n'est plus autorisé sur ce point.",
+                    typeOutil.label)
+            end
+            local cle = tostring(outil.type) .. "|" .. tostring(metier or "*")
+            if paires[cle] then
+                return nil, string.format("l'outil « %s » est lié deux fois à la même ligne.", typeOutil.label)
+            end
+            paires[cle] = true
+            outils[#outils + 1] = { type = outil.type, metier = metier, consomme = outil.consomme == true or nil }
+        end
+        -- Le DD du point, garde pour un joueur qui n'aurait pas encore la mise a
+        -- jour : celui de la premiere ligne. Le jet a jour lit chaque ligne.
+        local dd = metiers[1] and metiers[1].dd or 0
         local rayon = tonumber(r.rayon)
         local rayonMax = Eq().rayonMax or 30
         if not rayon or rayon <= 0 or rayon > rayonMax then
             return nil, string.format("le rayon doit être entre 0 et %d yards.", rayonMax)
         end
         return { ressources = ressources, limite = limite, metiers = metiers,
+                 outils = outils[1] and outils or nil,
                  echecConsomme = r.echecConsomme == true,
                  metier = metiers[1] and metiers[1].id or nil, dd = dd, rayon = rayon }
     end
@@ -999,7 +1289,7 @@ local function Construire()
             local ok, raison = LCM.Brouillons.Supprimer("points", point.id)
             if not ok then LCM.Alerte(tostring(raison or "suppression impossible")) return end
             Recoltes.RetirerTout(point.id)
-            local premier = Points.Nature("ressource")[1]
+            local premier = Definitions()[1]
             self:Choisir(premier and premier.id)
         end)
     end
@@ -1133,7 +1423,7 @@ local function Construire()
     end
 
     function f:Afficher()
-        local definitions = self:FiltrerDefinitions(Points.Nature("ressource"))
+        local definitions = self:FiltrerDefinitions(Definitions())
         local y = 0
         for rang, point in ipairs(definitions) do
             local b = self.lignes[rang]
@@ -1167,11 +1457,21 @@ local function Construire()
         self:AfficherPoints()
     end
 
-    function f:Montrer()
-        local premier = Points.Nature("ressource")[1]
-        if not self.travail then self:Choisir(premier and premier.id) end
+    -- `mode` : « ressources » ou « cartes ». Changer de mode change le titre,
+    -- la liste et le catalogue ; le point en cours se garde s'il en fait
+    -- partie, sinon on prend le premier de la liste.
+    function f:Montrer(mode)
+        Ecran.mode = MODES[mode or ""] and mode or Ecran.mode
+        self:Titre(Mode().titre)
+        local liste = Definitions()
+        local garde = false
+        for _, point in ipairs(liste) do
+            if self.travail and point.id == self.pointId then garde = true end
+        end
+        if not garde then self:Choisir(liste[1] and liste[1].id) end
         self:Onglet(self.onglet or "creation")
         self:Show()
+        self:Afficher()
     end
 
     UI.SuivrePersonnage(f, function(self) self:Afficher() end)
@@ -1189,17 +1489,20 @@ function Ecran.Fenetre()
     return Ecran.frame
 end
 
-function Ecran.Basculer()
+-- `mode` : « ressources » (defaut) ou « cartes ». Le meme bouton ferme la
+-- fenetre s'il la trouve ouverte dans son mode, sinon il y bascule.
+function Ecran.Basculer(mode)
     local f = Ecran.Fenetre()
     if not f then return nil end
-    if f:IsShown() then f:Hide() else f:Montrer() end
+    mode = mode or "ressources"
+    if f:IsShown() and Ecran.mode == mode then f:Hide() else f:Montrer(mode) end
     return f
 end
 
 LCM.WhenReady(function()
     -- L'entree « Ressources » du menu ouvre cette fenetre. Posee apres
     -- MJ/PointsUI.lua, cette liaison remplace l'ancien editeur a offres.
-    UI.Menu.Lier("ressources", function() Ecran.Basculer() end)
+    UI.Menu.Lier("ressources", function() Ecran.Basculer("ressources") end)
     -- En jeu, devant un point qu'on a pose : clic droit sur « Récolter ».
     if UI.Recolte then
         UI.Recolte.Regler = function(poseId)

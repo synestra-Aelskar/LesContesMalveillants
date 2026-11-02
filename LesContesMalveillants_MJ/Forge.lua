@@ -122,10 +122,22 @@ local CATEGORIES_ENTREES = {
     -- Les consommables (23 octobre 2026, le MJ) : leur Type vient de la
     -- « Liste consommable », que la forge propose comme pour les objets.
     consommables = true,
+    -- Les ressources (2 novembre 2026, le MJ) : « Modifier » ouvrait encore
+    -- l'ancien panneau a champs, alors que la forge les dose (jeu
+    -- « Ressources »), leur donne leur Type et leur XP de recolte.
+    ressources = true,
 }
 
+-- Les ressources ne passent par la forge que si un jeu d'equilibrage les vise :
+-- sans jeu, la forge ne saurait rien enregistrer (pas de bareme a choisir),
+-- et l'ancien editeur reste la porte — un transfert vers les ressources ne
+-- doit pas devenir impossible faute de jeu.
+local SI_JEU = { ressources = true }
+
 function ForgeUI.EstCategorie(categorie)
-    return categorie ~= nil and CATEGORIES_ENTREES[categorie.id] == true
+    if categorie == nil or CATEGORIES_ENTREES[categorie.id] ~= true then return false end
+    if SI_JEU[categorie.id] then return #LCM.Forge.PourCategorie(categorie.id) > 0 end
+    return true
 end
 
 -- Les jeux proposes : ceux de la categorie d'ou l'on a ouvert la forge.
@@ -303,6 +315,18 @@ function ForgeUI.Definition()
             def.contenant = nil
         end
     end
+    -- L'XP qu'une ressource rapporte au metier qui la recolte (le MJ,
+    -- 2 novembre 2026). Vide : rien. Un texte ou un negatif est refuse.
+    if categorie.id == "ressources" then
+        local xp = Texte(courant.xpRecolte)
+        if xp ~= "" then
+            local n = tonumber(xp)
+            if not n or n < 0 then return nil, "l'XP de récolte est un nombre positif (vide : aucune)." end
+            def.xpRecolte = n > 0 and n or nil
+        else
+            def.xpRecolte = nil
+        end
+    end
     if categorie.id == "consommables" then
         local e = EtatCourant()
         def.etatApplique = e.pose and {
@@ -382,6 +406,7 @@ function ForgeUI.Creer()
         courant.original = element and LCM.Copie(element) or LCM.Copie(def)
     else
         courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
+        courant.xpRecolte = nil
         courant.ic = nil
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
@@ -732,6 +757,25 @@ local function Construire()
         end)
     end)
     f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 412, -180)
+
+    -- Sur une ressource : l'XP de recolte, a droite du Type (la ou une arme
+    -- dit ses emplacements).
+    -- Calee contre le bord DROIT de la rangee (le MJ, 2 novembre 2026). Vide :
+    -- la ressource ne fournit pas d'XP, et la case le dit en gris.
+    f.xpRecolte = UI.Champ(c, 70, 22, function(texte)
+        courant.xpRecolte = texte
+        f.xpRecolte.indice:SetShown(tostring(texte or "") == "")
+    end)
+    f.xpRecolte:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -180)
+    f.xpRecolte:SetJustifyH("CENTER")
+    f.xpRecolte.indice = UI.Texte(f.xpRecolte, "aucune", UI.C.discret)
+    UI.Police(f.xpRecolte.indice, 10)
+    f.xpRecolte.indice:SetPoint("CENTER", f.xpRecolte, "CENTER", 0, 0)
+    f.xpLibelle = Libelle("XP de récolte", 0, 0)
+    f.xpLibelle:ClearAllPoints()
+    f.xpLibelle:SetPoint("RIGHT", f.xpRecolte, "LEFT", -8, 0)
+    UI.Bulle(f.xpRecolte, "XP de récolte",
+        "Ce que cette ressource rapporte au métier qui la récolte, multiplié par la grille couleur du métier × couleur de la difficulté. Vide : rien.")
     UI.Bulle(f.emplacements, "Occupation de l'arme",
         "Une arme à deux emplacements dispose de deux fois le pool de points de sa rareté.")
 
@@ -1042,6 +1086,13 @@ local function Construire()
         local estArme = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "armes"
         self.emplacementsLibelle:SetShown(estArme)
         self.emplacements:SetShown(estArme)
+        local estRessource = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "ressources"
+        self.xpLibelle:SetShown(estRessource)
+        self.xpRecolte:SetShown(estRessource)
+        if estRessource and not self.xpRecolte:HasFocus() then
+            self.xpRecolte:SetText(courant.xpRecolte ~= nil and tostring(courant.xpRecolte) or "")
+        end
+        self.xpRecolte.indice:SetShown(estRessource and tostring(self.xpRecolte:GetText() or "") == "")
         local estOutil = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "outils"
         self.contenantLibelle:SetShown(estOutil)
         self.contenant:SetShown(estOutil)
@@ -1652,8 +1703,10 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.type = nil
         courant.etat = nil
         courant.contenant = nil
+        courant.xpRecolte = nil
     end
     if courant.categorie ~= categorie.id then
+        courant.xpRecolte = nil
         -- Un type ne vaut que dans la liste de sa categorie.
         courant.type = nil
         courant.etat = nil
@@ -1709,6 +1762,7 @@ function ForgeUI.OuvrirEdition(categorie, element)
     -- affichait « — type — », et un type reste d'une creation precedente
     -- remplacait le bon a l'enregistrement (23 octobre 2026).
     courant.type = element.type
+    courant.xpRecolte = element.xpRecolte
     local e = element.etatApplique
     courant.etat = type(e) == "table" and { pose = true, conteneur = e.conteneur or "etat",
         nom = e.nom or "", description = e.description or "",

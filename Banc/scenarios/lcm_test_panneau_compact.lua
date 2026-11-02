@@ -111,21 +111,86 @@ groupe.regain.valider:Click()
 attendu("  et le chiffre s'applique", LCM.Entities.Gauge(moi, "fatigue").current, 33)
 groupe.regain.montant:ClearFocus()
 
-dire("== le combat à la volée")
--- Personne d'autre a attendre que Nytherah : l'invitation part.
-attendu("le bouton compte la scène", c.combat.label:GetText(), "Combat (2 PNJ)")
-attendu("pas de Terminer avant", c.terminer:IsShown(), false)
+dire("== le combat depuis la fenêtre compacte")
+-- Depuis le 2 novembre 2026 (le MJ) : le bouton OUVRE la page Combat ; on y
+-- choisit les PNJ ET les joueurs invites, on lance quand tout le monde est
+-- pret ; pendant le combat, il devient « Fin de combat ». Avant, il invitait
+-- d'un clic tout le groupe et toute la scene.
+attendu("le bouton dit Combat", c.combat.label:GetText(), "Combat")
 c.combat:Click()
-attendu("l'invitation part", LCM.Combat.invitation ~= nil, true)
-attendu("  avec toute la scène", #LCM.Combat.invitation.pnj, 2)
-attendu("  le bouton propose de lancer", c.combat.label:GetText(), "Lancer sans attendre (1)")
-attendu("  et d'annuler", c.terminer.label:GetText(), "Annuler")
-c.combat:Click()
-attendu("lancé sans attendre", LCM.Combat.EnCours(), true)
-attendu("  le bouton passe au tour suivant", c.combat.label:GetText(), "Tour suivant")
+attendu("il ouvre la page Combat", c.onglet == "combat" and f.pages.combat:IsVisible(), true)
+attendu("  sans rien lancer", LCM.Combat.invitation, nil)
+local pageCombat = LCM.UI.CombatMJ.frame
+-- La colonne fait 220 ; depuis la refonte visuelle (2 novembre 2026), la
+-- liste vit DANS un cadre encadre et laisse 18 a sa barre de defilement.
+attendu("  resserrée pour la petite fenêtre", pageCombat.colGauche:GetWidth(), 220)
+attendu("  la liste dans son cadre", pageCombat.zonePNJ:GetWidth(), 202)
+-- A gauche les joueurs du groupe, a droite les PNJ de la scene (le MJ,
+-- 2 novembre 2026).
+local ligneJoueur, lignesPnj = nil, {}
+for _, l in ipairs(pageCombat.lignesPNJ) do
+    if l:IsShown() and l.invite then ligneJoueur = l end
+end
+for _, l in ipairs(pageCombat.lignesListe) do
+    if l:IsShown() and l.pnjId then lignesPnj[#lignesPnj + 1] = l end
+end
+attendu("à gauche, les joueurs", pageCombat.titreQui:GetText(), "Joueurs du groupe")
+attendu("à droite, les PNJ de la scène", pageCombat.titreListe:GetText(), "PNJ en scène")
+attendu("  les deux PNJ y sont", #lignesPnj, 2)
+attendu("le joueur du groupe est proposé", ligneJoueur and ligneJoueur.cle, "Nytherah-Apertus")
+attendu("  invité par défaut", ligneJoueur and ligneJoueur.case:EstCochee(), true)
+ligneJoueur.case:Click()
+for _, l in ipairs(lignesPnj) do l.case:Click() end
+pageCombat.lancer:Click()
+-- Decoche, le seul joueur n'est pas invite : personne a attendre, le combat
+-- part tout de suite (regle de Combat.Inviter), avec les PNJ coches.
+attendu("décoché : il n'est pas invité, le combat part", LCM.Combat.EnCours(), true)
+local nPnj = 0
+for _, e in ipairs(LCM.Combat.Etat().entrees) do if e.pnj then nPnj = nPnj + 1 end end
+attendu("  avec les PNJ cochés", nPnj, 2)
+local absent = true
+for _, e in ipairs(LCM.Combat.Etat().entrees) do if e.id == "Nytherah-Apertus" then absent = false end end
+attendu("  et sans le joueur décoché", absent, true)
 LCM.Combat.Terminer()
+pageCombat:Afficher()
+ligneJoueur.case:Click()
+pageCombat.lancer:Click()
+attendu("recoché : il est invité", LCM.Combat.invitation.cibles["Nytherah-Apertus"], true)
 c:AfficherCombat()
-attendu("fini : le bouton revient", c.combat.label:GetText(), "Combat (2 PNJ)")
+attendu("  le bouton le dit", c.combat.label:GetText(), "Combat (invitation)")
+pageCombat.forcer:Click()
+attendu("lancé quand on le décide", LCM.Combat.EnCours(), true)
+c:AfficherCombat()
+attendu("  le bouton reste Combat", c.combat.label:GetText(), "Combat")
+attendu("  en rouge", c.combat.alerte:IsShown(), true)
+c:Onglet("joueurs")
+c.combat:Click()
+attendu("un clic ramène à la vue Combat", c.onglet, "combat")
+attendu("  sans rien terminer", LCM.Combat.EnCours(), true)
+-- Le fil suit en compact : la page ne se redessinait que si le GRAND panneau
+-- etait ouvert, et restait figee au round d'avant (le MJ, 2 novembre 2026).
+-- On avance d'un round entier, puis on revient : aucun Afficher a la main.
+local E = LCM.Combat.Etat()
+local avantNom = pageCombat.bandeau:GetText()
+for _ = 1, #E.entrees do pageCombat.suivant:Click() end
+attendu("le fil suit en compact : round 2", LCM.Combat.Etat().r .. "/" .. tostring(pageCombat.pastilles[2]:IsShown()), "2/true")
+pageCombat.precedent:Click()
+attendu("  retour au round 1, et la page le montre", pageCombat.lignesListe[#E.entrees].marque:IsShown(), true)
+attendu("  le bandeau nomme celui qui joue",
+    pageCombat.bandeau:GetText():find(tostring(LCM.Combat.Courant().nom), 1, true) ~= nil, true)
+for _ = 1, #E.entrees - 1 do pageCombat.precedent:Click() end
+attendu("  revenu au début : le bandeau d'avant", pageCombat.bandeau:GetText(), avantNom)
+attendu("Terminer est dans la page, même en compact", pageCombat.terminer:IsShown(), true)
+pageCombat.terminer:Click()
+-- IsVisible, pas IsShown : la question etait « montree » sur le grand panneau
+-- cache, donc invisible en compact, et le test passait quand meme (le MJ,
+-- 2 novembre 2026 : « Terminer ne fait rien »).
+attendu("  qui se confirme, A L'ECRAN", pageCombat.confirmer:IsVisible(), true)
+pageCombat.confirmer.oui:Click()
+c:AfficherCombat()
+attendu("fini : le bouton revient", c.combat.label:GetText(), "Combat")
+attendu("  sans le rouge", c.combat.alerte:IsShown(), false)
+attendu("  et le combat est terminé", LCM.Combat.EnCours(), false)
 
 dire("== revenir en étendu")
 c:Hide()
@@ -133,7 +198,8 @@ P.Basculer()
 attendu("rouvert en compact, comme laissé", c:IsShown(), true)
 c.versEtendu:Click()
 attendu("étendre rouvre le grand panneau", f:IsShown() and not c:IsShown(), true)
-attendu("  sur la page Groupe", f.onglet, "joueurs")
+-- On etait sur la vue Combat : le grand panneau rouvre sur la meme page.
+attendu("  sur la même page (Combat)", f.onglet, "combat")
 attendu("  les colonnes reprennent leur largeur", groupe.colCatalogue:GetWidth(), 232)
 attendu("  les titres reviennent", groupe.colCatalogue.titre:IsShown(), true)
 attendu("  le bouton Chiffre aussi", groupe.regain.modes.exact:IsShown(), true)

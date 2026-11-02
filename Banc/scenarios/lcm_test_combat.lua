@@ -186,6 +186,36 @@ attendu("du tour d'avant", C.Etat().t, t)
 C.Etat().t, C.Etat().r, C.Etat().c = 1, 1, 1
 C.Avancer(-1)
 attendu("jamais sous le tour 1", C.Etat().t, 1)
+-- Le tout premier passage : reculer le renvoyait au round 3 du tour 1 (le MJ,
+-- 2 novembre 2026). Il ne bouge plus, et le dit.
+attendu("  ni avant le premier passage : round 1", C.Etat().r, 1)
+attendu("  premier joueur", C.Etat().c, 1)
+attendu("  le refus se dit", select(2, C.Avancer(-1)) ~= nil, true)
+local MJC = LCM.UI.PanneauMJ and LCM.UI.PanneauMJ.Fenetre and LCM.UI.PanneauMJ.Fenetre().pages.combat.combat
+if MJC then
+    MJC:Afficher()
+    attendu("  « Précédent » bloqué au premier passage", MJC.precedent:IsEnabled(), false)
+    C.Avancer(1)
+    MJC:Afficher()
+    attendu("  et rendu au joueur suivant", MJC.precedent:IsEnabled(), true)
+    C.Avancer(-1)
+    -- La refonte visuelle (le MJ, 2 novembre 2026 : « ca fait moche ») : un
+    -- bandeau d'etat, l'initiative numerotee, celui qui joue marque.
+    MJC:Afficher()
+    dire("== la page Combat, refaite")
+    attendu("le bandeau dit qui joue", MJC.bandeau:GetText():find("de jouer", 1, true) ~= nil, true)
+    attendu("le tour et le round, a droite", MJC.compteur:GetText(),
+        string.format("TOUR %d · ROUND %d/%d", C.Etat().t, C.Etat().r, C.Etat().rm))
+    attendu("un rond par round", MJC.pastilles[C.Etat().rm]:IsShown(), true)
+    local premiere = MJC.lignesListe[1]
+    attendu("l'initiative est numerotee", premiere.rang:GetText(), "1")
+    attendu("celui qui joue est marque", premiere.marque:IsShown(), true)
+    attendu("  et lui seul", MJC.lignesListe[2] and MJC.lignesListe[2]:IsShown()
+        and MJC.lignesListe[2].marque:IsShown() or false, false)
+    attendu("« Précédent » bloqué se grise", select(1, MJC.precedent.label:GetTextColor()),
+        LCM.UI.C.discret[1])
+    attendu("« Terminer » en rouge", select(1, MJC.terminer.label:GetTextColor()), LCM.UI.C.plein[1])
+end
 
 dire("== passer par le bandeau")
 allerA(moi)

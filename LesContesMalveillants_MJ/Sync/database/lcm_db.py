@@ -446,7 +446,9 @@ def import_reglages() -> tuple[int, int]:
     ecrits, inchanges = 0, 0
     REGLAGES.mkdir(parents=True, exist_ok=True)
     for chemin, valeur in sorted(reglages.items()):
-        if not isinstance(valeur, (int, float)):
+        # Un nombre, ou un TEXTE : les Nommages (noms et couleurs des paliers,
+        # 2 novembre 2026) sont des reglages d'equilibrage en texte.
+        if isinstance(valeur, bool) or not isinstance(valeur, (int, float, str)):
             continue
         corps = (
             "-- chemin: %s\n" % chemin
@@ -462,14 +464,15 @@ def import_reglages() -> tuple[int, int]:
     return ecrits, inchanges
 
 
-def lire_reglages() -> list[tuple[str, float]]:
+def lire_reglages() -> list[tuple[str, object]]:
     out = []
     if not REGLAGES.is_dir():
         return out
     for path in sorted(REGLAGES.glob("*.lua")):
         table = parse_return_table(path.read_text(encoding="utf-8"))
         chemin, valeur = table.get("chemin"), table.get("valeur")
-        if isinstance(chemin, str) and isinstance(valeur, (int, float)):
+        texte_ou_nombre = isinstance(valeur, (int, float, str)) and not isinstance(valeur, bool)
+        if isinstance(chemin, str) and texte_ou_nombre:
             out.append((chemin, valeur))
     return out
 

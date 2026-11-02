@@ -70,7 +70,7 @@ local function Publique(point)
     return {
         id = point.id, label = point.label, entree = r.entree,
         min = r.min, max = r.max, metier = r.metier, dd = r.dd, rayon = r.rayon,
-        ressources = r.ressources, metiers = r.metiers,
+        ressources = r.ressources, metiers = r.metiers, outils = r.outils,
         limite = r.limite, auteur = Moi(),
         echecConsomme = r.echecConsomme,
     }

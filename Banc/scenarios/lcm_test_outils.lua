@@ -311,6 +311,12 @@ for _, ligne in ipairs(sa.lignes) do if ligne.champ.cle == "texte" then champTex
 champTexte.saisie:SetText("Les cloches sonnent.")
 champTexte.saisie.saisie:GetScript("OnEditFocusLost")(champTexte.saisie.saisie)
 attendu("le brouillon retient le texte", sa.brouillon.texte, "Les cloches sonnent.")
+-- L'apercu montre l'annonce telle qu'elle s'affichera (2 novembre 2026).
+sa:Afficher()
+attendu("l'aperçu montre le texte", sa.apercu.texte:GetText(), "Les cloches sonnent.")
+attendu("  et le titre", sa.apercu.titre:GetText(), sa.brouillon.libelle)
+attendu("Annoncer est à droite, Vider à gauche", select(1, sa.annoncer:GetPoint(1)) == "BOTTOMRIGHT"
+    and select(1, sa.neuve:GetPoint(1)) == "BOTTOMLEFT", true)
 sa.annoncer:Click()
 attendu("annoncee", UI.Outils.annonce.texte:GetText(), "Les cloches sonnent.")
 sa.garder:Click()

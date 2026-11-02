@@ -37,6 +37,7 @@ Transfert.lua
 Consultation.lua
 Outils.lua
 OutilsUI.lua
+EquilibrageVue.lua
 Panneau.lua
 Crossings\Studio.lua
 Crossings\Trace.lua

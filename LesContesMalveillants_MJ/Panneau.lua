@@ -65,7 +65,6 @@ Ecran.ONGLETS = {
     { id = "pnj",     label = "Scène & PNJ" },
     { id = "outils",  label = "Outils partagés" },
     { id = "traits", label = "Traits visibles" },
-    { id = "contenus", label = "Contenus" },
     { id = "equilibrage", label = "Équilibrage" },
 }
 
@@ -87,7 +86,9 @@ local function Navigation()
         } },
         { titre = "Préparation", entrees = {
             { id = "traits",      label = "Traits visibles" },
-            { id = "contenus",    label = "Contenus" },
+            -- Pas une page : une porte vers le Compendium (le MJ, 2 novembre
+            -- 2026). La page « Contenus » n'avait plus qu'un bouton, celui-la.
+            { id = "compendium",  label = "Compendium" },
             { id = "equilibrage", label = "Équilibrage" },
         } },
     }
@@ -106,22 +107,8 @@ local function Cherchable(texte)
     return texte:lower()
 end
 
--- Une colonne : fond sombre et filet fin, comme les panneaux du Compendium,
--- avec son titre en capitales. Le contenu se pose sous `col.haut`.
-local function Colonne(parent, titre)
-    local col = CreateFrame("Frame", nil, parent)
-    col.fond = UI.Aplat(col, { 0.05, 0.05, 0.05, 0.55 * UI.C.fond[4] })
-    col.fond:SetAllPoints(col)
-    UI.BordureFine(col, 0.18)
-    col.titre = UI.Texte(col, UI.Majuscules(titre or ""), UI.C.libelle, "GameFontNormalSmall")
-    UI.Police(col.titre, 11)
-    col.titre:SetPoint("TOPLEFT", col, "TOPLEFT", 8, -8)
-    col.filet = UI.Filet(col, true)
-    col.filet:SetPoint("TOPLEFT", col, "TOPLEFT", 6, -24)
-    col.filet:SetPoint("TOPRIGHT", col, "TOPRIGHT", -6, -24)
-    col.haut = 30
-    return col
-end
+-- Une colonne : fond sombre, filet fin, titre en capitales (UI.Colonne, Kit).
+local function Colonne(parent, titre) return UI.Colonne(parent, titre) end
 
 -- Le groupe, vu d'ici. Le MJ reste toujours visible : sa fiche locale est
 -- utile meme lorsqu'il joue seul, et ne doit pas passer par le reseau.
@@ -339,30 +326,96 @@ function Pages.joueurs(page, f)
         self.depot.fond:SetAlpha(n > 0 and 1 or 0.4)
     end
 
-    local xp = UI.Fenetre("xp_groupe", "Attribuer de l'expérience", 570, 440,
+    local xp = UI.Fenetre("xp_groupe", "Attribuer de l'expérience", 570, 470,
         { x = 90, y = 20 })
     page.xpPanneau = xp
     xp.selection = {}
+    -- De l'XP de PERSONNAGE ou de METIER (le MJ, 2 novembre 2026). Pour un
+    -- metier, en XP ou en NIVEAUX : « donner un niveau de metier ». Le choix
+    -- vit dans la fenetre, en memoire, comme les coches.
+    xp.mode, xp.unite = "personnage", "xp"
+
+    local function Bascule(libelle, largeur, onClick)
+        local b = UI.Bouton(xp.contenu, libelle, largeur, 22, onClick)
+        return b
+    end
+    xp.modePersonnage = Bascule("Personnage", 100, function() xp:Mode("personnage") end)
+    xp.modePersonnage:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 0, -2)
+    xp.modeMetier = Bascule("Métier", 100, function() xp:Mode("metier") end)
+    xp.modeMetier:SetPoint("LEFT", xp.modePersonnage, "RIGHT", 6, 0)
+    -- Les metiers, rangés par categorie, comme la fenetre Metiers.
+    xp.metier = UI.Deroulant(xp.contenu, 220, 22, function()
+        local options = {}
+        for _, categorie in ipairs(LCM.Metiers.Categories()) do
+            for _, metier in ipairs(categorie.metiers) do
+                options[#options + 1] = { id = metier.id, label = metier.label }
+            end
+        end
+        return options
+    end, function(id)
+        xp.metierId = id
+        xp:Remplir(false)
+    end)
+    xp.metier:SetPoint("LEFT", xp.modeMetier, "RIGHT", 14, 0)
 
     xp.montantLabel = UI.Texte(xp.contenu, "XP à attribuer :", UI.C.libelle)
-    xp.montantLabel:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 0, -2)
-    xp.montant = UI.Champ(xp.contenu, 90, 22, nil)
+    xp.montantLabel:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 0, -38)
+    xp.montant = UI.Champ(xp.contenu, 70, 22, nil)
     xp.montant:SetPoint("LEFT", xp.montantLabel, "RIGHT", 8, 0)
     xp.montant:SetNumeric(true)
+    xp.uniteXP = Bascule("XP", 46, function() xp:Unite("xp") end)
+    xp.uniteXP:SetPoint("LEFT", xp.montant, "RIGHT", 8, 0)
+    xp.uniteNiveaux = Bascule("Niveaux", 64, function() xp:Unite("niveaux") end)
+    xp.uniteNiveaux:SetPoint("LEFT", xp.uniteXP, "RIGHT", 4, 0)
+    xp.raison = UI.Champ(xp.contenu, 170, 22, nil)
+    xp.raison:SetPoint("TOPRIGHT", xp.contenu, "TOPRIGHT", -14, -38)
     xp.raisonLabel = UI.Texte(xp.contenu, "Motif :", UI.C.libelle)
-    xp.raisonLabel:SetPoint("LEFT", xp.montant, "RIGHT", 18, 0)
-    xp.raison = UI.Champ(xp.contenu, 220, 22, nil)
-    xp.raison:SetPoint("LEFT", xp.raisonLabel, "RIGHT", 8, 0)
+    xp.raisonLabel:SetPoint("RIGHT", xp.raison, "LEFT", -8, 0)
 
     xp.enteteNom = UI.Texte(xp.contenu, "Joueur", UI.C.discret)
-    xp.enteteNom:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 32, -36)
+    xp.enteteNom:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 32, -72)
     xp.enteteNiveau = UI.Texte(xp.contenu, "Niveau", UI.C.discret)
-    xp.enteteNiveau:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 250, -36)
+    xp.enteteNiveau:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 250, -72)
     xp.enteteProgression = UI.Texte(xp.contenu, "Progression XP", UI.C.discret)
-    xp.enteteProgression:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 322, -36)
+    xp.enteteProgression:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 334, -72)
+
+    function xp:Mode(mode)
+        self.mode = mode == "metier" and "metier" or "personnage"
+        if self.mode == "metier" and not self.metierId then
+            local premiere = LCM.Metiers.Categories()[1]
+            local metier = premiere and premiere.metiers[1] or LCM.Metiers.list[1]
+            self.metierId = metier and metier.id
+        end
+        if self.mode == "personnage" then self.unite = "xp" end
+        self:Remplir(false)
+    end
+
+    function xp:Unite(unite)
+        self.unite = (self.mode == "metier" and unite == "niveaux") and "niveaux" or "xp"
+        self:Remplir(false)
+    end
+
+    -- Les bascules et les libelles suivent le mode : ce qu'on voit est ce
+    -- qu'on donnera.
+    function xp:AfficherMode()
+        local metier = self.mode == "metier"
+        self.modePersonnage:Selectionner(not metier)
+        self.modeMetier:Selectionner(metier)
+        self.metier:SetShown(metier)
+        if metier then self.metier:Definir(self.metierId) end
+        self.uniteXP:SetShown(metier)
+        self.uniteNiveaux:SetShown(metier)
+        self.uniteXP:Selectionner(self.unite == "xp")
+        self.uniteNiveaux:Selectionner(self.unite == "niveaux")
+        self.montantLabel:SetText(metier and "À attribuer :" or "XP à attribuer :")
+        self.enteteNiveau:SetText(metier and "Palier" or "Niveau")
+        self.enteteProgression:SetText(metier and "Progression du métier" or "Progression XP")
+        self.envoyer.label:SetText(metier and (self.unite == "niveaux" and "Donner les niveaux"
+            or "Attribuer l'XP de métier") or "Attribuer l'XP")
+    end
 
     xp.zone = UI.Defilement(xp.contenu)
-    xp.zone:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 0, -56)
+    xp.zone:SetPoint("TOPLEFT", xp.contenu, "TOPLEFT", 0, -92)
     xp.zone:SetPoint("BOTTOMRIGHT", xp.contenu, "BOTTOMRIGHT", 0, 48)
     xp.lignes = {}
     xp.vide = UI.Texte(xp.zone.contenu, "Personne dans le groupe.", UI.C.discret)
@@ -403,9 +456,12 @@ function Pages.joueurs(page, f)
         l.nom:SetJustifyH("LEFT")
         l.niveau = UI.Texte(l, "Niv. —", UI.C.titre)
         l.niveau:SetPoint("LEFT", l, "LEFT", 250, 0)
-        l.niveau:SetWidth(64)
+        -- « Non appris », « Violet 5 » : un palier de metier est plus long
+        -- qu'un « Niv. 5 ».
+        l.niveau:SetWidth(78)
         l.niveau:SetJustifyH("LEFT")
-        l.barre = UI.Barre(l, { 0.25, 0.52, 0.88, 1 }, 220, 16)
+        l.niveau:SetWordWrap(false)
+        l.barre = UI.Barre(l, { 0.25, 0.52, 0.88, 1 }, 206, 16)
         l.barre:SetPoint("RIGHT", l, "RIGHT", -6, 0)
         xp.lignes[rang] = l
         return l
@@ -423,8 +479,21 @@ function Pages.joueurs(page, f)
             l.case:Cocher(self.selection[joueur] == true)
             local entity = FicheJoueur(joueur)
             local progression, courant, maximum, texte = Progression(entity)
-            if entity then
+            if entity and self.mode == "metier" and self.metierId then
+                -- Le palier du metier, dans sa couleur, et la barre du palier.
+                local p = LCM.Metiers.Palier(entity, self.metierId)
+                l.niveau:SetText(p.libelle)
+                local c = p.rang > 0 and p.couleur or UI.C.discret
+                l.niveau:SetTextColor(c[1], c[2], c[3])
+                if p.max then
+                    l.barre:Regler(1, 1)
+                    l.barre.label:SetText("Maîtrisé")
+                else
+                    l.barre:Regler(p.xpDansPalier, p.xpPalier)
+                end
+            elseif entity then
                 l.niveau:SetText("Niv. " .. LCM.Experience.NiveauFiche(entity))
+                l.niveau:SetTextColor(UI.C.titre[1], UI.C.titre[2], UI.C.titre[3])
                 l.barre:Regler(courant, maximum)
                 if texte then l.barre.label:SetText(texte) end
             else
@@ -443,6 +512,7 @@ function Pages.joueurs(page, f)
         self.nombre = #membres
         self.vide:SetShown(#membres == 0)
         self.zone:Regler(y)
+        self:AfficherMode()
     end
 
     xp.tous = UI.Bouton(xp.contenu, "Tout cocher", 110, 22, function()
@@ -462,6 +532,7 @@ function Pages.joueurs(page, f)
             if l.case:EstCochee() then cibles[#cibles + 1] = l.joueur end
         end
         if #cibles == 0 then LCM.Alerte("coche au moins un joueur.") return end
+        if xp.mode == "metier" then xp:EnvoyerMetier(montant, cibles) return end
         local envoyes = 0
         for _, joueur in ipairs(cibles) do
             local estMoi = EstMoi(joueur)
@@ -500,6 +571,45 @@ function Pages.joueurs(page, f)
         end
     end)
     xp.envoyer:SetPoint("BOTTOMRIGHT", xp.contenu, "BOTTOMRIGHT", 0, 4)
+
+    -- L'XP de metier : en XP, ou en niveaux que la fiche du joueur convertit
+    -- elle-meme (Core/Metiers.lua, Metiers.Donner).
+    function xp:EnvoyerMetier(montant, cibles)
+        local metier = LCM.Metiers.Get(self.metierId)
+        if not metier then LCM.Alerte("choisis d'abord un métier.") return end
+        local niveaux = self.unite == "niveaux" and montant or 0
+        local enXP = self.unite == "niveaux" and 0 or montant
+        local raisonTexte = self.raison:GetText()
+        local envoyes = 0
+        for _, joueur in ipairs(cibles) do
+            local resultat, raison
+            if EstMoi(joueur) then
+                resultat, raison = LCM.Metiers.Donner(FicheJoueur(joueur), metier.id, enXP, niveaux)
+                if resultat then LCM.Metiers.Annoncer(metier.id, resultat, nil, raisonTexte) end
+            else
+                resultat, raison = LCM.Metiers.Envoyer(joueur, metier.id, enXP, niveaux, raisonTexte)
+                -- Retour visuel immediat sur la copie connue, sans annonce :
+                -- la vraie conversion se fait chez le joueur.
+                local entity = resultat and FicheJoueur(joueur)
+                if entity then LCM.Metiers.Donner(entity, metier.id, enXP, niveaux) end
+            end
+            if resultat then envoyes = envoyes + 1
+            elseif raison then LCM.Alerte(string.format("%s : %s", NomPersonnage(joueur), tostring(raison))) end
+        end
+        if envoyes > 0 then
+            if niveaux > 0 then
+                LCM.Ok(string.format("%d niveau%s de %s donné%s à %d joueur%s.", niveaux,
+                    niveaux > 1 and "x" or "", metier.label, niveaux > 1 and "s" or "",
+                    envoyes, envoyes > 1 and "s" or ""))
+            else
+                LCM.Ok(string.format("%d XP de %s envoyés à %d joueur%s.", enXP, metier.label,
+                    envoyes, envoyes > 1 and "s" or ""))
+            end
+            self.montant:SetText("")
+            self.selection = {}
+            self:Hide()
+        end
+    end
 
     -- Les coches du groupe arrivent deja cochees : on a choisi ses joueurs
     -- une fois, dans le panneau, pas une fois par fenetre.
@@ -1995,6 +2105,7 @@ function Pages.combat(page, f)
     -- Resolu ici et pas au chargement : Combat.lua se charge apres ce fichier.
     page.combat = MJ.Combat.Construire(page, f)
     function page:Afficher() self.combat:Afficher() end
+    function page:Disposer(compact) self.combat:Disposer(compact) end
 end
 
 -- Les deux pages emploient les memes lignes compactes avec icone. Garder la
@@ -2260,41 +2371,6 @@ function Pages.pnj(page, f)
     end
 end
 
--- ===== Contenus ============================================================
-
-function Pages.contenus(page, f)
-    -- La largeur suit la page (ancree des deux cotes) : elle depend de la
-    -- navigation, plus de la fenetre.
-    local largeur = 300
-    page.titreContenu = Titre(page, "Contenus")
-    page.titreContenu:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-    -- Les fenetres sont ouvertes par leur entree de menu quand elles en ont
-    -- une : le panneau ne double pas leur chemin, il le raccourcit.
-    local function Entree(id)
-        local noeud = UI.Menu.Trouver(id)
-        return function()
-            if noeud and type(noeud.onClick) == "function" then noeud.onClick()
-            else LCM.Alerte("fenêtre indisponible.") end
-        end
-    end
-    local boutons = {
-        { "systeme", "Système d'A'Hell'Razkah", Entree("systeme_aelskar") },
-    }
-    page.boutons = {}
-    local y = 28
-    for _, b in ipairs(boutons) do
-        local bouton = UI.Bouton(page, b[2], largeur, 24, b[3])
-        bouton:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
-        bouton:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, -y)
-        page.boutons[b[1]] = bouton
-        y = y + 30
-    end
-
-    -- La liste « Brouillons (en attente d'export) » vivait ici. Une entree
-    -- enregistree existe, elle n'attend rien (15 octobre 2026) : la liste n'a
-    -- plus d'objet.
-    function page:Afficher() end
-end
 
 -- ===== Outils partages =====================================================
 
@@ -2312,126 +2388,1084 @@ end
 
 local LIGNE_REGLAGE = 24
 
+-- ===== Nommages =============================================================
+-- L'echelle des paliers (Core/Nommages.lua), dans l'onglet Equilibrage, au-
+-- dessus des difficultes (le MJ, 2 novembre 2026) : renommer, recolorer (clic
+-- sur la pastille), ajouter, retirer, et reordonner au glisser-deposer ou aux
+-- fleches. L'ordre se lit par numero croissant, 9 avant 10.
+--
+-- Tout passe par les REGLAGES (texte pour les noms et les couleurs) : pas de
+-- contenu, rien au compendium. Deplacer ou retirer un palier change des
+-- NUMEROS, et ce qui s'y refere suit (Remapper) : une difficulte Rose reste
+-- Rose, la grille d'XP garde ses coefficients avec leurs couleurs. Une
+-- difficulte dont le palier est retire est ecartee.
+local Nommages = {}
+MJ.Nommages = Nommages
+Ecran.Nommages = Nommages
+
+local function N() return LCM.Nommages end
+local function R() return LCM.Reglages end
+
+-- Pose nom et couleur a une place, seulement ce qui change.
+local function PoserA(rang, nom, hex)
+    local ok, raison = true, nil
+    local p = N().Get(rang)
+    if not p or p.nom ~= nom then ok, raison = R().Definir(N().Chemin(rang, "nom"), nom) end
+    if not ok then return false, raison end
+    if not p or p.hex ~= hex then ok, raison = R().Definir(N().Chemin(rang, "couleur"), hex) end
+    return ok, raison
+end
+
+local function PoserNombre(n)
+    if N().Nombre() == n then return true end
+    return R().Definir("nommages.nombre", n)
+end
+
+-- Ce qui se refere aux numeros, photographie AVANT le changement.
+local function Photo()
+    local photo = { niveaux = {}, matrice = {} }
+    for cle, rang in pairs(LCM.Equilibrage.difficultes.niveaux or {}) do
+        local v, r = tonumber(cle), tonumber(rang)
+        if v and r and r >= 1 then photo.niveaux[#photo.niveaux + 1] = { valeur = v, rang = r } end
+    end
+    local total = N().Nombre()
+    for m = 1, total do
+        photo.matrice[m] = {}
+        for d = 1, total do
+            photo.matrice[m][d] = tonumber(R().Lire(LCM.Difficultes.CheminCoefficient(m, d)))
+        end
+    end
+    return photo
+end
+
+-- `table_` : ancien numero -> nouveau (nil : retire).
+local function Remapper(photo, table_)
+    local D = LCM.Difficultes
+    for _, d in ipairs(photo.niveaux) do
+        local nouveau = table_[d.rang]
+        if not nouveau then D.Retirer(d.valeur)
+        elseif nouveau ~= d.rang then D.Definir(d.valeur, nouveau) end
+    end
+    local metierMax = #D.CouleursMetier()
+    local grille = {}
+    for m, ligne in pairs(photo.matrice) do
+        for d, valeur in pairs(ligne) do
+            local m2, d2 = table_[m], table_[d]
+            if m2 and d2 and m2 <= metierMax then
+                grille[m2] = grille[m2] or {}
+                grille[m2][d2] = valeur
+            end
+        end
+    end
+    for m2, ligne in pairs(grille) do
+        for d2, valeur in pairs(ligne) do
+            local chemin = D.CheminCoefficient(m2, d2)
+            if tonumber(R().Lire(chemin)) ~= valeur then R().Definir(chemin, valeur) end
+        end
+    end
+end
+
+-- Pose un nouvel ordre : la liste des ANCIENS numeros, de bas en haut.
+function Nommages.Ordonner(anciens)
+    local liste = N().Liste()
+    local photo = Photo()
+    local table_ = {}
+    for nouveau, ancien in ipairs(anciens) do
+        local p = liste[ancien]
+        if p then
+            table_[ancien] = nouveau
+            local ok, raison = PoserA(nouveau, p.nom, p.hex)
+            if not ok then return false, raison end
+        end
+    end
+    Remapper(photo, table_)
+    return true
+end
+
+local function Ordre()
+    local out = {}
+    for rang = 1, N().Nombre() do out[#out + 1] = rang end
+    return out
+end
+
+-- Poser le palier `source` a la place de `cible` (glisser-deposer).
+function Nommages.Deplacer(source, cible)
+    source, cible = tonumber(source), tonumber(cible)
+    local ordre = Ordre()
+    if not source or not cible or source == cible or not ordre[source] or not ordre[cible] then return false end
+    table.remove(ordre, source)
+    table.insert(ordre, cible, source)
+    return Nommages.Ordonner(ordre)
+end
+
+function Nommages.Decaler(rang, sens)
+    rang = tonumber(rang)
+    local cible = rang and rang + sens
+    if not cible or cible < 1 or cible > N().Nombre() then return false end
+    return Nommages.Deplacer(rang, cible)
+end
+
+function Nommages.Renommer(rang, nom)
+    nom = tostring(nom or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if nom == "" then return false, "un palier a besoin d'un nom." end
+    if #nom > 24 then return false, "24 caractères au plus pour le nom d'un palier." end
+    if not N().Get(rang) then return false, "palier inconnu." end
+    return R().Definir(N().Chemin(rang, "nom"), nom)
+end
+
+function Nommages.Recolorer(rang, hex)
+    hex = tostring(hex or ""):gsub("^%s*#?", ""):gsub("%s+$", ""):upper()
+    if not hex:match("^%x%x%x%x%x%x$") then
+        return false, "une couleur s'écrit en six chiffres hexadécimaux (FF8CBF)."
+    end
+    if not N().Get(rang) then return false, "palier inconnu." end
+    return R().Definir(N().Chemin(rang, "couleur"), hex)
+end
+
+function Nommages.Ajouter()
+    local n = N().Nombre() + 1
+    local ok, raison = R().Definir(N().Chemin(n, "nom"), "Nouveau palier")
+    if ok then ok, raison = R().Definir(N().Chemin(n, "couleur"), "CCCCCC") end
+    if ok then ok, raison = PoserNombre(n) end
+    return ok, raison
+end
+
+function Nommages.Retirer(rang)
+    rang = tonumber(rang)
+    local liste = N().Liste()
+    if #liste <= 1 then return false, "l'échelle garde au moins un palier." end
+    if not rang or not liste[rang] then return false, "palier inconnu." end
+    local photo = Photo()
+    local table_ = {}
+    for ancien = 1, #liste do
+        if ancien < rang then table_[ancien] = ancien
+        elseif ancien > rang then
+            table_[ancien] = ancien - 1
+            local ok, raison = PoserA(ancien - 1, liste[ancien].nom, liste[ancien].hex)
+            if not ok then return false, raison end
+        end
+    end
+    local ok, raison = PoserNombre(#liste - 1)
+    if not ok then return false, raison end
+    Remapper(photo, table_)
+    return true
+end
+
+-- La premiere version rangeait les paliers en CONTENU (liste « paliers ») ;
+-- le MJ les veut hors du compendium (2 novembre 2026). Ce qu'il en reste est
+-- repris en reglages, dans son ordre, puis supprime du contenu. Une fois.
+function Nommages.Reprendre()
+    local entrees = {}
+    for _, e in ipairs(LCM.Listes and LCM.Listes.list or {}) do
+        if e.liste == "paliers" then entrees[#entrees + 1] = e end
+    end
+    if #entrees == 0 then return 0 end
+    table.sort(entrees, function(a, b)
+        local ra, rb = tonumber(a.rang) or 0, tonumber(b.rang) or 0
+        if ra ~= rb then return ra < rb end
+        return tostring(a.id) < tostring(b.id)
+    end)
+    for rang, e in ipairs(entrees) do
+        PoserA(rang, tostring(e.label or ("Palier " .. rang)), tostring(e.couleur or "CCCCCC"):upper())
+    end
+    PoserNombre(#entrees)
+    for _, e in ipairs(entrees) do LCM.Brouillons.Supprimer("listes", e.id) end
+    LCM.Info(string.format("Nommages : %d palier(s) repris en réglages d'équilibrage et retirés du contenu.", #entrees))
+    return #entrees
+end
+
+local function ConstruireNommages(page, parent)
+    local e = CreateFrame("Frame", nil, parent)
+    e:Hide()
+    e.titre = Titre(e, "Nommages")
+    e.titre:SetPoint("TOPLEFT", e, "TOPLEFT", 0, 0)
+    e.aide = UI.Texte(e, "L'échelle des paliers, de bas en haut. Elle nomme les difficultés, les couleurs des métiers "
+        .. "et la grille d'XP. Glisse une ligne sur une autre pour la déplacer ; clique la pastille pour la couleur.",
+        UI.C.discret)
+    UI.Police(e.aide, 10)
+    e.aide:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -18)
+    e.aide:SetPoint("RIGHT", e, "RIGHT", 0, 0)
+    e.aide:SetJustifyH("LEFT")
+    e.aide:SetWordWrap(true)
+    e.source = UI.Texte(e, "", UI.C.discret)
+    UI.Police(e.source, 9)
+    e.source:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -46)
+
+    e.zone = UI.Defilement(e)
+    e.zone:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -62)
+    e.zone:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", 0, 34)
+    e.lignes = {}
+    e.confirmer = UI.Confirmer(e, "", "Retirer")
+
+    local function Agir(ok, raison)
+        if not ok and raison then LCM.Alerte(tostring(raison)) end
+        e:Afficher()
+        return ok
+    end
+
+    local FL = "Interface\\Buttons\\"
+    local function Fleche(bouton, chemin)
+        bouton.icone = bouton:CreateTexture(nil, "OVERLAY")
+        bouton.icone:SetTexture(FL .. chemin)
+        bouton.icone:SetSize(14, 14)
+        bouton.icone:SetPoint("CENTER", bouton, "CENTER", 0, 0)
+    end
+
+    local function Ligne(rang)
+        local l = CreateFrame("Button", nil, e.zone.contenu)
+        l:SetHeight(26)
+        if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+        -- Toute la ligne se glisse, et recoit un palier lache dessus.
+        l:RegisterForDrag("LeftButton")
+        l:SetScript("OnDragStart", function(ligne)
+            UI.Glisser.Commencer({ categorie = "palier", element = ligne.rang, nom = ligne.nomPalier })
+        end)
+        UI.Glisser.Cible(l, function(objet)
+            return objet and objet.categorie == "palier" and objet.element ~= l.rang,
+                "lâche ici pour prendre sa place"
+        end, function(objet) Agir(Nommages.Deplacer(objet.element, l.rang)) end)
+        l.poignee = UI.Texte(l, "::", UI.C.discret)
+        l.poignee:SetPoint("LEFT", l, "LEFT", 6, 0)
+        l.numero = UI.Texte(l, "", UI.C.titre)
+        UI.Police(l.numero, 13)
+        l.numero:SetPoint("LEFT", l, "LEFT", 24, 0)
+        l.numero:SetWidth(26)
+        -- La couleur : une pastille qu'on clique (le selecteur du Kit).
+        l.pastille = CreateFrame("Button", nil, l)
+        l.pastille:SetSize(18, 18)
+        l.pastille:SetPoint("LEFT", l, "LEFT", 54, 0)
+        l.pastille.fond = UI.Aplat(l.pastille, { 1, 1, 1, 1 }, "ARTWORK")
+        l.pastille.fond:SetAllPoints(l.pastille)
+        UI.BordureFine(l.pastille, 0.6)
+        l.pastille:SetScript("OnClick", function(bouton)
+            UI.SelecteurCouleur():Ouvrir(bouton, l.hex, function(hex) Agir(Nommages.Recolorer(l.rang, hex)) end)
+        end)
+        UI.Bulle(l.pastille, "Couleur", function() return "#" .. tostring(l.hex) .. " — clique pour la changer." end)
+        l.nom = UI.Champ(l, 170, 20, nil)
+        l.nom:SetPoint("LEFT", l.pastille, "RIGHT", 8, 0)
+        l.nom:SetMaxLetters(24)
+        l.nom:SetScript("OnEnterPressed", function(c) c:ClearFocus(); Agir(Nommages.Renommer(l.rang, c:GetText())) end)
+        l.nom:SetScript("OnEscapePressed", function(c) c:ClearFocus(); e:Afficher() end)
+        l.retirer = UI.Bouton(l, "×", 20, 20, function()
+            e.confirmer:Demander(string.format("Retirer le palier « %s » ? Les difficultés qui l'utilisent seront écartées.",
+                tostring(l.nomPalier)), function() Agir(Nommages.Retirer(l.rang)) end)
+        end)
+        l.retirer:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+        l.descendre = UI.Bouton(l, "", 22, 20, function() Agir(Nommages.Decaler(l.rang, 1)) end)
+        Fleche(l.descendre, "Arrow-Down-Up")
+        l.descendre:SetPoint("RIGHT", l.retirer, "LEFT", -6, 0)
+        l.monter = UI.Bouton(l, "", 22, 20, function() Agir(Nommages.Decaler(l.rang, -1)) end)
+        Fleche(l.monter, "Arrow-Up-Up")
+        l.monter:SetPoint("RIGHT", l.descendre, "LEFT", -3, 0)
+        e.lignes[rang] = l
+        return l
+    end
+
+    e.ajouter = UI.Bouton(e, "+ Ajouter un palier", 160, 24, function() Agir(Nommages.Ajouter()) end)
+    e.ajouter:SetPoint("BOTTOMLEFT", e, "BOTTOMLEFT", 0, 2)
+
+    function e:Afficher()
+        local liste = N().Liste()
+        for rang, p in ipairs(liste) do
+            local l = self.lignes[rang] or Ligne(rang)
+            l.rang, l.nomPalier, l.hex = p.rang, p.nom, p.hex
+            l.numero:SetText(tostring(p.rang))
+            l.pastille.fond:SetColorTexture(p.couleur[1], p.couleur[2], p.couleur[3], 1)
+            if not l.nom:HasFocus() then l.nom:SetText(p.nom) end
+            l.nom:SetTextColor(p.couleur[1], p.couleur[2], p.couleur[3])
+            l.monter:SetEnabled(rang > 1)
+            l.descendre:SetEnabled(rang < #liste)
+            Poser(l, self.zone.contenu, (rang - 1) * 28)
+        end
+        for rang = #liste + 1, #self.lignes do self.lignes[rang]:Hide() end
+        self.zone:Regler(math.max(1, #liste * 28))
+        self.nombre = #liste
+        self.source:SetText(N().Reglee() and "Échelle réglée en séance : à exporter, comme le reste de l'équilibrage."
+            or "Échelle du fichier (Data/Equilibrage.lua).")
+    end
+
+    page.nommages = e
+    return e
+end
+
+-- L'editeur des DIFFICULTES (2 novembre 2026), a la place du tableau quand
+-- on choisit ce groupe. Le tableau generique montrait « niveaux.15 = 3 » et
+-- « couleurs.2.dessus = 2 » : juste, mais illisible, et il ne savait pas
+-- AJOUTER une ligne. Ici : la liste croissante des difficultes avec leur
+-- couleur, une rangee pour en ajouter, et les coefficients d'XP par couleur
+-- de metier. Tout passe par LCM.Difficultes et les reglages : diffuse au
+-- groupe, a exporter, comme le reste.
+local function ConstruireDifficultes(page, parent)
+    local D = LCM.Difficultes
+    local R = LCM.Reglages
+    local e = CreateFrame("Frame", nil, parent)
+    e:Hide()
+
+    local function Peindre(fs, couleur)
+        if couleur then fs:SetTextColor(couleur[1], couleur[2], couleur[3]) end
+    end
+    local function OptionsCouleurs()
+        local out = {}
+        -- Chaque palier dans sa couleur : on le reconnait avant de le lire
+        -- (le MJ, 2 novembre 2026).
+        for _, c in ipairs(D.Couleurs()) do
+            out[#out + 1] = { id = c.rang,
+                label = string.format("|cff%s%s|r", LCM.Nommages.Hex(c.couleur), tostring(c.nom)) }
+        end
+        return out
+    end
+
+    e.titre = Titre(e, "Difficultés")
+    e.titre:SetPoint("TOPLEFT", e, "TOPLEFT", 0, 0)
+    e.aide = UI.Texte(e, "Un nombre, rangé dans une couleur. Ce sont les seuls DD proposés partout : épreuves, jets d'expertise, ressources.",
+        UI.C.discret)
+    UI.Police(e.aide, 10)
+    e.aide:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -18)
+    e.aide:SetPoint("RIGHT", e, "RIGHT", 0, 0)
+    e.aide:SetJustifyH("LEFT")
+
+    -- Ajouter : la valeur, sa couleur, et le bouton. Entree dans le champ
+    -- ajoute aussi : on enchaine « 1, Rose ; 5, Rose ; 12, Vert ».
+    e.nouvelle = UI.Champ(e, 56, 22)
+    e.nouvelle:SetNumeric(true)
+    e.nouvelle:SetJustifyH("CENTER")
+    e.nouvelle:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -40)
+    e.couleurNouvelle = UI.Deroulant(e, 110, 22, OptionsCouleurs, function() end)
+    e.couleurNouvelle:SetPoint("LEFT", e.nouvelle, "RIGHT", 6, 0)
+    e.couleurNouvelle:Definir(1)
+    function e:Ajouter()
+        local ok, raison = D.Definir(self.nouvelle:GetText(), self.couleurNouvelle.valeur)
+        if not ok then LCM.Alerte(tostring(raison)) return false end
+        local d = D.Get(self.nouvelle:GetText())
+        LCM.Ok(string.format("difficulté %s : %s.", tostring(d and d.valeur), tostring(d and d.nom)))
+        self.nouvelle:SetText("")
+        self:Afficher()
+        return true
+    end
+    e.ajouter = UI.Bouton(e, "Ajouter", 80, 22, function() e:Ajouter() end)
+    e.ajouter:SetPoint("LEFT", e.couleurNouvelle, "RIGHT", 6, 0)
+    e.nouvelle:SetScript("OnEnterPressed", function() e:Ajouter() end)
+
+    -- La liste, sur toute la hauteur : les coefficients d'XP ont quitte cet
+    -- ecran pour les metiers (ConstruireCoefficients, plus bas).
+    e.zone = UI.Defilement(e)
+    e.zone:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -70)
+    e.zone:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", 0, 0)
+    e.lignes = {}
+    e.vide = UI.Texte(e.zone.contenu, "Aucune difficulté : ajoute la première ci-dessus.", UI.C.discret)
+    e.vide:SetPoint("TOPLEFT", e.zone.contenu, "TOPLEFT", 6, -6)
+
+    local function Ligne(rang)
+        local l = CreateFrame("Frame", nil, e.zone.contenu)
+        l:SetHeight(24)
+        if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+        -- Le nombre se MODIFIE sur place (le MJ, 2 novembre 2026) : Entree le
+        -- deplace, la couleur reste. Un nombre deja pris est refuse et le dit.
+        l.valeur = UI.Champ(l, 50, 20, nil)
+        l.valeur:SetPoint("LEFT", l, "LEFT", 4, 0)
+        l.valeur:SetNumeric(true)
+        l.valeur:SetJustifyH("CENTER")
+        l.valeur:SetScript("OnEnterPressed", function(c)
+            c:ClearFocus()
+            local ok, raison = D.Renumeroter(l.difficulte, c:GetText())
+            if not ok and raison then LCM.Alerte(tostring(raison)) end
+            e:Afficher()
+        end)
+        l.valeur:SetScript("OnEscapePressed", function(c) c:ClearFocus(); e:Afficher() end)
+        UI.Bulle(l.valeur, "Valeur de la difficulté",
+            "Tape le nouveau nombre puis Entrée : la difficulté change de valeur et garde sa couleur. "
+            .. "Une ressource ou un coffre qui utilisait l'ancien DD le garde, marqué « hors liste ».")
+        l.pastille = UI.Aplat(l, { 1, 1, 1, 1 }, "ARTWORK")
+        l.pastille:SetSize(10, 10)
+        l.pastille:SetPoint("LEFT", l, "LEFT", 62, 0)
+        l.couleur = UI.Deroulant(l, 110, 20, OptionsCouleurs, function(id)
+            local ok, raison = D.Definir(l.difficulte, id)
+            if not ok then LCM.Alerte(tostring(raison)) end
+            e:Afficher()
+        end)
+        l.couleur:SetPoint("LEFT", l.pastille, "RIGHT", 6, 0)
+        l.retirer = UI.Bouton(l, "×", 20, 20, function()
+            local ok, raison = D.Retirer(l.difficulte)
+            if not ok then LCM.Alerte(tostring(raison)) end
+            e:Afficher()
+        end)
+        l.retirer:SetPoint("RIGHT", l, "RIGHT", -4, 0)
+        e.lignes[rang] = l
+        return l
+    end
+
+    function e:Afficher()
+        local liste = D.Liste()
+        for rang, d in ipairs(liste) do
+            local l = self.lignes[rang] or Ligne(rang)
+            l.difficulte = d.valeur
+            if not l.valeur:HasFocus() then l.valeur:SetText(tostring(d.valeur)) end
+            l.couleur:Definir(d.rang, d.nom)
+            Peindre(l.couleur.label, d.couleur)
+            l.pastille:SetColorTexture(d.couleur[1], d.couleur[2], d.couleur[3], 1)
+            Poser(l, self.zone.contenu, (rang - 1) * 26)
+        end
+        for rang = #liste + 1, #self.lignes do self.lignes[rang]:Hide() end
+        self.vide:SetShown(#liste == 0)
+        self.zone:Regler(math.max(1, #liste * 26))
+        self.nombre = #liste
+    end
+
+    page.difficultes = e
+    return e
+end
+
+-- L'editeur des METIERS (2 novembre 2026) : un seul tableau, les six couleurs
+-- en colonnes, pour deux choses qui se lisent ensemble.
+--   * La PROGRESSION : le cout en XP pour achever chaque niveau. Le seuil
+--     cumule se CALCULE (Metiers.Paliers) : il est en infobulle sur chaque
+--     case, et la rangee « Fin de couleur » donne celui du dernier niveau.
+--   * L'XP GAGNEE : le coefficient applique a N selon que la difficulte est
+--     plus basse, de la meme couleur, ou plus haute que le metier.
+-- La premiere version empilait « seuil 400 » sous chaque case et rangeait les
+-- coefficients ailleurs, en lignes ; « pas super glamour » (le MJ). Les
+-- chemins de reglage n'ont pas change : « metiers.paliers.N.xp » et
+-- « difficultes.matrice.<metier>.<difficulte> » (une case par couple de
+-- couleurs depuis le 2 novembre 2026, au lieu de trois relations).
+local function ConstruirePaliers(page, parent)
+    local R = LCM.Reglages
+    local D = LCM.Difficultes
+    local e = CreateFrame("Frame", nil, parent)
+    e:Hide()
+
+    local ETIQUETTE, COL, CASE, LIGNE_T = 110, 68, 54, 26
+
+    e.titre = Titre(e, "Métiers")
+    e.titre:SetPoint("TOPLEFT", e, "TOPLEFT", 0, 0)
+    e.aide = UI.Texte(e, "Le coût pour achever chaque niveau, puis l'XP gagnée selon la difficulté affrontée (récolte, campement…). "
+        .. "Le seuil cumulé se calcule seul : survole une case.", UI.C.discret)
+    UI.Police(e.aide, 10)
+    e.aide:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -18)
+    e.aide:SetPoint("RIGHT", e, "RIGHT", 0, 0)
+    e.aide:SetJustifyH("LEFT")
+    e.aide:SetWordWrap(true)
+
+    local couleurs = D.CouleursMetier()
+    local largeur = ETIQUETTE + #couleurs * COL
+    local y = 50
+
+    -- L'en-tete : le nom de chaque couleur, souligne de sa teinte.
+    for i, c in ipairs(couleurs) do
+        local x = ETIQUETTE + (i - 1) * COL
+        local t = UI.Texte(e, UI.Majuscules(c.nom), UI.C.titre, "GameFontNormalSmall")
+        UI.Police(t, 11)
+        t:SetTextColor(c.couleur[1], c.couleur[2], c.couleur[3])
+        t:SetPoint("TOPLEFT", e, "TOPLEFT", x, -y)
+        t:SetWidth(COL - 6)
+        t:SetJustifyH("CENTER")
+        local trait = UI.Aplat(e, { c.couleur[1], c.couleur[2], c.couleur[3], 0.85 }, "ARTWORK")
+        trait:SetHeight(2)
+        trait:SetPoint("TOPLEFT", e, "TOPLEFT", x + 4, -(y + 16))
+        trait:SetWidth(COL - 14)
+    end
+    y = y + 24
+
+    -- Une rangee : un fond de ligne sur toute la largeur du tableau, son
+    -- etiquette a gauche, et une case par couleur.
+    local function Rangee(etiquette)
+        local r = CreateFrame("Frame", nil, e)
+        r:SetSize(largeur, LIGNE_T - 2)
+        r:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -y)
+        if UI.SurfaceLigne then UI.SurfaceLigne(r) end
+        r.etiquette = UI.Texte(r, etiquette, UI.C.texte)
+        UI.Police(r.etiquette, 11)
+        r.etiquette:SetPoint("LEFT", r, "LEFT", 10, 0)
+        y = y + LIGNE_T
+        return r
+    end
+    local function Section(texte)
+        y = y + 8
+        local t = UI.Texte(e, UI.Majuscules(texte), UI.C.libelle, "GameFontNormalSmall")
+        UI.Police(t, 10)
+        t:SetPoint("TOPLEFT", e, "TOPLEFT", 2, -y)
+        local filet = UI.Filet(e, true)
+        filet:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -(y + 15))
+        filet:SetWidth(largeur)
+        y = y + 20
+    end
+    local function Case(rangee, i, chemin, valider)
+        local champ = UI.Champ(rangee, CASE, 20)
+        champ:SetJustifyH("CENTER")
+        champ:SetPoint("LEFT", rangee, "LEFT", ETIQUETTE + (i - 1) * COL + (COL - 6 - CASE) / 2, 0)
+        champ.chemin = chemin
+        champ:SetScript("OnEnterPressed", function(self)
+            local ok, raison = valider(self:GetText())
+            if ok then
+                ok, raison = R.Definir(self.chemin, tonumber(self:GetText()))
+            end
+            if not ok and raison then LCM.Alerte(tostring(raison)) end
+            self:ClearFocus()
+            e:Afficher()
+        end)
+        champ:SetScript("OnEscapePressed", function(self) self:ClearFocus() e:Afficher() end)
+        UI.Bulle(champ, function(soi) return soi.bulleTitre end, function(soi) return soi.bulleTexte end)
+        return champ
+    end
+
+    -- ----- la progression ---------------------------------------------------
+    local function CoutValide(texte)
+        local v = tonumber(texte)
+        if not v or v < 0 or v ~= math.floor(v) then
+            return false, "le coût d'un niveau est un nombre entier d'XP, positif."
+        end
+        return true
+    end
+    Section("Progression : XP pour achever le niveau")
+    e.cases = {}
+    local paliers = LCM.Metiers.Paliers()
+    local parPlace = {}
+    for indice, palier in ipairs(paliers) do
+        parPlace[(tonumber(palier.niveau) or 0) .. ":" .. (tonumber(palier.rangCouleur) or 0)] = indice
+    end
+    for niveau = 1, 5 do
+        local r = Rangee("Niveau " .. niveau)
+        for i, c in ipairs(couleurs) do
+            local indice = parPlace[niveau .. ":" .. c.rang]
+            if indice then
+                local champ = Case(r, i, string.format("metiers.paliers.%d.xp", indice), CoutValide)
+                champ.indice = indice
+                e.cases[indice] = champ
+            end
+        end
+    end
+    -- La fin de chaque couleur : le seuil cumule de son niveau 5, en lecture.
+    local fin = Rangee("Fin de couleur")
+    fin.etiquette:SetTextColor(UI.C.discret[1], UI.C.discret[2], UI.C.discret[3])
+    e.fins = {}
+    for i, c in ipairs(couleurs) do
+        local t = UI.Texte(fin, "", UI.C.discret)
+        UI.Police(t, 10)
+        t:SetPoint("LEFT", fin, "LEFT", ETIQUETTE + (i - 1) * COL, 0)
+        t:SetWidth(COL - 6)
+        t:SetJustifyH("CENTER")
+        e.fins[c.rang] = t
+    end
+
+    -- ----- l'XP gagnee -------------------------------------------------------
+    local function CoefValide(texte)
+        local v = tonumber(texte)
+        if not v or v < 0 then return false, "un coefficient est un nombre positif (0,5 = la moitié de N)." end
+        return true
+    end
+    -- Une rangee par couleur de DIFFICULTE (Noir compris), une colonne par
+    -- couleur de METIER : chaque couple a son coefficient (le MJ, 2 novembre
+    -- 2026 : « Rose qui mine du Vert, 1,5 ; Rouge qui mine de l'Orange,
+    -- 0,5 »). La case ou les deux couleurs se rencontrent est soulignee.
+    Section("XP gagnée : N × coefficient, selon la difficulté")
+    e.coefs = {}
+    for _, diff in ipairs(D.Couleurs()) do
+        local r = Rangee(diff.nom)
+        r.etiquette:SetTextColor(diff.couleur[1], diff.couleur[2], diff.couleur[3])
+        for i, c in ipairs(couleurs) do
+            e.coefs[c.rang] = e.coefs[c.rang] or {}
+            local champ = Case(r, i, D.CheminCoefficient(c.rang, diff.rang), CoefValide)
+            champ.bulleTitre = string.format("Métier %s sur une difficulté %s", c.nom, diff.nom)
+            champ.metier, champ.difficulte = c, diff
+            -- Le cote GRAPHIQUE (le MJ) : la case se teinte selon sa valeur,
+            -- la grille se lit comme une carte de chaleur (Afficher, plus bas).
+            champ.chaleur = UI.Aplat(r, { 1, 1, 1, 0 }, "BACKGROUND")
+            champ.chaleur:SetPoint("TOPLEFT", champ, "TOPLEFT", -5, 3)
+            champ.chaleur:SetPoint("BOTTOMRIGHT", champ, "BOTTOMRIGHT", 5, -3)
+            -- La case ou les deux couleurs se rencontrent : un trait de la
+            -- couleur, sous la case.
+            if c.rang == diff.rang then
+                local trait = UI.Aplat(r, { c.couleur[1], c.couleur[2], c.couleur[3], 0.9 }, "ARTWORK")
+                trait:SetHeight(2)
+                trait:SetPoint("TOPLEFT", champ, "BOTTOMLEFT", 2, -1)
+                trait:SetPoint("TOPRIGHT", champ, "BOTTOMRIGHT", -2, -1)
+            end
+            e.coefs[c.rang][diff.rang] = champ
+        end
+    end
+
+    e.total = UI.Texte(e, "", UI.C.libelle)
+    UI.Police(e.total, 11)
+    e.total:SetPoint("TOPLEFT", e, "TOPLEFT", 2, -(y + 8))
+
+    function e:Afficher()
+        local paliers = LCM.Metiers.Paliers()
+        local surcharges = R.Surcharges()
+        local function Teinter(champ)
+            local c = surcharges[champ.chemin] ~= nil and UI.C.accent or UI.C.texte
+            champ:SetTextColor(c[1], c[2], c[3])
+            return surcharges[champ.chemin] ~= nil
+        end
+        for indice, champ in pairs(self.cases) do
+            local palier = paliers[indice]
+            if not champ:HasFocus() then champ:SetText(tostring(palier.xp)) end
+            local regle = Teinter(champ)
+            champ.bulleTitre = string.format("%s %s", tostring(palier.nom), tostring(palier.niveau))
+            champ.bulleTexte = string.format("Coût pour achever ce niveau : %s XP.\nSeuil cumulé (calculé) : %s XP.%s",
+                tostring(palier.xp), UI.Nombre(palier.cumul),
+                regle and ("\nRéglé. Le fichier dit " .. tostring(R.Defaut(champ.chemin)) .. ".") or "")
+        end
+        for _, palier in ipairs(paliers) do
+            if tonumber(palier.niveau) == 5 and self.fins[tonumber(palier.rangCouleur)] then
+                self.fins[tonumber(palier.rangCouleur)]:SetText(UI.Nombre(palier.cumul))
+            end
+        end
+        -- La chaleur : rouge sombre a x0, rien a x1, de plus en plus vert
+        -- au-dessus, rapporte au plus grand coefficient de la grille.
+        local plusGrand = 1
+        for _, ligne in pairs(self.coefs) do
+            for _, champ in pairs(ligne) do
+                plusGrand = math.max(plusGrand, tonumber(R.Lire(champ.chemin)) or 0)
+            end
+        end
+        for _, ligne in pairs(self.coefs) do
+            for cle, champ in pairs(ligne) do
+                local valeur = tonumber(R.Lire(champ.chemin)) or 1
+                if valeur < 1 then
+                    champ.chaleur:SetColorTexture(0.65, 0.12, 0.10, 0.12 + 0.38 * (1 - valeur))
+                elseif valeur > 1 then
+                    local part = plusGrand > 1 and (valeur - 1) / (plusGrand - 1) or 0
+                    champ.chaleur:SetColorTexture(0.20, 0.70, 0.25, 0.10 + 0.45 * part)
+                else
+                    champ.chaleur:SetColorTexture(1, 1, 1, 0)
+                end
+                if not champ:HasFocus() then champ:SetText(tostring(R.Lire(champ.chemin) or "")) end
+                local regle = Teinter(champ)
+                champ.bulleTexte = string.format("Un métier %s face à une difficulté %s gagne N × ce coefficient.%s",
+                    champ.metier.nom, champ.difficulte.nom,
+                    regle and ("\nRéglé. Le fichier dit " .. tostring(R.Defaut(champ.chemin)) .. ".") or "")
+            end
+        end
+        local dernier = paliers[#paliers]
+        self.total:SetText(dernier and string.format("Maîtrise complète : %s XP.", UI.Nombre(dernier.cumul)) or "")
+    end
+
+    page.paliers = e
+    return e
+end
+
+-- La page, refaite le 2 novembre 2026 sur la vue de EquilibrageVue.lua :
+-- themes et groupes nommes a gauche, sous-sections a droite, un libelle lu
+-- plutot qu'un identifiant, la valeur posee a Entree. RIEN n'a change dans
+-- la facon de regler : meme LCM.Reglages, meme chemin, meme diffusion, meme
+-- export. Seul l'ecran a change.
+local ACCENTS_MAJ = { ["é"] = "É", ["è"] = "È", ["ê"] = "Ê", ["à"] = "À", ["â"] = "Â", ["î"] = "Î",
+    ["ô"] = "Ô", ["û"] = "Û", ["ç"] = "Ç" }
+
+local function Capitale(texte)
+    texte = tostring(texte or "")
+    for minuscule, majuscule in pairs(ACCENTS_MAJ) do
+        if texte:sub(1, #minuscule) == minuscule then return majuscule .. texte:sub(#minuscule + 1) end
+    end
+    return texte:sub(1, 1):upper() .. texte:sub(2)
+end
+
+-- « coutPASoin » -> { "cout", "PA", "Soin" } ; « pen_lumiere » -> { "pen", "lumiere" }.
+local function Mots(segment)
+    local s = tostring(segment or "")
+    s = s:gsub("(%l)(%u)", "%1 %2"):gsub("(%u)(%u%l)", "%1 %2"):gsub("[_:]", " ")
+    local out = {}
+    for mot in s:gmatch("%S+") do out[#out + 1] = mot end
+    return out
+end
+
+local function Lire(mots)
+    local vue = MJ.EquilibrageVue
+    local out = {}
+    for _, mot in ipairs(mots) do
+        out[#out + 1] = (vue and vue.mots[mot:lower()]) or mot:lower()
+    end
+    return table.concat(out, " ")
+end
+
+-- Un segment de chemin, lisible. Un indice de liste prend le nom de ce
+-- qu'il designe (« secondaires.4 » -> « Points d'action ») ; un niveau de
+-- metier, sa couleur et son rang (« Vert 3 »).
+local function Segment(segment, noeud, parent)
+    local indice = tonumber(segment)
+    if indice and type(noeud) == "table" then
+        if noeud.label then return tostring(noeud.label) end
+        if noeud.nom and noeud.niveau then return tostring(noeud.nom) .. " " .. tostring(noeud.niveau) end
+        if noeud.nom then return tostring(noeud.nom) end
+        if noeud.id then return Capitale(Lire(Mots(noeud.id))) end
+        if noeud.niveau then return "Niveau " .. tostring(noeud.niveau) end
+    end
+    if indice then
+        return (tostring(parent) == "niveaux" and "Niveau " or "n° ") .. tostring(indice)
+    end
+    return Capitale(Lire(Mots(segment)))
+end
+
+-- Les lignes d'un groupe de la vue : { chemin, valeur, defaut, section,
+-- libelle }. Les sous-sections viennent du chemin ; dans un groupe « plat »
+-- (actions : quarante-six nombres au meme niveau), du PREMIER MOT, des que
+-- deux nombres le partagent.
+local function Masque(chemin)
+    for _, motif in ipairs(MJ.EquilibrageVue and MJ.EquilibrageVue.masques or {}) do
+        if tostring(chemin):find(motif) then return true end
+    end
+    return false
+end
+
+local function LignesGroupe(g)
+    local R = LCM.Reglages
+    local vue = MJ.EquilibrageVue or {}
+    local out = {}
+    if g.chemins then
+        for _, chemin in ipairs(g.chemins) do
+            local valeur = R.Lire(chemin)
+            if type(valeur) == "number" then
+                out[#out + 1] = { chemin = chemin, valeur = valeur, defaut = R.Defaut(chemin),
+                    section = "", libelle = (vue.libelles or {})[chemin] or Segment(chemin) }
+            end
+        end
+        return out
+    end
+    local racine = LCM.Equilibrage[g.id]
+    local premiers = {}
+    for _, v in ipairs(R.Vecteurs(g.id)) do
+        if not Masque(v.chemin) then
+            local relatif = v.chemin:sub(#g.id + 2)
+            local bouts = {}
+            for b in relatif:gmatch("[^%.]+") do bouts[#bouts + 1] = b end
+            local noms, noeud, parent = {}, racine, nil
+            for i, b in ipairs(bouts) do
+                local cle = tonumber(b) and type(noeud) == "table" and noeud[tonumber(b)] ~= nil and tonumber(b) or b
+                noeud = type(noeud) == "table" and noeud[cle] or nil
+                noms[i] = Segment(b, noeud, parent)
+                parent = b
+            end
+            local ligne = { chemin = v.chemin, valeur = v.valeur, defaut = v.defaut, bouts = bouts }
+            -- Le dernier ELEMENT DE LISTE du chemin (« campement.actions.4 »),
+            -- pour replier plus bas les elements qui ne portent qu'un ou deux
+            -- nombres : trente sections « Rose 1 », « Rose 2 » de deux lignes
+            -- chacune se lisaient moins bien qu'une section de soixante.
+            for k = #bouts - 1, 1, -1 do
+                if tonumber(bouts[k]) then
+                    local parent, reste = {}, {}
+                    for i = 1, k - 1 do parent[#parent + 1] = noms[i] end
+                    for i = k + 1, #bouts do reste[#reste + 1] = Lire(Mots(bouts[i])) end
+                    ligne.pli = { cle = table.concat(bouts, ".", 1, k), parent = table.concat(parent, " · "),
+                        libelle = noms[k] .. " · " .. table.concat(reste, " ") }
+                    break
+                end
+            end
+            if #bouts == 1 then
+                local mots = Mots(bouts[1])
+                ligne.plat = true
+                ligne.premier = mots[1] and mots[1]:lower() or ""
+                ligne.sectionPlate = Capitale(Lire({ mots[1] or "" }))
+                local reste = {}
+                for i = 2, #mots do reste[#reste + 1] = mots[i] end
+                ligne.reste = #reste > 0 and Capitale(Lire(reste)) or nil
+                ligne.libelle = noms[1]
+                premiers[ligne.premier] = (premiers[ligne.premier] or 0) + 1
+            else
+                ligne.section = table.concat(noms, " · ", 1, #noms - 1)
+                ligne.libelle = noms[#noms]
+            end
+            ligne.libelle = (vue.libelles or {})[v.chemin] or ligne.libelle
+            out[#out + 1] = ligne
+        end
+    end
+    local parElement = {}
+    for _, l in ipairs(out) do
+        if l.pli then parElement[l.pli.cle] = (parElement[l.pli.cle] or 0) + 1 end
+    end
+    for _, l in ipairs(out) do
+        if l.pli and parElement[l.pli.cle] <= 3 and not (vue.libelles or {})[l.chemin] then
+            l.section, l.libelle = l.pli.parent, l.pli.libelle
+        end
+    end
+    for _, l in ipairs(out) do
+        if l.plat then
+            if premiers[l.premier] >= 2 and l.reste and not (vue.libelles or {})[l.chemin] then
+                l.section, l.libelle = l.sectionPlate, l.reste
+            else
+                l.section = ""
+            end
+        end
+    end
+    -- L'ordre : les nombres sans section d'abord, puis section par section,
+    -- les indices dans l'ordre des nombres (2 avant 10).
+    local function Comparer(a, b)
+        if (a.section == "") ~= (b.section == "") then return a.section == "" end
+        local ba, bb = a.bouts or {}, b.bouts or {}
+        for i = 1, math.max(#ba, #bb) do
+            local x, y = ba[i], bb[i]
+            if x == nil then return true end
+            if y == nil then return false end
+            if x ~= y then
+                local nx, ny = tonumber(x), tonumber(y)
+                if nx and ny then return nx < ny end
+                return tostring(x) < tostring(y)
+            end
+        end
+        return false
+    end
+    table.sort(out, Comparer)
+    return out
+end
+
+-- Tous les groupes : ceux de la vue, puis « Autres » pour ce que la vue ne
+-- nomme pas. Un nombre ajoute a l'equilibrage sans etre range ici reste
+-- donc a l'ecran.
+local function GroupesVue()
+    local vue = MJ.EquilibrageVue or { themes = {} }
+    local themes, connus = {}, {}
+    for _, theme in ipairs(vue.themes or {}) do
+        local t = { titre = theme.titre, groupes = {} }
+        for _, g in ipairs(theme.groupes or {}) do
+            if g.chemins or type(LCM.Equilibrage[g.id]) == "table" then
+                t.groupes[#t.groupes + 1] = g
+                connus[g.id] = true
+            end
+        end
+        themes[#themes + 1] = t
+    end
+    local autres = { titre = "Autres", groupes = {} }
+    for _, id in ipairs(LCM.Reglages.Groupes()) do
+        if not connus[id] then autres.groupes[#autres.groupes + 1] = { id = id, label = Capitale(Lire(Mots(id))) } end
+    end
+    if #autres.groupes > 0 then themes[#themes + 1] = autres end
+    return themes
+end
+
 function Pages.equilibrage(page, f)
     local R = LCM.Reglages
-    local largeurGroupes = 150
+    local NAV_EQ = 180
+    local LIGNE_EQ = 24
 
-    page.titre = Titre(page, "Vecteurs d'équilibrage")
-    page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, 0)
-
+    page.titre = Titre(page, "Équilibrage")
+    page.titre:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -2)
+    -- La recherche traverse TOUS les groupes : on sait ce qu'on cherche,
+    -- rarement ou il est range.
+    page.recherche = UI.Champ(page, 220, 22, function() page:Afficher() end)
+    page.recherche:SetPoint("LEFT", page.titre, "RIGHT", 16, 0)
+    page.recherche:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    page.recherche:SetScript("OnEscapePressed", function(self) self:SetText("") self:ClearFocus() end)
+    page.recherche.indice = UI.Texte(page.recherche, "Chercher un réglage…", UI.C.discret)
+    UI.Police(page.recherche.indice, 10)
+    page.recherche.indice:SetPoint("LEFT", page.recherche, "LEFT", 6, 0)
     page.resume = UI.Texte(page, "", UI.C.discret)
-    UI.Police(page.resume, 11)
-    page.resume:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -18)
-    page.resume:SetPoint("RIGHT", page, "RIGHT", -4, 0)
-    page.resume:SetJustifyH("LEFT")
-    page.resume:SetWordWrap(true)
+    UI.Police(page.resume, 10)
+    page.resume:SetPoint("TOPRIGHT", page, "TOPRIGHT", -4, -6)
+    page.resume:SetJustifyH("RIGHT")
 
-    -- La colonne des groupes.
-    page.groupes = UI.Defilement(page)
-    page.groupes:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -48)
-    page.groupes:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
-    page.groupes:SetWidth(largeurGroupes)
-    page.boutonsGroupe = {}
+    -- La colonne : themes et groupes, dans la navigation du Panel.
+    page.colonne = UI.Defilement(page)
+    page.colonne:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -32)
+    page.colonne:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 0, 0)
+    page.colonne:SetWidth(NAV_EQ)
+    page.themes = GroupesVue()
+    page.parId = {}
+    local sections = {}
+    for _, theme in ipairs(page.themes) do
+        local entrees = {}
+        for _, g in ipairs(theme.groupes) do
+            entrees[#entrees + 1] = { id = g.id, label = g.label }
+            page.parId[g.id] = g
+        end
+        sections[#sections + 1] = { titre = theme.titre, entrees = entrees }
+    end
+    page.nav = UI.Navigation(page.colonne.contenu, sections, function(id) page:Choisir(id) end,
+        { largeur = NAV_EQ - 14, hauteur = 22 })
+    page.nav:SetPoint("TOPLEFT", page.colonne.contenu, "TOPLEFT", 0, 0)
+    page.colonne:Regler(page.nav:GetHeight())
+    -- L'ancien nom, que le banc et d'autres lisaient.
+    page.boutonsGroupe = page.nav.boutons
 
     -- Le tableau.
     page.zone = UI.Defilement(page)
-    page.zone:SetPoint("TOPLEFT", page, "TOPLEFT", largeurGroupes + 12, -48)
+    page.zone:SetPoint("TOPLEFT", page, "TOPLEFT", NAV_EQ + 12, -32)
     page.zone:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -4, 0)
-    page.lignes = {}
+    page.lignes, page.entetes = {}, {}
+    page.vide = UI.Texte(page.zone.contenu, "", UI.C.discret)
+    page.vide:SetPoint("TOPLEFT", page.zone.contenu, "TOPLEFT", 6, -6)
     page.groupe = nil
+    ConstruireDifficultes(page, page)
+    page.difficultes:SetPoint("TOPLEFT", page.zone, "TOPLEFT", 0, 0)
+    page.difficultes:SetPoint("BOTTOMRIGHT", page.zone, "BOTTOMRIGHT", 0, 0)
+    ConstruireNommages(page, page)
+    page.nommages:SetPoint("TOPLEFT", page.zone, "TOPLEFT", 0, 0)
+    page.nommages:SetPoint("BOTTOMRIGHT", page.zone, "BOTTOMRIGHT", 0, 0)
+    ConstruirePaliers(page, page)
+    page.paliers:SetPoint("TOPLEFT", page.zone, "TOPLEFT", 0, 0)
+    page.paliers:SetPoint("BOTTOMRIGHT", page.zone, "BOTTOMRIGHT", 0, 0)
+    -- Les groupes qui ont leur propre editeur plutot que le tableau.
+    page.editeurs = { difficultes = page.difficultes, metiers = page.paliers, nommages = page.nommages }
+
+    local function EnTete(rang)
+        local h = page.entetes[rang]
+        if h then return h end
+        h = CreateFrame("Frame", nil, page.zone.contenu)
+        h:SetHeight(22)
+        h.texte = UI.Texte(h, "", UI.C.libelle, "GameFontNormalSmall")
+        UI.Police(h.texte, 11)
+        h.texte:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 4, 4)
+        h.filet = UI.Filet(h, true)
+        h.filet:SetPoint("BOTTOMLEFT", h, "BOTTOMLEFT", 0, 1)
+        h.filet:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", 0, 1)
+        page.entetes[rang] = h
+        return h
+    end
+
+    -- Une ligne : le libelle, et a droite la valeur. Entree pose, Echap rend
+    -- ce qui est en vigueur. Une valeur reglee passe en or, dit ce que le
+    -- fichier disait et offre d'y revenir.
+    local function Ligne(rang)
+        local l = page.lignes[rang]
+        if l then return l end
+        l = CreateFrame("Frame", nil, page.zone.contenu)
+        l:SetHeight(LIGNE_EQ - 2)
+        if UI.SurfaceLigne then UI.SurfaceLigne(l) end
+        l.saisie = UI.Champ(l, 72, 18, nil)
+        l.saisie:SetJustifyH("RIGHT")
+        l.saisie:SetPoint("RIGHT", l, "RIGHT", -6, 0)
+        l.saisie:SetScript("OnEnterPressed", function(e)
+            local ok, raison = R.Definir(l.chemin, e:GetText())
+            e:ClearFocus()
+            if not ok then LCM.Alerte(tostring(raison)) end
+            page:Afficher()
+        end)
+        l.saisie:SetScript("OnEscapePressed", function(e)
+            e:ClearFocus()
+            page:Afficher()
+        end)
+        l.defaut = UI.Bouton(l, "", 20, 18, function()
+            local ok, raison = R.Retirer(l.chemin)
+            if not ok then LCM.Alerte(tostring(raison)) end
+            page:Afficher()
+        end)
+        l.defaut:SetPoint("RIGHT", l.saisie, "LEFT", -4, 0)
+        l.defaut.icone = l.defaut:CreateTexture(nil, "OVERLAY")
+        l.defaut.icone:SetTexture("Interface\\Buttons\\UI-RefreshButton")
+        l.defaut.icone:SetSize(12, 12)
+        l.defaut.icone:SetPoint("CENTER", l.defaut, "CENTER", 0, 0)
+        UI.Bulle(l.defaut, "Revenir au fichier", "Retire le réglage : la valeur du fichier revient.")
+        l.fichier = UI.Texte(l, "", UI.C.discret)
+        UI.Police(l.fichier, 10)
+        l.fichier:SetPoint("RIGHT", l.defaut, "LEFT", -6, 0)
+        l.nom = UI.Texte(l, "", UI.C.texte)
+        UI.Police(l.nom, 11)
+        l.nom:SetPoint("LEFT", l, "LEFT", 14, 0)
+        l.nom:SetPoint("RIGHT", l.fichier, "LEFT", -8, 0)
+        l.nom:SetJustifyH("LEFT")
+        l.nom:SetWordWrap(false)
+        -- UNE infobulle, posee ici : elle lit le texte de la ligne au survol.
+        -- L'appeler a chaque rafraichissement empilait un crochet de plus.
+        UI.Bulle(l, function(soi) return soi.bulleTitre end, function(soi) return soi.bulleTexte end)
+        -- Pour le banc et l'ancien code : `poser` valide la saisie.
+        l.poser = { Click = function() l.saisie:GetScript("OnEnterPressed")(l.saisie) end }
+        page.lignes[rang] = l
+        return l
+    end
 
     function page:Choisir(groupe)
         self.groupe = groupe
+        if self.recherche:GetText() ~= "" then self.recherche:SetText("") end
         self:Afficher()
+    end
+
+    -- Les lignes a montrer : le groupe choisi, ou tout ce que la recherche
+    -- trouve, en-tete par groupe.
+    function page:Collecter()
+        local terme = Cherchable(self.recherche:GetText() or "")
+        if terme == "" then
+            local g = self.parId[self.groupe]
+            if not g then return {} end
+            return LignesGroupe(g), false
+        end
+        local out = {}
+        for _, theme in ipairs(self.themes) do
+            for _, g in ipairs(theme.groupes) do
+                if g.id ~= "difficultes" then
+                    for _, l in ipairs(LignesGroupe(g)) do
+                        local texte = Cherchable(table.concat({ g.label, l.section or "", l.libelle or "", l.chemin }, " "))
+                        if texte:find(terme, 1, true) then
+                            l.section = g.label .. ((l.section or "") ~= "" and (" · " .. l.section) or "")
+                            out[#out + 1] = l
+                        end
+                    end
+                end
+            end
+        end
+        return out, true
     end
 
     function page:Afficher()
         if not LCM.IsMaster() then return end
-        local groupes = R.Groupes()
-        if not self.groupe then self.groupe = groupes[1] end
+        if not self.groupe or not self.parId[self.groupe] then
+            local premier = self.themes[1] and self.themes[1].groupes[1]
+            self.groupe = premier and premier.id
+        end
+        local brut = self.recherche:GetText() or ""
+        self.recherche.indice:SetShown(brut == "" and not self.recherche:HasFocus())
+        self.nav:Selectionner(brut == "" and self.groupe or nil)
 
         local n = R.Compte()
         self.resume:SetText(n > 0
-            and string.format("%d réglage(s) en cours — ils s'appliquent chez tout le monde "
-                .. "et restent à exporter.", n)
-            or "Aucun réglage : le jeu tourne sur les valeurs du fichier.")
+            and string.format("%d réglage%s à exporter — ils valent déjà chez tout le monde.", n, n > 1 and "s" or "")
+            or "Aucun réglage : le jeu tourne sur le fichier.")
 
-        local y = 0
-        for rang, groupe in ipairs(groupes) do
-            local b = self.boutonsGroupe[rang]
-            if not b then
-                b = UI.Bouton(self.groupes.contenu, "", largeurGroupes - 20, 22, function()
-                    page:Choisir(page.boutonsGroupe[rang].groupe)
-                end)
-                self.boutonsGroupe[rang] = b
-            end
-            b.groupe = groupe
-            b.label:SetText(groupe)
-            b:Selectionner(groupe == self.groupe)
-            b:ClearAllPoints()
-            b:SetPoint("TOPLEFT", self.groupes.contenu, "TOPLEFT", 0, -y)
-            b:Show()
-            y = y + 24
+        -- Les groupes a editeur : les difficultes (une liste a laquelle on
+        -- AJOUTE) et les paliers des metiers (une grille, seuils calcules).
+        local editeur = brut == "" and self.editeurs[self.groupe] or nil
+        for _, e in pairs(self.editeurs) do e:SetShown(e == editeur) end
+        self.zone:SetShown(editeur == nil)
+        if editeur then
+            editeur:Afficher()
+            return
         end
-        for rang = #groupes + 1, #self.boutonsGroupe do self.boutonsGroupe[rang]:Hide() end
-        self.groupes:Regler(math.max(1, y))
 
-        local vecteurs = R.Vecteurs(self.groupe)
-        local yv = 0
-        for rang, v in ipairs(vecteurs) do
-            local l = self.lignes[rang]
-            if not l then
-                l = CreateFrame("Frame", nil, self.zone.contenu)
-                l:SetHeight(LIGNE_REGLAGE - 2)
-                if UI.SurfaceLigne then UI.SurfaceLigne(l) end
-                l.nom = UI.Texte(l, "", UI.C.texte)
-                UI.Police(l.nom, 11)
-                l.nom:SetPoint("LEFT", l, "LEFT", 6, 0)
-                l.nom:SetWordWrap(false)
-                -- Remettre par defaut : le bouton n'apparait que s'il y a
-                -- quelque chose a defaire.
-                l.defaut = UI.Bouton(l, "Défaut", 62, 18, function()
-                    local ok, raison = R.Retirer(l.chemin)
-                    if not ok then LCM.Alerte(tostring(raison)) end
-                    page:Afficher()
-                end)
-                l.defaut:SetPoint("RIGHT", l, "RIGHT", -6, 0)
-                l.saisie = UI.Champ(l, 70, 18, nil)
-                l.saisie:SetPoint("RIGHT", l.defaut, "LEFT", -6, 0)
-                l.poser = UI.Bouton(l, "OK", 32, 18, function()
-                    local ok, raison = R.Definir(l.chemin, l.saisie:GetText())
-                    if not ok then LCM.Alerte(tostring(raison)) return end
-                    LCM.Ok(string.format("%s = %s", l.chemin, l.saisie:GetText()))
-                    page:Afficher()
-                end)
-                l.poser:SetPoint("RIGHT", l.saisie, "LEFT", -4, 0)
-                l.nom:SetPoint("RIGHT", l.poser, "LEFT", -8, 0)
-                self.lignes[rang] = l
+        local lignes, recherche = self:Collecter()
+        local surcharges = R.Surcharges()
+        local y, nL, nE, section = 0, 0, 0, nil
+        for _, v in ipairs(lignes) do
+            if (v.section or "") ~= section then
+                section = v.section or ""
+                if section ~= "" then
+                    nE = nE + 1
+                    local h = EnTete(nE)
+                    h.texte:SetText(UI.Majuscules(section))
+                    h:ClearAllPoints()
+                    h:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+                    h:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
+                    h:Show()
+                    y = y + 24
+                end
             end
+            nL = nL + 1
+            local l = Ligne(nL)
             l.chemin = v.chemin
-            -- Le chemin SANS son groupe : il est deja dans la colonne de
-            -- gauche, le repeter sur chaque ligne mangeait la place.
-            l.nom:SetText((v.chemin:gsub("^" .. self.groupe .. "%.", "")))
+            l.nom:SetText(v.libelle)
             if not l.saisie:HasFocus() then l.saisie:SetText(tostring(v.valeur)) end
-            -- Regle : on le voit. La valeur du fichier reste lisible a cote.
-            local regle = R.Surcharges()[v.chemin] ~= nil
-            local couleur = regle and UI.C.accent or UI.C.texte
-            l.nom:SetTextColor(couleur[1], couleur[2], couleur[3])
+            local regle = surcharges[v.chemin] ~= nil
+            local c = regle and UI.C.accent or UI.C.texte
+            l.nom:SetTextColor(c[1], c[2], c[3])
+            l.saisie:SetTextColor(c[1], c[2], c[3])
             l.defaut:SetShown(regle)
-            if regle then
-                UI.Bulle(l, v.chemin, string.format("Réglé à %s. Le fichier dit %s.",
-                    tostring(v.valeur), tostring(v.defaut)))
-            else
-                UI.Bulle(l, v.chemin, "Valeur du fichier.")
-            end
+            l.fichier:SetShown(regle)
+            l.fichier:SetText(regle and ("fichier : " .. tostring(v.defaut)) or "")
+            -- L'infobulle dit d'abord a quoi sert le nombre (EquilibrageVue,
+            -- Vue.Aide), puis son etat, et l'identifiant en dernier, en gris.
+            local aide = MJ.EquilibrageVue and MJ.EquilibrageVue.Aide and MJ.EquilibrageVue.Aide(v.chemin)
+            l.bulleTitre = v.libelle
+            l.bulleTexte = (aide and (aide .. "\n\n") or "") .. (regle
+                and string.format("Réglé à %s. Le fichier dit %s.", tostring(v.valeur), tostring(v.defaut))
+                or "Valeur du fichier. Entrée pour en valider une autre.")
+                .. "\n|cff808080" .. v.chemin .. "|r"
             l:ClearAllPoints()
-            l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -yv)
-            l:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -yv)
+            l:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -y)
+            l:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -y)
             l:Show()
-            yv = yv + LIGNE_REGLAGE
+            y = y + LIGNE_EQ
         end
-        for rang = #vecteurs + 1, #self.lignes do self.lignes[rang]:Hide() end
-        self.zone:Regler(math.max(1, yv))
+        for rang = nL + 1, #self.lignes do self.lignes[rang]:Hide() end
+        for rang = nE + 1, #self.entetes do self.entetes[rang]:Hide() end
+        self.vide:SetText(recherche and "Rien ne correspond." or "Rien à régler ici.")
+        self.vide:SetShown(nL == 0)
+        self.nombreLignes = nL
+        self.zone:Regler(math.max(1, y))
     end
 
     -- Un reglage reçu d'ailleurs rafraichit le tableau : les deux MJ regardent
@@ -2496,6 +3530,15 @@ local function Construire()
     -- La navigation, a gauche. `f.barre` garde son nom : le reste du
     -- compagnon et le banc y cherchent les entrees (b.ongletId, b:Click()).
     f.barre = UI.Navigation(f.contenu, Navigation(), function(id, parentId)
+        if id == "compendium" then
+            -- Ouvrir le Compendium sans quitter la page en cours : la
+            -- navigation se rallume sur celle-ci.
+            local noeud = UI.Menu.Trouver("systeme_aelskar")
+            if noeud and type(noeud.onClick) == "function" then noeud.onClick()
+            else LCM.Alerte("le Compendium n'est pas disponible.") end
+            f:Onglet(f.onglet or "joueurs")
+            return
+        end
         if parentId == "outils" then
             f:Onglet("outils", id:match("^outils:(.+)$"))
         else
@@ -2585,6 +3628,7 @@ local function Construire()
         if Ecran.compact then Ecran.compact:Hide() end
         self.pages.joueurs:Disposer(false)
         self.pages.pnj:Disposer(false)
+        self.pages.combat:Disposer(false)
         self:PlacerBas()
         self:Show()
         self:Onglet(id or self.onglet or "joueurs", sorte)
@@ -2641,54 +3685,50 @@ local function ConstruireCompact()
     -- Le detail (choisir ses PNJ, revenir d'un tour) reste dans la version
     -- etendue, onglet Combat.
     local C = LCM.Combat
-    c.combat = UI.Bouton(c, "", 132, 18, function()
-        local fait, raison
-        if C.Etat() then
-            fait, raison = C.Avancer(1)
-        elseif C.invitation then
-            fait, raison = C.Lancer()
-        else
-            local pnj = {}
-            for _, instance in ipairs(LCM.Incarnation.Liste()) do pnj[#pnj + 1] = instance.id end
-            fait, raison = C.Inviter({ pnj = pnj, moi = true })
-        end
-        Dire(fait ~= nil and fait ~= false, raison)
-        c:AfficherCombat()
-    end)
-    -- Arreter se confirme : un clic de travers le ferait chez tout le monde.
+    -- Le bouton Combat (le MJ, 2 novembre 2026) : il OUVRE la page Combat
+    -- dans la fenetre compacte — on y choisit qui est invite (PNJ et
+    -- joueurs), on attend les reponses, on lance quand tout le monde est pret.
+    -- Pendant un combat, il devient « Fin de combat », qui se confirme : un
+    -- clic de travers l'arreterait chez tout le monde.
     c.confirmer = UI.Confirmer(c, "", "Terminer")
-    c.terminer = UI.Bouton(c, "Terminer", 58, 18, function()
-        if C.Etat() then
-            c.confirmer:Demander("Terminer le combat pour tout le monde ?", function()
-                Dire(C.Terminer())
-                c:AfficherCombat()
-            end)
-        else
-            C.Annuler()
-            c:AfficherCombat()
-        end
-    end)
+    -- Le bouton RAMENE toujours a la vue Combat (le MJ, 2 novembre 2026 : en
+    -- la quittant, on ne pouvait plus y revenir). Pendant un combat il passe
+    -- en rouge ; « Terminer le combat » est dans la page, en bas a droite.
+    c.combat = UI.Bouton(c, "", 132, 18, function() c:Onglet("combat") end)
+    -- Garde pour l'ancien code ; la page Combat porte Annuler et ses tours.
+    c.terminer = UI.Bouton(c, "Terminer", 58, 18, function() end)
+    c.terminer:Hide()
 
     function c:AfficherCombat()
         local etat = C.Etat()
         local texte, bulle
         if etat then
-            texte, bulle = "Tour suivant", "Passe au combattant suivant."
-            self.terminer.label:SetText("Terminer")
+            texte, bulle = "Combat", "Un combat est en cours : clique pour y revenir. « Terminer le combat » est en bas à droite."
         elseif C.invitation then
-            local attendus = #C.Attendus()
-            texte = attendus > 0 and string.format("Lancer sans attendre (%d)", attendus) or "Lancer"
-            bulle = "Lance avec ceux qui ont accepté ; les autres restent dehors."
-            self.terminer.label:SetText("Annuler")
+            texte, bulle = "Combat (invitation)", "Les invités répondent : lance quand tout le monde est prêt."
         else
-            local n = #LCM.Incarnation.Liste()
-            texte = n > 0 and string.format("Combat (%d PNJ)", n) or "Combat"
-            bulle = "Invite le groupe, toi compris, et tous les PNJ en scène."
+            texte, bulle = "Combat", "Ouvre le combat : choisis les PNJ et les joueurs invités."
         end
         self.combat.label:SetText(texte)
-        UI.Bulle(self.combat, "Combat", bulle)
-        self.terminer:SetShown(etat ~= nil or C.invitation ~= nil)
+        self.combat.bulleTexte = bulle
+        self.combat:Selectionner(self.onglet == "combat")
+        -- En combat, le bouton passe au ROUGE (le MJ, 2 novembre 2026) : le
+        -- CONTOUR et le texte, pas le coeur — un fond rouge noyait le libelle.
+        -- Un cadre a part, un niveau au-dessus, pour que le contour du bouton
+        -- ne le recouvre pas.
+        if not self.combat.alerte then
+            local alerte = CreateFrame("Frame", nil, self.combat)
+            alerte:SetAllPoints(self.combat)
+            alerte:SetFrameLevel(self.combat:GetFrameLevel() + 1)
+            alerte:EnableMouse(false)
+            UI.Bordure(alerte, { 0.90, 0.18, 0.14, 1 })
+            self.combat.alerte = alerte
+        end
+        self.combat.alerte:SetShown(etat ~= nil)
+        if etat then self.combat.label:SetTextColor(1, 0.35, 0.30) end
+        self.terminer:Hide()
     end
+    UI.Bulle(c.combat, "Combat", function(soi) return soi.bulleTexte end)
 
     -- La barre de titre : « MJ », les onglets, Etendre a gauche ; la croix,
     -- Combat et Terminer a droite. Refaite a chaque ouverture : la croix
@@ -2707,7 +3747,7 @@ local function ConstruireCompact()
         self.combat:SetPoint("RIGHT", self.fermer, "LEFT", -6, 0)
         self.terminer:ClearAllPoints()
         self.terminer:SetPoint("RIGHT", self.combat, "LEFT", -4, 0)
-        for _, id in ipairs({ "joueurs", "pnj" }) do
+        for _, id in ipairs({ "joueurs", "pnj", "combat" }) do
             local page = panneau.pages[id]
             page:SetParent(self.contenu)
             page:ClearAllPoints()
@@ -2715,19 +3755,23 @@ local function ConstruireCompact()
         end
     end
 
+    -- Trois vues : Groupe et Scene (les onglets), et Combat (le bouton).
     function c:Onglet(id)
-        if id ~= "pnj" then id = "joueurs" end
+        if id ~= "pnj" and id ~= "combat" then id = "joueurs" end
         self.onglet = id
         self.barre:Selectionner(id)
-        panneau.pages.joueurs:SetShown(id == "joueurs")
-        panneau.pages.pnj:SetShown(id == "pnj")
+        for _, vue in ipairs({ "joueurs", "pnj", "combat" }) do
+            panneau.pages[vue]:SetShown(vue == id)
+        end
         panneau.pages[id]:Afficher()
+        if self.AfficherCombat then self:AfficherCombat() end
     end
 
     function c:Montrer(id)
         panneau:Hide()
         panneau.pages.joueurs:Disposer(true)
         panneau.pages.pnj:Disposer(true)
+        panneau.pages.combat:Disposer(true)
         self:Placer()
         self:Show()
         self:Onglet(id or self.onglet or "joueurs")
@@ -2850,6 +3894,12 @@ end
 
 LCM.WhenReady(function()
     UI.Menu.Lier("panneau_mj", Ecran.Basculer)
+    -- Les paliers des Nommages rangés en contenu par la premiere version
+    -- (liste « paliers ») passent en reglages, puis quittent le contenu.
+    if LCM.IsMaster() and MJ.Nommages and MJ.Nommages.Reprendre then
+        local ok, erreur = pcall(MJ.Nommages.Reprendre)
+        if not ok then LCM.Erreur("reprise des Nommages : " .. tostring(erreur)) end
+    end
     -- Changer d'incarnation rafraichit ce qui est ouvert : la fiche ne doit pas
     -- rester sur le personnage d'avant. Repris de la fenetre Incarner, retiree
     -- le 2 novembre 2026 au profit de la page Scène & PNJ.

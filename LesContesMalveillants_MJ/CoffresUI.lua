@@ -293,8 +293,10 @@ local function Construire()
     }, 226)
     Libelle(c.pages[2], "Méthodes autorisées — chaque réussite ouvre un verrou", 0, -2)
     c.tableauExpertises, c.zoneExpertises = Tableau(c.pages[2], -26, {
-        { "EXPERTISE", 0, 150 }, { "DD", 150, 48 }, { "FATIGUE", 198, 65 },
-        { "USURE OUTILS", 263, 98 }, { "REVERROUILLER", 361, 111 }, { "", 472, 26 },
+        -- Le DD se choisit dans les difficultes (le MJ, 2 novembre 2026) : sa
+        -- colonne s'elargit pour « DD 15 · Rose », les autres se resserrent.
+        { "EXPERTISE", 0, 124 }, { "DD", 124, 118 }, { "FATIGUE", 242, 58 },
+        { "USURE OUTILS", 300, 86 }, { "REVERROUILLER", 386, 88 }, { "", 474, 24 },
     }, 150)
     -- Les outils suivent le tableau des expertises, qui grandit avec ses
     -- lignes : poses a une hauteur fixe, ils laisseraient un trou entre eux.
@@ -614,7 +616,7 @@ local function Construire()
                 ligne = CreateFrame("Frame", nil, c.zoneExpertises.contenu)
                 ligne:SetHeight(pas)
                 FondLigne(ligne)
-                ligne.nom = BoutonTexte(ligne, 134)
+                ligne.nom = BoutonTexte(ligne, 112)
                 ligne.nom:SetPoint("TOPLEFT", ligne, "TOPLEFT", 8, -2)
                 ligne.nom:SetScript("OnClick", function()
                     f.choixExpertise:Proposer(ligne.nom,
@@ -630,26 +632,37 @@ local function Construire()
                             end
                         end)
                 end)
-                ligne.dd = UI.Champ(ligne, 36, 20, function(texte)
+                -- Le DD de CETTE methode, choisi dans les difficultes ; le champ
+                -- libre reste tant qu'aucune n'est posee. `ligne.dd` garde le
+                -- champ (le banc et l'ancien code le lisent).
+                ligne.dd = UI.Champ(ligne, 40, 20, function(texte)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.dd = texte end
                 end)
-                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 156, -4)
+                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 162, -4)
+                ligne.choixDD = UI.Deroulant(ligne, 110, 20, function()
+                    return LCM.Difficultes.Options()
+                end, function(valeur)
+                    local courant = f.travail.coffre.expertises[ligne.index]
+                    if courant then courant.dd = valeur end
+                    ligne.dd:SetText(tostring(valeur))
+                end)
+                ligne.choixDD:SetPoint("TOPLEFT", ligne, "TOPLEFT", 128, -4)
                 ligne.fatigue = UI.Champ(ligne, 42, 20, function(texte)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.fatigue = texte end
                 end)
-                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 208, -4)
+                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 250, -4)
                 ligne.usureOutils = UI.Case(ligne, "Oui", function(coche)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.usureOutils = coche end
                 end)
-                ligne.usureOutils:SetPoint("TOPLEFT", ligne, "TOPLEFT", 277, -6)
+                ligne.usureOutils:SetPoint("TOPLEFT", ligne, "TOPLEFT", 310, -6)
                 ligne.relock = UI.Case(ligne, "Oui", function(coche)
                     local courant = f.travail.coffre.expertises[ligne.index]
                     if courant then courant.reverrouillable = coche end
                 end)
-                ligne.relock:SetPoint("TOPLEFT", ligne, "TOPLEFT", 375, -6)
+                ligne.relock:SetPoint("TOPLEFT", ligne, "TOPLEFT", 398, -6)
                 ligne.retirer = CreateFrame("Button", nil, ligne)
                 ligne.retirer:SetSize(24, 22)
                 ligne.retirer:SetPoint("RIGHT", ligne, "RIGHT", -4, 0)
@@ -670,11 +683,15 @@ local function Construire()
             ligne.index = index
             local avecClef = methode.id == LCM.Coffres.METHODE_CLEF
             ligne.nom.label:SetText(NomMethode(methode.id))
-            ligne.dd:SetShown(not avecClef)
+            local liste = LCM.Difficultes.Actives()
+            ligne.dd:SetShown(not avecClef and not liste)
+            ligne.choixDD:SetShown(not avecClef and liste)
             ligne.fatigue:SetShown(not avecClef)
             if not avecClef then
                 ligne.dd:SetText(tostring(methode.dd or 0))
                 ligne.fatigue:SetText(tostring(methode.fatigue or 0))
+                local dd = tonumber(methode.dd) or 0
+                ligne.choixDD:Definir(dd, LCM.Difficultes.Libelle(dd))
             end
             ligne.usureOutils:Cocher(methode.usureOutils == true)
             ligne.relock:Cocher(methode.reverrouillable == true)

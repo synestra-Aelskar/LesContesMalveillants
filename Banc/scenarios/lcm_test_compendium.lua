@@ -42,7 +42,9 @@ for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- 24 octobre). Trente-six depuis les cartes, rangees apres les livres
 -- (« Cartes », 31 octobre : un objet lisible qui devoile des lieux de
 -- Crossings). C'est la STRUCTURE de l'addon : elle se verifie en entier,
--- contrairement au contenu qui vit.
+-- contrairement au contenu qui vit. (Les paliers des Nommages sont du contenu
+-- mais n'ont PAS de categorie : ils se reglent dans l'onglet Equilibrage du
+-- Panel MJ, et nulle part ailleurs — le MJ, 2 novembre 2026.)
 attendu("36 categories", #C.categories, 36)
 attendu("ordre", table.concat(ids, ","),
     "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste-Type-Etats,"

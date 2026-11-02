@@ -20,6 +20,10 @@ end
 LCM.Brouillons.Set("ressources", { id = "minerai_temoin", label = "Minerai témoin", icone = "inv_ore_iron_01" })
 LCM.Brouillons.Set("sacs", { id = "sac_temoin", label = "Sac témoin", places = 12, icone = "inv_misc_bag_30" })
 __declencher("PLAYER_LOGIN")
+-- Ce scenario enchaine des clics au MEME instant d'horloge : la garde
+-- « un clic, un jet » (2 novembre 2026) les prendrait pour un double clic.
+-- Elle a son propre scenario (lcm_test_recolte_rebond).
+LCM.Recolte.ANTI_REBOND = 0
 __personnage()
 local moi = LCM.Entities.Self()
 LCM.Inventaire.Poser(moi, "sacs", 1, "sac_temoin", true)
@@ -109,7 +113,10 @@ attendu("sur la création", f.creation:IsShown(), true)
 attendu("  le placement est caché", f.placement:IsShown(), false)
 local c = f.creation
 attendu("réglages communs visibles", c.communs:IsShown(), true)
-attendu("réglages communs ont une hauteur", c.communs:GetHeight(), 229)
+-- 229 -> 310 (2 novembre 2026) : la page porte aussi le tableau « Outils
+-- autorisés » — son titre (29), son en-tete (24) et la ligne « + Ajouter un
+-- outil » (28).
+attendu("réglages communs ont une hauteur", c.communs:GetHeight(), 310)
 
 dire("== un refus dit pourquoi")
 f:Nouveau()
@@ -203,7 +210,10 @@ for _, ligne in ipairs(f.choixMetier.lignes) do
 end
 attendu("le mineur est proposé", choixMineur ~= nil, true)
 if choixMineur then choixMineur:Click() end
-c.dd:Saisir("10")
+-- Le DD vit sur la ligne du metier depuis le 2 novembre 2026 (un mineur et un
+-- bucheron n'affrontent pas le meme filon) : on le saisit sur sa ligne. Le
+-- banc n'a pas de difficultes posees, d'ou le champ libre.
+c.lignesMetiers[1].ddLibre:Saisir("10")
 c.rayon:Saisir("500")
 c.enregistrer:Click()
 attendu("un rayon démesuré est refusé", c.erreur:GetText(),

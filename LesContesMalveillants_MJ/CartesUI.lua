@@ -538,15 +538,17 @@ function Ecran.Editer(element)
     return true
 end
 
--- L'entree Cartes du radial (Systeme > Interactions) ouvre la categorie des
--- cartes au compendium : c'est la que se cree une carte, comme un livre.
+-- L'entree Cartes du radial (Systeme > Interactions) sert a POSER des cartes
+-- a trouver dans le monde (le MJ, 2 novembre 2026) : elle ouvre l'atelier des
+-- ressources en mode « cartes ». Elle ouvrait la categorie des cartes au
+-- compendium ; une carte s'y CREE toujours (Système › Compendium › Cartes).
 LCM.WhenReady(function()
     if not (UI.Menu and UI.Menu.Lier) then return end
     UI.Menu.Lier("cartes", function()
-        if UI.Compendium and UI.Compendium.Ouvrir then
+        if UI.Recoltes and UI.Recoltes.Basculer then
+            UI.Recoltes.Basculer("cartes")
+        elseif UI.Compendium and UI.Compendium.Ouvrir then
             UI.Compendium.Ouvrir("cartes")
-        else
-            Ecran.Editer(nil)
         end
     end)
 end)

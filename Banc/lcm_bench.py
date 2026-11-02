@@ -828,7 +828,8 @@ function ClearOverrideBindings(proprio) surcharges[proprio] = nil end
 
 -- Les sons : rien ne sort, mais un scenario lit ce qui a ete joue
 -- (__sons, dans l'ordre : { id, canal }). Les identifiants sont ceux du jeu.
-SOUNDKIT = { IG_BACKPACK_OPEN = 862, IG_BACKPACK_CLOSE = 863, IG_SPELLBOOK_TURNPAGE = 836 }
+SOUNDKIT = { IG_BACKPACK_OPEN = 862, IG_BACKPACK_CLOSE = 863, IG_SPELLBOOK_TURNPAGE = 836, READY_CHECK = 8960,
+            IG_CHARACTER_INFO_OPEN = 839, IG_CHARACTER_INFO_CLOSE = 840 }
 __sons = {}
 function PlaySound(id, canal) __sons[#__sons + 1] = { id = id, canal = canal } return true, #__sons end
 

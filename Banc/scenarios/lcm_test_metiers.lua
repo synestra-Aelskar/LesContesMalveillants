@@ -60,10 +60,15 @@ attendu("entree du menu allumee", LCM.UI.Menu.EstLiee("metiers"), true)
 LCM.UI.Menu.Trouver("metiers").onClick()
 local f = LCM.UI.Metiers.frame
 attendu("ouverte", f:IsShown(), true)
-attendu("une ligne par metier", #f.lignes, 32)
+-- Rangee par categories depuis le 2 novembre 2026 : un metier de deux
+-- categories a deux lignes (le Traqueur), donc plus de lignes que de metiers.
+attendu("au moins une ligne par metier", #f.lignes >= #M.list, true)
+attendu("des catégories", #f.entetes >= 4, true)
+local ligneMineur
+for _, l in ipairs(f.lignes) do if l.metierId == "mineur" then ligneMineur = l end end
 attendu("premier choisi", f.metierId, "depeceur")
 attendu("detail", f.detail.label:GetText(), "Dépeçeur")
-f.lignes[2]:Click()
+ligneMineur:Click()
 attendu("mineur choisi", f.detail.label:GetText(), "Mineur")
 attendu("palier affiche", f.detail.palier:GetText(), "Palier : Niveau 0")
 -- Le bouton donne 10 XP. Le premier palier en coute davantage depuis la
@@ -77,7 +82,7 @@ local attenduLibelle = premier.nom .. " " .. premier.niveau
 attendu("le premier palier est franchi", f.detail.palier:GetText(), "Palier : " .. attenduLibelle)
 attendu("le passage est annonce",
     __sansCouleur(__sorties[#__sorties]):find("passe : " .. attenduLibelle) ~= nil, true)
-attendu("dans la liste aussi", f.lignes[2].palier:GetText(), attenduLibelle)
+attendu("dans la liste aussi", ligneMineur.palier:GetText(), attenduLibelle)
 attendu("barre", f.detail.barre.label:GetText(),
     string.format("%d / %d", clics * 10 - premier.cumul, paliers[2].xp))
 
