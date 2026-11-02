@@ -75,13 +75,27 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         t:SetPoint("TOPLEFT", 0, -i * 60); t:SetPoint("TOPRIGHT", 0, -i * 60)
     end
 
-    local remplissages = CreateFrame("Frame", nil, map); remplissages:SetAllPoints()
+    -- La géométrie reste immobile dans sa scène pendant les gestes caméra.
+    local scene = CreateFrame("Frame", nil, map)
+    scene:SetSize(width, height); scene:SetPoint("TOPLEFT", map, "TOPLEFT", 0, 0)
+    map.scene = scene
+    function map:PreviewCamera()
+        local base = self.renderCamera
+        if not base then return end
+        local k = self.scale / base.scale
+        local x = width / 2 * (1-k) + (self.cx-base.cx)*self.scale
+        local y = height / 2 * (1-k) + (self.cy-base.cy)*self.scale
+        scene:SetScale(k); scene:ClearAllPoints()
+        scene:SetPoint("TOPLEFT", map, "TOPLEFT", x/k, -y/k)
+    end
+
+    local remplissages = CreateFrame("Frame", nil, scene); remplissages:SetAllPoints()
     remplissages:SetFrameLevel(map:GetFrameLevel() + 2)
-    local traits = CreateFrame("Frame", nil, map); traits:SetAllPoints()
+    local traits = CreateFrame("Frame", nil, scene); traits:SetAllPoints()
     traits:SetFrameLevel(map:GetFrameLevel() + 3)
-    local sommets = CreateFrame("Frame", nil, map); sommets:SetAllPoints()
+    local sommets = CreateFrame("Frame", nil, scene); sommets:SetAllPoints()
     sommets:SetFrameLevel(map:GetFrameLevel() + 4)
-    local etiquettes = CreateFrame("Frame", nil, map); etiquettes:SetAllPoints()
+    local etiquettes = CreateFrame("Frame", nil, scene); etiquettes:SetAllPoints()
     etiquettes:SetFrameLevel(map:GetFrameLevel() + 5)
 
     -- Remplir un triangle demande de déformer une texture : sans ça, on s'en
@@ -107,7 +121,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         local minx, maxx = math.min(a[1], b[1], c[1]), math.max(a[1], b[1], c[1])
         local miny, maxy = math.min(a[2], b[2], c[2]), math.max(a[2], b[2], c[2])
         local w, h = math.max(1, maxx - minx), math.max(1, maxy - miny)
-        t:ClearAllPoints(); t:SetPoint("TOPLEFT", map, "TOPLEFT", minx, -miny); t:SetSize(w, h)
+        t:ClearAllPoints(); t:SetPoint("TOPLEFT", scene, "TOPLEFT", minx, -miny); t:SetSize(w, h)
         t:SetColorTexture(color[1], color[2], color[3], alpha or .28)
         t:SetVertexOffset(1, a[1] - minx, -(a[2] - miny))
         t:SetVertexOffset(2, b[1] - minx, -(b[2] - (miny + h)))
@@ -125,7 +139,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         nTrait = nTrait + 1
         local t = traitPool[nTrait]
         if not t then t = traits:CreateTexture(nil, "ARTWORK"); traitPool[nTrait] = t end
-        t:ClearAllPoints(); t:SetPoint("CENTER", map, "TOPLEFT", (x1 + x2) / 2, -(y1 + y2) / 2)
+        t:ClearAllPoints(); t:SetPoint("CENTER", scene, "TOPLEFT", (x1 + x2) / 2, -(y1 + y2) / 2)
         t:SetSize(longueur, epaisseur or 2); t:SetRotation(math.atan2(-dy, dx))
         t:SetColorTexture(color[1], color[2], color[3], alpha or .95); t:Show()
     end
@@ -148,7 +162,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             police = (largeur and largeur < 110) and "GameFontNormal" or "GameFontNormalLarge"
         end
         f:SetFontObject(police)
-        f:ClearAllPoints(); f:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        f:ClearAllPoints(); f:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
         if largeur then
             f:SetWidth(largeur); f:SetWordWrap(true); f:SetJustifyH("CENTER")
         else
@@ -175,14 +189,14 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             carrePool[nCarre] = c
         end
         local cote = POIGNEE + (choisi and 4 or 0)
-        c.bord:ClearAllPoints(); c.bord:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        c.bord:ClearAllPoints(); c.bord:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
         c.bord:SetSize(cote + 4, cote + 4)
         c.bord:SetColorTexture(choisi and 1 or 0, choisi and .85 or 0, choisi and .25 or 0, choisi and 1 or .75)
         c.bord:Show()
-        c.coeur:ClearAllPoints(); c.coeur:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        c.coeur:ClearAllPoints(); c.coeur:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
         c.coeur:SetSize(cote, cote)
         c.coeur:SetColorTexture(color[1], color[2], color[3], 1); c.coeur:Show()
-        c.point:ClearAllPoints(); c.point:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        c.point:ClearAllPoints(); c.point:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
         c.point:SetSize(3, 3); c.point:SetColorTexture(.05, .05, .05, 1)
         c.point:SetShown(soude and true or false)
     end
@@ -202,7 +216,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             rondPool[nRond] = t
         end
         t:SetVertexColor(color[1], color[2], color[3], 1)
-        t:ClearAllPoints(); t:SetPoint("CENTER", map, "TOPLEFT", x, -y)
+        t:ClearAllPoints(); t:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
         t:Show()
     end
 
@@ -225,7 +239,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     -- la carte entière, et personne n'a rien à rendre.
     local ADT = 533.33333      -- côté d'un bloc, en yards
     local MAX_TUILES = 240     -- au-delà, on est trop dézoomé pour que ça serve
-    local tuilesFrame = CreateFrame("Frame", nil, map)
+    local tuilesFrame = CreateFrame("Frame", nil, scene)
     tuilesFrame:SetAllPoints(); tuilesFrame:SetFrameLevel(map:GetFrameLevel() + 1)
     tuilesFrame:Hide()
     local tuiles = {}
@@ -283,7 +297,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                 t:SetTexture(string.format("world\\minimaps\\%s\\map%02d_%02d.blp", dossier, col, lig))
                 local x, y = self:ToScreen((32 - col) * ADT, (32 - lig) * ADT)
                 t:ClearAllPoints()
-                t:SetPoint("TOPLEFT", map, "TOPLEFT", x, -y)
+                t:SetPoint("TOPLEFT", scene, "TOPLEFT", x, -y)
                 -- Un yard de rab : sans ça un liseré du fond passe entre deux
                 -- tuiles dès que l'échelle tombe mal.
                 t:SetSize(cote + 1, cote + 1)
@@ -350,7 +364,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                     t:SetTexture(image)
                     t:SetTexCoord(0, tw / couche.tileWidth, 0, th / couche.tileHeight)
                     t:ClearAllPoints()
-                    t:SetPoint("TOPLEFT", map, "TOPLEFT",
+                    t:SetPoint("TOPLEFT", scene, "TOPLEFT",
                         x1 + larg * (col * couche.tileWidth) / couche.layerWidth,
                         -(y1 + haut * (ligne * couche.tileHeight) / couche.layerHeight))
                     t:SetSize(math.max(1, larg * tw / couche.layerWidth),
@@ -649,9 +663,40 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     local nomsCliquables = {}  -- { {subId=, zoneId=, x=, y=, w=, h=} }
     local segments = {}   -- arêtes de MES zones : { {subId=, index=, x1=,y1=,x2=,y2=} }
 
+    -- Simplification du dessin seul, à moins d'un pixel : les longues
+    -- frontières presque droites ne nécessitent pas des centaines de triangles.
+    local function ContourAffiche(points, scale)
+        local keep={[1]=true,[#points]=true}
+        local stack={{1,#points}}
+        local tolerance=1/(scale*scale)
+        while #stack>0 do
+            local pair=table.remove(stack)
+            local first,last=pair[1],pair[2]
+            local a,b=points[first],points[last]
+            local dx,dy=b.x-a.x,b.y-a.y
+            local length=dx*dx+dy*dy
+            local best,index=tolerance,nil
+            for i=first+1,last-1 do
+                local p=points[i]
+                local t=length>0 and math.max(0,math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/length)) or 0
+                local x,y=p.x-a.x-t*dx,p.y-a.y-t*dy
+                local distance=x*x+y*y
+                if distance>best then best,index=distance,i end
+            end
+            if index then
+                keep[index]=true
+                stack[#stack+1]={first,index};stack[#stack+1]={index,last}
+            end
+        end
+        local out={}
+        for i,p in ipairs(points) do if keep[i] then out[#out+1]=p end end
+        return #out>=3 and out or points
+    end
     local simplifications=setmetatable({}, {__mode="k"})
     function map:Draw()
         self.pendingZoom=nil
+        scene:SetScale(1); scene:ClearAllPoints(); scene:SetPoint("TOPLEFT", map, "TOPLEFT", 0, 0)
+        self.renderCamera={cx=self.cx,cy=self.cy,scale=self.scale}
         geo = geo or ZG.Geo
         for i = 1, nTri do triPool[i]:Hide() end
         for i = 1, nTrait do traitPool[i]:Hide() end
@@ -715,7 +760,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         -- qui était faux.
         self.sommetsEnVue, self.attrapables = total, attrapables
 
-        local soudures = ZG:WeldGroups()
+        local soudures = attrapables and ZG:WeldGroups() or {}
         for _, e in ipairs(liste) do
             -- Un bâtiment : un rond violet, son nom au-dessus. Son tracé et
             -- ses pièces se travaillent sur SA carte, qu'un clic ouvre.
@@ -800,15 +845,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                     end
                 end
                 if not valid then
-                    cached={scale=self.scale,coords={},points={points[1]}}
-                    local last=points[1]
-                    for i,p in ipairs(points) do
-                        cached.coords[i*2-1],cached.coords[i*2]=p.x,p.y
-                        if i>1 and i<#points and (math.abs(p.x-last.x)+math.abs(p.y-last.y))*self.scale>=2.5 then
-                            cached.points[#cached.points+1]=p;last=p
-                        end
-                    end
-                    cached.points[#cached.points+1]=points[#points]
+                    cached={scale=self.scale,coords={},points=ContourAffiche(points,self.scale)}
+                    for i,p in ipairs(points) do cached.coords[i*2-1],cached.coords[i*2]=p.x,p.y end
                     simplifications[points]=cached
                 end
                 -- Identité stable : la triangulation peut enfin garder son cache.
@@ -894,7 +932,9 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
             -- Les sommets, seulement pour mes zones : on ne modifie pas celles
             -- d'un autre auteur, et des poignées mortes tromperaient.
-            if e.mienne and e.tenue then
+            -- Les poignées désactivées n'ont rien à dessiner. Sinon la vue
+            -- large allouait encore trois textures pour CHAQUE sommet.
+            if e.mienne and e.tenue and attrapables then
                 for i, p in ipairs(sub.points) do
                     -- Recalculé depuis le sommet, pas lu dans `ecran` : le
                     -- tracé a pu être simplifié, et ses rangs ne sont alors
@@ -944,6 +984,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             end   -- fin du cas « zone dessinée »
         end
 
+        self.renderCounts={triangles=nTri,handles=nCarre,edges=nTrait}
         if not attrapables then
             Texte(width / 2, height - 14,
                 string.format("%d sommets en vue : trop pour les attraper tous. Zoomez.", total),
@@ -956,11 +997,13 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     -- La carte du JOUEUR cache volontairement sa position : elle ne doit rien
     -- révéler. Ici c'est l'inverse — on pose les sommets en marchant, et sans
     -- repère on ne sait pas de quel côté du contour on se trouve.
-    local moi = sommets:CreateTexture(nil, "OVERLAY")
+    local marker=CreateFrame("Frame",nil,map)
+    marker:SetAllPoints();marker:SetFrameLevel(map:GetFrameLevel()+6)
+    local moi = marker:CreateTexture(nil, "OVERLAY")
     moi:SetSize(11, 11); moi:SetColorTexture(.35, .85, 1, 1); moi:SetRotation(math.pi / 4)
-    local moiHalo = traits:CreateTexture(nil, "OVERLAY")
+    local moiHalo = marker:CreateTexture(nil, "OVERLAY")
     moiHalo:SetSize(19, 19); moiHalo:SetColorTexture(.08, .20, .26, .85); moiHalo:SetRotation(math.pi / 4)
-    local moiCap = sommets:CreateTexture(nil, "OVERLAY")
+    local moiCap = marker:CreateTexture(nil, "OVERLAY")
     moiCap:SetColorTexture(.35, .85, 1, .9)
     local function Moi()
         local px, py, facing, carteJoueur = ZG:GetPlayerPose()
@@ -1039,6 +1082,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     end
 
     map:SetScript("OnMouseDown", function(_, bouton)
+        if map.pendingZoom then map:Draw() end
         -- Clic droit sur une arête : un sommet s'y insère, à sa place dans
         -- l'ordre du contour. Entre le 8 et le 9, le nouveau devient le 9 et
         -- l'ancien 9 passe 10.
@@ -1108,6 +1152,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             return
         end
         -- Un clic dans le vide, sans glisser, oublie la sélection.
+        if pan then map:Draw() end
         if pan and math.abs(mx - pan.mx) + math.abs(my - pan.my) <= 4 then map:Deselectionner() end
     end)
 
@@ -1118,9 +1163,14 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         local pending=self.pendingZoom
         if pending then
             pending.age=pending.age+ecoule;pending.quiet=pending.quiet+ecoule
-            if pending.quiet>=.09 or pending.age>=.18 then
+            local blend=1-math.exp(-24*ecoule)
+            self.cx=self.cx+(pending.cx-self.cx)*blend
+            self.cy=self.cy+(pending.cy-self.cy)*blend
+            self.scale=self.scale+(pending.scale-self.scale)*blend
+            self:PreviewCamera()
+            if pending.quiet>=.22 then
                 self.cx,self.cy,self.scale=pending.cx,pending.cy,pending.scale
-                self.pendingZoom=nil;self:Draw()
+                self:Draw()
             end
         end
         depuis = depuis + (ecoule or 0)
@@ -1130,6 +1180,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             if not ox then return end
             local mx, my = GetCursorPosition()
             if not self.prise.bouge and math.abs(mx - self.prise.mx) + math.abs(my - self.prise.my) <= 3 then return end
+            if self.prise.lastX==mx and self.prise.lastY==my then return end
+            self.prise.lastX,self.prise.lastY=mx,my
             self.prise.bouge = true
             local wx, wy = self:ToWorld(ox, oy)
             ZG:MoveRegionPoint(self.prise.subId, self.prise.index, wx, wy, true)
@@ -1139,7 +1191,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             local es = self:GetEffectiveScale()
             local cx=self.pan.cx+(mx-self.pan.mx)/es/self.scale
             local cy=self.pan.cy-(my-self.pan.my)/es/self.scale
-            if cx~=self.cx or cy~=self.cy then self.cx,self.cy=cx,cy;self:Draw() end
+            if cx~=self.cx or cy~=self.cy then self.cx,self.cy=cx,cy;self:PreviewCamera() end
         end
     end)
 

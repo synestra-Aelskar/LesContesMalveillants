@@ -1305,7 +1305,7 @@ Gestes.Poser(pays, countryForm, 185 + pays.H + 44)
 panel.paysBoutons = { fit = pays.fit, weld = pays.weld, unweld = pays.unweld,
                       clear = pays.clear, undo = pays.undo, hint = pays.hint }
 
-pays.nomade=Button(countryForm,"Nomade",FORM_W-M-100,0,100,26)
+pays.nomade=Button(countryForm,"Nomade",M+458,185+pays.H+84,120,26)
 function panel:ModeNomadePays(actif)
     if actif==nil then actif=not pays.detache end
     if actif then
