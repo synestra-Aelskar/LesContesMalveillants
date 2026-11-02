@@ -240,6 +240,7 @@ Caption(footer, "Modifications enregistrées automatiquement", PAD, PANEL_H - 26
 function panel:Toggle()
     if self.traceWindow and self.traceWindow:IsShown() then self:ExitTrace(); return end
     -- En nomade, la page Carte est sortie du panneau : on la rentre d'abord.
+    if self.ModeNomadePays and self.paysBoutons and self.paysBoutons.nomade:GetText()=="Rattacher" then self:ModeNomadePays(false);return end
     if self.carteFenetre and self.carteFenetre:IsShown() then self:ModeNomade(false); return end
     if self:IsShown() then
         self:Hide()
@@ -1287,6 +1288,7 @@ pays.map = ZG.CreateZoneMap(countryForm, FORM_W - 2 * M, pays.H, {
         if not sub or not zone then return end
         -- Depuis un pays, le nom d'une zone ouvre sa RÉGION : on descend d'un
         -- cran, on ne saute pas jusqu'au lieu.
+        if pays.detache then panel:ModeNomadePays(false) end
         panel.passageId = sub.id
         panel.zoneTab = "carte"
         Select("zone", zone.id)
@@ -1302,6 +1304,29 @@ pays.etranger = "Pays d'un autre auteur : la carte se regarde, elle ne se modifi
 Gestes.Poser(pays, countryForm, 185 + pays.H + 44)
 panel.paysBoutons = { fit = pays.fit, weld = pays.weld, unweld = pays.unweld,
                       clear = pays.clear, undo = pays.undo, hint = pays.hint }
+
+pays.nomade=Button(countryForm,"Nomade",FORM_W-M-100,0,100,26)
+function panel:ModeNomadePays(actif)
+    if actif==nil then actif=not pays.detache end
+    if actif then
+        if not ZG:GetCountry(self.countryId) then return end
+        if not pays.fenetre then
+            pays.fenetre=LCM.UI.Fenetre("crossings-pays-nomade","CARTE DU PAYS",FORM_W+32,780)
+            pays.fenetre:HookScript("OnHide",function() if pays.detache then panel:ModeNomadePays(false) end end)
+        end
+        pays.detache=true
+        Place(countryForm,pays.fenetre,16,64,FORM_W,700)
+        pays.fenetre:SetScale(panel:GetScale());pays.fenetre:Show()
+        countryForm:Show();panel:Hide();pays.nomade:SetText("Rattacher")
+    else
+        pays.detache=false
+        countryForm:SetParent(form);countryForm:ClearAllPoints();countryForm:SetAllPoints(form)
+        if pays.fenetre then pays.fenetre:Hide() end
+        pays.nomade:SetText("Nomade");panel:Show();panel:RefreshAll()
+    end
+end
+pays.nomade:SetScript("OnClick",function() panel:ModeNomadePays() end)
+panel.paysBoutons.nomade=pays.nomade
 
 local function RefreshCountryForm()
     local country = ZG:GetCountry(panel.countryId)
@@ -1369,7 +1394,7 @@ local zoneStatus = Caption(zoneForm, "", M + 2, 70, FORM_W - 2 * M)
 -- règle dans sa fiche. Celle qui ne mène à aucun lieu se rattache depuis la
 -- carte (voir carte.rattacher).
 local zonePages, zoneTabs, ShowZoneTab = Tabs(zoneForm,
-    { { "carte", "Carte" }, { "places", "Lieux" },
+    { { "carte", "Carte" }, { "places", "Lieux" }, { "aura", "Aura" },
       { "doors", "Passages" }, { "settings", "Bannière" } },
     function() return panel.zoneTab end, function(key) panel.zoneTab = key end)
 panel.zonePages = zonePages
@@ -1569,6 +1594,64 @@ end
 panel.hauteur.sol:SetScript("OnClick", function()
     if panel.passageId and ZG:RecaptureSubZoneHeight(panel.passageId) then panel:RefreshForm() end
 end)
+
+-- ── Couleur d'une zone ──────────────────────────────────────────────────
+-- Une région porte sa couleur, chaque lieu en reçoit une variante, et un lieu
+-- peut imposer la sienne. Le pavé montre la couleur courante ; le sélecteur
+-- du jeu fait le reste. Rangé sur `panel` pour la même raison que la hauteur :
+-- la fonction qui s'en sert est déclarée plus haut dans le fichier.
+--
+-- `Pave(parent, x, y, Lire, Ecrire)` : Lire rend {r,g,b}, Ecrire la pose.
+panel.couleur = {}
+function panel.couleur.Pave(parent, x, y, Lire, Ecrire)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(26, 26)
+    UI.Surface(b)
+    b.pastille = b:CreateTexture(nil, "ARTWORK")
+    b.pastille:SetPoint("TOPLEFT", 3, -3); b.pastille:SetPoint("BOTTOMRIGHT", -3, 3)
+    Place(b, parent, x, y)
+    b:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Couleur sur la carte", 1, 1, 1)
+        GameTooltip:AddLine("Clic droit : revenir à la couleur héritée.", .7, .7, .7)
+        GameTooltip:Show()
+    end)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:SetScript("OnClick", function(_, bouton)
+        if bouton == "RightButton" then Ecrire(nil); panel:RefreshAll(); return end
+        local c = Lire() or { 1, 1, 1 }
+        -- Le sélecteur du jeu a changé de forme selon les versions : on pose
+        -- les deux écritures, celle d'aujourd'hui et l'ancienne.
+        local function pris()
+            local r, v, bl = ColorPickerFrame:GetColorRGB()
+            Ecrire(r, v, bl); panel:RefreshAll()
+        end
+        local info = { r = c[1], g = c[2], b = c[3], hasOpacity = false,
+                       swatchFunc = pris, opacityFunc = pris,
+                       cancelFunc = function() end }
+        if ColorPickerFrame.SetupColorPickerAndShow then
+            ColorPickerFrame:SetupColorPickerAndShow(info)
+        else
+            ColorPickerFrame.func, ColorPickerFrame.opacityFunc = pris, pris
+            ColorPickerFrame.cancelFunc = info.cancelFunc
+            ColorPickerFrame.hasOpacity = false
+            ColorPickerFrame:SetColorRGB(c[1], c[2], c[3])
+            ColorPickerFrame:Hide(); ColorPickerFrame:Show()
+        end
+    end)
+    b.Lire = Lire
+    return b
+end
+
+-- Celui du LIEU, dans son onglet Zone, là où « Forme » n'a rien à montrer.
+panel.couleur.lieuMot = Label(editor, "Couleur", FORM_W - M - 282, 0, 120)
+panel.couleur.lieu = panel.couleur.Pave(editor, FORM_W - M - 282, 18,
+    function()
+        local place, zone = ZG:FindPlace(panel.placeId)
+        return place and ZG:PlaceColor(place, zone) or nil
+    end,
+    function(r, v, b) ZG:SetPlaceColor(panel.placeId, r, v, b) end)
 
 local radarRow = CreateFrame("Frame", nil, editor)
 Place(radarRow, editor, M, 140, FORM_W - 2 * M, 284)
@@ -2415,7 +2498,7 @@ panel.zoneMap = carte.map
 -- Le contour de la région : l'étendue qui contient ses lieux. Hors de tout
 -- lieu mais dedans, c'est elle qui donne la bannière — et c'est elle qu'on
 -- soude aux régions voisines depuis la carte du pays.
-carte.contour = Button(cartePage, "Dessiner le contour de la région", M, 0, 300)
+carte.contour = Button(cartePage, "Dessiner le contour de la région", M, 0, 262)
 carte.contour:SetScript("OnClick", function()
     local sub = ZG:CreateRegionArea(panel.zoneId)
     if sub then panel:EnterTrace(sub.id) end
@@ -2423,9 +2506,13 @@ end)
 -- Mode nomade : la carte seule, dans une fenêtre à part. Le panneau entier
 -- occupe tout l'écran et cache le jeu — or c'est en jeu qu'on relève un
 -- contour, et il faut voir où l'on marche pendant qu'on le retouche.
-carte.nomade = Button(cartePage, "Nomade", M + 310, 0, 110)
+carte.nomade = Button(cartePage, "Nomade", M + 270, 0, 96, 26)
 carte.nomade:SetScript("OnClick", function() panel:ModeNomade() end)
-carte.contourMot = Caption(cartePage, "", M + 430, 2, FORM_W - 2 * M - 430)
+-- La couleur de la RÉGION : ses lieux en reçoivent chacun une variante.
+carte.couleur = panel.couleur.Pave(cartePage, M + 374, 0,
+    function() return ZG:ZoneColor(ZG:GetZone(panel.zoneId)) end,
+    function(r, v, b) ZG:SetZoneColor(panel.zoneId, r, v, b) end)
+carte.contourMot = Caption(cartePage, "", M + 410, 2, FORM_W - 2 * M - 410)
 carte.contourMot:SetHeight(28)
 carte.contourMot:SetJustifyV("TOP")
 
@@ -2598,6 +2685,12 @@ function panel:RefreshCarte()
     -- n'est plus nulle part ailleurs à l'écran.
     carte.fenetreTitre:SetText("CARTE · " .. string.upper(zone and ZoneTitle(zone) or ""))
 
+    carte.couleur:SetShown(own and true or false)
+    if own then
+        local c = carte.couleur.Lire() or { 1, 1, 1 }
+        carte.couleur.pastille:SetColorTexture(c[1], c[2], c[3], 1)
+    end
+
     -- Le contour de la région : à dessiner, ou à reprendre.
     local contour = ZG:GetRegionArea(panel.zoneId)
     carte.contour:SetShown(own and true or false)
@@ -2683,6 +2776,18 @@ local function RefreshGeoEditor(page, scope, own)
     shapeRegionBtn.accent:SetShown(isPolygon)
     shapeLineBtn:SetShown(own and scope == "doors")
     shapeRegionBtn:SetShown(own and scope == "doors")
+
+    -- La couleur du lieu prend la place de « Forme », que la fiche d'un lieu
+    -- ne montre pas : un lieu dessine une étendue, on n'en change pas.
+    local colorable = own and isPolygon and scope == "place" and place ~= nil
+        and not place.porte
+    panel.couleur.lieuMot:SetShown(colorable and true or false)
+    panel.couleur.lieu:SetShown(colorable and true or false)
+    if colorable then
+        local c = panel.couleur.lieu.Lire() or { 1, 1, 1 }
+        panel.couleur.lieu.pastille:SetColorTexture(c[1], c[2], c[3], 1)
+        panel.couleur.lieuMot:SetText(place.couleur and "Couleur (à lui)" or "Couleur (héritée)")
+    end
 
     enterCaption:SetText(isPolygon and "À l'intérieur, on entre dans :" or "En entrant (côté vert), on arrive à :")
     leaveCaption:SetText(isPolygon and "En sortant, on arrive à :" or "En sortant (côté rouge), on arrive à :")
@@ -2777,6 +2882,12 @@ local function RefreshZoneForm()
     zoneStatus:SetText(string.format("%s · %d lieu(x) · %d zone(s) · %d porte(s)",
         own and "|cff66e673Vous êtes l'auteur|r" or ("Auteur : " .. zone.creator),
         #places, #areas, #portes))
+
+    -- Les auras de la RÉGION se posent sur son contour : qui y entre les
+    -- reçoit, où qu'il soit dedans. Celles de ses lieux s'y ajoutent.
+    if panel.zoneTab == "aura" then
+        panel:RefreshAuras(own, zonePages.aura, ZG:GetRegionArea(zone.id), true)
+    end
 
     -- Lieux
     addPlaceBtn:SetShown(own)
@@ -2942,9 +3053,15 @@ end
 -- La liste et le retrait sont ici ; l'ajout garde sa fenêtre
 -- (LCMCrossingsAuraManager), qui montre à côté les auras d'Epsilon Aura
 -- Manager. Une seconde écriture de ce panneau ne vaudrait pas son entretien.
-local aura = { page = placePages.aura, lignes = {}, MAX = 8 }
-Caption(aura.page, "Tant qu'un joueur se trouve dans la zone de ce lieu, ces auras lui sont posées, et reposées si elles disparaissent. Elles sont retirées dès qu'il en sort.",
-    M, 0, FORM_W - 2 * M):SetHeight(32)
+-- La page déménage entre l'onglet Aura d'un LIEU et celui d'une RÉGION, comme
+-- l'éditeur de géométrie : une région impose ses auras à qui entre dans son
+-- contour, un lieu aux siennes, et c'est le même réglage. Deux copies auraient
+-- fini par diverger.
+local aura = { page = CreateFrame("Frame", nil, placeForm), lignes = {}, MAX = 8 }
+aura.page:SetAllPoints(placePages.aura)
+aura.page:Hide()
+aura.mot = Caption(aura.page, "", M, 0, FORM_W - 2 * M)
+aura.mot:SetHeight(32)
 aura.vide = Caption(aura.page, "", M, 44, FORM_W - 2 * M)
 aura.vide:SetHeight(40)
 for i = 1, aura.MAX do
@@ -2958,17 +3075,25 @@ end
 aura.ajouter = Button(aura.page, "Ajouter une aura…", M, 44 + aura.MAX * 32 + 12, 260)
 aura.ajouter:SetScript("OnClick", function()
     -- La fenêtre d'auras travaille sur panel.passageId : on la pointe sur la
-    -- zone du lieu avant de l'ouvrir.
-    local zones = ZG:GetPlaceAreas(panel.placeId)
-    if not zones[1] then return end
-    panel.passageId = zones[1].sub.id
+    -- zone visée avant de l'ouvrir.
+    if not aura.sub then return end
+    panel.passageId = aura.sub.id
     panel:OpenPassageAuras()
 end)
 panel.auraPage = aura
 
-function panel:RefreshPlaceAuras(own)
-    local zones = ZG:GetPlaceAreas(panel.placeId)
-    local sub = zones[1] and zones[1].sub
+-- `page` : l'onglet qui l'accueille. `sub` : la zone dont on règle les auras —
+-- celle d'un lieu, ou le contour d'une région. `pourRegion` ne change que les
+-- phrases : le réglage est le même.
+function panel:RefreshAuras(own, page, sub, pourRegion)
+    aura.page:SetParent(page)
+    aura.page:ClearAllPoints()
+    aura.page:SetAllPoints(page)
+    aura.page:Show()
+    aura.sub = sub
+    aura.mot:SetText(pourRegion
+        and "Tant qu'un joueur se trouve dans le contour de cette région, ces auras lui sont posées, et reposées si elles disparaissent. Celles de ses lieux s'y ajoutent."
+        or "Tant qu'un joueur se trouve dans la zone de ce lieu, ces auras lui sont posées, et reposées si elles disparaissent. Elles sont retirées dès qu'il en sort.")
     local liste = sub and ZG:GetPassageAuras(sub.id) or {}
     aura.ajouter:SetShown(own and sub ~= nil)
     for i, ligne in ipairs(aura.lignes) do
@@ -2987,9 +3112,11 @@ function panel:RefreshPlaceAuras(own)
     end
     local trop = #liste - aura.MAX
     if not own then
-        aura.vide:SetText("Lieu d'un autre auteur : ses auras ne se modifient pas d'ici.")
+        aura.vide:SetText("D'un autre auteur : ses auras ne se modifient pas d'ici.")
     elseif not sub then
-        aura.vide:SetText("Ce lieu n'a pas de zone.\nDessinez-la dans l'onglet Zone : les auras se posent en y entrant.")
+        aura.vide:SetText(pourRegion
+            and "Cette région n'a pas de contour.\nDessinez-le dans l'onglet Carte : sans étendue, il n'y a nulle part où imposer une aura."
+            or "Ce lieu n'a pas de zone.\nDessinez-la dans l'onglet Zone : les auras se posent en y entrant.")
     elseif #liste == 0 then
         aura.vide:SetText("Aucune aura imposée.")
     else
@@ -2998,6 +3125,12 @@ function panel:RefreshPlaceAuras(own)
     aura.vide:ClearAllPoints()
     aura.vide:SetPoint("TOPLEFT", aura.page, "TOPLEFT", M,
         -(44 + math.min(#liste, aura.MAX) * 32 + (#liste > 0 and 8 or 0)))
+end
+
+-- Gardé sous son ancien nom : le banc l'appelle.
+function panel:RefreshPlaceAuras(own)
+    local zones = ZG:GetPlaceAreas(panel.placeId)
+    panel:RefreshAuras(own, placePages.aura, zones[1] and zones[1].sub, false)
 end
 
 -- Bannière
@@ -3227,3 +3360,31 @@ panel:RefreshForm()
 LCM.WhenReady(function()
     if LCM.UI and LCM.UI.Menu then LCM.UI.Menu.Lier("lieux", function() panel:Toggle() end) end
 end)
+
+-- « /lcm reset map » : rendre sa page blanche au brouillard. Réservée au MJ,
+-- et elle vit dans le compagnon : le client d'un joueur ne la porte même pas.
+-- Deux temps, comme les suppressions du panneau — effacer ce qu'on a découvert
+-- en des mois de jeu ne doit pas tenir à une faute de frappe.
+LCM.AddCommand("reset", "(MJ) « reset map » : oublie les cartes découvertes", function(argument)
+    if tostring(argument or ""):lower():match("^map") == nil then
+        LCM.Info("« /lcm reset map » oublie le brouillard et les noms appris.")
+        return
+    end
+    if panel.resetMapArme ~= true then
+        panel.resetMapArme = true
+        LCM.Alerte("Cela efface TOUT ce que ce personnage a découvert : le brouillard et les noms. Retapez « /lcm reset map » pour confirmer.")
+        -- L'armement retombe : la confirmation se donne tout de suite, pas une
+        -- heure plus tard sur une commande qu'on a oubliée.
+        if C_Timer and C_Timer.After then
+            C_Timer.After(20, function() panel.resetMapArme = nil end)
+        end
+        return
+    end
+    panel.resetMapArme = nil
+    local cases = ZG:OublierDecouvertes()
+    LCM.Info(string.format("Cartes oubliées : %d case(s) de brouillard et tous les noms appris.", cases))
+    if LCMCrossingsRegionMap and LCMCrossingsRegionMap.Draw and LCMCrossingsRegionMap:IsShown() then
+        LCMCrossingsRegionMap:Draw()
+    end
+    panel:RefreshAll()
+end, true)

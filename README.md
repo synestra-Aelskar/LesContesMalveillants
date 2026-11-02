@@ -1130,3 +1130,13 @@ pour les règles, le format, la compatibilité et les tests.
 Si tu fais travailler Claude sur ce dépôt, lis-lui `CLAUDE.md` — il contient les
 conventions du code, les pièges déjà rencontrés, et ce qu'il ne faut surtout pas
 faire. Claude Code le lit tout seul s'il est à la racine.
+
+### Correctifs Crossing — 2 novembre 2026
+
+- Brouillard persistant par personnage et carte : union de surfaces découvertes, rayon de 20 yards par point de Vue, migration des anciennes cases et des cercles sans effacer les sources. La migration se fait une fois en arrière-plan ; la marche ne rejoue plus le trajet.
+- Carte M stable lors des franchissements ; masque lissé, zoom animé avec regroupement des crans. Les noms apparaissent au survol, avec masquage indépendant du pays, de la région et du lieu.
+- Explorer ne donne plus les noms. `receivedKnowledge` conserve les connaissances acquises explicitement ; les anciennes tables restent archivées mais ne débloquent plus les noms, car elles mélangeaient exploration automatique et visites MJ. Le privilège d'auteur ne s'applique plus en mode joueur.
+- Éditeur : cache des contours simplifiés, regroupement du zoom et mode Nomade sur la vue pays.
+- Fonds de fenêtres opaques à 100 % ; bordures composées en BLEND, sans transparence additive.
+
+Validation : scénarios fog_surface, fog_charge (10 000 pas), fog_smooth, zoom_animation, map_hover, editeur_dense et noms_explicites dans Banc/scenarios. Le banc simule Lua et les widgets ; les FPS et le rendu GPU restent à vérifier en jeu.

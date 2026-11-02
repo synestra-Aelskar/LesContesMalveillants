@@ -28,10 +28,13 @@ local function Moi() return UnitName("player") or "" end
 
 -- Une couleur par zone, stable : c'est son identifiant qui la choisit, donc
 -- elle ne change pas d'un dessin à l'autre ni d'une séance à l'autre.
-local function Teinte(id)
-    local geo = ZG.Geo
-    if geo and geo.Color then return geo.Color(id) end
-    return { .6, .6, .6 }
+-- La couleur d'une entrée dessinée : celle de la RÉGION quand on montre
+-- plusieurs régions (carte d'un pays), celle du LIEU sinon — une variante de
+-- celle de sa région, ou la sienne s'il en impose une (voir ZG:PlaceColor).
+local function Teinte(e, parRegion)
+    if parRegion then return ZG:ZoneColor(e.zone) end
+    local place = e.sub and e.sub.enterPlace and ZG:FindPlace(e.sub.enterPlace)
+    return ZG:PlaceColor(place, e.zone)
 end
 local function Clair(c) return { math.min(1, c[1] + .35), math.min(1, c[2] + .35), math.min(1, c[3] + .35) } end
 
@@ -96,6 +99,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     local nTri, nTrait, nTex, nCarre = 0, 0, 0, 0
 
     local function Tri(a, b, c, color, alpha)
+        if (a[1]<0 and b[1]<0 and c[1]<0) or (a[1]>width and b[1]>width and c[1]>width)
+            or (a[2]<0 and b[2]<0 and c[2]<0) or (a[2]>height and b[2]>height and c[2]>height) then return end
         nTri = nTri + 1
         local t = triPool[nTri]
         if not t then t = remplissages:CreateTexture(nil, "ARTWORK"); triPool[nTri] = t end
@@ -644,7 +649,9 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     local nomsCliquables = {}  -- { {subId=, zoneId=, x=, y=, w=, h=} }
     local segments = {}   -- arêtes de MES zones : { {subId=, index=, x1=,y1=,x2=,y2=} }
 
+    local simplifications=setmetatable({}, {__mode="k"})
     function map:Draw()
+        self.pendingZoom=nil
         geo = geo or ZG.Geo
         for i = 1, nTri do triPool[i]:Hide() end
         for i = 1, nTrait do traitPool[i]:Hide() end
@@ -655,6 +662,8 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         for i = 1, nRond do rondPool[i]:Hide() end
         nTri, nTrait, nTex, nCarre, nRond = 0, 0, 0, 0, 0
         poignees, nomsCliquables, segments = {}, {}, {}
+        -- Exposées pour le banc : il lit ce que le dessin a retenu.
+        self.poignees, self.segments = poignees, segments
 
         local liste, carte = self:Dessinables()
         -- Le terrain suit la vue : il se repose à chaque dessin, comme le reste.
@@ -681,11 +690,30 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
         -- Les sommets d'abord comptés : au-delà de MAX_POIGNEES, on les montre
         -- sans les rendre attrapables plutôt que de rendre la carte poussive.
+        --
+        -- Seuls comptent ceux qui sont À L'ÉCRAN. On comptait tous les sommets
+        -- de toutes les zones montrées : sur la carte d'un pays on dépassait
+        -- d'emblée, plus rien ne s'attrapait, et le message disait d'agrandir
+        -- la zone affichée — ce qui ne changeait rien, puisque le compte ne
+        -- regardait pas la vue. Zoomer sert maintenant à quelque chose.
+        local ouestMax = self.cx + (width / 2 + 20) / self.scale
+        local ouestMin = self.cx - (width / 2 + 20) / self.scale
+        local nordMax  = self.cy + (height / 2 + 20) / self.scale
+        local nordMin  = self.cy - (height / 2 + 20) / self.scale
         local total = 0
         for _, e in ipairs(liste) do
-            if e.mienne and e.tenue and e.sub.points then total = total + #e.sub.points end
+            if e.mienne and e.tenue and e.sub.points then
+                for _, p in ipairs(e.sub.points) do
+                    if p.x >= ouestMin and p.x <= ouestMax and p.y >= nordMin and p.y <= nordMax then
+                        total = total + 1
+                    end
+                end
+            end
         end
         local attrapables = total <= MAX_POIGNEES
+        -- Exposés pour le banc : c'est le COMPTE qui décidait, et c'est lui
+        -- qui était faux.
+        self.sommetsEnVue, self.attrapables = total, attrapables
 
         local soudures = ZG:WeldGroups()
         for _, e in ipairs(liste) do
@@ -738,9 +766,55 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             else
 
             local sub = e.sub
-            local color = Teinte(self.parRegion and e.zone.id or sub.id)
+            local points = sub.points
+            -- Zone entièrement hors champ : rien à dessiner, et surtout rien à
+            -- découper ni à transformer. Sur la carte d'un pays, c'est le gros
+            -- du travail évité — la plupart des régions sont ailleurs.
+            local bgMin, bgMax, bdMin, bdMax = points[1].x, points[1].x, points[1].y, points[1].y
+            for i = 2, #points do
+                local p = points[i]
+                if p.x < bgMin then bgMin = p.x elseif p.x > bgMax then bgMax = p.x end
+                if p.y < bdMin then bdMin = p.y elseif p.y > bdMax then bdMax = p.y end
+            end
+            if bgMax < ouestMin or bgMin > ouestMax or bdMax < nordMin or bdMin > nordMax then
+                -- rien
+            else
+
+            local color = Teinte(e, self.parRegion)
             local ecran, cx, cy = {}, 0, 0
-            for i, p in ipairs(sub.points) do
+            -- Dézoomé, deux sommets voisins tombent sur le même pixel : on
+            -- n'en garde qu'un. Un contour de 1500 sommets devenait 1500
+            -- textures de trait à CHAQUE dessin, et ouvrir un pays — qui les
+            -- montre tous — bloquait le jeu une seconde. Le dessin ne change
+            -- pas : ce qu'on retire était invisible.
+            --
+            -- Seulement quand les sommets ne sont pas attrapables : tant qu'on
+            -- peut les saisir, chacun doit être là où il est, et les arêtes
+            -- doivent garder leur vrai rang (clic droit pour en insérer un).
+            if not attrapables and #points > 64 then
+                local cached=simplifications[points]
+                local valid=cached and cached.scale==self.scale and #cached.coords==#points*2
+                if valid then
+                    for i,p in ipairs(points) do
+                        if cached.coords[i*2-1]~=p.x or cached.coords[i*2]~=p.y then valid=false;break end
+                    end
+                end
+                if not valid then
+                    cached={scale=self.scale,coords={},points={points[1]}}
+                    local last=points[1]
+                    for i,p in ipairs(points) do
+                        cached.coords[i*2-1],cached.coords[i*2]=p.x,p.y
+                        if i>1 and i<#points and (math.abs(p.x-last.x)+math.abs(p.y-last.y))*self.scale>=2.5 then
+                            cached.points[#cached.points+1]=p;last=p
+                        end
+                    end
+                    cached.points[#cached.points+1]=points[#points]
+                    simplifications[points]=cached
+                end
+                -- Identité stable : la triangulation peut enfin garder son cache.
+                points=cached.points
+            end
+            for i, p in ipairs(points) do
                 local x, y = self:ToScreen(p.x, p.y)
                 ecran[i] = { x, y }; cx, cy = cx + x, cy + y
             end
@@ -754,11 +828,13 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             -- toujours dedans, et sa largeur dit de combien on dispose.
             local largeur
             if ferme and geo and geo.Triangulate then
-                local triangles = geo.Triangulate(sub.points)
-                -- Le contour de la région ne se remplit pas : il entoure tous
-                -- les autres, et son aplat les noierait.
-                if PEUT_REMPLIR and not e.region then
-                    local alpha = e.mienne and .28 or .10
+                local triangles = geo.Triangulate(points)
+                -- Le contour de la région se remplit AUSSI, mais à peine : il
+                -- entoure tous les autres, et au même aplat qu'eux il les
+                -- noierait. Sans aucun aplat, la région n'avait pas de fond
+                -- du tout et son étendue ne se lisait pas.
+                if PEUT_REMPLIR then
+                    local alpha = e.region and .09 or (e.mienne and .28 or .10)
                     for _, t in ipairs(triangles) do
                         Tri(ecran[t[1]], ecran[t[2]], ecran[t[3]], color, alpha)
                     end
@@ -794,8 +870,12 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             local epaisseur = e.region and 3 or 2
             -- Les arêtes sont retenues : un clic droit sur l'une d'elles y
             -- insère un sommet (voir SegmentSous).
+            -- Pas d'arête retenue quand le tracé est simplifié : son rang ne
+            -- serait plus le vrai, et le clic droit insérerait au mauvais
+            -- endroit. On ne simplifie que lorsque les sommets ne sont déjà
+            -- plus attrapables, donc rien ne se perd.
             local function Arete(i, x1, y1, x2, y2)
-                if e.mienne and e.tenue then
+                if e.mienne and e.tenue and attrapables then
                     segments[#segments + 1] = { subId = sub.id, index = i, x1 = x1, y1 = y1, x2 = x2, y2 = y2 }
                 end
             end
@@ -816,7 +896,10 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             -- d'un autre auteur, et des poignées mortes tromperaient.
             if e.mienne and e.tenue then
                 for i, p in ipairs(sub.points) do
-                    local x, y = ecran[i][1], ecran[i][2]
+                    -- Recalculé depuis le sommet, pas lu dans `ecran` : le
+                    -- tracé a pu être simplifié, et ses rangs ne sont alors
+                    -- plus ceux des vrais sommets.
+                    local x, y = self:ToScreen(p.x, p.y)
                     if x > -20 and x < width + 20 and y > -20 and y < height + 20 then
                         local groupe = p.weld and soudures[p.weld]
                         Carre(x, y, color, Choisi(sub.id, i) ~= nil, groupe and #groupe >= 2)
@@ -857,12 +940,13 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                     Texte(cx, cy + nom:GetStringHeight() / 2 + 9, sous, { .62, .60, .55 }, false, largeur)
                 end
             end
+            end   -- fin du cas « la zone est en vue »
             end   -- fin du cas « zone dessinée »
         end
 
         if not attrapables then
             Texte(width / 2, height - 14,
-                string.format("%d sommets : trop pour les attraper tous. Agrandissez la zone affichée.", total),
+                string.format("%d sommets en vue : trop pour les attraper tous. Zoomez.", total),
                 { .90, .78, .30 }, false)
         end
         self.Moi()
@@ -911,19 +995,16 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     map:EnableMouse(true); map:EnableMouseWheel(true)
 
     map:SetScript("OnMouseWheel", function(_, delta)
-        local facteur = delta > 0 and 1.25 or 1 / 1.25
-        local s = math.max(MIN_SCALE, math.min(MAX_SCALE, map.scale * facteur))
-        local ox, oy = Curseur()
+        if not map.scale or delta==0 then return end
+        local p=map.pendingZoom or {scale=map.scale,cx=map.cx,cy=map.cy,age=0}
+        local s=math.max(MIN_SCALE,math.min(MAX_SCALE,p.scale*1.25^delta))
+        if s==p.scale then return end
+        local ox,oy=Curseur()
         if ox then
-            -- Le point sous le curseur reste sous le curseur.
-            local wx, wy = map:ToWorld(ox, oy)
-            map.scale = s
-            map.cx = wx + (ox - width / 2) / s
-            map.cy = wy + (oy - height / 2) / s
-        else
-            map.scale = s
+            local wx=p.cx-(ox-width/2)/p.scale;local wy=p.cy-(oy-height/2)/p.scale
+            p.cx=wx+(ox-width/2)/s;p.cy=wy+(oy-height/2)/s
         end
-        map:Draw()
+        p.scale,p.quiet=s,0;map.pendingZoom=p
     end)
 
     local function PoigneeSous(ox, oy)
@@ -1034,6 +1115,14 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     -- rafraîchit tout seul, dix fois par seconde, sans refaire le dessin.
     local depuis = 0
     map:SetScript("OnUpdate", function(self, ecoule)
+        local pending=self.pendingZoom
+        if pending then
+            pending.age=pending.age+ecoule;pending.quiet=pending.quiet+ecoule
+            if pending.quiet>=.09 or pending.age>=.18 then
+                self.cx,self.cy,self.scale=pending.cx,pending.cy,pending.scale
+                self.pendingZoom=nil;self:Draw()
+            end
+        end
         depuis = depuis + (ecoule or 0)
         if depuis >= .1 then depuis = 0; self.Moi() end
         if self.prise then
@@ -1048,9 +1137,9 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         elseif self.pan then
             local mx, my = GetCursorPosition()
             local es = self:GetEffectiveScale()
-            self.cx = self.pan.cx + (mx - self.pan.mx) / es / self.scale
-            self.cy = self.pan.cy - (my - self.pan.my) / es / self.scale
-            self:Draw()
+            local cx=self.pan.cx+(mx-self.pan.mx)/es/self.scale
+            local cy=self.pan.cy-(my-self.pan.my)/es/self.scale
+            if cx~=self.cx or cy~=self.cy then self.cx,self.cy=cx,cy;self:Draw() end
         end
     end)
 

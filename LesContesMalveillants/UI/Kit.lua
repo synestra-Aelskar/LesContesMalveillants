@@ -312,7 +312,8 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
                                       largeur = avant.largeur, hauteur = avant.hauteur }
     end)
 
-    f.fond = UI.Aplat(f, UI.C.fond)
+    -- Le réglage global porte l'alpha : le fond ne doit pas le réduire encore.
+    f.fond = UI.Aplat(f, { UI.C.fond[1], UI.C.fond[2], UI.C.fond[3], 1 })
     f.fond:SetAllPoints(f)
 
     -- Le fond remonte sous la couronne du cadre, qui deborde du bord haut.
@@ -522,7 +523,7 @@ function UI.Fenetre(cle, titre, largeur, hauteur, defaut, options)
     -- Le cadre ouvrage, s'il est charge. Sans lui, une simple bordure : la
     -- fenetre doit rester lisible meme si l'habillage manque.
     if options.sobre then
-        f.fond:SetColorTexture(0.035, 0.039, 0.045, 0.98)
+        f.fond:SetColorTexture(0.035, 0.039, 0.045, 1)
         UI.Bordure(f, { 0.48, 0.39, 0.23, 1 })
         f.titre:ClearAllPoints()
         f.titre:SetPoint("TOPLEFT", f, "TOPLEFT", 18, -14)
