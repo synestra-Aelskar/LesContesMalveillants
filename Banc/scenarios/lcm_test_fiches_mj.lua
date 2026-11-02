@@ -101,21 +101,69 @@ attendu("ouvert", p:IsShown(), true)
 attendu("le groupe, moi compris", p.nombreAffiche, 2)
 attendu("le membre", p.lignes[1].nom:GetText(), "Nytherah-Apertus")
 attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("panneau_mj"), true)
+-- Reedition et Consulter ont quitte la ligne pour le detail du personnage
+-- choisi (2 novembre 2026) : sur la ligne, ils mangeaient la place du nom.
+local pageGroupe = p.pages.joueurs
+p.lignes[1]:Click()
+attendu("un clic choisit le joueur", p.pages.etats.joueurActif, "Nytherah-Apertus")
+attendu("le detail le nomme", pageGroupe.nomChoisi:GetText(), "Nytherah-Apertus")
+attendu("le detail propose la réédition", pageGroupe.reedition:IsShown(), true)
 local envoisAvant = #__envois
-p.lignes[1].reedition:Click()
-attendu("le panneau propose le jeton de réédition", p.lignes[1].reedition ~= nil, true)
+pageGroupe.reedition:Click()
 attendu("le clic envoie un message", #__envois > envoisAvant, true)
 attendu("le jeton vise le bon joueur", __envois[#__envois].cible, "Nytherah-Apertus")
 attendu("et part en chuchotement", __envois[#__envois].canal, "WHISPER")
--- Le combat est un onglet du panneau depuis le 3 octobre 2026 (c'etait une
--- fenetre a part, ouverte par un bouton).
+-- Consulter et Reedition restent toujours affiches (le MJ, 2 novembre 2026) :
+-- sur soi, c'est la creation qui refuse, et elle dit pourquoi.
+p.lignes[2]:Click()
+attendu("la réédition reste affichée", pageGroupe.reedition:IsShown(), true)
+envoisAvant = #__envois
+pageGroupe.reedition:Click()
+attendu("  mais rien ne part vers soi", #__envois, envoisAvant)
+
+dire("== le regain dans le détail")
+-- Tout ce que la fenetre Regain offrait, sur le personnage choisi.
+local rg = pageGroupe.regain
+local moiP = LCM.Entities.Personnage()
+LCM.Entities.SetGauge(moiP, "fatigue", 3, 40)
+pageGroupe:AfficherDetail()
+attendu("la fatigue actuelle est lue", rg.valeurs.fatigue:GetText(), "3 / 40")
+rg.valider:Click()
+attendu("sans ressource cochée, rien ne bouge", LCM.Entities.Gauge(moiP, "fatigue").current, 3)
+rg.cases.fatigue:Click()
+rg.valider:Click()
+attendu("sans mode, rien ne bouge", LCM.Entities.Gauge(moiP, "fatigue").current, 3)
+rg.modes.max:Click()
+rg.valider:Click()
+attendu("Max remplit", LCM.Entities.Gauge(moiP, "fatigue").current, 40)
+attendu("  et l'affichage suit", rg.valeurs.fatigue:GetText(), "40 / 40")
+rg.modes.exact:Click()
+rg.montant:SetText("-5")
+rg.valider:Click()
+attendu("un chiffre négatif retire", LCM.Entities.Gauge(moiP, "fatigue").current, 35)
+rg.tout:Click()
+local toutes = true
+for _, def in ipairs(LCM.Regain.RESSOURCES) do if not rg.cases[def.cle]:EstCochee() then toutes = false end end
+attendu("« Tout » coche les huit", toutes, true)
+rg.tout:Click()
+attendu("  et re-cliquer décoche", next(rg.ressources), nil)
+p.lignes[1]:Click()
+rg.cases.pa:Click()
+rg.modes.min:Click()
+envoisAvant = #__envois
+rg.valider:Click()
+attendu("sur un joueur distant, le regain part", __envois[#__envois].cible, "Nytherah-Apertus")
+attendu("  en chuchotement", __envois[#__envois].canal, "WHISPER")
+-- Une colonne de navigation remplace la rangee de huit onglets. Joueurs et
+-- Etats ne font plus qu'une page ; les quatre outils partages y sont des
+-- sous-entrees. Sept pages, onze entrees.
 local onglets = {}
 for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
--- Les Traits et les États ont chacun leur onglet dédié.
-attendu("les onglets du panneau", #p.barre.boutons, 8)
-onglets.etats:Click()
+attendu("les entrées de la navigation", #p.barre.boutons, 11)
+attendu("pas d'entrée États à part", onglets.etats, nil)
+p:Onglet("etats")
 local pageEtats = p.pages.etats
-attendu("l'onglet États est ouvert", p.onglet == "etats" and pageEtats:IsShown(), true)
+attendu("« etats » mène à la page Groupe", p.onglet == "joueurs" and pageEtats:IsVisible(), true)
 attendu("le panneau propose des états à glisser", #LCM.Etats.list > 0, true)
 attendu("le joueur est une cible de dépôt", pageEtats.lignesJoueurs[1].joueur, "Nytherah-Apertus")
 pageEtats.duree:SetText("2")
@@ -126,6 +174,69 @@ attendu("l'état est envoyé en privé", __envois[#__envois].canal, "WHISPER")
 local corpsEtat = LCM.Reseau.Decoder(
     __envois[#__envois].message:match("^%d+:%d+:%d+:etat_mj|(.*)$") or "")
 attendu("la durée choisie accompagne l'état", corpsEtat.r, "2")
+
+dire("== à la pelle : les cochés")
+-- Le geste a proteger (le MJ, 2 novembre 2026) : un etat, plusieurs joueurs.
+local etatsAvant = #__envois
+pageGroupe.depot.glisserDepose({ categorie = "etats", element = definitionEtat })
+attendu("sans coché, rien ne part", #__envois, etatsAvant)
+pageGroupe.tousBouton:Click()
+attendu("tout cocher coche le groupe", #pageGroupe:Coches(), 2)
+local moiPerso = LCM.Entities.Personnage()
+LCM.Etats.Enlever(moiPerso, definitionEtat.id)
+moiPerso.etatsTemporaires = nil
+pageEtats.duree:SetText("")
+pageGroupe.depot.glisserDepose({ categorie = "etats", element = definitionEtat })
+attendu("la zone envoie au joueur distant", __envois[#__envois].cible, "Nytherah-Apertus")
+attendu("et pose chez soi", LCM.Etats.Porte(moiPerso, definitionEtat.id), true)
+LCM.Etats.Enlever(moiPerso, definitionEtat.id)
+etatsAvant = #__envois
+pageEtats.lignesEtats[1]:Click("RightButton")
+attendu("clic droit : aux cochés aussi", #__envois > etatsAvant
+    and LCM.Etats.Porte(moiPerso, definitionEtat.id), true)
+LCM.Etats.Enlever(moiPerso, definitionEtat.id)
+pageGroupe.tousBouton:Click()
+attendu("re-cliquer décoche tout", #pageGroupe:Coches(), 0)
+pageGroupe.lignes[1].case:Click()
+pageGroupe.xpBouton:Click()
+attendu("l'XP reprend les cochés", pageGroupe.xpPanneau.selection["Nytherah-Apertus"], true)
+pageGroupe.xpPanneau:Hide()
+
+dire("== le catalogue : recherche, types")
+LCM.Listes.Add({ id = "type_panel_poison", label = "Poisons témoins", liste = "type_etats", conteneur = "etat" })
+LCM.Etats.Add({ id = "panel_venin", label = "Vénin témoin", categorie = "etat", type = "type_panel_poison", bonus = {} })
+LCM.Etats.Add({ id = "panel_brulure", label = "Brûlure témoin", categorie = "etat", bonus = {} })
+local function visibles()
+    local out = {}
+    for _, l in ipairs(pageEtats.lignesEtats) do if l:IsShown() then out[l.definition.id] = true end end
+    return out
+end
+local function entete(texte)
+    for _, h in ipairs(pageEtats.entetesEtats) do
+        if h:IsShown() and h.texte:GetText() == texte then return true end
+    end
+    return false
+end
+pageEtats:Afficher()
+attendu("classé : le type a son en-tête", entete(LCM.UI.Majuscules("Poisons témoins")), true)
+pageEtats.recherche:Saisir("venin")
+attendu("sans accent, « venin » trouve Vénin", visibles().panel_venin, true)
+attendu("  et pas Brûlure", visibles().panel_brulure, nil)
+pageEtats.recherche:Saisir("poisons")
+attendu("la recherche lit le type", visibles().panel_venin, true)
+pageEtats.recherche:Saisir("")
+pageEtats.filtreChoix.choisir("t:type_panel_poison")
+attendu("filtre par type : il y est", visibles().panel_venin, true)
+attendu("  les autres non", visibles().panel_brulure, nil)
+pageEtats.filtreChoix.choisir("t:")
+attendu("« Sans type » montre les non rangés", visibles().panel_brulure, true)
+attendu("  et plus le typé", visibles().panel_venin, nil)
+pageEtats.filtreChoix.choisir("tous")
+LCM.Etats.Retirer("panel_venin")
+LCM.Etats.Retirer("panel_brulure")
+LCM.Listes.Retirer("type_panel_poison")
+pageEtats:Afficher()
+
 onglets.combat:Click()
 attendu("l'onglet Combat montre le combat", p.onglet == "combat" and p.pages.combat:IsShown(), true)
 attendu("et cache les joueurs", p.pages.joueurs:IsShown(), false)
@@ -140,7 +251,9 @@ dire("== demander, recevoir")
 -- La boucle rend l'envoi a son expediteur : on joue les deux bouts.
 __reseauBoucle(true, "Nytherah-Apertus")
 attendu("rien de recu avant", F.Recue("Nytherah-Apertus"), nil)
-p.lignes[1].consulter:Click()
+-- Consulter vit dans le detail du joueur choisi (2 novembre 2026).
+p.lignes[1]:Click()
+p.pages.joueurs.consulter:Click()
 __avancer(LCM.Reseau.FileEnvoi() * LCM.Reseau.CADENCE + 1)
 local recue = F.Recue("Nytherah-Apertus")
 attendu("la fiche arrive", recue ~= nil, true)

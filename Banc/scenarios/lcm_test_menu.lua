@@ -136,7 +136,9 @@ attendu("Objets : quatre fenetres (Mes Outils remplace Outils)",
 -- bandeaux d'eventail ; un neuvieme a ete dessine pour cette entree, et le
 -- compte se lit maintenant chez celui qui le sait.
 attendu("Système : quatre entrees", #M.Trouver("systeme").enfants, 4)
-attendu("Outils : cinq entrees", #M.Trouver("outils").enfants, 5)
+-- Quatre depuis le 2 novembre 2026 : « Incarner » a rejoint la page Scene du
+-- Panel MJ, qui fait la meme chose.
+attendu("Outils : quatre entrees", #M.Trouver("outils").enfants, 4)
 attendu("les deux dossiers tiennent dans l'eventail",
     #M.Trouver("outils").enfants <= LCM.UI.Radial.MAX_ENTREES
         and #M.Trouver("systeme").enfants <= LCM.UI.Radial.MAX_ENTREES, true)
@@ -147,7 +149,7 @@ dire("== ce qui est branche")
 -- « creation » n'est plus au menu : on cree un personnage depuis la selection.
 for _, id in ipairs({ "regles", "fiche", "sante", "expertise", "penetrations_resistances", "montee_niveau",
                       "equipement", "systeme_aelskar", "statistiques", "apprentissage", "inventaires", "metiers",
-                      "grimoires", "deplacement", "parametres", "panneau_mj", "incarner",
+                      "grimoires", "deplacement", "parametres", "panneau_mj",
                       "vendeur", "ressources", "coffres" }) do
     attendu("  " .. id, M.EstLiee(id), true)
 end

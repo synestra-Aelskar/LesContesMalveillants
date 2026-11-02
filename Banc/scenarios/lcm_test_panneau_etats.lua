@@ -6,7 +6,9 @@ __declencher('PLAYER_LOGIN')
 __personnage()
 __groupe({ 'Nytherah-Apertus' })
 local f = LCM.UI.PanneauMJ.Basculer()
-for _, b in ipairs(f.barre.boutons) do if b.ongletId == 'etats' then b:Click() end end
+-- Les etats vivent dans la page Groupe (2 novembre 2026) : l'entree s'appelle
+-- « joueurs », et « etats » y mene encore.
+f:Onglet('etats')
 local p = f.pages.etats
 local moi = LCM.Entities.Personnage()
 moi.etatsTemporaires, moi.etats = nil, nil
@@ -50,7 +52,10 @@ p:ChoisirJoueur(LCM.PlayerId())
 attendu('etat catalogue affiche', p.lignesActifs[1].etat.catalogue, true)
 p.lignesActifs[1].retirer:Click()
 attendu('etat catalogue retire', LCM.Etats.Porte(moi, def.id), false)
-local copie = { name = 'Autre', etatsTemporaires = { {nom = 'Distant', restant = 4} } }
+-- La copie porte ses `values`, comme toute fiche recue : depuis que la page
+-- Groupe rassemble joueurs et etats (2 novembre 2026), choisir un joueur
+-- rafraichit aussi sa ligne (niveau, PV), qui lit la fiche.
+local copie = { name = 'Autre', values = {}, etatsTemporaires = { {nom = 'Distant', restant = 4} } }
 local recue, demander, envoyer = LCM.Fiches.Recue, LCM.Fiches.Demander, LCM.EtatsTemporaires.EnvoyerRetrait
 LCM.Fiches.Recue = function() return copie end
 LCM.Fiches.Demander = function() return true end

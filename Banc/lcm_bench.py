@@ -543,12 +543,27 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetNormalTexture() end
     function f:SetCheckedTexture(t) self.__checkedTexture = t end
     function f:SetAutoFocus() end
-    function f:SetFocus() _G.__focus = self end
+    -- Prendre et rendre le focus jouent OnEditFocusGained / OnEditFocusLost,
+    -- comme dans le jeu : un champ qui choisit un mode quand on clique dedans
+    -- (regain du Panel MJ) n'etait pas verifiable sans.
+    function f:SetFocus()
+        local avant = _G.__focus
+        if avant == self then return end
+        if avant and avant.ClearFocus then avant:ClearFocus() end
+        _G.__focus = self
+        local fn = self.__scripts.OnEditFocusGained
+        if fn then fn(self) end
+    end
     function f:Tabuler()
         local fn = self.__scripts.OnTabPressed
         if fn then fn(self) end
     end
-    function f:ClearFocus() if _G.__focus == self then _G.__focus = nil end end
+    function f:ClearFocus()
+        if _G.__focus ~= self then return end
+        _G.__focus = nil
+        local fn = self.__scripts.OnEditFocusLost
+        if fn then fn(self) end
+    end
     function f:HasFocus() return _G.__focus == self end
     function f:HighlightText() end
     function f:SetNumeric() end

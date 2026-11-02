@@ -25,27 +25,36 @@ attendu('couronne MJ ouverte', mj.ouvert, true)
 attendu('cinq branches', mj.nombreCategories, 5)
 bouton(mj.boutonsCategorie, 'mj_etats'):Click()
 local p = LCM.UI.PanneauMJ.Fenetre()
-attendu('etats seuls', p.onglet, 'etats')
-attendu('sans onglets', p.barre:IsShown(), false)
-attendu('joueurs masques', p.pages.joueurs:IsShown(), false)
+-- Un raccourci ouvre le panneau ENTIER sur la bonne entree (2 novembre
+-- 2026) : l'ancien mode « page seule » cachait la navigation. Les etats
+-- vivent dans la page Groupe.
+attendu('etats : la page Groupe', p.onglet, 'joueurs')
+attendu('navigation visible', p.barre:IsShown(), true)
+attendu('la partie etats est la', p.pages.etats:IsVisible(), true)
 bouton(mj.boutonsCategorie, 'mj_outils'):Click()
 __avancer(1)
 attendu('quatre outils', mj.nombreEntrees, 4)
 for _, id in ipairs({'mj_barres','mj_compteurs','mj_annonce','mj_notes'}) do
     bouton(mj.boutonsEntree, id):Click()
-    attendu(id .. ' ouvre outils seuls', p.onglet, 'outils')
-    attendu(id .. ' masque sous onglets', p.pages.outils.barre:IsShown(), false)
+    attendu(id .. ' ouvre les outils', p.onglet, 'outils')
+    -- La navigation choisit l'outil : la rangee d'onglets interne est retiree.
+    attendu(id .. ' sans rangee interne', p.pages.outils.barre:IsShown(), false)
+    attendu(id .. ' sur le bon outil', 'mj_' .. ({ barre = 'barres', compteur = 'compteurs',
+        annonce = 'annonce', note = 'notes' })[p.pages.outils.sorte], id)
+    attendu(id .. ' allume sa sous-entree', p.barre.actif, 'outils:' .. p.pages.outils.sorte)
 end
 bouton(mj.boutonsCategorie, 'mj_regain'):Click()
 attendu('regain ouvert', p.pages.joueurs.regainPanneau:IsShown(), true)
 attendu('panel cache pour regain', p:IsShown(), false)
 bouton(mj.boutonsCategorie, 'mj_joueurs'):Click()
-attendu('joueurs seuls', p.onglet, 'joueurs')
+attendu('joueurs', p.onglet, 'joueurs')
 bouton(mj.boutonsCategorie, 'mj_combat'):Click()
-attendu('combat seul', p.onglet, 'combat')
+attendu('combat', p.onglet, 'combat')
+-- Le panneau est deja ouvert : le clic gauche le referme, puis le rouvre.
 M.Trouver('panneau_mj').onClick()
-attendu('clic gauche restaure onglets', p.barre:IsShown(), true)
-attendu('restaure outils', p.pages.outils.barre:IsShown(), true)
+attendu('clic gauche referme', p:IsShown(), false)
+M.Trouver('panneau_mj').onClick()
+attendu('et rouvre avec sa navigation', p:IsShown() and p.barre:IsShown(), true)
 local master = LCM.IsMaster
 LCM.IsMaster = function() return false end
 R.Fermer('mj')

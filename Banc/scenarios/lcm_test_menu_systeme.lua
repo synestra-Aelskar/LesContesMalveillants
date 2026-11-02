@@ -25,7 +25,9 @@ end
 attendu("onglet Système", enfants("systeme"), "systeme_aelskar,lieux,interactions,regles")
 -- Cartes et Affichage ont rejoint le sous-menu le 31 octobre 2026 (demande du MJ).
 attendu("sous-menu Interactions", enfants("interactions"), "coffres,vendeur,ressources,cartes,affichage")
-attendu("onglet Outils", enfants("outils"), "campement,incarner,atelier,panneau_mj,parametres")
+-- « Incarner » a quitte le dossier le 2 novembre 2026 : la page Scene du Panel
+-- MJ met en scene et incarne (le MJ).
+attendu("onglet Outils", enfants("outils"), "campement,atelier,panneau_mj,parametres")
 attendu("coffres relié au radial", M.EstLiee("coffres"), true)
 SlashCmdList.LCM("coffres")
 local coffre = LCM.UI.CoffresMJ and LCM.UI.CoffresMJ.frame

@@ -57,19 +57,32 @@ attendu("ni incarner directement", (I.Incarner(modele.id)), nil)
 LCM._masterCompanion = true
 __addonsCharges["LesContesMalveillants_MJ"] = true
 
-dire("== la fenetre")
-local f = LCM.UI.Incarner.Basculer()
-attendu("ouverte", f:IsShown(), true)
--- Le catalogue de la fenetre EST celui du compendium : on compare les deux
+dire("== la page Scène & PNJ du Panel MJ")
+-- La fenetre Incarner a ete retiree le 2 novembre 2026 : la page Scene du
+-- panneau met en scene et incarne, deux menus faisaient la meme chose.
+local panneau = LCM.UI.PanneauMJ.Basculer()
+panneau:Onglet("pnj")
+local f = panneau.pages.pnj
+-- Le catalogue de la page EST celui du compendium : on compare les deux
 -- plutot qu'un nombre en dur, qui change des que le MJ ecrit un PNJ.
 attendu("le catalogue est celui du compendium", #LCM.PNJ.list,
     #LCM.Compendium.Entrees(LCM.Compendium.Get("pnj")))
 attendu("  et il n'est pas vide", #LCM.PNJ.list > 0, true)
-attendu("deux en jeu", f.nombreEnJeu, 2)
+attendu("deux en jeu", f.nombreScene, 2)
 attendu("le bandeau dit qu'on est soi", f.bandeau:GetText(), "Tu es toi-même.")
 attendu("pas de bouton relacher", f.relacher:IsShown(), false)
-f.modeles[1].prendre:Click()
-attendu("une instance de plus", f.nombreEnJeu, 3)
+local premier
+for _, l in ipairs(f.lignesCatalogue) do if l:IsShown() and l.pnjId == modele.id then premier = l end end
+-- On met en scene, puis on incarne depuis la scene : le catalogue n'incarne
+-- pas, il creait un exemplaire par clic (le MJ, 2 novembre 2026).
+premier.ajouter:Click()
+attendu("une instance de plus", f.nombreScene, 3)
+local nouvelle
+for _, l in ipairs(f.lignesScene) do
+    if l:IsShown() and LCM.Incarnation.Instance(l.instanceId).modele == modele.id then nouvelle = l end
+end
+nouvelle.prendre:Click()
+attendu("incarner ne crée rien", f.nombreScene, 3)
 attendu("et on l'incarne", LCM.Entities.Self().modele, modele.id)
 attendu("le bandeau le dit", __sansCouleur(f.bandeau:GetText()):find("Tu incarnes") ~= nil, true)
 attendu("le bouton relacher apparait", f.relacher:IsShown(), true)
@@ -80,7 +93,7 @@ fiche:Montrer(LCM.Entities.Self())
 attendu("elle montre le PNJ", fiche.entity.kind, "npc")
 f.relacher:Click()
 attendu("et revient a moi quand on relache", fiche.entity.id, moi.id)
-attendu("l'entree du menu est allumee", LCM.UI.Menu.EstLiee("incarner"), true)
+attendu("plus d'entrée Incarner au menu", LCM.UI.Menu.Trouver("incarner"), nil)
 
 dire("== oublier une instance")
 attendu("oubliee", I.Oublier(second.id), true)
