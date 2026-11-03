@@ -5,6 +5,9 @@ end
 __declencher("PLAYER_LOGIN")
 __personnage()
 
+-- Les tags de la campagne ecartes (3 novembre 2026) : le menu des parents
+-- se mesure sur les deux tags du test, pas sur ceux de la seance.
+for _, t in ipairs(LCM.Etiquettes.Liste()) do LCM.Listes.Retirer(t.id) end
 local origine = LCM.Listes.Add({ id = "origine_builder_test", liste = "origines", label = "Origine du test" })
 local autreOrigine = LCM.Listes.Add({ id = "autre_origine_builder_test", liste = "origines", label = "Autre origine" })
 local compendium = LCM.UI.Compendium.Ouvrir("liste_tags")

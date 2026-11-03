@@ -160,6 +160,14 @@ attendu("toutes vides pour l'instant", f.lignes[1].nom:GetText(), "Vide")
 -- Glisser une entree du compendium sur une cible, comme a la souris.
 local function Glisser(categorieId, id, cible)
     local Comp = LCM.UI.Compendium.Ouvrir(categorieId)
+    -- On CHERCHE l'entree (3 novembre 2026) : le contenu de la campagne a
+    -- depasse les vingt sacs d'une page, et le sac d'essai etait passe en
+    -- page 2. Le test ne doit pas dependre du nombre d'entrees reelles.
+    -- Par son NOM : la recherche du compendium ne lit pas les identifiants.
+    for _, e in ipairs(LCM.Compendium.Entrees(LCM.Compendium.Get(categorieId))) do
+        if e.id == id then Comp.recherche = tostring(e.label or id) end
+    end
+    Comp:Rafraichir()
     local rang
     for _, r in ipairs(Comp.rangees) do if r.element and r.element.id == id then rang = r end end
     __souris.LeftButton = true
@@ -169,6 +177,7 @@ local function Glisser(categorieId, id, cible)
     __souris.LeftButton = false
     __avancer(0.02, 0.02)
     cible.__survol = nil
+    Comp.recherche = ""
     Comp:Hide()
 end
 

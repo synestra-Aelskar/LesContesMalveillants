@@ -25,6 +25,10 @@ LCM._masterCompanion = true
 -- On commence JOUEUR : le compagnon est la, mais en veille.
 LCM.db.settings.modeJoueur = true
 
+-- L'accessoire de Kaléa, TEMOIN : le MJ l'a retire de la campagne
+-- (3 novembre 2026), et le test tombait avec lui.
+LCM.AccessoiresCamping.Add({ id = "accessoire_reparation_kalea", label = "Accessoire de réparation de Kaléa",
+    bonus = { recup_armure = 40 } })
 local K, I = LCM.Campement, LCM.Inventaire
 local moi = LCM.Entities.Self()
 local MOI = LCM.PlayerId()

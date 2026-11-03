@@ -40,7 +40,14 @@ for _, champ in ipairs(stats) do if champ.cle == "force" then etrangere = true e
 attendu("pas de statistique de fiche", etrangere, false)
 attendu("famille resolue", C.FAMILLES.tentes, "Tentes")
 
-dire("== le contenu publie")
+dire("== des entrées témoins")
+-- L'Auberge de Tephris et l'accessoire de Kaléa venaient de la campagne ; le
+-- MJ les a retires (3 novembre 2026) et le test tombait avec eux. Un test
+-- ne se pose pas sur du contenu qui vit : on les declare ici, avec leurs
+-- valeurs d'alors.
+A.Add({ id = "accessoire_reparation_kalea", label = "Accessoire de réparation de Kaléa",
+    bonus = { recup_armure = 40 } })
+T.Add({ id = "auberge_de_tephris", label = "Auberge de Tephris", lits = 1, bonus = { securite = 100 } })
 local auberge = T.Get("auberge_de_tephris")
 attendu("l'Auberge de Tephris est chargee", auberge ~= nil, true)
 attendu("sa securite en pourcentage", auberge and auberge.bonus.securite, 100)
