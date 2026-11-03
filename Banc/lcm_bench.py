@@ -170,10 +170,17 @@ function __avancerTemps(secondes) horloge = horloge + secondes end
 local posX, posY, posZ = 0, 0, 0
 function _G.__position(x, y, z) posX, posY, posZ = x or 0, y or 0, z or 0 end
 local posMonde = true
+-- La carte du monde ou l'on se tient. Le client la rend en QUATRIEME valeur,
+-- et Crossings s'en sert pour ranger ses zones (sub.mapID) comme pour ranger
+-- le brouillard. Sans elle, tout ce qui est range PAR CARTE tombait dans le
+-- vide, et le defaut passait inapercu : les deux cotes valaient nil et se
+-- correspondaient.
+local posInstance = 1
+function _G.__instance(id) posInstance = tonumber(id) or 1 end
 function UnitPosition(unite)
     if unite ~= "player" then return nil end
     if not posMonde then return nil end
-    return posX, posY, posZ
+    return posX, posY, posZ, posInstance
 end
 
 -- Ou regarde le personnage. `__cap(radians)` le fait pivoter. La convention du

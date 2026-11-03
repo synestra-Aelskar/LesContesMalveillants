@@ -1140,3 +1140,10 @@ faire. Claude Code le lit tout seul s'il est à la racine.
 - Fonds de fenêtres opaques à 100 % ; bordures composées en BLEND, sans transparence additive.
 
 Validation : scénarios fog_surface, fog_charge (10 000 pas), fog_smooth, zoom_animation, map_hover, editeur_dense et noms_explicites dans Banc/scenarios. Le banc simule Lua et les widgets ; les FPS et le rendu GPU restent à vérifier en jeu.
+
+### Correctifs Crossing — 3 novembre 2026
+
+- Plancher de 10 yards sur la portée de vue : une Vue nulle, ou négative sous un malus, ne rend plus aveugle. Sans lui la portée tombait à zéro et plus rien ne se dévoilait.
+- Sommets de l'éditeur agrandis de 30 % (9 → 12 pixels, accroche 11 → 14) : on en désigne plusieurs à la suite pour poser une frontière, et viser si petit demandait trop de soin.
+- La sélection ne se perd plus sur un clic gauche à côté d'un sommet. C'est le clic droit dans le vide qui l'oublie ; le clic droit sur une arête garde son rôle, il y insère un sommet.
+- `UnitPosition` du banc rend de nouveau l'identifiant de carte, quatrième valeur comme dans le client : sans elle, tout ce qui se range par carte — `sub.mapID` comme le brouillard — tombait dans le vide.

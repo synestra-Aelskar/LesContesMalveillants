@@ -1299,7 +1299,7 @@ Place(pays.map, countryForm, M, 185)
 panel.paysMap = pays.map
 pays.hint = Caption(countryForm, "", M, 185 + pays.H + 6, FORM_W - 2 * M)
 pays.hint:SetHeight(34); pays.hint:SetJustifyV("TOP")
-pays.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une zone ouvre sa région.\nPour coller deux régions : cliquez autant de sommets de l'une que de sa voisine, puis « Les confondre »."
+pays.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une zone ouvre sa région.\nPour coller deux régions : cliquez autant de sommets de l'une que de sa voisine, puis « Les confondre »."
 pays.etranger = "Pays d'un autre auteur : la carte se regarde, elle ne se modifie pas."
 Gestes.Poser(pays, countryForm, 185 + pays.H + 44)
 panel.paysBoutons = { fit = pays.fit, weld = pays.weld, unweld = pays.unweld,
@@ -2519,7 +2519,7 @@ carte.contourMot:SetJustifyV("TOP")
 carte.hint = Caption(cartePage, "", M, CARTE_H + 6, FORM_W - 2 * M)
 carte.hint:SetHeight(34)
 carte.hint:SetJustifyV("TOP")
-carte.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une zone ouvre son lieu.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre »."
+carte.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une zone ouvre son lieu.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre »."
 carte.etranger = "Région d'un autre auteur : la carte se regarde, elle ne se modifie pas."
 Gestes.Poser(carte, cartePage, CARTE_H + 44)
 -- Une zone qui ne mène à aucun lieu n'a plus de fiche où se régler depuis que
@@ -3014,7 +3014,7 @@ end)
 bati.mot = Caption(bati.page, "", M + 310, 8, FORM_W - 2 * M - 310)
 bati.hint = Caption(bati.page, "", M, 32 + 408 + 6, FORM_W - 2 * M)
 bati.hint:SetHeight(34); bati.hint:SetJustifyV("TOP")
-bati.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un. Le nom d'une pièce ouvre sa fiche.\nPour une cloison : cliquez autant de sommets d'une pièce que de sa voisine, puis « Les confondre »."
+bati.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une pièce ouvre sa fiche.\nPour une cloison : cliquez autant de sommets d'une pièce que de sa voisine, puis « Les confondre »."
 bati.etranger = "Bâtiment d'un autre auteur : la carte se regarde, elle ne se modifie pas."
 Gestes.Poser(bati, bati.page, 32 + 408 + 44)
 panel.batiBoutons = { fit = bati.fit, weld = bati.weld, unweld = bati.unweld,

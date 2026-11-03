@@ -2457,14 +2457,20 @@ end
 -- de l'expertise « Vue ». Sans personnage ni expertise, on ne découvre qu'en
 -- entrant : le contour franchi, lui, s'inscrit toujours (voir TriggerCrossing).
 local YARDS_PAR_POINT_DE_VUE = 20
+-- Un plancher : une Vue nulle — ou négative, un malus la fait descendre sous
+-- zéro — ne rend pas aveugle. Sans lui la portée tombait à zéro et plus rien
+-- ne se dévoilait, jamais : le brouillard passait pour une panne. Dix yards,
+-- c'est le bout de ses pieds.
+local RAYON_MINIMUM = 10
+
 -- Rend le rayon en yards, ET les points de Vue qui le donnent : la carte les
 -- affiche, pour qu'on sache pourquoi on découvre peu.
 function ZG:RayonDeVue()
     local P, E = LCM.Personnages, LCM.Expertises
     local perso = P and P.Actif and P.Actif()
-    if not (perso and E and E.Valeur) then return 0, nil end
+    if not (perso and E and E.Valeur) then return RAYON_MINIMUM, nil end
     local points = tonumber(E.Valeur(perso, "vue")) or 0
-    return math.max(0, points) * YARDS_PAR_POINT_DE_VUE, points
+    return math.max(RAYON_MINIMUM, points * YARDS_PAR_POINT_DE_VUE), points
 end
 
 -- ── Brouillard persistant, indépendant du cadrage et des régions ──────────

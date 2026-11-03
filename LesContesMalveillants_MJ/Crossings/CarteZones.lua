@@ -20,8 +20,12 @@ local ZG = LCMCrossings
 local UI = ZG.EditorUI
 
 local MIN_SCALE, MAX_SCALE = .02, 40
-local ACCROCHE  = 11    -- pixels : à quelle distance du curseur un sommet se laisse prendre
-local POIGNEE   = 9     -- côté du carré d'un sommet, en pixels
+-- Les sommets ont grandi de 30 % : on en désigne plusieurs à la suite pour
+-- poser une frontière, et viser un carré de neuf pixels demandait trop de
+-- soin. La zone d'accroche suit, sinon on verrait large et on prendrait
+-- étroit.
+local ACCROCHE  = 14    -- pixels : à quelle distance du curseur un sommet se laisse prendre
+local POIGNEE   = 12    -- côté du carré d'un sommet, en pixels
 local MAX_POIGNEES = 600 -- au-delà, les sommets se dessinent sans être attrapables
 
 local function Moi() return UnitName("player") or "" end
@@ -1090,7 +1094,14 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             local ox, oy = Curseur()
             if not ox then return end
             local segment, px, py = SegmentSous(ox, oy)
-            if not segment then return end
+            -- Clic droit dans le vide : c'est LUI qui oublie la sélection.
+            -- Le clic gauche s'en chargeait, et viser un sommet à deux pixels
+            -- près faisait tout perdre — alors qu'on en désigne six pour poser
+            -- une frontière.
+            if not segment then
+                if #map.sel > 0 then map:Deselectionner() end
+                return
+            end
             local wx, wy = map:ToWorld(px, py)
             if ZG:InsertRegionPoint(segment.subId, segment.index, wx, wy) then
                 map:EmpilerRetrait(segment.subId, segment.index + 1, "le sommet ajouté")
@@ -1151,9 +1162,10 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             end
             return
         end
-        -- Un clic dans le vide, sans glisser, oublie la sélection.
+        -- Un clic gauche dans le vide ne touche PLUS à la sélection : viser un
+        -- sommet à deux pixels près ruinait six désignations patientes. C'est
+        -- le clic droit qui oublie, désormais.
         if pan then map:Draw() end
-        if pan and math.abs(mx - pan.mx) + math.abs(my - pan.my) <= 4 then map:Deselectionner() end
     end)
 
     -- Le personnage bouge sans que la carte soit redessinée : son repère se
