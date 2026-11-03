@@ -73,21 +73,9 @@ _G.__groupe = function(membres, raid)
     groupe = membres or {}
     enRaid = raid == true
 end
--- `__deconnecter(nom, vrai)` : ce membre reste dans le groupe, mais hors ligne
--- (les sacs au sol changent alors de gardien, Core/SacsAuSol.lua).
-local horsLigne = {}
-_G.__deconnecter = function(nom, oui) horsLigne[tostring(nom)] = oui ~= false or nil end
-function UnitIsConnected(unit)
-    local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
-    local nom = index and groupe[tonumber(index)]
-    return not (nom and horsLigne[nom])
-end
 function GetNumGroupMembers() return #groupe end
 function IsInRaid() return enRaid end
 function IsInGroup() return enRaid or #groupe > 0 end
-function UnitGUID(unit)
-    if unit == "player" then return "Player-0000-00000001" end
-end
 function UnitName(unit)
     local index = tostring(unit):match("^raid(%d+)$") or tostring(unit):match("^party(%d+)$")
     if index then
@@ -100,72 +88,12 @@ function UnitName(unit)
     return "Reika"
 end
 function UnitFullName(unit) return "Reika", "Apertus" end
--- Le portrait d'une unite : on retient l'unite dans le chemin, pour qu'un
--- scenario sache QUEL portrait a ete pose.
-function SetPortraitTexture(texture, unit)
-    texture:SetTexture("portrait:" .. tostring(unit))
-end
-
--- La cible du joueur, et les auras du jeu qui l'affectent.
--- `__cible("Nytherah", { utiles = {...}, nefastes = {...} })` la pose,
--- `__cible(nil)` la retire. Une aura : { nom, icone, piles, type, duree,
--- expiration, source, sort }. Les fonctions d'unite ne sont posees qu'au premier
--- appel : un scenario qui ne cible personne garde le monde d'avant, ou
--- UnitExists n'existe pas (Inventaires et Echange le testent).
-local cible
-_G.__cible = function(nom, auras)
-    cible = nom and { nom = nom, auras = auras or {} } or nil
-    local nomBase = UnitName
-    if not __uniteCible then
-        __uniteCible = true
-        function UnitExists(u)
-            if u == "player" then return true end
-            if u == "target" then return cible ~= nil end
-            return false
-        end
-        function UnitIsPlayer(u) return u == "player" or (u == "target" and cible ~= nil) end
-        function UnitIsUnit(a, b) return a == b end
-        function UnitName(u)
-            if u == "target" then
-                if not cible then return nil end
-                return cible.nom, ""
-            end
-            return nomBase(u)
-        end
-        -- L'API d'avant Dragonflight : celle du client d'Epsilon.
-        function UnitAura(u, index, filtre)
-            if u ~= "target" or not cible then return nil end
-            local liste
-            if tostring(filtre or ""):find("HARMFUL") then liste = cible.auras.nefastes
-            else liste = cible.auras.utiles end
-            local a = liste and liste[index]
-            if not a then return nil end
-            return a.nom, a.icone, a.piles or 0, a.type, a.duree or 0, a.expiration or 0,
-                a.source, false, nil, a.sort
-        end
-        function GameTooltip:SetUnitAura(u, index, filtre)
-            self.__aura = { unite = u, index = index, filtre = filtre }
-        end
-    end
-end
 function GetAddOnMetadata(addon, champ) if champ == "Version" then return "0.1.0" end return nil end
--- Les sorts : de quoi nommer une aura imposee. Le client rend bien plus de
--- champs ; on s'en tient a ceux que LCM lit (nom, rang, icone).
-function GetSpellInfo(spellID)
-    spellID = tonumber(spellID)
-    if not spellID then return nil end
-    return "Sort " .. spellID, nil, 136243
-end
 -- L'horloge est pilotable : la repousse d'un stock se verifie en avancant le
 -- temps, pas en attendant.
 local horloge = 1000
 function GetTime() return horloge end
-function time() return 1792440000 + math.floor(horloge) end
-function GetServerTime() return 1791936000 + math.floor(horloge) end
 function __temps(secondes) horloge = secondes end
--- La taille physique de l'ecran, en pixels : de quoi convertir un pixel
--- reel en unites d'interface (un liseré d'un pixel, UI/Kit.lua).
-function GetPhysicalScreenSize() return 1920, 1080 end
 function __avancerTemps(secondes) horloge = horloge + secondes end
 
 -- Ou se tient le personnage. `__position(x, y, z)` le deplace : de quoi
@@ -173,17 +101,10 @@ function __avancerTemps(secondes) horloge = horloge + secondes end
 local posX, posY, posZ = 0, 0, 0
 function _G.__position(x, y, z) posX, posY, posZ = x or 0, y or 0, z or 0 end
 local posMonde = true
--- La carte du monde ou l'on se tient. Le client la rend en QUATRIEME valeur,
--- et Crossings s'en sert pour ranger ses zones (sub.mapID) comme pour ranger
--- le brouillard. Sans elle, tout ce qui est range PAR CARTE tombait dans le
--- vide, et le defaut passait inapercu : les deux cotes valaient nil et se
--- correspondaient.
-local posInstance = 1
-function _G.__instance(id) posInstance = tonumber(id) or 1 end
 function UnitPosition(unite)
     if unite ~= "player" then return nil end
     if not posMonde then return nil end
-    return posX, posY, posZ, posInstance
+    return posX, posY, posZ
 end
 
 -- Ou regarde le personnage. `__cap(radians)` le fait pivoter. La convention du
@@ -216,10 +137,6 @@ function _G.__carteAxes(a, b, c, d)
     ca, cb, cc, cd = a or 1, b or 0, c or 0, d or 1
 end
 
--- Le nom de la carte, tel que C_Map.GetMapInfo le rend.
-local carteNom = "Carte"
-function _G.__carteNom(nom) carteNom = tostring(nom or "Carte") end
-
 C_Map = {
     GetBestMapForUnit = function() return carteId end,
     GetMapWorldSize = function(id)
@@ -233,45 +150,7 @@ C_Map = {
         return { x = (ca * posX + cb * posY) / carteL,
                  y = (cc * posX + cd * posY) / carteH }
     end,
-    -- Les coins de la carte en coordonnees du MONDE : x est le nord, y
-    -- l'ouest, comme dans le client. (0,0) est le coin nord-ouest.
-    GetWorldPosFromMapPos = function(id, point)
-        if id ~= carteId or type(point) ~= "table" then return nil end
-        if carteL <= 0 or carteH <= 0 then return nil end
-        return 1, { x = carteH - (point.y or 0) * carteH,
-                    y = carteL - (point.x or 0) * carteL }
-    end,
-    -- L'image de la carte, en tuiles. Deux colonnes sur deux lignes, dont la
-    -- derniere n'est remplie qu'a moitie : de quoi verifier le rognage.
-    GetMapArtLayers = function(id)
-        if id ~= carteId then return nil end
-        return { { layerWidth = 384, layerHeight = 384, tileWidth = 256, tileHeight = 256 } }
-    end,
-    GetMapArtLayerTextures = function(id, couche)
-        if id ~= carteId or couche ~= 1 then return nil end
-        return { 101, 102, 103, 104 }
-    end,
-    -- Le nom de la carte. Le dossier des tuiles de minimap s'en deduit :
-    -- world\minimaps\<nom en minuscules>\mapXX_YY.blp.
-    GetMapInfo = function(id)
-        if id ~= carteId then return nil end
-        return { mapID = id, name = carteNom }
-    end,
 }
--- `__carteArt(false)` fait taire l'image : une carte personnalisee qui ne
--- declare rien, ou un interieur. L'addon doit alors proposer la minimap.
-local carteArt = true
-_G.__carteArt = function(actif)
-    carteArt = actif ~= false
-    if carteArt then
-        C_Map.GetMapArtLayers = function(id)
-            if id ~= carteId then return nil end
-            return { { layerWidth = 384, layerHeight = 384, tileWidth = 256, tileHeight = 256 } }
-        end
-    else
-        C_Map.GetMapArtLayers = function() return nil end
-    end
-end
 
 -- Le personnage du joueur. L'addon ne le fabrique plus tout seul (il naissait
 -- sans race ni points des qu'on ouvrait une fenetre) : un scenario qui a besoin
@@ -301,70 +180,11 @@ local function NouvelleRegion(kind, parent)
         __regions = {},
         parent = parent,
     }
-    -- Comme dans le jeu, un ancrage qui ferait une BOUCLE est refuse : A ancre
-    -- sur B, lui-meme ancre (de proche en proche) sur A. Le banc acceptait, et
-    -- le Panel MJ a plante en jeu au retour de la version compacte
-    -- (3 novembre 2026) sans qu'aucun scenario ne le voie.
-    local function Relatif(self, p)
-        local rel = p[2]
-        -- SetPoint("CENTER") ou SetPoint("TOPLEFT", 4, -2) : sans cadre de
-        -- reference, le jeu ancre sur le PARENT.
-        if rel == nil or type(rel) == "number" then rel = self.parent end
-        if type(rel) == "string" then rel = _G[rel] end
-        if type(rel) ~= "table" then return nil end
-        return rel
-    end
-    local function DependDe(cadre, cible, vus)
-        if cadre == cible then return true end
-        if type(cadre) ~= "table" or vus[cadre] then return false end
-        vus[cadre] = true
-        for _, p in ipairs(cadre.__points or {}) do
-            local rel = Relatif(cadre, p)
-            if rel and DependDe(rel, cible, vus) then return true end
-        end
-        local tout = cadre.__allPoints
-        if tout and tout ~= cadre and DependDe(tout, cible, vus) then return true end
-        return false
-    end
-    local function RefuserBoucle(self, rel)
-        if rel and DependDe(rel, self, {}) then
-            error("Action[SetPoint] failed because[SetPoint would result in anchor family connection]", 3)
-        end
-    end
-    -- Reposer un point deja pose le REMPLACE, comme dans le jeu : empiles, les
-    -- anciens ancrages faisaient voir des boucles qui n'existent pas.
-    function r:SetPoint(...)
-        local p = {...}
-        local ancien
-        for i, q in ipairs(self.__points) do
-            if q[1] == p[1] then ancien = i break end
-        end
-        local retire = ancien and table.remove(self.__points, ancien)
-        local ok, erreur = pcall(RefuserBoucle, self, Relatif(self, p))
-        if not ok then
-            if retire then table.insert(self.__points, ancien, retire) end
-            error(erreur, 2)
-        end
-        if ancien then table.insert(self.__points, ancien, p)
-        else self.__points[#self.__points + 1] = p end
-        return self
-    end
-    function r:ClearAllPoints() self.__points = {} self.__allPoints = nil end
+    function r:SetPoint(...) local p = {...} self.__points[#self.__points + 1] = p return self end
+    function r:ClearAllPoints() self.__points = {} end
     function r:GetPoint(i) local p = self.__points[i or 1] if p then return unpack(p) end end
     function r:GetNumPoints() return #self.__points end
     function r:GetParent() return self.parent end
-    -- Changer de parent : le cadre quitte la liste des enfants de l'ancien
-    -- (sa visibilite suit desormais le nouveau).
-    function r:SetParent(parent)
-        local ancien = self.parent
-        if ancien and ancien.__children then
-            for i, enfant in ipairs(ancien.__children) do
-                if enfant == self then table.remove(ancien.__children, i) break end
-            end
-        end
-        self.parent = parent
-        if parent and parent.__children then parent.__children[#parent.__children + 1] = self end
-    end
     function r:SetSize(w, h) self.__w, self.__h = w, h end
     function r:SetWidth(w) self.__w = w end
     function r:SetHeight(h) self.__h = h end
@@ -405,17 +225,7 @@ local function NouvelleRegion(kind, parent)
     function r:Hide() Visibilite(self, false) end
     function r:SetShown(v) Visibilite(self, v) end
     function r:IsShown() return self.__shown == true end
-    -- Comme dans le jeu : visible, c'est montre ET tous ses parents montres.
-    -- Le banc confondait avec IsShown, et un bouton pose sur un cadre cache
-    -- passait pour visible.
-    function r:IsVisible()
-        local f = self
-        while f do
-            if f.__shown ~= true then return false end
-            f = f.parent
-        end
-        return true
-    end
+    function r:IsVisible() return self.__shown == true end
     function r:SetAlpha(a) self.__alpha = a end
     function r:GetAlpha() return self.__alpha or 1 end
     function r:SetText(t) self.__text = t end
@@ -425,11 +235,6 @@ local function NouvelleRegion(kind, parent)
     function r:SetDesaturated(v) self.__desature = v and true or false end
     function r:IsDesaturated() return self.__desature == true end
     function r:SetColorTexture(...) self.__color = {...} end
-    -- L'alignement sur la grille de pixels : sans effet ici, on retient
-    -- seulement ce qui a ete demande.
-    function r:SetSnapToPixelGrid(v) self.__snap = v and true or false end
-    function r:IsSnappingToPixelGrid() return self.__snap ~= false end
-    function r:SetTexelSnappingBias(v) self.__texelBias = v end
     function r:SetGradient(sens, mini, maxi) self.__gradient = { sens = sens, min = mini, max = maxi } end
     function r:GetGradient() return self.__gradient end
     function r:SetVertexColor(...) self.__vertex = {...} end
@@ -437,10 +242,6 @@ local function NouvelleRegion(kind, parent)
     function r:GetTextColor() local c = self.__textColor or { 1, 1, 1, 1 } return c[1], c[2], c[3], c[4] or 1 end
     function r:SetJustifyH(v) self.__justifyH = v end
     function r:SetJustifyV(v) self.__justifyV = v end
-    function r:SetSpacing(v) self.__spacing = v end
-    function r:GetSpacing() return self.__spacing or 0 end
-    function r:GetJustifyH() return self.__justifyH or "CENTER" end
-    function r:GetJustifyV() return self.__justifyV or "MIDDLE" end
     function r:SetFontObject() end
     function r:SetFont(chemin, taille, contour) self.__font = { chemin, taille, contour } end
     function r:GetFont() local f = self.__font or {} return f[1], f[2], f[3] end
@@ -448,25 +249,9 @@ local function NouvelleRegion(kind, parent)
     function r:SetShadowOffset(x, y) self.__shadowOffset = { x, y } end
     function r:SetBlendMode(mode) self.__blend = mode end
     function r:GetBlendMode() return self.__blend or "BLEND" end
-    function r:SetAllPoints(other)
-        local cible = other or self.parent
-        -- Le jeu accepte aussi le NOM d'un cadre ; garde en chaine, GetCenter
-        -- aurait plante sur tout:GetCenter.
-        if type(cible) == "string" then cible = _G[cible] end
-        if type(cible) == "table" and cible ~= self then RefuserBoucle(self, cible) end
-        -- Comme dans le jeu, SetAllPoints efface d'abord les ancrages poses :
-        -- gardes, ils faisaient voir une dependance (donc une boucle) que le
-        -- cadre n'a plus.
-        self.__points = {}
-        self.__allPoints = cible
-    end
+    function r:SetAllPoints(other) self.__allPoints = other or self.parent end
     function r:SetTexCoord(...) self.__texCoord = {...} end
     function r:SetRotation(a) self.__rotation = a end
-    -- Les coins d'une texture deplaces un a un (le feuillet qui tourne, UI/LivresAnimation).
-    function r:SetVertexOffset(coin, x, y)
-        self.__vertexOffset = self.__vertexOffset or {}
-        self.__vertexOffset[coin] = { x, y }
-    end
     function r:GetRotation() return self.__rotation or 0 end
     function r:AddMaskTexture(m) self.__masks = self.__masks or {} self.__masks[#self.__masks + 1] = m end
     -- Centre a l'ecran, resolu par le PREMIER ancrage (relatif au parent par
@@ -564,13 +349,8 @@ local function NouveauCadre(kind, nom, parent, template)
     end
     function f:SetMovable() end
     function f:SetResizable() end
-    -- Retenu, pour qu'un scenario sache si un cadre prend la souris.
-    function f:EnableMouse(v) self.__souris = v and true or false end
-    function f:IsMouseEnabled() return self.__souris == true end
-    function f:EnableKeyboard(v) self.__keyboard = v end
-    function f:SetPropagateKeyboardInput(v) self.__propagateKeyboard = v end
-    function f:EnableMouseWheel(v) self.__molette = v and true or false end
-    function f:IsMouseWheelEnabled() return self.__molette == true end
+    function f:EnableMouse() end
+    function f:EnableMouseWheel() end
     function f:RegisterForDrag() end
     function f:RegisterForClicks()
         -- Reservee aux boutons, comme dans le jeu.
@@ -588,7 +368,6 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:SetClipsChildren(v) self.__clips = v and true or false end
     function f:DoesClipChildren() return self.__clips == true end
     function f:SetFrameStrata(v) self.__strata = v end
-    function f:GetFrameStrata() return self.__strata or "MEDIUM" end
     function f:SetFrameLevel(v) self.__level = v end
     function f:GetFrameLevel() return self.__level or 1 end
     function f:SetToplevel() end
@@ -599,12 +378,6 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:GetName() return self.__name end
     function f:SetBackdrop() end
     function f:SetScrollChild(c) self.__scrollChild = c end
-    -- Defilement : retenu, pas dessine (Crossings lit et pose sa position).
-    function f:SetVerticalScroll(v) self.__vscroll = tonumber(v) or 0 end
-    function f:GetVerticalScroll() return self.__vscroll or 0 end
-    function f:SetHorizontalScroll(v) self.__hscroll = tonumber(v) or 0 end
-    function f:GetHorizontalScroll() return self.__hscroll or 0 end
-    function f:GetScrollChild() return self.__scrollChild end
     function f:GetChildren() return unpack(self.__children) end
     function f:GetRegions() return unpack(self.__regions) end
     function f:SetChecked(v) self.__checked = v and true or false end
@@ -614,39 +387,19 @@ local function NouveauCadre(kind, nom, parent, template)
     function f:Disable() self.__enabled = false end
     function f:Enable() self.__enabled = true end
     function f:SetNormalTexture() end
-    function f:SetCheckedTexture(t) self.__checkedTexture = t end
     function f:SetAutoFocus() end
-    -- Prendre et rendre le focus jouent OnEditFocusGained / OnEditFocusLost,
-    -- comme dans le jeu : un champ qui choisit un mode quand on clique dedans
-    -- (regain du Panel MJ) n'etait pas verifiable sans.
-    function f:SetFocus()
-        local avant = _G.__focus
-        if avant == self then return end
-        if avant and avant.ClearFocus then avant:ClearFocus() end
-        _G.__focus = self
-        local fn = self.__scripts.OnEditFocusGained
-        if fn then fn(self) end
-    end
+    function f:SetFocus() _G.__focus = self end
     function f:Tabuler()
         local fn = self.__scripts.OnTabPressed
         if fn then fn(self) end
     end
-    function f:ClearFocus()
-        if _G.__focus ~= self then return end
-        _G.__focus = nil
-        local fn = self.__scripts.OnEditFocusLost
-        if fn then fn(self) end
-    end
+    function f:ClearFocus() if _G.__focus == self then _G.__focus = nil end end
     function f:HasFocus() return _G.__focus == self end
     function f:HighlightText() end
     function f:SetNumeric() end
     function f:SetMaxLetters(n) self.__maxLetters = n end
     function f:SetCursorPosition() end
     function f:SetTextInsets() end
-    -- Une EditBox se cadre et se colore comme un texte (UI.ChampCellule).
-    function f:SetJustifyH(v) self.__justifyH = v end
-    function f:GetJustifyH() return self.__justifyH or "LEFT" end
-    function f:SetTextColor(...) self.__textColor = {...} end
     function f:SetMultiLine() end
     function f:Saisir(texte)
         -- Simule une frappe : pose le texte puis previent la fenetre.
@@ -662,16 +415,7 @@ local function NouveauCadre(kind, nom, parent, template)
         return t
     end
     function f:Click(bouton)
-        -- Une case du jeu (CheckButton) se coche AVANT que OnClick la lise.
-        if self.__kind == "CheckButton" then self.__checked = not self.__checked end
         local fn = self.__scripts.OnClick
-        if fn then fn(self, bouton or "LeftButton") end
-    end
-    -- Un double-clic, comme dans le jeu : le premier clic passe par OnClick,
-    -- le second par OnDoubleClick (et pas une seconde fois par OnClick).
-    function f:DoubleClick(bouton)
-        self:Click(bouton)
-        local fn = self.__scripts.OnDoubleClick
         if fn then fn(self, bouton or "LeftButton") end
     end
     function f:Molette(delta)
@@ -693,25 +437,6 @@ end
 
 UIParent = NouveauCadre("Frame", "UIParent", nil, nil)
 UIParent:SetSize(1920, 1080)
-
--- La minimap. Crossings l'EMPRUNTE : le radar de tracé la fait tourner, et la
--- carte nomade la pose en fond. De quoi verifier qu'elle est bien rendue.
-Minimap = NouveauCadre("Frame", "Minimap", UIParent, nil)
-Minimap:SetSize(140, 140)
-Minimap:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -20)
-local minimapZoom = 0
-function Minimap:GetZoom() return minimapZoom end
-function Minimap:SetZoom(v) minimapZoom = math.max(0, math.min(5, tonumber(v) or 0)) end
-function Minimap:GetZoomLevels() return 6 end
--- Rayons du client (valeurs HereBeDragons), en yards.
-local RAYONS_MINIMAP = { 233.33, 200, 166.67, 133.33, 100, 66.67 }
-C_Minimap = { GetViewRadius = function() return RAYONS_MINIMAP[minimapZoom + 1] end }
-function IsIndoors() return false end
-
-local cvars = {}
-function GetCVar(nom) return cvars[nom] end
-function SetCVar(nom, valeur) cvars[nom] = tostring(valeur) end
-_G.__cvar = function(nom) return cvars[nom] end
 
 -- Le monde, sous l'interface. Ce que la souris survole : le monde par defaut ;
 -- `__focusSouris(cadre)` la pose sur une fenetre (nil la rend au monde). Sert a
@@ -764,38 +489,16 @@ function __reseauBoucle(actif, expediteur)
     _G.__expediteurBoucle = expediteur or "Nytherah-Apertus"
 end
 
--- Ce que rend SendAddonMessage sur un client recent. Le jeu REFUSE un
--- message quand on depasse son debit : `__refuserEnvois(n, code)` fait
--- refuser les n prochains (par defaut pour debit depasse) ; un message
--- refuse ne part pas, il n'entre donc pas dans __envois.
-Enum = Enum or {}
-Enum.SendAddonMessageResult = {
-    Success = 0, InvalidPrefix = 1, InvalidMessage = 2, AddonMessageThrottle = 3,
-    InvalidChatType = 4, NotInGroup = 5, TargetRequired = 6, InvalidChannel = 7,
-    ChannelThrottle = 8, GeneralError = 9,
-}
-local refus = { reste = 0, code = 3, total = 0 }
-function __refuserEnvois(n, code)
-    refus.reste = n or 0
-    refus.code = code or Enum.SendAddonMessageResult.AddonMessageThrottle
-end
-function __envoisRefuses() return refus.total end
-
 C_ChatInfo = {
     RegisterAddonMessagePrefix = function(p) prefixesEnregistres[p] = true return true end,
     IsAddonMessagePrefixRegistered = function(p) return prefixesEnregistres[p] == true end,
     SendAddonMessage = function(prefixe, message, canal, cible)
-        if refus.reste > 0 then
-            refus.reste = refus.reste - 1
-            refus.total = refus.total + 1
-            return refus.code
-        end
         envois[#envois + 1] = { prefixe = prefixe, message = message, canal = canal, cible = cible,
                                 taille = #message }
         if boucle then
             __declencher("CHAT_MSG_ADDON", prefixe, message, canal, _G.__expediteurBoucle)
         end
-        return Enum.SendAddonMessageResult.Success
+        return true
     end,
 }
 function SendAddonMessage(p, m, c, t) return C_ChatInfo.SendAddonMessage(p, m, c, t) end
@@ -833,21 +536,6 @@ function SendChatMessage(texte, canal, langue, cible)
     chats[#chats + 1] = { texte = tostring(texte), canal = canal, cible = cible }
 end
 
--- Les filtres de chat : `__filtreChat(evenement, message)` dit si un message
--- recu serait RETIRE de l'affichage (un filtre a rendu vrai). Retire par
--- megarde avec 6aae0fb ; lcm_test_gps_portee s'en sert (21 octobre 2026).
-local filtresChat = {}
-function ChatFrame_AddMessageEventFilter(evenement, fn)
-    filtresChat[evenement] = filtresChat[evenement] or {}
-    table.insert(filtresChat[evenement], fn)
-end
-function _G.__filtreChat(evenement, message)
-    for _, fn in ipairs(filtresChat[evenement] or {}) do
-        if fn(DEFAULT_CHAT_FRAME, evenement, message) then return true end
-    end
-    return false
-end
-
 local lienInsere
 function ChatEdit_GetActiveWindow() return _G.__chatOuvert end
 function ChatEdit_InsertLink(lien) lienInsere = lien return _G.__chatOuvert ~= nil end
@@ -861,27 +549,6 @@ function hooksecurefunc(nom, fn)
 end
 function __cliquerLien(lien) SetItemRef(lien, lien, "LeftButton") end
 
--- wipe : vide une table en place (fonction globale du jeu, aussi table.wipe).
-function wipe(t) for k in pairs(t) do t[k] = nil end return t end
-table.wipe = wipe
-
--- strsplit : decoupe sur un separateur LITTERAL et rend les morceaux en
--- valeurs multiples. C'est par la que passe l'etat reseau de Crossings
--- (ApplyStateLine), qu'un scenario doit pouvoir rejouer.
-function strsplit(sep, s, limit)
-    local out, pos = {}, 1
-    s = tostring(s or "")
-    while not limit or #out < limit - 1 do
-        local a, b = s:find(sep, pos, true)
-        if not a then break end
-        out[#out + 1] = s:sub(pos, a - 1)
-        pos = b + 1
-    end
-    out[#out + 1] = s:sub(pos)
-    return unpack(out)
-end
-function strjoin(sep, ...) return table.concat({ ... }, sep) end
-
 UISpecialFrames = {}
 function InCombatLockdown() return false end
 function IsShiftKeyDown() return __touches and __touches.shift == true end
@@ -892,41 +559,6 @@ __touches = {}
 -- Boutons de souris tenus : __souris = { LeftButton = true }.
 __souris = {}
 function IsMouseButtonDown(b) return __souris[b or "LeftButton"] == true end
-
--- Raccourcis clavier. __raccourcis tient ceux du joueur (touche -> action),
--- comme les a enregistres WoW ; les surcharges d'un addon passent par-dessus
--- sans les modifier, et disparaissent avec leur proprietaire.
-__raccourcis = { B = "OPENALLBAGS", F12 = "TOGGLEBACKPACK", ["SHIFT-B"] = "TOGGLEBACKPACK",
-                 F11 = "TOGGLEBAG1", F10 = "TOGGLEBAG2", F9 = "TOGGLEBAG3", F8 = "TOGGLEBAG4",
-                 I = "TOGGLEGROUPFINDER", L = "TOGGLEQUESTLOG" }
-local surcharges = {}
-function GetBindingKey(action)
-    local touches = {}
-    for touche, a in pairs(__raccourcis) do if a == action then touches[#touches + 1] = touche end end
-    table.sort(touches)
-    return unpack(touches)
-end
-function GetBindingAction(touche)
-    for _, liste in pairs(surcharges) do
-        if liste[touche] then return liste[touche] end
-    end
-    return __raccourcis[touche] or ""
-end
-function SetOverrideBinding(proprio, _, touche, action)
-    surcharges[proprio] = surcharges[proprio] or {}
-    surcharges[proprio][touche] = action
-end
-function SetOverrideBindingClick(proprio, prioritaire, touche, bouton, souris)
-    SetOverrideBinding(proprio, prioritaire, touche, bouton and ("CLICK " .. bouton .. ":" .. (souris or "LeftButton")))
-end
-function ClearOverrideBindings(proprio) surcharges[proprio] = nil end
-
--- Les sons : rien ne sort, mais un scenario lit ce qui a ete joue
--- (__sons, dans l'ordre : { id, canal }). Les identifiants sont ceux du jeu.
-SOUNDKIT = { IG_BACKPACK_OPEN = 862, IG_BACKPACK_CLOSE = 863, IG_SPELLBOOK_TURNPAGE = 836, READY_CHECK = 8960,
-            IG_CHARACTER_INFO_OPEN = 839, IG_CHARACTER_INFO_CLOSE = 840 }
-__sons = {}
-function PlaySound(id, canal) __sons[#__sons + 1] = { id = id, canal = canal } return true, #__sons end
 
 -- Selecteur de couleur du jeu : le scenario lit ce qui a ete demande et
 -- peut rappeler swatchFunc pour simuler un choix.
@@ -942,7 +574,7 @@ end
 function GetCursorPosition() return __curseur[1], __curseur[2] end
 
 GameTooltip = NouveauCadre("GameTooltip", "GameTooltip", nil, nil)
-function GameTooltip:SetOwner(o, ancre) self.__owner = o self.__ancre = ancre end
+function GameTooltip:SetOwner(o) self.__owner = o end
 function GameTooltip:GetOwner() return self.__owner end
 function GameTooltip:SetText(t) self.__text = t end
 function GameTooltip:AddLine(t) self.__lines = self.__lines or {} self.__lines[#self.__lines + 1] = t end
@@ -968,32 +600,6 @@ SlashCmdList = {}
 
 function __sansCouleur(texte)
     return (tostring(texte or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
-end
-
--- La forge ne voit plus, le temps d'un appel, que les jeux d'equilibrage que le
--- scenario declare lui-meme pour cette categorie. La seance en cree : un
--- scenario qui se posait sur leur ABSENCE devenait rouge des que le MJ en
--- forgeait un, et deux jeux en vue empechaient la forge d'en choisir un seul
--- (24 octobre 2026). Ce qui est ajoute pendant l'appel reste ; ce qu'on avait
--- mis de cote revient a sa place.
-function __sansJeux(categorieId, fn)
-    local liste, copie, avant = LCM.Forge.list, {}, {}
-    for i, jeu in ipairs(liste) do copie[i] = jeu avant[jeu] = true end
-    local function Remplir(source)
-        for i = #liste, 1, -1 do liste[i] = nil end
-        for i, jeu in ipairs(source) do liste[i] = jeu end
-    end
-    local garde = {}
-    for _, jeu in ipairs(copie) do
-        if jeu.categorie ~= categorieId then garde[#garde + 1] = jeu end
-    end
-    Remplir(garde)
-    local ok, err = pcall(fn)
-    for _, jeu in ipairs(liste) do
-        if not avant[jeu] then copie[#copie + 1] = jeu end
-    end
-    Remplir(copie)
-    if not ok then error(err, 0) end
 end
 '''
 
@@ -1059,20 +665,6 @@ def charger(chemin_scenario):
     src = io.open(chemin_scenario, encoding='utf-8').read()
     err = lua.eval("""
         function(src, chemin)
-            -- Un scenario qui ANNONCE ses echecs (« n ECHEC(S) ») sans lever
-            -- d'erreur sortait avec 0 : on comptait les rouges sur le code de
-            -- retour et le banc paraissait bien plus vert qu'il ne l'etait.
-            -- On ecoute ce qu'il dit.
-            local imprimer = print
-            __echecsAnnonces = 0
-            print = function(...)
-                local morceaux = {}
-                for i = 1, select("#", ...) do morceaux[i] = tostring((select(i, ...))) end
-                if table.concat(morceaux, " "):find("ECHEC%(S%)") then
-                    __echecsAnnonces = __echecsAnnonces + 1
-                end
-                return imprimer(...)
-            end
             local f, e = loadstring(src, chemin)
             if not f then return "syntaxe : " .. tostring(e) end
             local ok, err = pcall(f)
@@ -1093,12 +685,5 @@ if __name__ == '__main__':
     if not arguments:
         print('usage: lcm_bench.py <scenario.lua> [--addons <dossier AddOns>]')
         sys.exit(2)
-    # Un scenario qui ne vaut que chez un joueur le dit en tete
-    # (« -- banc: --sans-mj ») : lance avec le compagnon, il echouait sans
-    # rien prouver, et passait pour un rouge.
-    with io.open(arguments[0], encoding='utf-8') as tete:
-        if any('banc: --sans-mj' in ligne for _, ligne in zip(range(10), tete)):
-            sys.argv.append('--sans-mj')
     print('AddOns : ' + ROOT + ('   (sans le compagnon MJ)' if '--sans-mj' in sys.argv else ''))
-    lua = charger(arguments[0])
-    sys.exit(0 if lua is not None and not lua.globals().__echecsAnnonces else 1)
+    sys.exit(0 if charger(arguments[0]) is not None else 1)

@@ -64,33 +64,18 @@ Radial.BANDE_EXTERIEURE = 470 / 1024
 -- de 6,2 unites vers le bord externe. Les neuf textures ont le meme rayon.
 Radial.RAYON_ACTION = Radial.FOND * (Radial.BANDE_INTERIEURE + Radial.BANDE_EXTERIEURE) / 2
 
--- Le second eventail (un sous-menu, comme Systeme > Interactions) est le MEME
--- eventail que le premier, meme taille, DECALE vers l'exterieur dans la
--- direction de son bouton parent, avec un espace entre les deux.
---
--- Garde le meme centre, un second anneau ne peut s'ecarter du premier qu'en
--- grandissant : pose a 278 il flottait mais etait enorme, agrandi moins il
--- collait ou passait dessous (16 octobre 2026, quatre essais). Decale, il
--- garde la taille et la courbure du premier. Deux arcs de meme courbure se
--- rapprochent vers leurs bouts : le decalage est calcule pour laisser
--- ECART_SOUS_MENU au milieu et au moins ECART_BORDS aux extremites.
+-- Deux niveaux concentriques, de meme epaisseur. Le second utilise une
+-- projection du cuir sur son rayon propre, sans agrandir les ornements.
+-- Le pas angulaire diminue pour conserver la distance entre les icones.
 Radial.ECART_SOUS_MENU = 16
-Radial.ECART_BORDS = 6
--- La distance entre les deux centres pour qu'un eventail de `nombre`
--- branches respecte ces deux ecarts.
-function Radial.DecalageSousMenu(nombre)
-    local interieur = Radial.FOND * Radial.BANDE_INTERIEURE
-    local exterieur = Radial.FOND * Radial.BANDE_EXTERIEURE
-    -- Le decalage d qui met le bord interieur du second, a l'angle `theta`
-    -- de son milieu, a la distance `bord` du centre du premier.
-    local function Decalage(theta, bord)
-        local c = math.cos(theta)
-        return -interieur * c + math.sqrt(interieur * interieur * (c * c - 1) + bord * bord)
-    end
-    local demiEmpan = (math.max(1, nombre) / 2) * math.pi / 8.75
-    return math.max(Decalage(0, exterieur + Radial.ECART_SOUS_MENU),
-        Decalage(demiEmpan, exterieur + Radial.ECART_BORDS))
-end
+Radial.PAS_ACTION = math.pi / 8.75
+Radial.RAYON_SOUS_MENU = Radial.RAYON_ACTION
+    + Radial.FOND * (Radial.BANDE_EXTERIEURE - Radial.BANDE_INTERIEURE)
+    + Radial.ECART_SOUS_MENU
+Radial.PAS_SOUS_MENU = Radial.PAS_ACTION * Radial.RAYON_ACTION / Radial.RAYON_SOUS_MENU
+-- Dimension physique des textures grimoire-subfan, generees par
+-- Outils/art/radial/construire_eventails.py (epaisseur et rayon en unites UI).
+Radial.FOND_SOUS_MENU = 640
 -- Le plafond, c'est le nombre de BANDEAUX dessines dans
 -- ressources/radial (grimoire-fan-1..9) : au-dela, l'eventail n'a plus de
 -- fond a poser derriere ses branches. Le neuvieme a ete fabrique le
@@ -696,11 +681,11 @@ local function Fond(c, t)
 end
 
 local function Eventail(c, angle, nombre, avancement)
-    c.secteur.surface:SetTexture(ART .. "grimoire-fan-" .. nombre .. ".tga")
+    c.secteur.surface:SetTexture(ART .. (c.textureEventail or "grimoire-fan-") .. nombre .. ".tga")
     if c.secteur.surface.SetRotation then
         c.secteur.surface:SetRotation(angle - math.pi / 2)
     end
-    local taille = Radial.FOND * (0.94 + 0.06 * (avancement or 1))
+    local taille = (c.tailleEventail or Radial.FOND) * (0.94 + 0.06 * (avancement or 1))
     c.secteur.surface:SetSize(taille, taille)
     c.secteur:Show()
 end
@@ -797,14 +782,16 @@ local function LienPourpre(c, proprietaire, x1, y1, x2, y2, nombre, angleCentre)
     if distance < 1 then lien:Hide(); return end
     nombre = math.max(1, math.min(Radial.MAX_ENTREES, nombre or 1))
     local cibles = {}
-    local ox = x2 - math.cos(angleCentre) * Radial.RAYON_ACTION
-    local oy = y2 - math.sin(angleCentre) * Radial.RAYON_ACTION
+    local rayon = proprietaire.rayonEventail or Radial.RAYON_ACTION
+    local pas = proprietaire.pasEventail or Radial.PAS_ACTION
+    local ox = x2 - math.cos(angleCentre) * rayon
+    local oy = y2 - math.sin(angleCentre) * rayon
     -- Une destination par icone, avec le meme pas angulaire que l'eventail.
     -- Les douze grains par branche gardent une densite stable de 1 a 9 icones.
     for i = 1, nombre do
-        local angle = angleCentre + (i - (nombre + 1) / 2) * math.pi / 8.75
-        cibles[i] = { x = ox + math.cos(angle) * Radial.RAYON_ACTION,
-            y = oy + math.sin(angle) * Radial.RAYON_ACTION }
+        local angle = angleCentre + (i - (nombre + 1) / 2) * pas
+        cibles[i] = { x = ox + math.cos(angle) * rayon,
+            y = oy + math.sin(angle) * rayon }
     end
     lien.arriveeX, lien.arriveeY = x2, y2
     Diriger(lien, x1, y1, cibles)
@@ -951,7 +938,9 @@ end
 local function DessinerSousMenu(f, c, parent, anime)
     local s = c.sousMenu
     if not s then
-        s = { boutonsEntree = {} }
+        s = { boutonsEntree = {}, textureEventail = "grimoire-subfan-",
+            tailleEventail = Radial.FOND_SOUS_MENU, rayonEventail = Radial.RAYON_SOUS_MENU,
+            pasEventail = Radial.PAS_SOUS_MENU }
         c.sousMenu = s
         s.orbite = CreateFrame("Frame", nil, c.orbite)
         s.orbite:SetSize(Radial.SCEAU, Radial.SCEAU)
@@ -962,20 +951,19 @@ local function DessinerSousMenu(f, c, parent, anime)
         s.secteur:EnableMouse(false)
         s.secteur.surface = Surface(s.secteur, "grimoire-fan-3", Radial.FOND)
     end
-    local rayon = Radial.RAYON_ACTION
+    local rayon = s.rayonEventail
     local entrees = c.def.Entrees(parent.cible)
     local angleCentre = parent.angle
-    -- Le meme eventail que le premier, decale vers l'exterieur dans la
-    -- direction du bouton parent : un espace les separe, sans rien agrandir.
-    local decalage = Radial.DecalageSousMenu(#entrees)
-    local ox, oy = math.cos(angleCentre) * decalage, math.sin(angleCentre) * decalage
+    -- Meme centre que le premier : l'intervalle entre les bords reste
+    -- constant sur tout l'arc, quelle que soit la position du parent.
+    local ox, oy = 0, 0
     s.orbite:ClearAllPoints()
     s.orbite:SetPoint("CENTER", c.orbite, "CENTER", ox, oy)
     s.orbite:Show()
     Eventail(s, angleCentre, #entrees)
     LienPourpre(c, s, parent.rx, parent.ry,
-        ox + math.cos(angleCentre) * Radial.RAYON_ACTION,
-        oy + math.sin(angleCentre) * Radial.RAYON_ACTION, #entrees, angleCentre)
+        ox + math.cos(angleCentre) * rayon,
+        oy + math.sin(angleCentre) * rayon, #entrees, angleCentre)
     s.secteur:SetAlpha(1)
     if anime then
         Mouvement(s.secteur, 0.24, 0, function(t) s.secteur:SetAlpha(t) end)
@@ -987,7 +975,7 @@ local function DessinerSousMenu(f, c, parent, anime)
             s.boutonsEntree[i] = b
         end
         -- Lecture de gauche a droite, sur l'arc inferieur.
-        local angle = angleCentre + (i - (#entrees + 1) / 2) * math.pi / 8.75
+        local angle = angleCentre + (i - (#entrees + 1) / 2) * s.pasEventail
         b.rx, b.ry = math.cos(angle) * rayon, math.sin(angle) * rayon
         b.cible = entree
         b:ClearAllPoints()
@@ -1003,7 +991,7 @@ local function DessinerSousMenu(f, c, parent, anime)
         b:RegisterForClicks("LeftButtonUp")
         b:SetScript("OnClick", function(bouton) Lancer(f, c, bouton.cible) end)
         b:Show()
-        -- Les boutons partent du parent, exprime dans le repere decale.
+        -- Les boutons partent du parent, dans le meme repere.
         if anime then Deployer(b, s.orbite, b.rx, b.ry, parent.rx - ox, parent.ry - oy, (i - 1) * 0.025) end
     end
     s.nombreEntrees = #entrees

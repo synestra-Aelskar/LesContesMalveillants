@@ -497,13 +497,19 @@ local function EnvoyerAttente(a)
         canal, cible = Canal()
         if not canal then return false end
     end
-    local avant = LCM.Reseau.FileEnvoi and LCM.Reseau.FileEnvoi() or 0
-    local ok, morceaux = LCM.Reseau.Envoyer("brouillon", a.donnees, canal, cible, { etale = true })
-    if not ok then return false end
     a.essais = a.essais + 1
-    -- L'accuse ne peut revenir qu'une fois tous les fragments sortis.
-    a.reste = math.max(5, (avant + (tonumber(morceaux) or 1))
-        * (LCM.Reseau.CADENCE or 0.25) + 3)
+    -- La file peut etre freinee par WoW pendant une duree inconnue. Le delai
+    -- d'accuse commence seulement apres l'envoi du dernier fragment.
+    a.reste = math.huge
+    local ok = LCM.Reseau.Envoyer("brouillon", a.donnees, canal, cible,
+        { etale = true, onParti = function(parti)
+            if parti then a.reste = 8 else a.reste = 0 end
+        end })
+    if not ok then
+        a.essais = a.essais - 1
+        a.reste = 1
+        return false
+    end
     return true
 end
 

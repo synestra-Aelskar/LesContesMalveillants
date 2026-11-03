@@ -287,7 +287,10 @@ function Reseau.Expedies() return expedies end
 -- file ne coute rien quand le jeu suit. On bat la mesure avec OnUpdate
 -- plutot que C_Timer : il existe toujours, et le banc sait le faire avancer.
 Reseau.RAFALE = 8
-Reseau.CADENCE = 0.25
+-- La file etalee ne doit pas imposer quatre paquets par seconde quand le jeu
+-- accepte davantage. Un refus garde la pause REPRISE ci-dessous.
+Reseau.CADENCE = 0
+Reseau.PAQUETS_PAR_IMAGE = 16
 -- Un paquet refuse : on attend REPRISE secondes avant de retenter (le debit
 -- se recharge avec le temps, pas en insistant), et on abandonne le message
 -- apres ESSAIS_MAX refus.
@@ -341,6 +344,10 @@ local function Retirer(m)
     end
 end
 
+local function Termine(m, ok)
+    if m.onParti then pcall(m.onParti, ok) end
+end
+
 -- Un message qui tient en un morceau et n'est pas commence peut voyager avec
 -- d'autres.
 local function Petit(m) return m.charge ~= nil and #m.paquets == 1 and m.rang == 1 end
@@ -381,6 +388,7 @@ local function Servir()
             for _, x in ipairs(lot) do
                 Retirer(x)
                 Statut(x.journal, #lot > 1 and string.format("parti en paquet x%d", #lot) or "parti")
+                Termine(x, true)
             end
             if #lot > 1 then stats.regroupes = stats.regroupes + #lot end
         else
@@ -388,6 +396,7 @@ local function Servir()
             if m.rang > #m.paquets then
                 Retirer(m)
                 Statut(m.journal, "parti")
+                Termine(m, true)
             else
                 Statut(m.journal, string.format("envoi %d/%d", m.rang - 1, #m.paquets))
             end
@@ -398,6 +407,7 @@ local function Servir()
         if m.essais >= Reseau.ESSAIS_MAX then
             Retirer(m)
             Statut(m.journal, "ABANDONNÉ", true)
+            Termine(m, false)
             stats.abandonnes = stats.abandonnes + 1
             LCM.Trace(string.format("réseau : message abandonné après %d refus du jeu (%s).",
                 m.essais, tostring(m.cible or m.canal)))
@@ -407,6 +417,7 @@ local function Servir()
         -- part a la poubelle plutot que de bloquer la file pour toujours.
         Retirer(m)
         Statut(m.journal, "ERREUR du jeu", true)
+        Termine(m, false)
     end
     return resultat
 end
@@ -415,17 +426,31 @@ local function Horloge()
     if horloge or not CreateFrame then return end
     horloge = CreateFrame("Frame")
     horloge.cumul = 0
+end
+
+local function ActiverFile()
+    if not horloge or horloge:GetScript("OnUpdate") then return end
     horloge:SetScript("OnUpdate", function(self, dt)
-        if not Tete() then self.cumul = 0 return end
-        self.cumul = self.cumul + (dt or 0)
-        while self.cumul >= Reseau.CADENCE and Tete() do
-            self.cumul = self.cumul - Reseau.CADENCE
+        if not Tete() then
+            self.cumul = 0
+            self:SetScript("OnUpdate", nil)
+            return
+        end
+        if self.cumul < 0 then
+            self.cumul = self.cumul + (dt or 0)
+            if self.cumul < 0 then return end
+            self.cumul = 0
+        end
+        -- La file n'impose aucun delai : seule la limite du jeu la freine.
+        -- La borne par image evite de figer l'interface sur une grosse base.
+        for _ = 1, Reseau.PAQUETS_PAR_IMAGE do
+            if not Tete() then break end
             if Servir() == "refuse" then
-                -- Le debit est epuise : laisser le jeu le recharger.
                 self.cumul = -Reseau.REPRISE
                 break
             end
         end
+        if not Tete() then self:SetScript("OnUpdate", nil) end
     end)
 end
 
@@ -523,12 +548,14 @@ local function Confier(m, etale)
         end
         if m.rang > #m.paquets then
             Statut(m.journal, "parti")
+            Termine(m, true)
             return true, #m.paquets
         end
         -- Sans horloge (hors jeu), il n'y a pas de file pour reprendre.
         if not horloge then return false end
     end
     table.insert(files[m.priorite], m)
+    ActiverFile()
     return true, #m.paquets
 end
 
@@ -541,7 +568,9 @@ function Reseau.Envoyer(sujet, donnees, canal, cible, options)
     local etale = options and options.etale
     local priorite = Reseau.PRIORITES[options and options.priorite or ""] or (etale and 3 or 2)
     local charge = tostring(sujet) .. "|" .. Reseau.Encoder(donnees)
-    return Confier(Preparer(charge, canal, cible, priorite, options and options.cle, tostring(sujet)), etale)
+    local m = Preparer(charge, canal, cible, priorite, options and options.cle, tostring(sujet))
+    m.onParti = options and options.onParti
+    return Confier(m, etale)
 end
 
 -- La MEME file pour un autre prefixe, deja decoupe par son appelant : les

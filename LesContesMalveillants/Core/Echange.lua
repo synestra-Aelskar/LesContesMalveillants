@@ -67,6 +67,8 @@ end
 local function Envoyer(sujet, donnees, options)
     local seance = Echange.courant
     if not (seance and LCM.Reseau) then return end
+    options = options or {}
+    options.priorite = "urgent"
     LCM.Reseau.Envoyer("ECH_" .. sujet, donnees or {}, "WHISPER", seance.qui, options)
 end
 
