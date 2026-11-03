@@ -44,7 +44,7 @@ local TICK_INTERVAL = 0.25   -- cohérent avec les tickers de Survive (Lantern/T
 local WIDTH_MARGIN   = 1.0   -- yards de tolérance (pas de poll / bord de la région)
 local DEFAULT_WIDTH   = 6
 local MAX_WIDTH        = 500  -- yards — de quoi couvrir l'entrée d'un village entier
-local MAX_REGION_POINTS = 1500 -- grandes régions : jusqu'à ≈ 20 Ko par périmètre, envoyés au rythme toléré (voir PumpSend)
+local MAX_REGION_POINTS = 1500 -- grandes régions : jusqu'à ≈ 20 Ko par périmètre, envoyés par la file commune (voir QueueSend)
 
 -- ── Thèmes de bannière ──────────────────────────────────────────────────────
 -- Trois polices Blizzard natives ("classique", "abîmé/combat" Skurri,
@@ -209,15 +209,17 @@ local function BroadcastChannels()
     return channels
 end
 
+-- Une seule piste reseau pour tout l'addon (le MJ, 3 novembre 2026 : « faut
+-- pas avoir 20 pistes reseaux »). Crossings envoyait par SendAddonMessage
+-- directement, avec sa propre file a cinq paquets par seconde : deux files
+-- qui ne se voyaient pas consommaient le meme debit du jeu, et chacune se
+-- faisait refuser a cause de l'autre. Tout passe maintenant par la file de
+-- LCM (Core/Reseau.lua) : priorites, reprise des refus, compteurs. Le
+-- prefixe et le format ne changent pas — un client qui recoit n'a rien a
+-- changer, sa reception est la meme.
 local function SendAddon(payload, channel, target)
     if not payload or payload == "" or not channel then return false end
-    if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-        return C_ChatInfo.SendAddonMessage(PREFIX, payload, channel, target)
-    end
-    if SendAddonMessage then
-        return SendAddonMessage(PREFIX, payload, channel, target)
-    end
-    return false
+    return LCM.Reseau.EnvoyerBrut(PREFIX, { payload }, channel, target, { priorite = "normal" })
 end
 
 -- Remplace les caractères qui serviraient de séparateurs dans le protocole.
@@ -3918,43 +3920,16 @@ ZG.ApplyStateLine = ApplyStateLine
 
 local stateMsgSeq = 0
 
--- File d'envoi : le jeu limite le débit des messages d'extension (une
--- dizaine d'un coup, puis environ un par seconde). Un grand périmètre fait
--- une centaine de morceaux : on les expédie un par un, on réessaie un
--- morceau refusé, et un nouvel état remplace celui encore en attente pour
--- le même destinataire (inutile d'envoyer une version déjà dépassée).
-local SEND_INTERVAL = 0.2
-local SEND_RETRY    = 1.0
-local sendQueue = {}   -- { key, channel, target, packets, part, failures }
-local sendFrame, sendWait = nil, 0
-
-local function Sent(result)
-    if result == true or result == 0 then return true end
-    return Enum and Enum.SendAddonMessageResult and result == Enum.SendAddonMessageResult.Success or false
-end
-
-local function PumpSend(_, elapsed)
-    sendWait = sendWait - elapsed
-    if sendWait > 0 then return end
-    local job = sendQueue[1]
-    if not job then sendFrame:SetScript("OnUpdate", nil); return end
-    if Sent(SendAddon(job.packets[job.part], job.channel, job.target)) then
-        job.part, job.failures, sendWait = job.part + 1, 0, SEND_INTERVAL
-        if job.part > #job.packets then table.remove(sendQueue, 1) end
-    else
-        job.failures, sendWait = job.failures + 1, SEND_RETRY
-        if job.failures >= 20 then table.remove(sendQueue, 1) end
-    end
-end
-
+-- Les etats decoupes (un grand perimetre fait une centaine de morceaux)
+-- passent par la file commune, en fond : ils ne retardent ni le combat ni
+-- le reste. Un nouvel etat pour le meme destinataire INTERROMPT celui qui
+-- partait encore — inutile de finir une version deja depassee ; la
+-- reception, qui recolle par numero de message, oublie le morceau orphelin.
 local function QueueSend(channel, target, packets)
-    local key = channel .. ":" .. tostring(target or "")
-    for i, job in ipairs(sendQueue) do
-        if job.key == key then table.remove(sendQueue, i); break end
-    end
-    sendQueue[#sendQueue + 1] = { key = key, channel = channel, target = target, packets = packets, part = 1, failures = 0 }
-    sendFrame = sendFrame or CreateFrame("Frame")
-    sendFrame:SetScript("OnUpdate", PumpSend)
+    LCM.Reseau.EnvoyerBrut(PREFIX, packets, channel, target, {
+        priorite = "fond", cle = "crossings:" .. channel .. ":" .. tostring(target or ""),
+        interrompre = true,
+    })
 end
 
 local function SendChunkedState(channel, target)
@@ -4223,6 +4198,20 @@ function ZG:RegisterNetwork()
     elseif RegisterAddonMessagePrefix then
         RegisterAddonMessagePrefix(PREFIX)
     end
+    -- Le terminal reseau du Panel MJ nomme ce qui passe sous ce prefixe. Un
+    -- etat de zones part en dizaines de morceaux : il ne fait qu'UNE ligne,
+    -- a son premier morceau envoye et a son dernier recu.
+    LCM.Reseau.SuivrePrefixe(PREFIX, function(paquet, sens)
+        if paquet == "SYNC" then return "Crossings : demande de rattrapage" end
+        local i, n = paquet:match("^Z|%d+|(%d+)|(%d+)|")
+        if i then
+            if (sens == "reception" and i ~= n) or (sens == "envoi" and i ~= "1") then return nil end
+            return "Crossings : état des zones"
+        end
+        local genre = paquet:match("^([^|]+)") or "?"
+        if genre == "G" then return "Crossings : nom de zone débloqué" end
+        return "Crossings : " .. genre
+    end)
     netFrame:RegisterEvent("CHAT_MSG_ADDON")
     -- Rejoint le canal global tout de suite (pas d'attente d'un premier
     -- broadcast) pour qu'il ait le temps d'être prêt côté serveur avant le

@@ -58,15 +58,37 @@ class AutoSyncTest(unittest.TestCase):
             self.assertEqual(masks, set())
 
     def test_remote_change_blocks_overwrite(self):
+        # Un conflit ne bloque plus TOUT (3 novembre 2026) : l'entree est
+        # retenue, sans rien ecraser, et les autres passent.
         old = auto.draft_row("traits", {"id": "temoin", "label": "Ancien"})
         remote = auto.draft_row("traits", {"id": "temoin", "label": "Binome"})
         edited = auto.draft_row("traits", {"id": "temoin", "label": "Local"})
+        autre = auto.draft_row("traits", {"id": "autre", "label": "Autre"})
         sheet = MemorySheet([remote])
         with patch.object(db, "load_state", return_value={"traits/temoin": db.digest(old)}), \
              patch.object(db, "local_rows", return_value={"traits/temoin": old}):
-            with self.assertRaisesRegex(ValueError, "conflit"):
-                auto.stage_changes(sheet, "sheet", {"traits/temoin": edited}, set())
+            staged, conflits = auto.stage_changes(
+                sheet, "sheet", {"traits/temoin": edited, "traits/autre": autre}, set())
+        self.assertEqual(conflits, ["traits/temoin"])
+        self.assertEqual(staged, [autre])
         self.assertEqual(sheet.rows, [remote])
+
+    def test_un_conflit_reste_retenu_jusqua_ce_quon_tranche(self):
+        # Le tour suivant, la base a recopie la version du Sheet : sans la
+        # garde, la version du jeu repartirait seule, sans decision du MJ.
+        remote = auto.draft_row("traits", {"id": "temoin", "label": "Binome"})
+        edited = auto.draft_row("traits", {"id": "temoin", "label": "Local"})
+        sheet = MemorySheet([remote])
+        gardes = {"traits/temoin": db.digest(edited)}
+        with patch.object(db, "load_state", return_value={"traits/temoin": db.digest(remote)}), \
+             patch.object(db, "local_rows", return_value={"traits/temoin": remote}):
+            staged, conflits = auto.stage_changes(sheet, "sheet", {"traits/temoin": edited}, set(), gardes)
+            self.assertEqual((staged, conflits), ([], ["traits/temoin"]))
+            # Re-enregistree dans WoW (son empreinte change) : c'est la
+            # decision du MJ, elle part.
+            tranche = auto.draft_row("traits", {"id": "temoin", "label": "Local, tranche"})
+            staged, conflits = auto.stage_changes(sheet, "sheet", {"traits/temoin": tranche}, set(), gardes)
+            self.assertEqual((staged, conflits), ([tranche], []))
 
     def test_un_nombre_ecrit_en_texte_nest_pas_un_conflit(self):
         # Meme contenu, deux ecritures : le cout saisi en jeu arrive en texte
@@ -88,7 +110,7 @@ class AutoSyncTest(unittest.TestCase):
         with patch.object(db, "load_state", return_value={"traits/temoin": db.digest(nombre)}), \
              patch.object(db, "local_rows", return_value={"traits/temoin": nombre}):
             self.assertEqual(
-                auto.stage_changes(sheet, "sheet", {"traits/temoin": texte}, set()), [])
+                auto.stage_changes(sheet, "sheet", {"traits/temoin": texte}, set()), ([], []))
         self.assertEqual(sheet.rows, [nombre])
 
         # Un cout qui change VRAIMENT repart, lui.

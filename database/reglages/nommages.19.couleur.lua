@@ -1,2 +1,2 @@
 -- chemin: nommages.19.couleur
-return { chemin = "nommages.19.couleur", valeur = "000000" }
+return { chemin = "nommages.19.couleur", valeur = "606060" }

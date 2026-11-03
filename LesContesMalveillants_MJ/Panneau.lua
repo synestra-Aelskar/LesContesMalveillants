@@ -66,6 +66,7 @@ Ecran.ONGLETS = {
     { id = "outils",  label = "Outils partagés" },
     { id = "traits", label = "Traits visibles" },
     { id = "equilibrage", label = "Équilibrage" },
+    { id = "reseau", label = "Réseau" },
 }
 
 -- Anciens identifiants, encore appeles (menu radial, autres fichiers).
@@ -90,6 +91,13 @@ local function Navigation()
             -- 2026). La page « Contenus » n'avait plus qu'un bouton, celui-la.
             { id = "compendium",  label = "Compendium" },
             { id = "equilibrage", label = "Équilibrage" },
+        } },
+        -- Ce qui sert a comprendre quand quelque chose ne va pas (le MJ,
+        -- 3 novembre 2026), a part du jeu et de sa preparation.
+        { titre = "Débug", entrees = {
+            -- Le terminal du reseau : ce qui passe, qui l'envoie, et ce qui
+            -- se perd.
+            { id = "reseau", label = "Réseau" },
         } },
     }
 end
@@ -188,6 +196,33 @@ local function FicheJoueur(joueur)
     return LCM.Fiches.Recue(joueur)
 end
 
+-- Aller chercher, SANS RIEN OUVRIR, la fiche des joueurs du groupe (le MJ,
+-- 3 novembre 2026 : « on a du mal a catch les data des fiches des gens
+-- connectes »). La page Groupe affichait « fiche pas encore consultee »
+-- tant que personne n'avait clique Consulter : niveau, PV, ressources et
+-- etats portes restaient vides. Elle demande maintenant d'elle-meme ce
+-- qui lui manque ; la reponse abonne le MJ, et le joueur repousse sa fiche
+-- a chaque changement (Core/Fiches.lua) — elle reste donc a jour sans
+-- redemander. Une demande par joueur toutes les RELANCE_FICHE secondes au
+-- plus : un joueur sans l'addon ne repondra jamais, et la page se
+-- reaffiche souvent.
+local RELANCE_FICHE = 30
+local dernieresDemandes = {}
+local DemanderEnSilence
+
+local function ChercherFiches(joueurs)
+    local maintenant = (GetTime and GetTime()) or 0
+    for _, joueur in ipairs(joueurs or {}) do
+        if not EstMoi(joueur) and not LCM.Fiches.Recue(joueur) then
+            local derniere = dernieresDemandes[joueur]
+            if not derniere or maintenant - derniere >= RELANCE_FICHE then
+                dernieresDemandes[joueur] = maintenant
+                DemanderEnSilence(joueur)
+            end
+        end
+    end
+end
+
 -- La liste du groupe peut contenir « Nom », tandis que le transport repond
 -- avec « Nom-Royaume ». Une reponse attendue par le panneau XP doit rester
 -- silencieuse dans les deux cas : elle alimente les jauges, elle n'ouvre pas
@@ -206,6 +241,20 @@ local function PrendreDemandeXP(joueur)
         end
     end
     return trouve
+end
+
+-- La demande elle-meme : la reponse ne doit pas ouvrir la consultation
+-- (Fiches.onRecue la prend pour silencieuse, comme les demandes XP). Si le
+-- joueur ne repond pas, la marque s'efface : une consultation demandee plus
+-- tard a la main ne doit pas rester muette a cause d'elle.
+DemanderEnSilence = function(joueur)
+    demandesFichesXP[joueur] = true
+    local ok = LCM.Fiches.Demander(joueur)
+    if not ok then demandesFichesXP[joueur] = nil end
+    if ok and C_Timer and C_Timer.After then
+        C_Timer.After(60, function() demandesFichesXP[joueur] = nil end)
+    end
+    return ok
 end
 
 -- Ce panneau parle des PERSONNAGES suivis par le MJ. Le nom de compte reste
@@ -432,17 +481,7 @@ function Pages.joueurs(page, f)
         return p, math.max(0, p.xp - debut), math.max(1, p.prochainXp - debut)
     end
 
-    local function DemanderPourXP(joueur)
-        demandesFichesXP[joueur] = true
-        local ok = LCM.Fiches.Demander(joueur)
-        if not ok then demandesFichesXP[joueur] = nil end
-        -- Si le joueur ne répond pas, une consultation manuelle ultérieure ne
-        -- doit pas rester silencieuse à cause d'une vieille demande XP.
-        if ok and C_Timer and C_Timer.After then
-            C_Timer.After(60, function() demandesFichesXP[joueur] = nil end)
-        end
-        return ok
-    end
+    local function DemanderPourXP(joueur) return DemanderEnSilence(joueur) end
 
     local function LigneXP(rang)
         local l = Rangee(xp.zone.contenu, 34)
@@ -1271,7 +1310,7 @@ function Pages.joueurs(page, f)
             or "Aucun personnage choisi")
         local c = choisi and UI.C.titre or UI.C.discret
         self.nomChoisi:SetTextColor(c[1], c[2], c[3])
-        self.detailChoisi:SetText(choisi and Detail(joueur) or "Clique un personnage du groupe.")
+        self.detailChoisi:SetText(choisi and Detail(joueur) or "Clique sur un personnage du groupe.")
         -- Les valeurs suivent la derniere fiche connue ; sans fiche, des
         -- tirets, et c'est la consultation qui la fera venir.
         local entity = choisi and FicheJoueur(joueur) or nil
@@ -1292,6 +1331,7 @@ function Pages.joueurs(page, f)
 
     function page:Afficher()
         local membres = Groupe()
+        ChercherFiches(membres)
         local y = 0
         for rang, joueur in ipairs(membres) do
             local l = self.lignes[rang] or Ligne(rang)
@@ -1698,8 +1738,15 @@ ConstruireEtats = function(page, proprio)
             -- reseau) rangent l'etat au meme endroit.
             return LCM.EtatsTemporaires.Imposer(entity, definition, rounds)
         end
-        if suivre then self:DemanderEtats(joueur) end
-        return LCM.EtatsTemporaires.Envoyer(joueur, definition.id, rounds)
+        -- L'etat D'ABORD, la demande de fiche ensuite (le MJ, 3 novembre
+        -- 2026 : « tu dois passer sur un autre et revenir pour que l'etat
+        -- s'actualise »). Dans l'autre ordre, le joueur repondait a la demande
+        -- avant d'avoir recu l'etat : la fiche revenait SANS lui, et la bonne
+        -- n'arrivait qu'au second envoi, derriere la premiere dans sa file.
+        -- Les deux chuchotements arrivent dans l'ordre ou ils partent.
+        local ok, raison = LCM.EtatsTemporaires.Envoyer(joueur, definition.id, rounds)
+        if ok and suivre then self:DemanderEtats(joueur) end
+        return ok, raison
     end
 
     function page:Appliquer(joueur, definition)
@@ -1880,7 +1927,7 @@ ConstruireEtats = function(page, proprio)
         end
         for i = #liste + 1, #self.lignesActifs do self.lignesActifs[i]:Hide() end
         self.videActifs:SetText(entity and "Aucun état sur ce personnage."
-            or (self.joueurActif and "Fiche indisponible : clique le personnage pour la demander." or ""))
+            or (self.joueurActif and "Fiche indisponible : clique sur le personnage pour la demander." or ""))
         self.videActifs:SetShown(#liste == 0)
         self.zoneActifs:Regler(math.max(1, #liste * self:PasActif()))
     end
@@ -3564,6 +3611,191 @@ end
 -- (OutilsUI.lua) : annonces, barres, compteurs et notes, chacun avec son
 -- apparence, sa portee et sa bibliotheque. Cette page les tenait en une seule
 -- vue tassee ou rien ne se reglait (le MJ, 20 octobre 2026).
+-- ===== Reseau ==============================================================
+
+-- Le terminal du reseau (le MJ, 3 novembre 2026 : « un lecteur de reseau qui
+-- catch toutes les communications [...] simule un terminal de commande [...]
+-- qui provoque, quoi, et a quelle heure, heure locale »). Il lit le journal
+-- de Core/Reseau.lua : une ligne par message, envoye ou recu, qui change
+-- d'etat sous les yeux (en file, freine, parti, abandonne).
+--
+-- [Source], c'est QUI provoque : pour ce qu'on recoit, le joueur qui l'a
+-- envoye ; pour ce qu'on envoie, le systeme de l'addon qui parle (le
+-- compendium qui pousse la base, la fiche qui se met a jour, le combat...).
+
+-- Le systeme qui parle, d'apres le sujet du message. Le premier motif qui
+-- correspond l'emporte ; un sujet inconnu se montre tel quel.
+local SYSTEMES = {
+    { "^base", "Compendium", "base publique" },
+    { "^entree", "Compendium", "entrée partagée (Link)" },
+    { "^brouillon", "Atelier MJ", "entrée enregistrée" },
+    { "^masque", "Atelier MJ", "entrée supprimée" },
+    { "^mj%-sync", "Atelier MJ", "recherche des autres MJ" },
+    { "^sync%-ok", "Atelier MJ", "accusé de réception" },
+    { "^fiche", "Fiche", "fiche du personnage" },
+    { "^etat_mj", "États", "état imposé par le MJ" },
+    { "^etat", "États", "états" },
+    { "^dissipe", "États", "dissipation" },
+    { "^traits", "Traits", "accès aux traits" },
+    { "^regl", "Équilibrage", "réglage d'équilibrage" },
+    { "^synchro", "Synchro", "synchronisation forcée" },
+    { "^ici", "Présence", "présence de l'addon" },
+    { "^combat", "Combat", "combat" },
+    { "^act", "Combat", "action" },
+    { "^interv", "Combat", "intervention" },
+    { "^devie", "Combat", "déviation" },
+    { "^mental", "Combat", "jet mental" },
+    { "^sort", "Combat", "sort" },
+    { "^CAMP_", "Campement", "campement" },
+    { "^ECH_", "Échange", "échange" },
+    { "^outil", "Outils MJ", "outil partagé" },
+    { "^annonce", "Outils MJ", "annonce" },
+    { "^scene", "Scène", "scène" },
+    { "^puits", "Puits", "puits" },
+    { "^stock", "Vendeurs", "stock" },
+    { "^coffre", "Coffres", "coffre" },
+    { "^recolte", "Récolte", "récolte" },
+    { "^marchand", "Vendeurs", "vendeur" },
+    { "^Crossings", "Crossings", nil },
+}
+local function Systeme(sujet)
+    sujet = tostring(sujet or "?")
+    for _, s in ipairs(SYSTEMES) do
+        if sujet:find(s[1]) then return s[2], s[3] and (s[3] .. " (" .. sujet .. ")") or sujet end
+    end
+    return "Jeu", sujet
+end
+
+local function Taille(octets)
+    octets = tonumber(octets) or 0
+    if octets >= 1024 then return (string.format("%.1f Ko", octets / 1024):gsub("%.", ",")) end
+    return octets .. " o"
+end
+
+local function Court(nom) return (tostring(nom or ""):match("^([^-]+)")) or tostring(nom or "") end
+
+-- Les couleurs du terminal : discret pour l'heure, une couleur par sens, le
+-- rouge pour ce qui a mal tourne.
+local GRIS, SOURCE, ENVOI, RECU, BON, MAUVAIS = "ff7f7f7f", "ff66c8ff", "ffd4af55", "ffdcd6c8",
+    "ff7fcf7f", "ffff6b5a"
+local function Teinte(couleur, texte)
+    return "|c" .. couleur .. tostring(texte):gsub("|", "||") .. "|r"
+end
+
+local function Ligne(e)
+    local systeme, quoi = Systeme(e.sujet)
+    local etat = tostring(e.statut or "")
+    local couleurEtat = e.probleme and MAUVAIS or ((etat:find("^parti") or etat:find("^reçu")) and BON or GRIS)
+    local morceaux = (e.morceaux and e.morceaux > 1) and (" en " .. e.morceaux .. " morceaux") or ""
+    if e.sens == "envoi" then
+        local vers = e.qui and Court(e.qui) or ((e.canal == "CHANNEL" and "tous") or tostring(e.canal or "?"))
+        return string.format("%s %s %s %s · %s%s · %s",
+            Teinte(GRIS, "[" .. e.heure .. "]"), Teinte(SOURCE, "[" .. systeme .. "]"),
+            Teinte(ENVOI, "moi → " .. vers .. " :"), Teinte(ENVOI, quoi),
+            Taille(e.octets), morceaux, Teinte(couleurEtat, etat))
+    end
+    return string.format("%s %s %s %s · %s · %s",
+        Teinte(GRIS, "[" .. e.heure .. "]"), Teinte(SOURCE, "[" .. Court(e.qui or "?") .. "]"),
+        Teinte(RECU, "→ moi (" .. systeme .. ") :"), Teinte(RECU, quoi),
+        Taille(e.octets), Teinte(couleurEtat, etat))
+end
+
+function Pages.reseau(page, f)
+    local R = LCM.Reseau
+    -- La barre du haut : ce qui compte en un coup d'oeil, et trois gestes.
+    page.etat = UI.Texte(page, "", UI.C.discret)
+    UI.Police(page.etat, 10)
+    page.etat:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -4)
+    page.etat:SetPoint("RIGHT", page, "RIGHT", -300, 0)
+    page.etat:SetJustifyH("LEFT")
+    page.etat:SetWordWrap(false)
+
+    page.effacer = UI.Bouton(page, "Effacer", 80, 22, function()
+        R.ViderJournal()
+        page:Afficher()
+    end)
+    page.effacer:SetPoint("TOPRIGHT", page, "TOPRIGHT", 0, 0)
+    -- Figer l'ecran pour lire, sans arreter de noter : le journal continue
+    -- derriere, on le retrouve en reprenant.
+    page.pause = UI.Bouton(page, "Figer", 80, 22, function()
+        page.fige = not page.fige
+        page.pause.label:SetText(page.fige and "Reprendre" or "Figer")
+        page:Afficher()
+    end)
+    page.pause:SetPoint("RIGHT", page.effacer, "LEFT", -6, 0)
+    page.problemes = UI.Bouton(page, "Problèmes", 100, 22, function()
+        page.seulementProblemes = not page.seulementProblemes
+        page.problemes.label:SetText(page.seulementProblemes and "Tout" or "Problèmes")
+        page:Afficher()
+    end)
+    page.problemes:SetPoint("RIGHT", page.pause, "LEFT", -6, 0)
+    UI.Bulle(page.problemes, "Problèmes",
+        "N'afficher que ce qui a mal tourné : refus du jeu, messages abandonnés, messages reçus à moitié.")
+
+    -- L'ecran : noir, une ligne par message, le plus recent en bas.
+    page.ecran = CreateFrame("Frame", nil, page)
+    page.ecran:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -30)
+    page.ecran:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
+    page.ecran.fond = UI.Aplat(page.ecran, { 0.01, 0.01, 0.01, 0.92 })
+    page.ecran.fond:SetAllPoints(page.ecran)
+    UI.BordureFine(page.ecran, 0.35)
+    page.zone = UI.Defilement(page.ecran)
+    page.zone:SetPoint("TOPLEFT", page.ecran, "TOPLEFT", 8, -6)
+    page.zone:SetPoint("BOTTOMRIGHT", page.ecran, "BOTTOMRIGHT", -20, 6)
+    page.texte = UI.Texte(page.zone.contenu, "", UI.C.texte, "GameFontHighlightSmall")
+    page.texte:SetPoint("TOPLEFT", page.zone.contenu, "TOPLEFT", 0, 0)
+    page.texte:SetPoint("RIGHT", page.zone.contenu, "RIGHT", 0, 0)
+    page.texte:SetJustifyH("LEFT")
+    page.texte:SetJustifyV("TOP")
+    page.texte:SetWordWrap(true)
+    page.HAUTEUR_LIGNE = 14
+
+    -- Les lignes affichees. Tout le journal (400 lignes) dans un seul texte :
+    -- un terminal se lit d'un bloc, et un texte ne coute qu'un cadre.
+    function page:Lignes()
+        local out = {}
+        for _, e in ipairs(R.Journal()) do
+            if not self.seulementProblemes or e.probleme then out[#out + 1] = Ligne(e) end
+        end
+        return out
+    end
+
+    function page:Afficher()
+        local s, files = R.Stats(), R.Files()
+        self.etat:SetText(string.format("partis %d · regroupés %d · refus %d · abandons %d · erreurs %d · jetés %d"
+            .. "   |   en attente : urgent %d, normal %d, fond %d",
+            s.partis, s.regroupes, s.refuses, s.abandonnes, s.erreurs, s.perimes + s.ecrases,
+            files.urgent, files.normal, files.fond))
+        if self.fige then return end
+        local lignes = self:Lignes()
+        if not lignes[1] then
+            lignes[1] = Teinte(GRIS, self.seulementProblemes and "> aucun problème depuis le chargement."
+                or "> en écoute… rien n'est encore passé.")
+        end
+        self.texte:SetText(table.concat(lignes, "\n"))
+        local hauteur = #lignes * self.HAUTEUR_LIGNE + 6
+        self.zone:Regler(hauteur)
+        -- Le plus recent en bas, et l'ecran le suit — comme un terminal.
+        self.zone:Aller(math.max(0, hauteur - (self.zone:GetHeight() or 0)))
+        self.nombreLignes = #lignes
+    end
+
+    -- Le journal change souvent (une ligne peut changer d'etat dix fois) :
+    -- on redessine au plus deux fois par seconde, et seulement a l'ecran.
+    R.SuivreJournal(function() page.sale = true end)
+    page.cumul = 0
+    page:SetScript("OnUpdate", function(self, dt)
+        self.cumul = self.cumul + (dt or 0)
+        if self.cumul < 0.5 then return end
+        self.cumul = 0
+        if self.sale then
+            self.sale = false
+            self:Afficher()
+        end
+    end)
+end
+Ecran.LigneReseau = Ligne
+
 function Pages.outils(page, f)
     if MJ.OutilsUI then MJ.OutilsUI.Page(page, f) end
 end
@@ -3687,6 +3919,19 @@ local function Construire()
         .. "pas encore dans la base commune aux autres MJ, et fait redemander coffres, récolte et "
         .. "vendeurs. Pour un binôme ou un joueur qui n'a rien reçu.",
         function() Synchroniser() end)
+    -- L'etat du reseau, relu a chaque survol (le MJ, 3 novembre 2026 : savoir
+    -- enfin si le jeu freine, et combien). Rien ne s'ecrit en sauvegarde : ce
+    -- sont les chiffres depuis le chargement.
+    UI.Bulle(f.synchroniser, "Synchroniser", function()
+        local s, files = LCM.Reseau.Stats(), LCM.Reseau.Files()
+        return "Renvoie la base publique et tes réglages ; chacun reprend ce qui lui manque.\n\n"
+            .. string.format("Réseau depuis le chargement :\n%d paquet(s) partis, dont %d message(s) regroupés\n"
+                .. "%d refus du jeu (débit), repris ensuite\n%d message(s) abandonnés, %d erreur(s)\n"
+                .. "%d version(s) dépassée(s) remplacées\n%d message(s) reçus à moitié, jetés\n"
+                .. "En attente : %d urgent, %d normal, %d fond",
+                s.partis, s.regroupes, s.refuses, s.abandonnes, s.erreurs, s.remplaces,
+                s.perimes + s.ecrases, files.urgent, files.normal, files.fond)
+    end)
 
     function f:PlacerBas()
         local dx, dy = Retraits(self)
@@ -3772,6 +4017,401 @@ end
 -- entre les deux. La premiere version faisait 720 x 540.
 local LARGEUR_COMPACTE, HAUTEUR_COMPACTE = 480, 380
 local BARRE_COMPACTE = 24
+
+-- ===== Les difficultes, a portee de main ===================================
+-- Une petite fleche collee au bord du panneau compact (le MJ, 3 novembre
+-- 2026 : « avoir les difficultes faciles a ouvrir a tout moment »). Un clic
+-- deplie, le long de ce bord, la liste des DD dans leur couleur ; on la
+-- GLISSE tout autour du cadre — en haut, en bas, a gauche, a droite — et
+-- le panneau s'ouvre de ce cote-la :
+--   * sur un cote (gauche, droite), une bande haute : 3 COLONNES, les
+--     difficultes s'empilent en lignes ;
+--   * en haut ou en bas, une bande large : 3 LIGNES, les difficultes
+--     s'alignent en colonnes.
+-- Ce n'est qu'une VUE : on change les difficultes dans Equilibrage. La
+-- place de la fleche est une preference d'ecran (comme la place des
+-- fenetres), effacee quand elle revient a son defaut.
+local FLECHE = { epaisseur = 14, longueur = 36, ecart = 2 }
+-- Des CHIFFRES seulement (le MJ, 3 novembre 2026 : le nom de la couleur
+-- reste dans l'infobulle). `long` : l'ecart dans le sens de la bande, plus
+-- large que `travers` — la bande s'etire le long du cadre, pas en travers.
+-- Resserre une seconde fois le meme jour (capture du MJ : « encore plus
+-- compacte ») : une case tient un nombre de deux chiffres, rien de plus.
+local CASE_DIFF = { largeur = 26, hauteur = 18, travers = 2, long = 6, marge = 5, titre = 14 }
+local FLECHE_DEFAUT = { cote = "gauche", position = 0.5 }
+-- Le sens de la fleche fermee : elle montre ou le panneau va s'ouvrir.
+local ROTATIONS = { droite = 0, haut = math.pi / 2, gauche = math.pi, bas = -math.pi / 2 }
+local OPPOSES = { gauche = "droite", droite = "gauche", haut = "bas", bas = "haut" }
+
+local function PreferenceFleche()
+    LCM.EnsureDatabase()
+    local p = LCM.db.flecheDifficultes
+    if type(p) == "table" and ROTATIONS[p.cote] and tonumber(p.position) then
+        return p.cote, tonumber(p.position)
+    end
+    return FLECHE_DEFAUT.cote, FLECHE_DEFAUT.position
+end
+local function RetenirFleche(cote, position)
+    LCM.EnsureDatabase()
+    if cote == FLECHE_DEFAUT.cote and math.abs(position - FLECHE_DEFAUT.position) < 0.01 then
+        LCM.db.flecheDifficultes = nil
+    else
+        LCM.db.flecheDifficultes = { cote = cote, position = position }
+    end
+end
+
+-- Le bord le plus proche d'un point, et la place le long de ce bord (0 en
+-- haut ou a gauche, 1 en bas ou a droite). Le point peut etre dehors : on le
+-- ramene d'abord sur le rectangle. Publique pour le banc, qui n'a pas de
+-- geometrie d'ecran.
+function Ecran.BordLePlusProche(x, y, gauche, droite, haut, bas)
+    local cx = math.max(gauche, math.min(droite, x))
+    local cy = math.max(bas, math.min(haut, y))
+    local distances = { gauche = cx - gauche, droite = droite - cx, haut = haut - cy, bas = cy - bas }
+    local cote, mini = "gauche", math.huge
+    for _, nom in ipairs({ "gauche", "droite", "haut", "bas" }) do
+        if distances[nom] < mini then cote, mini = nom, distances[nom] end
+    end
+    local position
+    if cote == "gauche" or cote == "droite" then
+        position = (haut - cy) / math.max(1, haut - bas)
+    else
+        position = (cx - gauche) / math.max(1, droite - gauche)
+    end
+    -- Pas dans les coins : la fleche y chevaucherait la barre de titre.
+    return cote, math.max(0.08, math.min(0.92, position))
+end
+
+-- Le message d'epreuve : « DD - 15 [Crochetage] - Fatigue : 5 PF ». Les PF
+-- (points de fatigue a depenser) sont fixes par le MJ, au moment de lancer
+-- l'epreuve (le MJ, 3 novembre 2026 : « le PF c'est indique par le MJ ») ;
+-- sans PF, le message n'en parle pas. Un premier essai montrait un « NF »
+-- calcule, deux rangs au-dessus du DD : retire le meme jour.
+function Ecran.MessageEpreuve(valeur, epreuve, pf)
+    pf = tonumber(pf)
+    return string.format("DD - %s [%s]%s", tostring(valeur), tostring(epreuve),
+        (pf and pf > 0) and string.format(" - Fatigue : %d PF", pf) or "")
+end
+
+-- Ce qu'on peut faire passer : les statistiques qui se lancent ou se lisent,
+-- puis les expertises par domaine. Lu dans la fiche (Data/Fiche.lua,
+-- Data/Expertises.lua) : une expertise ajoutee la y apparait sans rien
+-- toucher ici. Les POINTS SECONDAIRES (vitalite, fatigue, initiative, PA,
+-- deplacement...) ne sont pas des epreuves : ecartes par leur liste
+-- d'equilibrage, pas par leur nom. « Autre… » aussi a ete retire (le MJ,
+-- 3 novembre 2026).
+local function OptionsEpreuve()
+    local secondaires = {}
+    for _, pool in ipairs(LCM.Equilibrage.secondaires or {}) do secondaires[pool.id] = true end
+    local out = {}
+    for _, onglet in ipairs(LCM.Schema.Tabs()) do
+        if onglet.id == "statistiques" or onglet.id == "expertises" then
+            for _, section in ipairs(onglet.sections or {}) do
+                for _, champ in ipairs(section.fields or {}) do
+                    if (champ.kind == "roll" or champ.kind == "stat") and not secondaires[champ.id] then
+                        out[#out + 1] = { id = champ.id, label = champ.label,
+                            groupe = onglet.id == "statistiques" and "Statistiques"
+                                or ("Expertises · " .. tostring(section.label)) }
+                    end
+                end
+            end
+        end
+    end
+    return out
+end
+
+local function ConstruireFlecheDifficultes(c)
+    local D = LCM.Difficultes
+    local f = CreateFrame("Button", nil, c)
+    c.flecheDifficultes = f
+    f.fond = UI.Aplat(f, { 0.06, 0.05, 0.04, 0.95 })
+    f.fond:SetAllPoints(f)
+    f.contour = UI.CarrePixel(f, { 0.82, 0.66, 0.20, 0.9 }, { 0.06, 0.05, 0.04, 0.95 })
+    f.icone = f:CreateTexture(nil, "OVERLAY")
+    f.icone:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    f.icone:SetSize(12, 12)
+    f.icone:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.survol = UI.Aplat(f, { 0.90, 0.78, 0.30, 0.25 }, "HIGHLIGHT")
+    f.survol:SetAllPoints(f)
+    UI.Bulle(f, "Difficultés", "Clic : montre les DD dans leur couleur. Glisse la flèche autour du "
+        .. "panneau pour ouvrir la liste d'un autre côté.")
+    f.cote, f.position = PreferenceFleche()
+
+    -- Le panneau qui s'ouvre. Enfant de la fenetre compacte : il se cache
+    -- avec elle, et la suit quand on la deplace.
+    local p = CreateFrame("Frame", nil, c)
+    c.difficultesRapides = p
+    p:Hide()
+    p:SetFrameLevel(c:GetFrameLevel() + 5)
+    p.fond = UI.Aplat(p, { 0.03, 0.03, 0.03, 0.96 })
+    p.fond:SetAllPoints(p)
+    UI.BordureFine(p, 0.45)
+    p.titre = UI.Texte(p, UI.Majuscules("Difficultés"), UI.C.libelle, "GameFontNormalSmall")
+    UI.Police(p.titre, 8)
+    p.titre:SetPoint("TOPLEFT", p, "TOPLEFT", CASE_DIFF.marge, -4)
+    p.vide = UI.Texte(p, "Aucune difficulté.", UI.C.discret, "GameFontNormalSmall")
+    p.vide:SetPoint("TOPLEFT", p, "TOPLEFT", CASE_DIFF.marge, -CASE_DIFF.titre - 4)
+    p.cases = {}
+
+    local function Case(i)
+        local k = p.cases[i]
+        if k then return k end
+        -- Un BOUTON : cliquer une difficulte lance une epreuve aux joueurs
+        -- coches (voir p:Epreuve).
+        k = CreateFrame("Button", nil, p)
+        k:SetSize(CASE_DIFF.largeur, CASE_DIFF.hauteur)
+        if UI.SurfaceLigne then UI.SurfaceLigne(k) end
+        k.valeur = UI.Texte(k, "", UI.C.texte, "GameFontNormal")
+        UI.Police(k.valeur, 12)
+        k.valeur:SetPoint("CENTER", k, "CENTER", 0, 0)
+        k:EnableMouse(true)
+        k.survol = UI.Aplat(k, { 0.90, 0.78, 0.30, 0.20 }, "HIGHLIGHT")
+        k.survol:SetAllPoints(k)
+        k:SetScript("OnClick", function(soi) p:Epreuve(soi.difficulte, soi) end)
+        UI.Bulle(k, function(soi) return "DD " .. tostring(soi.difficulte and soi.difficulte.valeur) end,
+            function(soi)
+                if not soi.difficulte then return "" end
+                return tostring(soi.difficulte.nom)
+                    .. "\n\nClic : une épreuve à ce DD, en message privé aux joueurs cochés (à tout le groupe si personne ne l’est)."
+            end)
+        p.cases[i] = k
+        return k
+    end
+
+    -- Remplir et dimensionner selon le cote : le long d'un cote vertical, 3
+    -- colonnes et autant de lignes qu'il faut ; le long d'un cote
+    -- horizontal, 3 lignes et autant de colonnes. On lit dans le sens de la
+    -- bande : de gauche a droite puis vers le bas sur un cote, de haut en
+    -- bas puis vers la droite en haut ou en bas.
+    function p:Afficher()
+        local liste = D.Liste()
+        local vertical = f.cote == "gauche" or f.cote == "droite"
+        local n = #liste
+        local paquets = math.max(1, math.ceil(n / 3))
+        local colonnes = vertical and 3 or paquets
+        local lignes = vertical and paquets or 3
+        local L, H, M = CASE_DIFF.largeur, CASE_DIFF.hauteur, CASE_DIFF.marge
+        -- L'ecart entre colonnes et entre lignes : large dans le sens de la
+        -- bande, serre en travers.
+        local PX = vertical and CASE_DIFF.travers or CASE_DIFF.long
+        local PY = vertical and CASE_DIFF.long or CASE_DIFF.travers
+        for i, d in ipairs(liste) do
+            local k = Case(i)
+            k.difficulte = d
+            k.valeur:SetText(tostring(d.valeur))
+            k.valeur:SetTextColor(d.couleur[1], d.couleur[2], d.couleur[3])
+            local col, lig
+            if vertical then
+                col, lig = (i - 1) % 3, math.floor((i - 1) / 3)
+            else
+                col, lig = math.floor((i - 1) / 3), (i - 1) % 3
+            end
+            k.colonne, k.ligne = col, lig
+            k:ClearAllPoints()
+            k:SetPoint("TOPLEFT", p, "TOPLEFT", M + col * (L + PX), -(CASE_DIFF.titre + lig * (H + PY)))
+            k:Show()
+        end
+        for i = n + 1, #p.cases do p.cases[i]:Hide() end
+        p.vide:SetShown(n == 0)
+        p.colonnes, p.lignes, p.nombre = colonnes, lignes, n
+        p:SetSize(math.max(2 * M + colonnes * L + (colonnes - 1) * PX, p.titre:GetStringWidth() + 2 * M),
+            CASE_DIFF.titre + lignes * H + (lignes - 1) * PY + M)
+    end
+
+    -- Une EPREUVE aux joueurs coches (le MJ, 3 novembre 2026 : « on est meme
+    -- pas oblige de le dire en vocal ») : on coche Blud dans le groupe, on
+    -- clique 15, on choisit l'expertise ou la statistique, et chacun recoit
+    -- en message prive « DD - 15 [Crochetage] - Fatigue : 5 PF ». Un vrai
+    -- chuchotement du jeu : le joueur le lit dans sa discussion, addon ou pas.
+    --
+    -- Les PF se notent dans un petit encart pose au-dessus de la liste des
+    -- epreuves, le temps de choisir : vide, pas de fatigue.
+    local function EncartPF()
+        if p.encartPF then return p.encartPF end
+        local e = CreateFrame("Frame", nil, UIParent)
+        -- Lisible d'un coup d'oeil (le MJ, 3 novembre 2026 : « on le voit
+        -- mal ») : un libelle et un champ a la taille du reste de l'ecran.
+        e:SetSize(150, 34)
+        e:SetFrameStrata("FULLSCREEN_DIALOG")
+        e.fond = UI.Aplat(e, { 0.03, 0.03, 0.03, 0.96 })
+        e.fond:SetAllPoints(e)
+        UI.BordureFine(e, 0.6)
+        e.libelle = UI.Texte(e, "Fatigue", UI.C.libelle, "GameFontNormalSmall")
+        UI.Police(e.libelle, 14)
+        e.libelle:SetPoint("LEFT", e, "LEFT", 8, 0)
+        e.saisie = UI.Champ(e, 44, 24)
+        e.saisie:SetNumeric(true)
+        e.saisie:SetMaxLetters(3)
+        e.saisie:SetJustifyH("CENTER")
+        e.saisie:SetPoint("LEFT", e.libelle, "RIGHT", 6, 0)
+        UI.Police(e.saisie, 14)
+        e.unite = UI.Texte(e, "PF", UI.C.libelle, "GameFontNormalSmall")
+        UI.Police(e.unite, 14)
+        e.unite:SetPoint("LEFT", e.saisie, "RIGHT", 6, 0)
+        UI.Bulle(e.saisie, "Points de fatigue",
+            "Ce que l'épreuve coûtera en fatigue au joueur. Vide : le message n'en parle pas.")
+        e:Hide()
+        p.encartPF = e
+        return e
+    end
+
+    function p:Epreuve(difficulte, ancre)
+        if not difficulte then return end
+        -- Les joueurs coches ; personne de coche, c'est TOUT le groupe (le
+        -- MJ, 3 novembre 2026) — sauf soi-meme.
+        local groupe = Ecran.Fenetre().pages.joueurs
+        local cibles = groupe:Coches()
+        if not cibles[1] then
+            for _, joueur in ipairs(Groupe()) do
+                if not EstMoi(joueur) then cibles[#cibles + 1] = joueur end
+            end
+        end
+        if not cibles[1] then
+            LCM.Alerte("personne dans le groupe à qui envoyer l'épreuve.")
+            return false
+        end
+        local encart = EncartPF()
+        local function Envoyer(epreuve, pf)
+            epreuve = tostring(epreuve or ""):gsub("^%s+", ""):gsub("%s+$", "")
+            if epreuve == "" then return false, "nomme l'épreuve." end
+            local message = Ecran.MessageEpreuve(difficulte.valeur, epreuve, pf)
+            local noms = {}
+            for _, joueur in ipairs(cibles) do
+                pcall(SendChatMessage, message, "WHISPER", nil, joueur)
+                noms[#noms + 1] = NomPersonnage(joueur)
+            end
+            LCM.Ok(string.format("épreuve envoyée à %s : %s", table.concat(noms, ", "), message))
+            return true
+        end
+        if not self.choixEpreuve then
+            self.choixEpreuve = UI.Choix("epreuve_difficulte", "Épreuve")
+            -- Les categories en accordeon, fermees a chaque ouverture.
+            self.choixEpreuve.accordeon = true
+            -- L'encart suit la liste : il apparait et disparait avec elle.
+            self.choixEpreuve:HookScript("OnHide", function() encart:Hide() end)
+        end
+        encart.saisie:SetText("")
+        self.choixEpreuve:Proposer(ancre, OptionsEpreuve(), function(id)
+            -- Lu au moment du choix : la liste se ferme ensuite, et l'encart
+            -- avec elle.
+            local pf = tonumber(encart.saisie:GetText())
+            local champ = LCM.Schema.Field(id)
+            Envoyer(champ and champ.label or id, pf)
+        end)
+        encart:ClearAllPoints()
+        encart:SetPoint("BOTTOMLEFT", self.choixEpreuve, "TOPLEFT", 0, 4)
+        encart:Show()
+        encart:Raise()
+        return true
+    end
+
+    -- Poser la fleche sur son bord, le panneau au-dela d'elle, et tourner
+    -- la fleche : vers le dehors fermee, vers le cadre ouverte.
+    function f:Placer()
+        local W, Hc = c:GetWidth(), c:GetHeight()
+        local e, l, ecart = FLECHE.epaisseur, FLECHE.longueur, FLECHE.ecart
+        self:ClearAllPoints()
+        p:ClearAllPoints()
+        if self.cote == "gauche" or self.cote == "droite" then
+            self:SetSize(e, l)
+        else
+            self:SetSize(l, e)
+        end
+        -- Le panneau est CENTRE sur la fleche (le MJ, 3 novembre 2026 : « le
+        -- centre du truc doit etre la fleche ») : il s'ouvre en face d'elle,
+        -- ou qu'on l'ait glissee le long du bord.
+        if self.cote == "gauche" then
+            self:SetPoint("RIGHT", c, "TOPLEFT", -ecart, -self.position * Hc)
+            p:SetPoint("RIGHT", self, "LEFT", -ecart, 0)
+        elseif self.cote == "droite" then
+            self:SetPoint("LEFT", c, "TOPRIGHT", ecart, -self.position * Hc)
+            p:SetPoint("LEFT", self, "RIGHT", ecart, 0)
+        elseif self.cote == "haut" then
+            self:SetPoint("BOTTOM", c, "TOPLEFT", self.position * W, ecart)
+            p:SetPoint("BOTTOM", self, "TOP", 0, ecart)
+        else
+            self:SetPoint("TOP", c, "BOTTOMLEFT", self.position * W, -ecart)
+            p:SetPoint("TOP", self, "BOTTOM", 0, -ecart)
+        end
+        local sens = p:IsShown() and OPPOSES[self.cote] or self.cote
+        self.icone:SetRotation(ROTATIONS[sens])
+        self.sens = sens
+        if p:IsShown() then p:Afficher() end
+    end
+
+    function f:Basculer()
+        p:SetShown(not p:IsShown())
+        if p:IsShown() then p:Afficher() end
+        self:Placer()
+    end
+
+    -- Deposer la fleche sur un bord : la souris l'y amene, le banc aussi.
+    function f:Deposer(cote, position)
+        if not ROTATIONS[cote] then return end
+        self.cote, self.position = cote, math.max(0.08, math.min(0.92, tonumber(position) or 0.5))
+        RetenirFleche(self.cote, self.position)
+        self:Placer()
+    end
+
+    -- Le glisser : la fleche suit la souris le long du cadre, en sautant
+    -- d'un bord a l'autre. On la suit des l'APPUI, pas au glisser du jeu :
+    -- celui-ci ne demarre qu'apres un seuil et lachait la fleche des qu'elle
+    -- s'eloignait du curseur (le MJ, 3 novembre 2026 : « le drag & drop
+    -- galere a suivre »). Pendant le geste, le panneau ouvert se cache — le
+    -- redessiner a chaque image freinait tout — et revient au lacher. Un
+    -- appui qui a bouge de plus de SEUIL pixels n'est pas un clic.
+    local SEUIL = 4
+    local function Curseur()
+        local x, y = GetCursorPosition()
+        local echelle = c:GetEffectiveScale() or 1
+        return x / echelle, y / echelle
+    end
+    function f:Suivre()
+        local x, y = Curseur()
+        if not self.aBouge then
+            if math.abs(x - self.depart[1]) < SEUIL and math.abs(y - self.depart[2]) < SEUIL then return end
+            self.aBouge = true
+            self.rouvrir = p:IsShown()
+            p:Hide()
+        end
+        local gauche, droite, haut, bas = c:GetLeft(), c:GetRight(), c:GetTop(), c:GetBottom()
+        if not (gauche and droite and haut and bas) then return end
+        local cote, position = Ecran.BordLePlusProche(x, y, gauche, droite, haut, bas)
+        if cote ~= self.cote or math.abs(position - self.position) > 0.002 then
+            self.cote, self.position = cote, position
+            self:Placer()
+        end
+    end
+    function f:Lacher()
+        self:SetScript("OnUpdate", nil)
+        if not self.aBouge then return end
+        self.ignorerClic = true
+        if self.rouvrir then p:Show() end
+        self:Deposer(self.cote, self.position)
+    end
+    f:SetScript("OnMouseDown", function(self, bouton)
+        if bouton ~= "LeftButton" then return end
+        self.depart, self.aBouge = { Curseur() }, false
+        self:SetScript("OnUpdate", function(soi)
+            -- Le bouton relache n'importe ou (hors de la fleche, qui a pu
+            -- partir sous le curseur) : on le voit ici.
+            if not IsMouseButtonDown("LeftButton") then soi:Lacher() return end
+            soi:Suivre()
+        end)
+    end)
+    f:SetScript("OnMouseUp", function(self) self:Lacher() end)
+    f:SetScript("OnClick", function(self)
+        if self.ignorerClic then self.ignorerClic = nil return end
+        self:Basculer()
+    end)
+
+    -- A chaque ouverture du panneau compact : la fleche se repose (la taille
+    -- du cadre a pu changer), et la liste se relit (les difficultes ont pu
+    -- changer en Equilibrage).
+    c:HookScript("OnShow", function() f:Placer() end)
+    f:Placer()
+    return f
+end
 
 local function ConstruireCompact()
     local panneau = Ecran.Fenetre()
@@ -3909,6 +4549,7 @@ local function ConstruireCompact()
         if avantInvitation then avantInvitation(...) end
         if c:IsShown() then c:AfficherCombat() end
     end
+    ConstruireFlecheDifficultes(c)
     return c
 end
 

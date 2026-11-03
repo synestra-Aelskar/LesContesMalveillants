@@ -76,6 +76,23 @@ attendu("le bouton Tags se montre", forge.etiquettes:IsShown(), true)
 forge.etiquettes:Click()
 local popup = FU.choixTags.coches
 attendu("la fenêtre des tags s'ouvre, avec « Créer »", popup:IsShown() and popup.action:IsShown(), true)
+-- En accordeon depuis le 3 novembre 2026 (le MJ : « imbuvable avec 500
+-- tags ») : la fenetre s'ouvre repliee, sans rien de coche. « Feu » est sous
+-- une origine, sous « Raptor » : on deplie avant de cocher, comme le MJ.
+local function toutDeplier()
+    for _ = 1, 6 do
+        for _, t in ipairs(popup.entetes) do
+            if t:IsShown() and t.ouvert == false then t:Click() end
+        end
+        for _, cse in ipairs(popup.cases) do
+            if cse:IsShown() and cse.pli:IsShown() and not cse.pli.ouvert then cse.pli:Click() end
+        end
+    end
+end
+local visibleAvant = false
+for _, cse in ipairs(popup.cases) do if cse:IsShown() and cse.id == feu then visibleAvant = true end end
+attendu("  repliée : « Feu » ne se voit pas d'emblée", visibleAvant, false)
+toutDeplier()
 for _, cse in ipairs(popup.cases) do if cse:IsShown() and cse.id == feu then cse:Click() end end
 -- Créer à la volée : un nom, puis où le ranger ; il se coche aussitôt.
 popup.action:Click()

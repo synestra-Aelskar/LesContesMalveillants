@@ -154,8 +154,15 @@ local function SuivreFermeture(fenetre)
     fenetre.__consultationMJ = true
     fenetre:HookScript("OnHide", function(self)
         if Consultation.fenetre == self and not Consultation.enBascule then
-            if Consultation.joueur and LCM.Fiches and LCM.Fiches.Arreter then
-                LCM.Fiches.Arreter(Consultation.joueur)
+            -- Un joueur du GROUPE reste suivi : la page Groupe du Panel MJ
+            -- lit sa fiche (niveau, PV, ressources, etats portes) et compte
+            -- sur ses mises a jour poussees. Se desabonner en fermant la
+            -- consultation figeait le panneau jusqu'a ce que la fiche
+            -- vieillisse (le MJ, 3 novembre 2026). Hors du groupe, on arrete.
+            local joueur = Consultation.joueur
+            if joueur and LCM.Fiches and LCM.Fiches.Arreter
+                and not (LCM.Reseau.DansLeGroupe and LCM.Reseau.DansLeGroupe(joueur)) then
+                LCM.Fiches.Arreter(joueur)
             end
             Consultation.barre:Hide()
             Consultation.fenetre = nil

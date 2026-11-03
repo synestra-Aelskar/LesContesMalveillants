@@ -142,16 +142,40 @@ def stale_rows(before: dict | None, drafts: dict[str, list[object]],
             and local.get(key) is not None and not db.equivalent_rows(local[key], row)}
 
 
+def empreinte_envoi(key: str, changes: dict[str, list[object]]) -> str:
+    """Ce que le jeu veut envoyer pour cette cle : une ligne, ou une suppression."""
+    return db.digest(changes[key]) if key in changes else "suppression"
+
+
 def stage_changes(api: db.Sheets, sheet_id: str,
-                  changes: dict[str, list[object]], masks: set[str]) -> list[list[object]]:
-    """Valide toutes les modifications avant la premiere ecriture locale."""
+                  changes: dict[str, list[object]], masks: set[str],
+                  gardes: dict[str, str] | None = None) -> tuple[list[list[object]], list[str]]:
+    """Valide les modifications, et MET DE COTE celles qui sont en conflit.
+
+    Avant le 3 novembre 2026, un seul conflit (la meme entree changee dans WoW
+    ET dans le Sheet) levait une erreur : plus rien ne se synchronisait, et la
+    meme ligne revenait au journal toutes les 40 secondes pendant des heures.
+    Une entree en conflit est maintenant retenue, et le reste passe.
+
+    `gardes` : les conflits deja connus, avec l'empreinte de la version du jeu
+    a ce moment-la. Tant qu'elle n'a pas change, l'entree reste retenue — meme
+    si la base, entre-temps, a recopie la version du Sheet (sans cette garde,
+    la version du jeu repartirait au tour suivant sans que personne ait
+    decide). La re-enregistrer dans WoW change l'empreinte : c'est la decision
+    du MJ, et sa version part.
+
+    Rend les lignes a envoyer, et les cles retenues."""
     plan = db.feuilles()
     by_family = {family: name for name, item in plan.items() for family in item["familles"]}
     remote_cache: dict[str, dict] = {}
     local_cache: dict[str, dict] = {}
     staged = []
     conflicts = []
+    gardes = gardes or {}
     for key in sorted(set(changes) | masks):
+        if gardes.get(key) == empreinte_envoi(key, changes):
+            conflicts.append(key)
+            continue
         family, identifier = key.split("/", 1)
         tab = by_family[family]
         if family not in remote_cache:
@@ -185,9 +209,7 @@ def stage_changes(api: db.Sheets, sheet_id: str,
             conflicts.append(key)
             continue
         staged.append(row)
-    if conflicts:
-        raise ValueError("conflit : contenu local et Sheet modifies : " + ", ".join(conflicts))
-    return staged
+    return staged, conflicts
 
 
 def sync_content(api: db.Sheets, sheet_id: str) -> None:
@@ -324,7 +346,24 @@ def run_once(api: db.Sheets, sheet_id: str, retail: Path,
         masks.update(new_masks)
     if work:
         db.sauvegarder(api, retail)
-        staged = stage_changes(api, sheet_id, drafts, masks) if drafts or masks else []
+        gardes = state.get("conflits", {})
+        staged, conflits = (stage_changes(api, sheet_id, drafts, masks, gardes)
+                            if drafts or masks else ([], []))
+        nouveaux = {key: empreinte_envoi(key, drafts) for key in conflits}
+        # Dit UNE fois : a l'apparition d'un conflit, et a son reglement.
+        apparus = sorted(set(nouveaux) - set(gardes))
+        # Une entree qui quitte les conflits parce qu'elle est maintenant
+        # RETENUE comme vieille copie (stale_rows) n'est pas reglee : elle
+        # attend toujours une decision, sous un autre nom.
+        retenues = {key for held in held_by_file.values() for key in held}
+        regles = sorted(set(gardes) - set(nouveaux) - retenues)
+        if apparus:
+            log("CONFLIT, mis de cote (le reste se synchronise) : " + ", ".join(apparus)
+                + ". La meme entree a change dans WoW ET dans le Sheet. Pour envoyer ta version, "
+                + "re-enregistre l'entree dans WoW ; sinon, vois avec l'autre MJ.")
+        if regles:
+            log("Conflit regle : " + ", ".join(regles) + ".")
+        state["conflits"] = nouveaux
         backup = db.ROOT / "Sauvegardes_LCM" / "avant_import" / datetime.now().strftime("%Y%m%d_%H%M%S")
         for row in staged:
             db.apply_remote(row, backup)
@@ -337,10 +376,15 @@ def run_once(api: db.Sheets, sheet_id: str, retail: Path,
             published = {key: value for key, value in (before or {}).get("published", {}).items()
                          if key in snap["drafts"] and db.digest(snap["drafts"][key]) == value}
             for key, row in sent.items():
+                # Une entree retenue n'est PAS partie : elle reste dans la
+                # file du jeu, pour repartir une fois le conflit tranche.
+                if key in nouveaux:
+                    continue
                 published[key] = db.digest(row)
             state["files"][name] = record(snap, published, held_by_file.get(name))
         save_state(state)
-        log(f"Sauvegarde WoW et synchronisation terminees : {len(staged)} entree(s) publiee(s).")
+        log(f"Sauvegarde WoW et synchronisation terminees : {len(staged)} entree(s) publiee(s)"
+            + (f", {len(nouveaux)} en conflit, retenue(s)." if nouveaux else "."))
     else:
         if archive_event:
             db.sauvegarder(api, retail)
@@ -393,6 +437,10 @@ def main() -> None:
         run_once(api, args.sheet_id, retail)
         return
     log("Ecoute des sauvegardes WoW demarree, sans fenetre de terminal.")
+    # La derniere erreur ecrite : la meme, retentee toutes les 30 secondes,
+    # remplissait le journal pendant des heures. On l'ecrit une fois, et on
+    # dit quand elle cesse.
+    derniere_erreur = None
     next_remote = 0.0
     game_was_running = False
     changed = Event()
@@ -425,9 +473,14 @@ def main() -> None:
                     run_once(api, args.sheet_id, retail)
                     next_remote = time.monotonic() + args.interval
                 game_was_running = game_is_running
+                if derniere_erreur is not None:
+                    log("L'erreur precedente ne se reproduit plus.")
+                    derniere_erreur = None
                 changed.wait(2)
             except (OSError, ValueError, RuntimeError, db.lcm_db.LuaError) as error:
-                log(f"ERREUR : {error}")
+                if str(error) != derniere_erreur:
+                    log(f"ERREUR : {error} (ecrite une fois, retentee en silence)")
+                    derniere_erreur = str(error)
                 # L'etat de WoW est NOTE meme quand le passage echoue : sinon la
                 # tentative suivante refaisait tout le passage « WoW ouvert »,
                 # et un quota depasse ne retombait jamais (15 octobre 2026).

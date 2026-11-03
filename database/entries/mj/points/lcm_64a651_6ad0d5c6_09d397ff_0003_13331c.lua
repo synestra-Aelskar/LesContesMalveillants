@@ -23,7 +23,7 @@ return {
             {
                 aleatoire = false,
                 chance = 100,
-                entree = "objets/lcm_64a651_6ad4ab11_18cca79b_0003_582122",
+                entree = "objets/lcm_64a651_6ad64b7b_1f2726d6_0001_9b532f",
                 max = 1,
                 min = 1,
                 minutes = 0,

@@ -159,7 +159,9 @@ attendu("  en chuchotement", __envois[#__envois].canal, "WHISPER")
 -- sous-entrees. Sept pages, onze entrees.
 local onglets = {}
 for _, b in ipairs(p.barre.boutons) do onglets[b.ongletId] = b end
-attendu("les entrées de la navigation", #p.barre.boutons, 11)
+-- 12 depuis le 3 novembre 2026 : le terminal « Réseau », dans sa propre
+-- section « Débug ».
+attendu("les entrées de la navigation", #p.barre.boutons, 12)
 attendu("pas d'entrée États à part", onglets.etats, nil)
 -- « Compendium » remplace la page Contenus (2 novembre 2026) : une porte, pas
 -- une page. On reste sur la page ou l'on etait.
@@ -176,10 +178,17 @@ attendu("le joueur est une cible de dépôt", pageEtats.lignesJoueurs[1].joueur,
 pageEtats.duree:SetText("2")
 local definitionEtat = pageEtats.lignesEtats[1].definition
 pageEtats.lignesJoueurs[1].glisserDepose({ categorie = "etats", element = definitionEtat })
-attendu("le glisser envoie l'état au joueur", __envois[#__envois].cible, "Nytherah-Apertus")
-attendu("l'état est envoyé en privé", __envois[#__envois].canal, "WHISPER")
+-- Depuis le 3 novembre 2026, la demande de fiche part APRES l'etat (le joueur
+-- repondait sans lui) : le dernier message n'est plus l'etat, on le cherche.
+local envoiEtat
+for i = #__envois, 1, -1 do
+    if tostring(__envois[i].message):match("^%d+:%d+:%d+:etat_mj|") then envoiEtat = __envois[i] break end
+end
+attendu("le glisser envoie l'état au joueur", envoiEtat and envoiEtat.cible, "Nytherah-Apertus")
+attendu("l'état est envoyé en privé", envoiEtat and envoiEtat.canal, "WHISPER")
+attendu("  puis la fiche est redemandée", tostring(__envois[#__envois].message):match(":fiche%?|") ~= nil, true)
 local corpsEtat = LCM.Reseau.Decoder(
-    __envois[#__envois].message:match("^%d+:%d+:%d+:etat_mj|(.*)$") or "")
+    envoiEtat.message:match("^%d+:%d+:%d+:etat_mj|(.*)$") or "")
 attendu("la durée choisie accompagne l'état", corpsEtat.r, "2")
 
 dire("== à la pelle : les cochés")

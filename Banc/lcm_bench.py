@@ -163,6 +163,9 @@ function GetTime() return horloge end
 function time() return 1792440000 + math.floor(horloge) end
 function GetServerTime() return 1791936000 + math.floor(horloge) end
 function __temps(secondes) horloge = secondes end
+-- La taille physique de l'ecran, en pixels : de quoi convertir un pixel
+-- reel en unites d'interface (un liseré d'un pixel, UI/Kit.lua).
+function GetPhysicalScreenSize() return 1920, 1080 end
 function __avancerTemps(secondes) horloge = horloge + secondes end
 
 -- Ou se tient le personnage. `__position(x, y, z)` le deplace : de quoi
@@ -422,6 +425,11 @@ local function NouvelleRegion(kind, parent)
     function r:SetDesaturated(v) self.__desature = v and true or false end
     function r:IsDesaturated() return self.__desature == true end
     function r:SetColorTexture(...) self.__color = {...} end
+    -- L'alignement sur la grille de pixels : sans effet ici, on retient
+    -- seulement ce qui a ete demande.
+    function r:SetSnapToPixelGrid(v) self.__snap = v and true or false end
+    function r:IsSnappingToPixelGrid() return self.__snap ~= false end
+    function r:SetTexelSnappingBias(v) self.__texelBias = v end
     function r:SetGradient(sens, mini, maxi) self.__gradient = { sens = sens, min = mini, max = maxi } end
     function r:GetGradient() return self.__gradient end
     function r:SetVertexColor(...) self.__vertex = {...} end
@@ -756,16 +764,38 @@ function __reseauBoucle(actif, expediteur)
     _G.__expediteurBoucle = expediteur or "Nytherah-Apertus"
 end
 
+-- Ce que rend SendAddonMessage sur un client recent. Le jeu REFUSE un
+-- message quand on depasse son debit : `__refuserEnvois(n, code)` fait
+-- refuser les n prochains (par defaut pour debit depasse) ; un message
+-- refuse ne part pas, il n'entre donc pas dans __envois.
+Enum = Enum or {}
+Enum.SendAddonMessageResult = {
+    Success = 0, InvalidPrefix = 1, InvalidMessage = 2, AddonMessageThrottle = 3,
+    InvalidChatType = 4, NotInGroup = 5, TargetRequired = 6, InvalidChannel = 7,
+    ChannelThrottle = 8, GeneralError = 9,
+}
+local refus = { reste = 0, code = 3, total = 0 }
+function __refuserEnvois(n, code)
+    refus.reste = n or 0
+    refus.code = code or Enum.SendAddonMessageResult.AddonMessageThrottle
+end
+function __envoisRefuses() return refus.total end
+
 C_ChatInfo = {
     RegisterAddonMessagePrefix = function(p) prefixesEnregistres[p] = true return true end,
     IsAddonMessagePrefixRegistered = function(p) return prefixesEnregistres[p] == true end,
     SendAddonMessage = function(prefixe, message, canal, cible)
+        if refus.reste > 0 then
+            refus.reste = refus.reste - 1
+            refus.total = refus.total + 1
+            return refus.code
+        end
         envois[#envois + 1] = { prefixe = prefixe, message = message, canal = canal, cible = cible,
                                 taille = #message }
         if boucle then
             __declencher("CHAT_MSG_ADDON", prefixe, message, canal, _G.__expediteurBoucle)
         end
-        return true
+        return Enum.SendAddonMessageResult.Success
     end,
 }
 function SendAddonMessage(p, m, c, t) return C_ChatInfo.SendAddonMessage(p, m, c, t) end

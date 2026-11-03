@@ -29,6 +29,11 @@ attendu("deux ressources s'additionnent", R.XPBase({ lotArgent[1],
 dire("== × le coefficient de la grille")
 D.Definir(10, 1)   -- DD 10, Rose
 D.Definir(20, 3)   -- DD 20, Bleu
+-- La grille est du contenu qui VIT (3 novembre 2026 : la base commune a
+-- pose Rose x Bleu = 1, puis le MJ a garde sa propre grille). Le test fixe
+-- donc lui-meme les deux cases qu'il lit, au lieu de dependre de la seance.
+LCM.Reglages.Definir(D.CheminCoefficient(1, 1), 1)
+LCM.Reglages.Definir(D.CheminCoefficient(1, 3), 2)
 M.Gagner(moi, "mineur", M.XPPourNiveau(1) - M.XP(moi, "mineur"))
 attendu("un mineur Rose", M.Palier(moi, "mineur").rangCouleur, 1)
 attendu("Rose sur un filon Rose : 3 × 1", (R.XPGagnee(moi, { metier = "mineur", dd = 10 }, lotArgent)), 3)

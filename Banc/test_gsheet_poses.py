@@ -105,9 +105,11 @@ class PosesTest(unittest.TestCase):
         sheet = MemorySheet([distante])
         with patch.object(db, "load_state", return_value={"poses/c1": db.digest(ancienne)}), \
              patch.object(db, "local_rows", return_value={"poses/c1": ancienne}):
+            # stage_changes rend aussi les conflits retenus (3 novembre 2026) :
+            # un point pose n'en fait jamais, le plus recent l'emporte.
             self.assertEqual(auto.stage_changes(sheet, "sheet", {"poses/c1": plus_recente}, set()),
-                             [plus_recente])
-            self.assertEqual(auto.stage_changes(sheet, "sheet", {"poses/c1": plus_vieille}, set()), [])
+                             ([plus_recente], []))
+            self.assertEqual(auto.stage_changes(sheet, "sheet", {"poses/c1": plus_vieille}, set()), ([], []))
 
     def test_la_colonne_famille_dit_ce_qui_est_pose(self):
         # 21 octobre 2026 : « poses » ne disait rien au MJ qui filtre le Sheet.

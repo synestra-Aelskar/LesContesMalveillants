@@ -196,11 +196,37 @@ local function Construire()
         end
         f.choixParent = f.choixParent or MenuParent(f)
         f.choixParent:Proposer(options, f.travail.parent or "", function(id)
+            -- Le formulaire montre les Origines AVANT le Parent : on coche
+            -- souvent l'origine d'abord. Choisir le parent ensuite ecrasait ce
+            -- choix par TOUTES les origines du parent (le MJ, 3 novembre 2026 :
+            -- « Foudre » coche sur une origine, range sous les quatre de
+            -- « Raptor »). On garde donc ce qui a ete coche et que le parent
+            -- porte aussi ; on ne reprend tout le parent que s'il ne reste rien,
+            -- et on le DIT quand un choix n'a pas pu etre garde.
             local avant = LCM.Copie(LCM.Etiquettes.Origines(f.travail))
             f.travail.parent = id ~= "" and id or nil
-            f.travail.origines = f.travail.parent
-                and LCM.Copie(LCM.Etiquettes.Origines(LCM.Etiquettes.Get(id))) or (avant[1] and avant or nil)
             f.travail.origine = nil
+            f.erreur:SetText("")
+            if not f.travail.parent then
+                f.travail.origines = avant[1] and avant or nil
+            else
+                local duParent = LCM.Etiquettes.Origines(LCM.Etiquettes.Get(id))
+                local permises = {}
+                for _, origine in ipairs(duParent) do permises[origine] = true end
+                local gardees, perdues = {}, 0
+                -- Seulement ce que le MJ avait coche lui-meme : sans choix
+                -- propre, `avant` est vide et le sous-tag reprend le parent.
+                for _, origine in ipairs(f.travail.origines or {}) do
+                    if permises[origine] then gardees[#gardees + 1] = origine else perdues = perdues + 1 end
+                end
+                f.travail.origines = gardees[1] and gardees or LCM.Copie(duParent)
+                if not f.travail.origines[1] then f.travail.origines = nil end
+                if perdues > 0 then
+                    f.erreur:SetText(gardees[1]
+                        and "Origine(s) absente(s) du parent retirée(s)."
+                        or "Aucune des origines cochées n'est portée par ce parent : le sous-tag reprend les siennes.")
+                end
+            end
             f:AfficherClassement()
         end)
     end)
