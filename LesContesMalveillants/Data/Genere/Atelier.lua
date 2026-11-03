@@ -7,6 +7,17 @@
 
 local _, LCM = ...
 
+-- ----- accessoires_camping (1) -------------------------------------
+LCM.PublierPublique(LCM.AccessoiresCamping, "accessoires_camping", {
+    bonus = {
+        recup_armure = 40,
+    },
+    description = "Les petits outils de Kaléa pour qu'elle répare ses équipements.",
+    id = "accessoire_reparation_kalea",
+    label = "Accessoire de réparation de Kaléa",
+    origine = "Kaléa",
+}, "323d4907b00feaef")
+
 -- ----- consommables (5) --------------------------------------------
 LCM.PublierPublique(LCM.Consommables, "consommables", {
     bonus = {  },
@@ -245,14 +256,14 @@ LCM.PublierPublique(LCM.Etats, "etats", {
 
 -- ----- lanternes (1) -----------------------------------------------
 LCM.PublierPublique(LCM.Lanternes, "lanternes", {
-    description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées, se trouvent à sa base. Une petite trappe permet d'ouvrir le coté, et d'accéder à l'intérieur pour y placer un cristal. \n\nEnfin, l'objet porte avec lui le poids des siècles, et conserve pourtant sa solidité.",
+    description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées en minutes, heures et jours, permettent d'en mesurer la durée de combustion.",
     icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
     id = "lcm_64a651_6ae6910a_14752656_0004_cb8574",
     label = "Lanterne d'aspecta",
     multiplicateur = 1,
-}, "07ed69753b4d3f4a")
+}, "4b0141cd6183f33f")
 
--- ----- listes (57) --------------------------------------------------
+-- ----- listes (48) --------------------------------------------------
 LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",
     icone = "Interface\\ICONS\\inv_jewelry_ring_03",
@@ -373,69 +384,6 @@ LCM.PublierPublique(LCM.Listes, "listes", {
     label = "Masque",
     liste = "type_accessoires",
 }, "109a725d77b6d9c4")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "",
-    icone = "Interface\\ICONS\\battleground_strongbox_skirmish_horde",
-    id = "lcm_132159_6ae895ca_535b9859_0002_39edcd",
-    label = "Conteneur",
-    liste = "outils",
-    maxEquipe = "1",
-}, "13d42ac4e3b2d430")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "Un peau de créature.",
-    icone = "Interface\\ICONS\\inv_misc_nativebeastskin",
-    id = "lcm_132159_6ae9b706_57c56f0b_0002_32e4c0",
-    label = "Peaux",
-    liste = "ressources",
-    metiers = { "depeceur" },
-    tags = "cuir",
-}, "d672942c741900e1")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "Le cuir extrait d'une peau ou d'un animal.",
-    icone = "Interface\\ICONS\\inv_skinning_80_coarseleather",
-    id = "lcm_132159_6ae9b71b_57c5be11_0003_29e1d3",
-    label = "Cuir",
-    liste = "ressources",
-    metiers = { "depeceur", "tanneur" },
-}, "cbe9f1585568cc24")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "Ressource naturelle généralement extraite de filon.",
-    icone = "Interface\\ICONS\\inv_ore_adamantium",
-    id = "lcm_132159_6ae9b79d_57c7bce6_0004_005271",
-    label = "Minerais",
-    liste = "ressources",
-    metiers = { "mineur" },
-}, "fd69ab38475e0161")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "",
-    icone = "Interface\\ICONS\\achievement_zone_tanaris_01",
-    id = "lcm_132159_6ae9b9ab_57cfc1c4_0009_d715b6",
-    label = "Valienne",
-    liste = "origines",
-}, "e1c146757d3fa7a9")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "",
-    icone = "Interface\\ICONS\\ability_hunter_pet_raptor",
-    id = "lcm_132159_6ae9bdc5_57dfc8fa_0003_1456fb",
-    label = "Raptor",
-    liste = "tags",
-    origines = { "aelskardien", "azerothienne", "insgardienne", "lcm_132159_6ae9b9ab_57cfc1c4_0009_d715b6" },
-}, "c260a6c301ebec0c")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "",
-    icone = "Interface\\ICONS\\inv_zandalaribabyraptorwhite",
-    id = "lcm_132159_6ae9cd04_581b5714_0002_a005fb",
-    label = "Foudre",
-    liste = "tags",
-    parent = "lcm_132159_6ae9bdc5_57dfc8fa_0003_1456fb",
-}, "d06dccc87d039e49")
 
 LCM.PublierPublique(LCM.Listes, "listes", {
     icone = "Interface\\ICONS\\inv_sword_19",
@@ -685,23 +633,6 @@ LCM.PublierPublique(LCM.Listes, "listes", {
 }, "c91a1ab62cb1388e")
 
 LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "Des carquois allant avec des arcs.",
-    icone = "Interface\\ICONS\\inv_misc_quiver_01",
-    id = "lcm_64a651_6ae9da5c_214b77db_0004_e9e061",
-    label = "Carquois de flêches",
-    liste = "armes",
-}, "98bc3aadb96224e6")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
-    description = "Minerai transformé en lingot exploitable par de la forge.",
-    icone = "Interface\\ICONS\\inv_ingot_bronze",
-    id = "lingot",
-    label = "Lingot",
-    liste = "ressources",
-    metiers = { "forgeron" },
-}, "888bc0b619a8ef32")
-
-LCM.PublierPublique(LCM.Listes, "listes", {
     description = "",
     icone = "Interface\\ICONS\\eps_arc_halloween_shatteredmask",
     id = "masque",
@@ -795,7 +726,7 @@ LCM.PublierPublique(LCM.Livres, "livres", {
     },
 }, "a7dd3cbf83d6a376")
 
--- ----- objets (55) --------------------------------------------------
+-- ----- objets (56) --------------------------------------------------
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },
     bonus = {
@@ -1509,6 +1440,26 @@ LCM.PublierPublique(LCM.Objets, "objets", {
 }, "54f723c6cf9c1d4e")
 
 LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
+        crochetage = 2,
+    },
+    categorie = "accessoire",
+    couleurTitre = "FF8CB8",
+    description = "Un assortiment de tiges métalliques grossièrement façonnées, aux extrémités tordues et limées. Fragiles et peu précises, elles permettent néanmoins de forcer les serrures les plus rudimentaires.",
+    etat = {
+        courant = 10,
+        max = 10,
+    },
+    forge = "equilibrage_armure_copie/commun",
+    icone = "Interface\\ICONS\\inv_misc_1h_jewelcraftingtool_a_05",
+    id = "lcm_64a651_6ad0c1d8_0985bdbc_0003_781391",
+    label = "Outils  de crochetage rudimentaire.",
+    remplacePublie = true,
+    tags = "Commun",
+}, "99e944a88e3ebbd0")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
     bonus = {
         pen_perforant = 2,
         pen_tranchant = 2,
@@ -1648,6 +1599,27 @@ LCM.PublierPublique(LCM.Objets, "objets", {
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },
     bonus = {
+        resi_mort = 6,
+    },
+    categorie = "accessoire",
+    couleurTitre = "4D8CFF",
+    description = "Cette lanterne à l'ouvrage délicat renferme un cristal de petite taille, dont la lente combustion dispense une douce lueur.\n\nSa monture métallique est parcourue d'antiques runes entrelacées, semblables à de fines toiles d'araignée. Trois jauges, graduées, se trouvent à sa base. Une petite trappe permet d'ouvrir le coté, et d'accéder à l'intérieur pour y placer un cristal. \n\nEnfin, l'objet porte avec lui le poids des siècles, et conserve pourtant sa solidité.",
+    etat = {
+        courant = 88,
+        max = 88,
+        version = 2,
+    },
+    forge = "equilibrage_armure_copie/rare",
+    icone = "Interface\\ICONS\\inv_misc_trinket6oih_lanterna2",
+    id = "lcm_64a651_6ad65732_1f54fb40_0005_e376f8",
+    label = "Lanterne d'aspecta",
+    tags = "Rare",
+    type = "talisman",
+}, "1c3807765b7eee3b")
+
+LCM.PublierPublique(LCM.Objets, "objets", {
+    avantage = {  },
+    bonus = {
         constitution = -1,
         resi_contondant = 1,
         resi_perforant = 1,
@@ -1741,8 +1713,8 @@ LCM.PublierPublique(LCM.Objets, "objets", {
     label = "Gourde runique",
     tags = "Commun",
     transfertDe = { "ressources/lcm_64a651_6ad699e3_20597cb9_0012_35135e", "consommables/lcm_64a651_6ad699e3_20597cb9_0012_35135e" },
-    type = "lcm_132159_6ae895ca_535b9859_0002_39edcd",
-}, "c99440355dff7cf0")
+    type = "lcm_64a651_6ad69a7f_205bdff2_0013_e59c87",
+}, "b94c4844b98dcfe4")
 
 LCM.PublierPublique(LCM.Objets, "objets", {
     avantage = {  },
@@ -1960,33 +1932,6 @@ LCM.PublierPublique(LCM.Objets, "objets", {
     taille = "2",
     type = "lcm_64a651_6adb7b60_0a58d5af_0006_a624f1",
 }, "72cf6a711c88fb50")
-
-LCM.PublierPublique(LCM.Objets, "objets", {
-    bonus = {
-        pen_perforant = 8,
-    },
-    categorie = "arme",
-    couleurTitre = "FF8CB8",
-    description = "Un carquois remplit de flêche de mauvaise qualité.. Mais au moins, vous pouvez tirer.",
-    etat = {
-        courant = 40,
-        max = 40,
-        version = 2,
-    },
-    forge = "equilibrage_arme/commun",
-    ic = {
-        convertis = 0,
-        palier = "rose",
-        proprietes = {  },
-        version = 1,
-    },
-    icone = "Interface\\ICONS\\inv_misc_quiver_01",
-    id = "lcm_64a651_6ae9d97d_21481004_0002_887cc2",
-    label = "Carquois de flêche rudimentaire",
-    tags = "Commun",
-    taille = 1,
-    type = "lcm_64a651_6ae9da5c_214b77db_0004_e9e061",
-}, "c1c3c86b0307f47f")
 
 LCM.PublierPublique(LCM.Objets, "objets", {
     bonus = {
@@ -2587,51 +2532,7 @@ LCM.PublierPublique(LCM.Races, "races", {
     tags = "Commun",
 }, "7cd83a01972d2ca4")
 
--- ----- ressources (18) ----------------------------------------------
-LCM.PublierPublique(LCM.Ressources, "ressources", {
-    couleurTitre = "FF8CB8",
-    dd = "11",
-    description = "Un minerai gris clair aux reflets métalliques très brillants, parfois parcouru de veines sombres. Plus rare que les métaux communs, il est recherché autant pour sa valeur que pour sa conductivité et ses usages en joaillerie, artisanat fin ou préparations ésotériques.",
-    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
-    icone = "Interface\\ICONS\\inv_ore_adamantite_nugget",
-    id = "argent",
-    label = "Argent",
-    metiers = { "mineur" },
-    tags = "Commun",
-    type = "lcm_132159_6ae9b79d_57c7bce6_0004_005271",
-    xpRecolte = "3",
-}, "58cbee3c2fed2506")
-
-LCM.PublierPublique(LCM.Ressources, "ressources", {
-    couleurTitre = "FF8CB8",
-    dd = "9",
-    description = "Un minerai brun-cuivré aux reflets rougeâtres, souvent veiné de teintes plus sombres. Relativement commun, il est apprécié pour sa facilité de fonte et sert principalement à produire des alliages solides destinés aux outils, armes et pièces métalliques.",
-    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
-    icone = "Interface\\ICONS\\inv_ore_copper_01",
-    id = "cuivre",
-    label = "Cuivre",
-    metiers = { "mineur" },
-    tags = "Commun",
-    type = "lcm_132159_6ae9b79d_57c7bce6_0004_005271",
-    xpRecolte = "2",
-}, "0c733965c6094bf2")
-
-LCM.PublierPublique(LCM.Ressources, "ressources", {
-    couleurTitre = "FF8CB8",
-    dd = "11",
-    description = "",
-    etiquettes = { "lcm_132159_6ae9bdc5_57dfc8fa_0003_1456fb" },
-    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
-    icone = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\actions-entrave.tga",
-    id = "lcm_132159_6ae9bde7_57e04e70_0004_322454",
-    label = "Cuir de Raptor Jesus",
-    metiers = { "depeceur", "tanneur" },
-    tags = "Commun",
-    tentatives = "4",
-    type = "lcm_132159_6ae9b71b_57c5be11_0003_29e1d3",
-    xpRecolte = "2",
-}, "e1ad437488067420")
-
+-- ----- ressources (14) ----------------------------------------------
 LCM.PublierPublique(LCM.Ressources, "ressources", {
     description = "Franchement, c'est solide.",
     etat = {
@@ -2752,16 +2653,16 @@ LCM.PublierPublique(LCM.Ressources, "ressources", {
 }, "949efc33f73feade")
 
 LCM.PublierPublique(LCM.Ressources, "ressources", {
+    bonus = {  },
     couleurTitre = "FF8CB8",
     description = "Un lingot d'or. Quoi de plus parlant que cette richesse ?",
     forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
     icone = "Interface\\ICONS\\inv_ingot_03",
     id = "lcm_64a651_6ad69940_2056ffd5_0011_2aebe3",
     label = "Lingot d'or.",
-    metiers = { "forgeron" },
     tags = "Commun",
     type = "lingot",
-}, "ba67d525a84fa9c8")
+}, "a797ebd200205d8e")
 
 LCM.PublierPublique(LCM.Ressources, "ressources", {
     avantage = {  },
@@ -2799,23 +2700,34 @@ LCM.PublierPublique(LCM.Ressources, "ressources", {
     type = "lcm_64a651_6ad69189_2038de7c_0003_65dfb5",
 }, "9ece97cf811ea052")
 
-LCM.PublierPublique(LCM.Ressources, "ressources", {
-    couleurTitre = "FF8CB8",
-    description = "",
-    etat = {
-        courant = "10",
-        max = "10",
+-- ----- tentes (4) --------------------------------------------------
+LCM.PublierPublique(LCM.Tentes, "tentes", {
+    accessoiresMax = 20,
+    bonus = {
+        recup_fatigue = 100,
+        recup_pv = 100,
+        securite = 100,
     },
-    forge = "lcm_64a651_6ad65ba9_1f666be6_0003_7e668c/commun",
-    icone = "Interface\\ICONS\\inv_ingot_03",
-    id = "lingo_de_bronze",
-    label = "Lingo de Bronze",
-    metiers = { "forgeron" },
-    tags = "Commun",
-    type = "lingot",
-}, "27e34ca61f94678d")
+    id = "auberge_de_tephris",
+    label = "Auberge de Tephris",
+    lits = 1,
+    origine = "Aelskar",
+}, "ab23b73d6f9eba82")
 
--- ----- tentes (2) --------------------------------------------------
+LCM.PublierPublique(LCM.Tentes, "tentes", {
+    bonus = {
+        recup_fatigue = 6,
+        securite = 4,
+    },
+    couleurTitre = "FF8CB8",
+    description = "zeazeaeaeaz",
+    forge = "lcm_64a651_6acbc610_09097aca_0002_99aa48/commun",
+    icone = "Interface\\AddOns\\LesContesMalveillants\\ressources\\icones\\constitution.blp",
+    id = "lcm_132159_6acfc046_01d79ef3_0001_f0d206",
+    label = "Suuuuuuuuuuuuce",
+    tags = "Commun",
+}, "61b79120cda76bdd")
+
 LCM.PublierPublique(LCM.Tentes, "tentes", {
     accessoiresMax = 5,
     bonus = {
@@ -3034,19 +2946,17 @@ LCM.PublierPublique(LCM.Traits, "traits", {
 
 LCM.PublierPublique(LCM.Traits, "traits", {
     bonus = {
-        acrobaties = "1",
-        endurance = "1",
-        resistance = "1",
+        resi_esprit = 3,
+        resi_ombre = 3,
     },
     couleurTitre = "FF8CB8",
-    cout = "1",
-    description = "Un entraînement rigoureux auprès des moines écarlates et au sein de la Légion Cramoisie ont doté Kirsa d’une agilité sans pareille mesure parmi ces semblables.\n\nParticulièrement agile et endurante, elle a appris à la dure que les morts ne dorment pas.",
+    description = "Une vie de conflit ont rendu Caedicia plutôt détachée, à tel point que les sorts d'influence mentales ont du mal à trouvé un ancrage solide dans son esprit.\n\nPlus grande chance de résister aux effets de peurs et d'influence mentale.",
     forge = "traits/commun",
     icone = "Interface\\ICONS\\dos2_mind",
     id = "forteresse_mentale",
-    label = "Grâce",
+    label = "Forteresse mentale",
     tags = "Commun",
-}, "b1bb7b313c4d4316")
+}, "4f9547879c7b27ae")
 
 LCM.PublierPublique(LCM.Traits, "traits", {
     bonus = {
