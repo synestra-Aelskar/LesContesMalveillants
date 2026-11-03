@@ -48,7 +48,7 @@ attendu("le bouton Autre se rallume", sexue.valeurs.sexe, "Autre")
 attendu("et la precision revient", sexue.sexeAutre, "Non binaire")
 pnj.valeurs.sexe = nil
 
-dire("== L'engrenage : a gauche la fiche, a droite la creation")
+dire("== L'engrenage ouvre la creation pre-remplie")
 local f = LCM.UI.Compendium.Ouvrir("pnj")
 attendu("la categorie PNJ est a l'ecran", f.actif, "pnj")
 local r
@@ -60,9 +60,10 @@ attendu("la ligne du PNJ est la", r ~= nil, true)
 local creation = LCM.UI.Creation.Fenetre()
 creation:Hide()
 r.reglages:Click("LeftButton")
-attendu("clic gauche : sa fiche", LCM.UI.ConsultationMJ.fenetre:IsShown(), true)
-attendu("  et pas la creation", creation:IsShown(), false)
-LCM.UI.ConsultationMJ.fenetre:Hide()
+attendu("clic gauche : sa creation", creation:IsShown(), true)
+attendu("  elle vise CE PNJ", creation.brouillon.pnj, "assassin_du_culte")
+attendu("  et elle est remplie", creation.brouillon.valeurs.perception, 10)
+creation:Hide()
 
 r.reglages:Click("RightButton")
 attendu("clic droit : sa creation", creation:IsShown(), true)
@@ -159,7 +160,8 @@ local pnjNeuf = C.NouveauPNJ(12)
 attendu("un joueur reste a 4", C.Plafond(joueur, "metiers", metierTest.id), 4)
 attendu("un PNJ va jusqu'au bout du bareme",
     C.Plafond(pnjNeuf, "metiers", metierTest.id), LCM.Metiers.RangMax())
-attendu("  soit les trente paliers", LCM.Metiers.RangMax(), 30)
+-- Trente-cinq : le Noir a ses cinq niveaux de metier (3 novembre 2026).
+attendu("  soit les trente-cinq paliers", LCM.Metiers.RangMax(), 35)
 -- Niveau 12 : 48 points de metier, de quoi depasser 4 sur un seul metier.
 attendu("son budget le permet", C.Total(pnjNeuf, "metiers"), 48)
 local pose = C.Definir(pnjNeuf, "metiers", metierTest.id, 12)

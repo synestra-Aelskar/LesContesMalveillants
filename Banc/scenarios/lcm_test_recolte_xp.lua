@@ -67,7 +67,9 @@ forge.xpRecolte:Saisir("")
 def = FU.Definition()
 attendu("vide : aucune XP", def and def.xpRecolte, nil)
 attendu("  vide, la case dit « aucune »", forge.xpRecolte.indice:IsShown(), true)
-attendu("le champ est calé à droite", select(1, forge.xpRecolte:GetPoint(1)), "TOPRIGHT")
+-- Calee a droite par ses DEUX bords depuis le 3 novembre 2026 : la grille
+-- des ressources (Type · DD, Métiers · XP) aligne la colonne de droite.
+attendu("le champ est calé à droite", select(1, forge.xpRecolte:GetPoint(2)), "TOPRIGHT")
 forge:Hide()
 
 dire("== « Modifier » une ressource ouvre la forge")

@@ -83,7 +83,18 @@ db.countries, db.zones, db.themes = {}, {}, {}
 local rendus = Base.Rendre()
 -- Autant que la base en tient, pas quatre : le jeu a ses propres Crossings et
 -- un scenario ne doit jamais compter sur le contenu de la seance.
-attendu("tout revient", rendus, #Base.list)
+-- Et seulement ce qui PEUT revenir : un passage dont la region n'est plus dans
+-- la base n'a nulle part ou se ranger. Le 3 novembre 2026, la base commune en
+-- portait trois (regions supprimees avant que leur suppression n'emporte leurs
+-- passages, c8d3bbf) : le compte nu attendait 39, il en revenait 36.
+local regionsBase, rendables = {}, 0
+for _, e in ipairs(Base.list) do
+    if e.genre == "region" then regionsBase[e.id] = true end
+end
+for _, e in ipairs(Base.list) do
+    if e.genre ~= "passage" or regionsBase[e.donnees.zoneId or ""] then rendables = rendables + 1 end
+end
+attendu("tout ce qui peut revenir revient", rendus, rendables)
 attendu("la region", db.zones[zone.id] and db.zones[zone.id].name, "Forêt d'Automne")
 attendu("son lieu", db.zones[zone.id] and db.zones[zone.id].places[lieu.id] ~= nil, true)
 local revenu = db.zones[zone.id] and db.zones[zone.id].subZones[sub.id]

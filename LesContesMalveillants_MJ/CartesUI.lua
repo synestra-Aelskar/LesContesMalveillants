@@ -538,17 +538,8 @@ function Ecran.Editer(element)
     return true
 end
 
--- L'entree Cartes du radial (Systeme > Interactions) sert a POSER des cartes
--- a trouver dans le monde (le MJ, 2 novembre 2026) : elle ouvre l'atelier des
--- ressources en mode « cartes ». Elle ouvrait la categorie des cartes au
--- compendium ; une carte s'y CREE toujours (Système › Compendium › Cartes).
-LCM.WhenReady(function()
-    if not (UI.Menu and UI.Menu.Lier) then return end
-    UI.Menu.Lier("cartes", function()
-        if UI.Recoltes and UI.Recoltes.Basculer then
-            UI.Recoltes.Basculer("cartes")
-        elseif UI.Compendium and UI.Compendium.Ouvrir then
-            UI.Compendium.Ouvrir("cartes")
-        end
-    end)
-end)
+-- L'entree Cartes du radial (Systeme > Interactions) a ete retiree le
+-- 3 novembre 2026 (le MJ). Une carte se CREE au compendium (Système ›
+-- Compendium › Cartes) et se pose comme toute trouvaille, dans l'atelier
+-- Ressources, qui accepte les cartes. Le mode « cartes » de cet atelier
+-- reste (UI.Recoltes.Basculer("cartes")) : plus rien du radial n'y mene.

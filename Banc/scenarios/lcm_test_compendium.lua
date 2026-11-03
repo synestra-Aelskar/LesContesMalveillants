@@ -45,11 +45,13 @@ for _, c in ipairs(C.categories) do ids[#ids + 1] = c.label end
 -- contrairement au contenu qui vit. (Les paliers des Nommages sont du contenu
 -- mais n'ont PAS de categorie : ils se reglent dans l'onglet Equilibrage du
 -- Panel MJ, et nulle part ailleurs — le MJ, 2 novembre 2026.)
-attendu("36 categories", #C.categories, 36)
+-- 37 depuis le 3 novembre 2026 : la liste « Tags » (Core/Etiquettes.lua),
+-- rangee avec les autres listes.
+attendu("37 categories", #C.categories, 37)
 attendu("ordre", table.concat(ids, ","),
     "Information,Type Armures,Type Accessoires,Liste Armes,Liste outils,Liste-Type-Etats,"
     .. "Liste origine,Liste ressources,"
-    .. "Liste consommable,"
+    .. "Liste consommable,Tags,"
     .. "Liste métiers,Connaissances,Table xp,Calculateur,Sacs,Devises,Jeux d'équilibrage,Ressources,Consommables,"
     .. "Armes,Armures,Accessoires,Livres,Cartes,Outils,Lanternes,Cristaux,Tentes,Accessoires de camping,Races,Traits,Etats,"
     .. "Maladies,Apprentissage,Actions-MJ,TEMPLATE,PNJ")

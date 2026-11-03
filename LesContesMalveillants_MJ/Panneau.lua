@@ -2241,9 +2241,21 @@ function Pages.pnj(page, f)
             page:Afficher()
         end)
         l.prendre:SetPoint("RIGHT", l.oublier, "LEFT", -3, 0)
+        -- « Mort » (le MJ, 3 novembre 2026) : en combat, un PNJ a 0 PV passe
+        -- au rouge et peut laisser son cadavre (MJ/Cadavres.lua).
+        l.mort = UI.Bouton(l, "Mort", 46, 18, function()
+            local id, raison = MJ.Cadavres.Mort(l.instanceId)
+            if not id then LCM.Alerte(tostring(raison)) return end
+            LCM.Ok("Le cadavre est posé à tes pieds. Corrige ce qu'il porte, puis les joueurs pourront le fouiller.")
+            if LCM.UI.Cadavre then LCM.UI.Cadavre.Ouvrir(id) end
+            page:Afficher()
+        end)
+        l.mort:SetPoint("RIGHT", l.prendre, "LEFT", -3, 0)
+        l.mort:Hide()
+        UI.Bulle(l.mort, "Mort", "Fait apparaître son cadavre à ta position, avec ce qu'il portait et son butin.")
         l.pv = UI.Texte(l, "", UI.C.discret)
         UI.Police(l.pv, 10)
-        l.pv:SetPoint("RIGHT", l.prendre, "LEFT", -6, 0)
+        l.pv:SetPoint("RIGHT", l.mort, "LEFT", -6, 0)
         l.nom:SetPoint("RIGHT", l.pv, "LEFT", -4, 0)
         return l
     end
@@ -2356,6 +2368,14 @@ function Pages.pnj(page, f)
             l.nom:SetText(tostring(instance.name))
             local courant, maximum = LCM.Body.Totals(instance)
             l.pv:SetText(string.format("%d/%d PV", courant, maximum))
+            -- 0 PV EN COMBAT : nom rouge et « Mort », tant qu'aucun cadavre
+            -- n'est pose pour lui.
+            local enCombat = LCM.Combat and LCM.Combat.Etat and LCM.Combat.Etat()
+            local ko = enCombat and courant <= 0
+            local cadavre = instance.cadavre and MJ.Cadavres and MJ.Cadavres.Get(instance.cadavre)
+            l.mort:SetShown((ko and not cadavre) and true or false)
+            local teinte = ko and UI.C.plein or UI.C.texte
+            l.nom:SetTextColor(teinte[1], teinte[2], teinte[3])
             local joue = actuelle and actuelle.id == instance.id
             l.prendre.label:SetText(joue and "en cours" or (self.compact and "Jouer" or "Incarner"))
             l.prendre:Selectionner(joue and true or false)
@@ -2429,7 +2449,7 @@ local function Photo()
         if v and r and r >= 1 then photo.niveaux[#photo.niveaux + 1] = { valeur = v, rang = r } end
     end
     local total = N().Nombre()
-    for m = 1, total do
+    for m = 1, #LCM.Difficultes.CouleursMetier() do
         photo.matrice[m] = {}
         for d = 1, total do
             photo.matrice[m][d] = tonumber(R().Lire(LCM.Difficultes.CheminCoefficient(m, d)))
@@ -2446,14 +2466,16 @@ local function Remapper(photo, table_)
         if not nouveau then D.Retirer(d.valeur)
         elseif nouveau ~= d.rang then D.Definir(d.valeur, nouveau) end
     end
-    local metierMax = #D.CouleursMetier()
+    -- Seul l'indice de DIFFICULTE suit l'echelle : la couleur du metier est
+    -- une des sept de base, que reordonner les Nommages ne deplace pas (le
+    -- MJ, 3 novembre 2026). Une case dont la difficulte a ete retiree se perd.
     local grille = {}
     for m, ligne in pairs(photo.matrice) do
         for d, valeur in pairs(ligne) do
-            local m2, d2 = table_[m], table_[d]
-            if m2 and d2 and m2 <= metierMax then
-                grille[m2] = grille[m2] or {}
-                grille[m2][d2] = valeur
+            local d2 = table_[d]
+            if d2 then
+                grille[m] = grille[m] or {}
+                grille[m][d2] = valeur
             end
         end
     end
@@ -2833,7 +2855,9 @@ local function ConstruirePaliers(page, parent)
     local e = CreateFrame("Frame", nil, parent)
     e:Hide()
 
-    local ETIQUETTE, COL, CASE, LIGNE_T = 110, 68, 54, 26
+    -- Sept colonnes depuis le Noir (3 novembre 2026) : a 110 + 7 x 68 la
+    -- derniere sortait du Panel. 104 + 7 x 62 = 538 tient dans la page.
+    local ETIQUETTE, COL, CASE, LIGNE_T = 104, 62, 50, 26
 
     e.titre = Titre(e, "Métiers")
     e.titre:SetPoint("TOPLEFT", e, "TOPLEFT", 0, 0)
@@ -2847,20 +2871,28 @@ local function ConstruirePaliers(page, parent)
 
     local couleurs = D.CouleursMetier()
     local largeur = ETIQUETTE + #couleurs * COL
-    local y = 50
+    local y = 0
+
+    -- Le tableau DEFILE (le MJ, 3 novembre 2026) : depuis que l'echelle a
+    -- pris 19 paliers, la grille d'XP sortait par le bas du Panel. Le titre
+    -- et l'aide restent en place ; tout le tableau passe dans la zone.
+    e.zone = UI.Defilement(e)
+    e.zone:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -50)
+    e.zone:SetPoint("BOTTOMRIGHT", e, "BOTTOMRIGHT", -10, 0)
+    local tab = e.zone.contenu
 
     -- L'en-tete : le nom de chaque couleur, souligne de sa teinte.
     for i, c in ipairs(couleurs) do
         local x = ETIQUETTE + (i - 1) * COL
-        local t = UI.Texte(e, UI.Majuscules(c.nom), UI.C.titre, "GameFontNormalSmall")
+        local t = UI.Texte(tab, UI.Majuscules(c.nom), UI.C.titre, "GameFontNormalSmall")
         UI.Police(t, 11)
         t:SetTextColor(c.couleur[1], c.couleur[2], c.couleur[3])
-        t:SetPoint("TOPLEFT", e, "TOPLEFT", x, -y)
+        t:SetPoint("TOPLEFT", tab, "TOPLEFT", x, -y)
         t:SetWidth(COL - 6)
         t:SetJustifyH("CENTER")
-        local trait = UI.Aplat(e, { c.couleur[1], c.couleur[2], c.couleur[3], 0.85 }, "ARTWORK")
+        local trait = UI.Aplat(tab, { c.couleur[1], c.couleur[2], c.couleur[3], 0.85 }, "ARTWORK")
         trait:SetHeight(2)
-        trait:SetPoint("TOPLEFT", e, "TOPLEFT", x + 4, -(y + 16))
+        trait:SetPoint("TOPLEFT", tab, "TOPLEFT", x + 4, -(y + 16))
         trait:SetWidth(COL - 14)
     end
     y = y + 24
@@ -2868,9 +2900,9 @@ local function ConstruirePaliers(page, parent)
     -- Une rangee : un fond de ligne sur toute la largeur du tableau, son
     -- etiquette a gauche, et une case par couleur.
     local function Rangee(etiquette)
-        local r = CreateFrame("Frame", nil, e)
+        local r = CreateFrame("Frame", nil, tab)
         r:SetSize(largeur, LIGNE_T - 2)
-        r:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -y)
+        r:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, -y)
         if UI.SurfaceLigne then UI.SurfaceLigne(r) end
         r.etiquette = UI.Texte(r, etiquette, UI.C.texte)
         UI.Police(r.etiquette, 11)
@@ -2880,11 +2912,11 @@ local function ConstruirePaliers(page, parent)
     end
     local function Section(texte)
         y = y + 8
-        local t = UI.Texte(e, UI.Majuscules(texte), UI.C.libelle, "GameFontNormalSmall")
+        local t = UI.Texte(tab, UI.Majuscules(texte), UI.C.libelle, "GameFontNormalSmall")
         UI.Police(t, 10)
-        t:SetPoint("TOPLEFT", e, "TOPLEFT", 2, -y)
-        local filet = UI.Filet(e, true)
-        filet:SetPoint("TOPLEFT", e, "TOPLEFT", 0, -(y + 15))
+        t:SetPoint("TOPLEFT", tab, "TOPLEFT", 2, -y)
+        local filet = UI.Filet(tab, true)
+        filet:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, -(y + 15))
         filet:SetWidth(largeur)
         y = y + 20
     end
@@ -2952,10 +2984,15 @@ local function ConstruirePaliers(page, parent)
         if not v or v < 0 then return false, "un coefficient est un nombre positif (0,5 = la moitié de N)." end
         return true
     end
-    -- Une rangee par couleur de DIFFICULTE (Noir compris), une colonne par
-    -- couleur de METIER : chaque couple a son coefficient (le MJ, 2 novembre
-    -- 2026 : « Rose qui mine du Vert, 1,5 ; Rouge qui mine de l'Orange,
-    -- 0,5 »). La case ou les deux couleurs se rencontrent est soulignee.
+    -- Une rangee par couleur de difficulte, une colonne par couleur de METIER :
+    -- chaque couple a son coefficient (le MJ, 2 novembre 2026 : « Rose qui
+    -- mine du Vert, 1,5 ; Rouge qui mine de l'Orange, 0,5 »). La case ou les
+    -- deux couleurs se rencontrent est soulignee.
+    -- Les rangees suivent l'echelle des Nommages (les difficultes), les
+    -- colonnes les sept couleurs de base des metiers, qui n'en dependent pas
+    -- (le MJ, 3 novembre 2026). « Se rencontrer » se lit donc au NOM : la
+    -- case Rose × Rose est soulignee, pas Rose × « Rose Facile » qui porte le
+    -- numero 1 — le MJ veut « le milieu de chaque couleur ».
     Section("XP gagnée : N × coefficient, selon la difficulté")
     e.coefs = {}
     for _, diff in ipairs(D.Couleurs()) do
@@ -2973,7 +3010,8 @@ local function ConstruirePaliers(page, parent)
             champ.chaleur:SetPoint("BOTTOMRIGHT", champ, "BOTTOMRIGHT", 5, -3)
             -- La case ou les deux couleurs se rencontrent : un trait de la
             -- couleur, sous la case.
-            if c.rang == diff.rang then
+            if tostring(c.nom):lower() == tostring(diff.nom):lower() then
+                champ.rencontre = true
                 local trait = UI.Aplat(r, { c.couleur[1], c.couleur[2], c.couleur[3], 0.9 }, "ARTWORK")
                 trait:SetHeight(2)
                 trait:SetPoint("TOPLEFT", champ, "BOTTOMLEFT", 2, -1)
@@ -2983,9 +3021,54 @@ local function ConstruirePaliers(page, parent)
         end
     end
 
-    e.total = UI.Texte(e, "", UI.C.libelle)
+    e.total = UI.Texte(tab, "", UI.C.libelle)
     UI.Police(e.total, 11)
-    e.total:SetPoint("TOPLEFT", e, "TOPLEFT", 2, -(y + 8))
+    e.total:SetPoint("TOPLEFT", tab, "TOPLEFT", 2, -(y + 8))
+
+    -- La grille PAR DEFAUT, d'un geste (le MJ, 3 novembre 2026 : « que le
+    -- bouton reset tout »). Chaque case reprend la regle de
+    -- Equilibrage.difficultes.defaut appliquee a la COULEUR du palier (Core/
+    -- Difficultes.lua) : la case soulignee vaut 1. La matrice du fichier,
+    -- rangee par numero sur l'echelle de depart, mettait 1,5 sur Rose x Rose
+    -- des que l'echelle a ete decoupee. Un geste du MJ, confirme, pas une
+    -- correction au chargement : ce qu'il a saisi a la main est remplace.
+    -- Un palier sans couleur reconnaissable dans son nom garde ses cases, et
+    -- c'est dit. Rend le nombre de cases changees et de paliers ignores.
+    function e:RemettreParDefaut()
+        local n, ignores, vus = 0, 0, {}
+        for _, ligne in pairs(self.coefs) do
+            for _, champ in pairs(ligne) do
+                local v = D.CoefficientParDefaut(champ.metier.rang, champ.difficulte.nom)
+                if v == nil then
+                    if not vus[champ.difficulte.rang] then
+                        vus[champ.difficulte.rang] = true
+                        ignores = ignores + 1
+                    end
+                elseif tonumber(R.Lire(champ.chemin)) ~= v then
+                    if R.Definir(champ.chemin, v) then n = n + 1 end
+                end
+            end
+        end
+        self:Afficher()
+        local texte = string.format("Grille d'XP remise par défaut : %d case(s) changée(s).", n)
+        if ignores > 0 then
+            texte = texte .. string.format(" %d palier(s) sans couleur reconnue dans leur nom gardent leurs cases.", ignores)
+        end
+        LCM.Info(texte)
+        return n, ignores
+    end
+    e.confirmerGrille = UI.Confirmer(e, "", "Remettre")
+    e.aligner = UI.Bouton(tab, "Grille par défaut", 150, 22, function()
+        e.confirmerGrille:Demander("Remettre toute la grille d'XP par défaut ? Les coefficients saisis à la main "
+            .. "seront remplacés (1 sur les cases soulignées, +0,5 par couleur au-dessus, 0,5 une couleur "
+            .. "en dessous, 0 au-delà).", function() e:RemettreParDefaut() end)
+    end)
+    e.aligner:SetPoint("TOPRIGHT", tab, "TOPLEFT", largeur, -(y + 4))
+    UI.Bulle(e.aligner, "Grille par défaut",
+        "Remet chaque case de la grille d'XP selon la règle de départ, appliquée à la couleur du palier : "
+        .. "Rose Facile, Rose et Rose Difficile comptent comme du Rose. Demande confirmation.")
+
+    e.zone:Regler(y + 36)
 
     function e:Afficher()
         local paliers = LCM.Metiers.Paliers()
@@ -3512,6 +3595,30 @@ local function BoutonVersion(parent, texte, largeur, bulle, onClick)
     return b
 end
 
+-- Au pied de la navigation, habille comme ses entrees (le MJ, 3 novembre
+-- 2026 : « Version compacte » en bouton simple detonnait sous les onglets).
+local function BoutonPied(parent, texte, largeur, bulle, onClick)
+    local b = UI.BoutonNavigation(parent, texte, largeur, 26, onClick)
+    UI.Bulle(b, texte, bulle)
+    return b
+end
+
+-- Forcer la synchronisation (le MJ, 3 novembre 2026 : le binome s'etait
+-- connecte sans rien recevoir). Le travail est dans Core/Synchro.lua ; ici,
+-- on le dit en clair, y compris quand il n'y avait personne a joindre.
+local function Synchroniser()
+    local r = LCM.Synchro.Forcer()
+    if not r.annonce then
+        LCM.Alerte("synchronisation : personne à joindre (ni groupe, ni canal de l'addon).")
+        return r
+    end
+    LCM.Info(string.format("Synchronisation relancée : base publique (%d entrées) proposée à tous, "
+        .. "chacun reprend ce qui lui manque ; %d réglage(s) et %d entrée(s) en attente renvoyés aux MJ.",
+        r.base, r.reglages, r.envois))
+    return r
+end
+Ecran.Synchroniser = Synchroniser
+
 -- Ce que l'habillage mange a l'interieur de la fenetre (liseré, equerres) :
 -- le contenu commence et finit apres. A gauche, la navigation passait sous
 -- la bordure doree (capture du MJ, 2 novembre 2026) ; seuls le bas et la
@@ -3571,9 +3678,15 @@ local function Construire()
     -- Place la navigation et les pages dans les retraits de l'habillage.
     -- Refait a chaque ouverture : le theme a pu changer, et une page a pu
     -- revenir de la fenetre compacte.
-    f.versCompact = BoutonVersion(f.contenu, "Version compacte", NAV,
+    f.versCompact = BoutonPied(f.contenu, "Version compacte", NAV,
         "Une petite fenêtre pour la séance : états, groupe, personnage, scène et combat.",
         function() Ecran.Mode(true) end)
+    f.synchroniser = BoutonPied(f.contenu, "Synchroniser", NAV,
+        "Envoie la base publique à tous les joueurs connectés : chacun reprend ce qui lui manque "
+        .. "ou a changé, compendium compris. Renvoie aussi tes réglages d'équilibrage et tes entrées "
+        .. "pas encore dans la base commune aux autres MJ, et fait redemander coffres, récolte et "
+        .. "vendeurs. Pour un binôme ou un joueur qui n'a rien reçu.",
+        function() Synchroniser() end)
 
     function f:PlacerBas()
         local dx, dy = Retraits(self)
@@ -3585,6 +3698,8 @@ local function Construire()
         -- Au pied de la navigation : on change de version comme on change de page.
         self.versCompact:ClearAllPoints()
         self.versCompact:SetPoint("BOTTOMLEFT", self.contenu, "BOTTOMLEFT", dx, dy)
+        self.synchroniser:ClearAllPoints()
+        self.synchroniser:SetPoint("BOTTOMLEFT", self.versCompact, "TOPLEFT", 0, 3)
         for _, onglet in ipairs(Ecran.ONGLETS) do
             local page = self.pages[onglet.id]
             page:SetParent(self.contenu)

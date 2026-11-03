@@ -243,7 +243,11 @@ LCM.Points = LCM.Registre({
                         bonus = id ~= LCM.Recolte.METIER_AUCUN
                             and (type(choixMetier) ~= "table" or choixMetier.bonus ~= false),
                         dd = ddPropre and math.max(0, math.floor(ddPropre)) or nil,
-                        fatigue = fatigue and fatigue > 0 and math.floor(fatigue) or nil }
+                        fatigue = fatigue and fatigue > 0 and math.floor(fatigue) or nil,
+                        -- « Usure outils » (3 novembre 2026) : sans ce champ ici,
+                        -- l'export l'aurait perdu, comme le DD une fois.
+                        usureOutils = type(choixMetier) == "table"
+                            and (choixMetier.usureOutils == true or choixMetier.usureOutils == "true") or nil }
                     vus[id] = true
                 end
             end

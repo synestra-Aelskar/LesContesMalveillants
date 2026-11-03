@@ -210,10 +210,8 @@ for _, ligne in ipairs(f.choixMetier.lignes) do
 end
 attendu("le mineur est proposé", choixMineur ~= nil, true)
 if choixMineur then choixMineur:Click() end
--- Le DD vit sur la ligne du metier depuis le 2 novembre 2026 (un mineur et un
--- bucheron n'affrontent pas le meme filon) : on le saisit sur sa ligne. Le
--- banc n'a pas de difficultes posees, d'ou le champ libre.
-c.lignesMetiers[1].ddLibre:Saisir("10")
+-- Le DD n'est plus sur le point (le MJ, 3 novembre 2026) : il est sur chaque
+-- RESSOURCE, au compendium. Il se teste dans lcm_test_recolte_dd_ressource.
 c.rayon:Saisir("500")
 c.enregistrer:Click()
 attendu("un rayon démesuré est refusé", c.erreur:GetText(),
@@ -228,7 +226,7 @@ attendu("  nature ressource", def and def.nature, "ressource")
 local lotEnregistre = def and def.recolte.ressources and def.recolte.ressources[1]
 attendu("  quantité 2 à 4", lotEnregistre and (lotEnregistre.min .. "-" .. lotEnregistre.max), "2-4")
 attendu("  métier", def and def.recolte.metier, "mineur")
-attendu("  DD", def and def.recolte.dd, 10)
+attendu("  plus de DD de point", def and def.recolte.dd, 0)
 attendu("  rayon", def and def.recolte.rayon, 3)
 
 dire("== le placeur : un clic, un point, à ma position")
@@ -277,6 +275,10 @@ bouton = LCM.UI.Recolte.bouton
 attendu("« Récolter »", bouton and bouton:IsShown(), true)
 attendu("  avec le nom du point", bouton and bouton.nom:GetText(), "Miner du témoin")
 
+-- Le DD 10 est celui de la RESSOURCE depuis le 3 novembre 2026 (il etait
+-- saisi sur la ligne de metier du point) : on le lui donne pour ces jets.
+LCM.Ressources.Retirer("minerai_temoin")
+LCM.Ressources.Add({ id = "minerai_temoin", label = "Minerai témoin", icone = "inv_ore_iron_01", dd = 10 })
 dire("== jet raté : rien ne bouge, on peut retenter")
 file = { 0 }
 local chats = #__chats
@@ -307,7 +309,7 @@ attendu("  en chuchotement", envoi and envoi.canal, "WHISPER")
 attendu("  à lui", envoi and envoi.cible, "Claydenn-Apertus")
 attendu("  avec les deux points restants", paquet and #R.Deplier(paquet.p), 2)
 attendu("  la ressource", paquet and paquet.e, REF)
-attendu("  le DD", paquet and tostring(paquet.d), "10")
+attendu("  sans DD de point", paquet and tostring(paquet.d), "0")
 
 dire("== un joueur réussit : le MJ arbitre")
 local restant = Rs.Points(def.id)[1].id
@@ -345,6 +347,9 @@ Rs.Reconstruire()
 
 dire("== côté aventurier : les points d'un autre MJ")
 -- Un point porte toujours sa carte : sans elle, il ne se mesure nulle part.
+-- La suite recolte « sans métier ni DD » : la ressource reprend sa forme.
+LCM.Ressources.Retirer("minerai_temoin")
+LCM.Ressources.Add({ id = "minerai_temoin", label = "Minerai témoin", icone = "inv_ore_iron_01" })
 -- Un second MJ du groupe pose « Cueillir » : on recoit, on marche, on demande.
 Recevoir("Syn-Apertus", R.SUJETS.definition, R.Paquet({
     id = "def_distante", label = "Cueillir", entree = REF, min = 1, max = 1,

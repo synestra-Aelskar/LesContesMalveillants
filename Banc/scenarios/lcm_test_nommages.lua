@@ -14,6 +14,27 @@ end
 __declencher("PLAYER_LOGIN")
 __personnage()
 local N, D, M, R = LCM.Nommages, LCM.Difficultes, LCM.Metiers, LCM.Reglages
+
+-- Une echelle TEMOIN, celle de depart du fichier (3 novembre 2026). La
+-- campagne a publie la sienne (19 paliers, « Rose Facile, Rose, Rose
+-- Difficile… », ses difficultes et sa grille) : un test ne se pose jamais
+-- sur du contenu qui vit.
+local E = LCM.Equilibrage
+E.nommages = {
+    { nom = "Rose",   couleur = "FF8CBF" }, { nom = "Vert",   couleur = "66D966" },
+    { nom = "Bleu",   couleur = "66A6FF" }, { nom = "Orange", couleur = "FF9933" },
+    { nom = "Rouge",  couleur = "F24D4D" }, { nom = "Violet", couleur = "B373F2" },
+    { nom = "Noir",   couleur = "9999A6" },
+}
+E.difficultes.niveaux = {}
+E.difficultes.matrice = {}
+for m = 1, 7 do
+    E.difficultes.matrice[m] = {}
+    for d = 1, 7 do
+        local ecart = d - m
+        E.difficultes.matrice[m][d] = ecart >= 0 and (1 + 0.5 * ecart) or (ecart == -1 and 0.5 or 0)
+    end
+end
 local p = LCM.UI.PanneauMJ.Basculer()
 p:Onglet("equilibrage")
 local page = p.pages.equilibrage
@@ -26,7 +47,9 @@ attendu("Rose en bas", depart[1].nom, "Rose")
 attendu("Noir en haut", depart[7].nom, "Noir")
 attendu("rien de réglé", N.Reglee(), false)
 attendu("les difficultés les lisent", D.Couleurs()[7].nom, "Noir")
-attendu("les métiers n'en prennent que six", #D.CouleursMetier(), 6)
+-- Les metiers ont leurs sept couleurs de base, Noir compris, qui ne suivent
+-- pas l'echelle (le MJ, 3 novembre 2026 ; ils en prenaient six).
+attendu("les métiers ont leurs sept couleurs", #D.CouleursMetier(), 7)
 attendu("pas de catégorie au compendium", LCM.Compendium.Get("liste_paliers"), nil)
 
 dire("== des réglages en texte, et seulement là")
@@ -53,7 +76,10 @@ ed.lignes[1].nom:SetText("Novice")
 ed.lignes[1].nom:GetScript("OnEnterPressed")(ed.lignes[1].nom)
 attendu("le palier est renommé", N.Get(1).nom, "Novice")
 attendu("la difficulté le dit", D.Libelle(15, true), "DD 15 · Novice")
-attendu("le métier aussi", M.Paliers()[1].nom, "Novice")
+-- Le metier, lui, reste Rose : ses couleurs sont celles du fichier (le MJ,
+-- 3 novembre 2026 ; il devenait « Novice »).
+attendu("le métier reste Rose", M.Paliers()[1].nom, "Rose")
+attendu("  la colonne aussi", D.CouleursMetier()[1].nom, "Rose")
 
 dire("== la couleur : clic sur la pastille")
 ed.lignes[1].pastille:Click()
@@ -79,8 +105,11 @@ attendu("  Novice passe 2", N.Get(2).nom, "Novice")
 attendu("  avec sa couleur", N.Get(2).hex, "112233")
 attendu("la difficulté 15 reste Novice", D.Get(15).nom, "Novice")
 attendu("la difficulté 18 reste Vert", D.Get(18).nom, "Vert")
-attendu("la grille suit : Novice sur Novice x1", (D.Coefficient(2, 2)), 1)
-attendu("  Novice sur Vert x1,5", (D.Coefficient(2, 3)), 1.5)
+-- Seule la difficulte suit l'echelle ; la colonne du metier Rose ne bouge
+-- pas (3 novembre 2026). Avant, les deux indices etaient deplaces.
+attendu("la grille suit : métier Rose sur Novice x1", (D.Coefficient(1, 2)), 1)
+attendu("  métier Rose sur Vert x1,5", (D.Coefficient(1, 3)), 1.5)
+attendu("  métier Rose sur Noir, passé en 1", (D.Coefficient(1, 1)), 4)
 ed:Afficher()
 ed.lignes[1].descendre:Click()
 attendu("la flèche redescend le Noir", N.Get(2).nom, "Noir")

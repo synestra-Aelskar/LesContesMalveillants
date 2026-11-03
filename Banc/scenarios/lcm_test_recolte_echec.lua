@@ -11,7 +11,9 @@ local function attendu(nom, obtenu, voulu)
     else print("ok", nom) end
 end
 
-LCM.Brouillons.Set("ressources", { id = "plante_echec", label = "Plante témoin" })
+-- Le DD 15 est celui de la RESSOURCE depuis le 3 novembre 2026 (il etait
+-- saisi sur la ligne de metier du point).
+LCM.Brouillons.Set("ressources", { id = "plante_echec", label = "Plante témoin", dd = 15 })
 __declencher("PLAYER_LOGIN")
 -- Ce scenario enchaine des clics au MEME instant d'horloge : la garde
 -- « un clic, un jet » (2 novembre 2026) les prendrait pour un double clic.
@@ -30,13 +32,12 @@ c.ajouter.__survol = true
 __souris.LeftButton = false
 __avancer(0.05)
 c.ajouter.__survol = nil
--- Un jet sans metier requis : une ligne « Aucun métier », dont le DD se
--- regle sur la ligne (2 novembre 2026 ; avant, un champ DD du point).
+-- Un jet sans metier requis : une ligne « Aucun métier ». Le DD vient de la
+-- ressource (3 novembre 2026).
 c.metier:Click()
 for _, ligne in ipairs(f.choixMetier.lignes) do
     if ligne:IsShown() and ligne.choix == R.METIER_AUCUN then ligne:Click() end
 end
-c.lignesMetiers[1].ddLibre:Saisir("15")
 c.limite:Saisir("2")
 attendu("raté gratuit par défaut", f.travail.recolte.echecConsomme, nil)
 c.echecConsomme:Click()

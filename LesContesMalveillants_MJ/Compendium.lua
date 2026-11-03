@@ -917,7 +917,12 @@ function Editeur.NouvelEditeur(f, champ)
             return y + 48
         elseif t == "liste" or t == "avantage" or t == "table_niveaux" then
             local multiple = champ.multiple or t == "avantage"
-            self.etiquette:SetText(multiple and "Valeurs (selection multiple)" or "Valeur")
+            -- Le NOM du champ, toujours (le MJ, 3 novembre 2026 : « Valeurs
+            -- (selection multiple) », seul, obligeait a deviner de quoi il
+            -- s'agissait — le bouton resume qui portait le nom est cache quand
+            -- le champ est seul). `aide` dit a quoi il sert.
+            self.etiquette:SetText(champ.label .. (multiple and "  |cff99907f(plusieurs choix)|r" or "")
+                .. (champ.aide and ("  |cff99907f— " .. champ.aide .. "|r") or ""))
             local resume = C.Texte(categorie, champ, brut, "full")
             if t == "table_niveaux" then resume = Texte(brut) ~= "" and "Table xp / XP METIER" or "Aucune" end
             self.valeur:ClearAllPoints()
@@ -927,10 +932,46 @@ function Editeur.NouvelEditeur(f, champ)
             self.valeur:Show()
             self.choisir:ClearAllPoints()
             self.choisir:SetPoint("TOPRIGHT", self, "TOPRIGHT", -40, -y - 18)
-            self.choisir.label:SetText(multiple and "Ajouter" or "Choisir")
+            self.choisir.label:SetText((multiple and not champ.coches) and "Ajouter" or "Choisir")
             self.choisir:SetWidth(70)
             self.choisir:SetShown(not lecture)
             self.choisir:SetScript("OnClick", function(b)
+                -- `coches` (le MJ, 3 novembre 2026) : tout se coche d'un coup
+                -- dans une fenetre a valider, rangee par groupes — par
+                -- categories pour les metiers, comme dans la forge.
+                if champ.coches and champ.source == "tags" then
+                    -- Les tags : ranges par origine et en arbre, et l'on
+                    -- peut en creer un a la volee (Core/Etiquettes.lua).
+                    Editeur.tags = Editeur.tags or UI.ChoixTags("compendium")
+                    Editeur.tags:Proposer(champ.label, LCM.Etiquettes.Ensemble(Lire(f.travail, champ)),
+                        function(ids)
+                            Ecrire(f.travail, champ, ids[1] and ids or nil)
+                            f:Afficher()
+                        end, Brouillons.CreerTag)
+                    return
+                end
+                if champ.coches then
+                    local groupes = {}
+                    if champ.source == "metiers" then
+                        for _, categorie in ipairs(LCM.Metiers.Categories()) do
+                            local options = {}
+                            for _, metier in ipairs(categorie.metiers) do
+                                options[#options + 1] = { id = metier.id, label = metier.label }
+                            end
+                            if options[1] then groupes[#groupes + 1] = { label = categorie.label, options = options } end
+                        end
+                    else
+                        groupes[1] = { label = champ.label, options = Options(champ) }
+                    end
+                    local coches = {}
+                    for _, id in ipairs(Lire(f.travail, champ) or {}) do coches[id] = true end
+                    Editeur.coches = Editeur.coches or UI.ChoixCoches("compendium_coches", champ.label)
+                    Editeur.coches:Proposer(champ.label, groupes, coches, function(ids)
+                        Ecrire(f.travail, champ, ids[1] and ids or nil)
+                        f:Afficher()
+                    end)
+                    return
+                end
                 f.choix.titre:SetText(champ.label)
                 f.choix:Proposer(b, Options(champ), function(id)
                     if multiple then
@@ -949,7 +990,10 @@ function Editeur.NouvelEditeur(f, champ)
             self.vider:SetPoint("LEFT", self.choisir, "RIGHT", 8, 0)
             self.vider:SetShown(not lecture and brut ~= nil and (type(brut) ~= "table" or #brut > 0))
             self.vider:SetScript("OnClick", function()
-                if multiple then
+                if champ.coches then
+                    -- Tout decocher : la fenetre sert a choisir un par un.
+                    Ecrire(f.travail, champ, nil)
+                elseif multiple then
                     local liste = LCM.Copie(Lire(f.travail, champ) or {})
                     table.remove(liste)
                     Ecrire(f.travail, champ, #liste > 0 and liste or nil)
@@ -1375,6 +1419,9 @@ local function DefinitionPNJDepuisEntite(entity, original)
         equipement = LCM.Copie(entity.equipement or {}),
         etats = LCM.Copie(entity.etats or {}),
         apprentissages = LCM.Copie(entity.apprentissages or {}),
+        -- La fiche ne connait pas le butin (3 novembre 2026) : il passe tel
+        -- quel, sinon modifier la fiche d'un PNJ viderait son cadavre.
+        loot = original.loot and LCM.Copie(original.loot) or nil,
     }
 end
 
@@ -1433,6 +1480,7 @@ local function RouvrirCreationPNJ(element)
         definition.equipement = LCM.Copie(original.equipement or {})
         definition.etats = LCM.Copie(original.etats or {})
         definition.apprentissages = LCM.Copie(original.apprentissages or {})
+        definition.loot = original.loot and LCM.Copie(original.loot) or nil
         local ok, refus = Brouillons.Enregistrer("pnj", definition, false)
         if not ok then return false, refus end
         if UI.Compendium and UI.Compendium.Actualiser then UI.Compendium.Actualiser() end
@@ -1464,9 +1512,7 @@ function Editeur.Ouvrir(categorie, element, mode)
         return true
     end
     if element and categorie and (categorie.id == "pnj" or categorie.famille == "pnj") then
-        local ok, raison
-        if mode == "creation" then ok, raison = RouvrirCreationPNJ(element)
-        else ok, raison = OuvrirFichePNJ(element) end
+        local ok, raison = RouvrirCreationPNJ(element)
         if not ok then LCM.Alerte("PNJ : " .. tostring(raison)) end
         return ok
     end

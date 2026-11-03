@@ -289,6 +289,66 @@ function Brouillons.Enregistrer(famille, entree, creation)
         return false, "le format des " .. famille .. " n'est pas encore defini"
     end
 
+    if famille == "listes" and type(entree) == "table" and entree.liste == "tags" and not enReception then
+        local E = LCM.Etiquettes
+        local id = tostring(entree.id or "")
+        local parent = tostring(entree.parent or "")
+        local origines, vues = {}, {}
+        local donnees = type(entree.origines) == "table" and entree.origines or { entree.origine }
+        for _, valeur in ipairs(donnees) do
+            local origine = tostring(valeur or "")
+            if origine ~= "" and not vues[origine] then
+                local source = LCM.Listes.Get(origine)
+                if not source or source.liste ~= "origines" then
+                    return false, "cette origine n'existe plus dans Liste origine"
+                end
+                vues[origine] = true
+                origines[#origines + 1] = origine
+            end
+        end
+        if parent ~= "" then
+            local courant = E.Get(parent)
+            if not courant then return false, "le tag parent n'existe plus" end
+            local vus = {}
+            while courant do
+                if courant.id == id or vus[courant.id] then
+                    return false, "un tag ne peut pas être rangé sous lui-même ou l'un de ses descendants"
+                end
+                vus[courant.id] = true
+                courant = courant.parent and E.Get(courant.parent)
+            end
+            local permises = {}
+            for _, origine in ipairs(E.Origines(E.Get(parent))) do permises[origine] = true end
+            if #origines > 0 and next(permises) == nil then
+                return false, "un sous-tag général ne peut pas avoir d'origine"
+            end
+            for _, origine in ipairs(origines) do
+                if not permises[origine] then
+                    return false, "l'origine d'un sous-tag doit appartenir à son parent"
+                end
+            end
+        end
+        local nom = tostring(entree.label or ""):gsub("^%s+", ""):gsub("%s+$", ""):lower()
+        for _, autre in ipairs(E.Liste()) do
+            if autre.id ~= id and tostring(autre.label or ""):lower() == nom then
+                if parent ~= "" and autre.parent == parent then
+                    return false, "un tag de ce nom existe déjà sous ce parent"
+                end
+                if parent == "" and not autre.parent then
+                    local autres = E.Origines(autre)
+                    if #origines == 0 and #autres == 0 then
+                        return false, "un tag général de ce nom existe déjà"
+                    end
+                    for _, origine in ipairs(autres) do
+                        if vues[origine] then
+                            return false, "un tag de ce nom existe déjà dans cette origine"
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     local ok, neuf = pcall(registre.Construire, entree)
     if not ok then return false, Raison(neuf) end
 
@@ -529,6 +589,49 @@ function Brouillons.Diffuser(famille, entree)
         if not EnvoyerAttente(a) then a.reste = 1 end
     end
     return true
+end
+
+-- Toute la file d'envoi, renvoyee aux autres MJ (synchronisation forcee, Core/
+-- Synchro.lua). Une entree ne partait qu'a l'enregistrement : le binome qui se
+-- connectait apres ne la voyait qu'une fois le service passe — et le
+-- 2 novembre 2026, il n'a rien vu du tout. On s'annonce d'abord (« mj-sync? »)
+-- pour que les reponses fassent passer les envois en chuchotement acquitte.
+-- Rend le nombre d'entrees renvoyees.
+function Brouillons.Resynchroniser()
+    if not LCM.IsMaster() then return 0 end
+    if not (LCM.Reseau and LCM.Reseau.Envoyer) then return 0 end
+    AnnoncerMJ()
+    local n = 0
+    for _, famille in ipairs(Brouillons.FAMILLES) do
+        for _, entree in ipairs(Brouillons.List(famille)) do
+            if Brouillons.Diffuser(famille, entree) then n = n + 1 end
+        end
+    end
+    return n
+end
+if LCM.Synchro then LCM.Synchro.SurForcer(Brouillons.Resynchroniser) end
+
+-- Creer un TAG a la volee (Core/Etiquettes.lua), depuis la forge ou
+-- l'editeur : une entree de la liste « tags », enregistree et diffusee comme
+-- les autres. `emplacement` : « origine:<id> » pour une racine, « parent:<id> »
+-- pour un sous-tag. Un meme nom au meme endroit est refuse : il existe deja.
+-- Rend l'identifiant, ou nil et la raison.
+function Brouillons.CreerTag(nom, emplacement)
+    nom = tostring(nom or ""):gsub("^%s+", ""):gsub("%s+$", "")
+    if nom == "" then return nil, "un tag a besoin d'un nom." end
+    local E = LCM.Etiquettes
+    local def = E.Definition(Brouillons.NouvelIdentifiant(), nom, emplacement)
+    for _, tag in ipairs(E.Liste()) do
+        -- Meme nom, meme parent ; pour une racine, meme origine aussi.
+        local memeEndroit = (tag.parent or "") == (def.parent or "")
+            and (def.parent ~= nil or (tag.origine or "") == (def.origine or ""))
+        if memeEndroit and tostring(tag.label):lower() == nom:lower() then
+            return nil, string.format("le tag « %s » existe déjà à cet endroit.", nom)
+        end
+    end
+    local ok, raison = Brouillons.Enregistrer("listes", def, true)
+    if not ok then return nil, raison end
+    return def.id
 end
 
 function Brouillons.DiffuserSuppression(famille, id)

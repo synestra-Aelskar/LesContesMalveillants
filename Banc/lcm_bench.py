@@ -298,8 +298,55 @@ local function NouvelleRegion(kind, parent)
         __regions = {},
         parent = parent,
     }
-    function r:SetPoint(...) local p = {...} self.__points[#self.__points + 1] = p return self end
-    function r:ClearAllPoints() self.__points = {} end
+    -- Comme dans le jeu, un ancrage qui ferait une BOUCLE est refuse : A ancre
+    -- sur B, lui-meme ancre (de proche en proche) sur A. Le banc acceptait, et
+    -- le Panel MJ a plante en jeu au retour de la version compacte
+    -- (3 novembre 2026) sans qu'aucun scenario ne le voie.
+    local function Relatif(self, p)
+        local rel = p[2]
+        -- SetPoint("CENTER") ou SetPoint("TOPLEFT", 4, -2) : sans cadre de
+        -- reference, le jeu ancre sur le PARENT.
+        if rel == nil or type(rel) == "number" then rel = self.parent end
+        if type(rel) == "string" then rel = _G[rel] end
+        if type(rel) ~= "table" then return nil end
+        return rel
+    end
+    local function DependDe(cadre, cible, vus)
+        if cadre == cible then return true end
+        if type(cadre) ~= "table" or vus[cadre] then return false end
+        vus[cadre] = true
+        for _, p in ipairs(cadre.__points or {}) do
+            local rel = Relatif(cadre, p)
+            if rel and DependDe(rel, cible, vus) then return true end
+        end
+        local tout = cadre.__allPoints
+        if tout and tout ~= cadre and DependDe(tout, cible, vus) then return true end
+        return false
+    end
+    local function RefuserBoucle(self, rel)
+        if rel and DependDe(rel, self, {}) then
+            error("Action[SetPoint] failed because[SetPoint would result in anchor family connection]", 3)
+        end
+    end
+    -- Reposer un point deja pose le REMPLACE, comme dans le jeu : empiles, les
+    -- anciens ancrages faisaient voir des boucles qui n'existent pas.
+    function r:SetPoint(...)
+        local p = {...}
+        local ancien
+        for i, q in ipairs(self.__points) do
+            if q[1] == p[1] then ancien = i break end
+        end
+        local retire = ancien and table.remove(self.__points, ancien)
+        local ok, erreur = pcall(RefuserBoucle, self, Relatif(self, p))
+        if not ok then
+            if retire then table.insert(self.__points, ancien, retire) end
+            error(erreur, 2)
+        end
+        if ancien then table.insert(self.__points, ancien, p)
+        else self.__points[#self.__points + 1] = p end
+        return self
+    end
+    function r:ClearAllPoints() self.__points = {} self.__allPoints = nil end
     function r:GetPoint(i) local p = self.__points[i or 1] if p then return unpack(p) end end
     function r:GetNumPoints() return #self.__points end
     function r:GetParent() return self.parent end
@@ -393,7 +440,18 @@ local function NouvelleRegion(kind, parent)
     function r:SetShadowOffset(x, y) self.__shadowOffset = { x, y } end
     function r:SetBlendMode(mode) self.__blend = mode end
     function r:GetBlendMode() return self.__blend or "BLEND" end
-    function r:SetAllPoints(other) self.__allPoints = other or self.parent end
+    function r:SetAllPoints(other)
+        local cible = other or self.parent
+        -- Le jeu accepte aussi le NOM d'un cadre ; garde en chaine, GetCenter
+        -- aurait plante sur tout:GetCenter.
+        if type(cible) == "string" then cible = _G[cible] end
+        if type(cible) == "table" and cible ~= self then RefuserBoucle(self, cible) end
+        -- Comme dans le jeu, SetAllPoints efface d'abord les ancrages poses :
+        -- gardes, ils faisaient voir une dependance (donc une boucle) que le
+        -- cadre n'a plus.
+        self.__points = {}
+        self.__allPoints = cible
+    end
     function r:SetTexCoord(...) self.__texCoord = {...} end
     function r:SetRotation(a) self.__rotation = a end
     -- Les coins d'une texture deplaces un a un (le feuillet qui tourne, UI/LivresAnimation).
@@ -854,7 +912,7 @@ end
 function GetCursorPosition() return __curseur[1], __curseur[2] end
 
 GameTooltip = NouveauCadre("GameTooltip", "GameTooltip", nil, nil)
-function GameTooltip:SetOwner(o) self.__owner = o end
+function GameTooltip:SetOwner(o, ancre) self.__owner = o self.__ancre = ancre end
 function GameTooltip:GetOwner() return self.__owner end
 function GameTooltip:SetText(t) self.__text = t end
 function GameTooltip:AddLine(t) self.__lines = self.__lines or {} self.__lines[#self.__lines + 1] = t end

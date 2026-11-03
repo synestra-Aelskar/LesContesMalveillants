@@ -326,6 +326,24 @@ function ForgeUI.Definition()
         else
             def.xpRecolte = nil
         end
+        -- Le DD de la ressource et les metiers qui la recoltent (le MJ,
+        -- 3 novembre 2026) : ils etaient regles sur chaque point de recolte.
+        local dd = tonumber(courant.ddRecolte) or 0
+        def.dd = dd > 0 and dd or nil
+        local metiers = {}
+        for _, id in ipairs(courant.metiersRecolte or {}) do metiers[#metiers + 1] = id end
+        def.metiers = metiers[1] and metiers or nil
+        -- Tentatives (3 novembre 2026) : vide, sans limite ; sinon un entier.
+        local tentatives = Texte(courant.tentatives)
+        if tentatives ~= "" then
+            local n = tonumber(tentatives)
+            if not n or n < 1 or n ~= math.floor(n) then
+                return nil, "les tentatives sont un nombre entier, au moins 1 (vide : sans limite)."
+            end
+            def.tentatives = n
+        else
+            def.tentatives = nil
+        end
     end
     if categorie.id == "consommables" then
         local e = EtatCourant()
@@ -368,6 +386,13 @@ function ForgeUI.Definition()
         end
     end
     def.couleurTitre, def.tags, def.icone = rarete.couleur, rarete.label, courant.icone
+    -- Les TAGS (3 novembre 2026, Core/Etiquettes.lua) : `etiquettes`, pas
+    -- `tags`, qui vient de recevoir le libelle de rarete juste au-dessus.
+    if LCM.Compendium.AVEC_TAGS and LCM.Compendium.AVEC_TAGS[categorie.id] then
+        local ids = {}
+        for _, id in ipairs(courant.etiquettes or {}) do ids[#ids + 1] = id end
+        def.etiquettes = ids[1] and ids or nil
+    end
     -- Une description vide n'est pas ecrite : le defaut de la categorie suit.
     local description = Texte(courant.description)
     def.description = description ~= "" and description or nil
@@ -407,6 +432,8 @@ function ForgeUI.Creer()
     else
         courant.valeurs, courant.nom, courant.icone, courant.description = {}, "", nil, ""
         courant.xpRecolte = nil
+        courant.ddRecolte, courant.metiersRecolte = nil, nil
+        courant.tentatives = nil
         courant.ic = nil
         courant.taille = 1
         courant.etatObjet = LCM.Equilibrage.forge.etatObjet.base
@@ -708,6 +735,24 @@ local function Construire()
     f.nom:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -72)
 
     Libelle("Description", 2, -102)
+    -- « Tags » (le MJ, 3 novembre 2026) : ranger l'entree pour la retrouver
+    -- vite (filtre « Tags » du compendium). Les tags se cochent par origine,
+    -- en arbre, et se creent a la volee. Ils restent d'une creation a la
+    -- suivante : on cree souvent plusieurs entrees du meme endroit.
+    f.etiquettes = UI.Bouton(c, "Tags", 260, 20, function()
+        ForgeUI.choixTags = ForgeUI.choixTags or UI.ChoixTags("forge")
+        ForgeUI.choixTags:Proposer("Tags de l'entrée", LCM.Etiquettes.Ensemble(courant.etiquettes), function(ids)
+            courant.etiquettes = ids[1] and ids or nil
+            f:Rafraichir()
+        end, Brouillons.CreerTag)
+    end)
+    f.etiquettes:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -98)
+    f.etiquettes.label:SetWordWrap(false)
+    UI.Bulle(f.etiquettes, "Tags", function()
+        local resume = LCM.Etiquettes.Resume(courant.etiquettes)
+        return (resume ~= "" and ("Cette entrée porte : " .. resume .. ". ") or "Aucun tag. ")
+            .. "Ils servent à la retrouver vite : bouton « Tags » du compendium."
+    end)
     f.description = UI.Zone(c, LARGEUR - 28, 56, function(texte) courant.description = texte end)
     f.description:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -118)
     f.description:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -118)
@@ -733,6 +778,17 @@ local function Construire()
         end
         ForgeUI.choixType = ForgeUI.choixType or UI.Choix("forge_type", "Type")
         ForgeUI.choixType:Proposer(bouton, options, function(id)
+            -- Une ressource prend les metiers de son TYPE (le MJ, 3 novembre
+            -- 2026 : « Cuivre est un minerais : Mineur se coche tout seul »).
+            -- Seulement quand le type CHANGE, et seulement s'il en declare :
+            -- le MJ coche ou decoche ensuite ce qu'il veut, et rouvrir une
+            -- ressource ne refait pas ses coches.
+            if categorie and categorie.id == "ressources" and id ~= courant.type then
+                local entree = LCM.Listes.Get(id)
+                if entree and entree.metiers and entree.metiers[1] then
+                    courant.metiersRecolte = LCM.Copie(entree.metiers)
+                end
+            end
             courant.type = id
             f:Rafraichir()
         end)
@@ -758,15 +814,61 @@ local function Construire()
     end)
     f.emplacements:SetPoint("TOPLEFT", c, "TOPLEFT", 412, -180)
 
-    -- Sur une ressource : l'XP de recolte, a droite du Type (la ou une arme
-    -- dit ses emplacements).
-    -- Calee contre le bord DROIT de la rangee (le MJ, 2 novembre 2026). Vide :
+    -- Sur une ressource, deux rangees (le MJ, 3 novembre 2026) :
+    --   Type  ·  DD                    (le DD a quitte le point de recolte)
+    --   Métiers                ·  XP de récolte
+    -- Le DD se choisit dans les difficultes (Nommages) ; les metiers se
+    -- cochent dans une fenetre rangee par categories. Le reste de la forge
+    -- descend d'une rangee pour leur faire place (f:PlacerCorps).
+    f.ddLibelle = Libelle("DD", 290, -184)
+    f.ddRecolte = UI.Deroulant(c, 200, 22, function()
+        return LCM.Difficultes.Options({ id = 0, label = "Sans jet (DD 0)" }, true)
+    end, function(valeur)
+        courant.ddRecolte = tonumber(valeur) or 0
+        f:Rafraichir()
+    end)
+    f.ddRecolte:SetPoint("TOPLEFT", c, "TOPLEFT", 316, -180)
+    UI.Bulle(f.ddRecolte, "DD de récolte",
+        "Le DD à battre pour récolter cette ressource : D15 + bonus du métier. Chaque ressource d'un point "
+        .. "se compare à SON DD. Les difficultés se règlent dans Équilibrage › Difficultés.")
+
+    f.metiersLibelle = Libelle("Métiers", 2, -214)
+    f.metiersRecolte = UI.Bouton(c, "", 200, 22, function()
+        local groupes = {}
+        for _, categorie in ipairs(LCM.Metiers.Categories()) do
+            local options = {}
+            for _, metier in ipairs(categorie.metiers) do
+                options[#options + 1] = { id = metier.id, label = metier.label }
+            end
+            if options[1] then groupes[#groupes + 1] = { label = categorie.label, options = options } end
+        end
+        local coches = {}
+        for _, id in ipairs(courant.metiersRecolte or {}) do coches[id] = true end
+        ForgeUI.choixMetiers = ForgeUI.choixMetiers or UI.ChoixCoches("forge_metiers", "Métiers")
+        ForgeUI.choixMetiers:Proposer("Qui peut récolter cette ressource ?", groupes, coches, function(ids)
+            courant.metiersRecolte = ids[1] and ids or nil
+            f:Rafraichir()
+        end)
+    end)
+    f.metiersRecolte:SetPoint("TOPLEFT", c, "TOPLEFT", 60, -210)
+    -- Le survol dit qui recolte, sans ouvrir la fenetre.
+    UI.Bulle(f.metiersRecolte, "Métiers", function()
+        local noms = {}
+        for _, id in ipairs(courant.metiersRecolte or {}) do
+            local metier = LCM.Metiers.Get(id)
+            noms[#noms + 1] = metier and metier.label or ("|cffff6060" .. tostring(id) .. " (inconnu)|r")
+        end
+        if not noms[1] then return "Aucun métier coché : tous les métiers du point de récolte peuvent la récolter." end
+        return "Peut être récoltée par : " .. table.concat(noms, ", ") .. "."
+    end)
+
+    -- L'XP de recolte, calee contre le bord DROIT de la seconde rangee. Vide :
     -- la ressource ne fournit pas d'XP, et la case le dit en gris.
     f.xpRecolte = UI.Champ(c, 70, 22, function(texte)
         courant.xpRecolte = texte
         f.xpRecolte.indice:SetShown(tostring(texte or "") == "")
     end)
-    f.xpRecolte:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -180)
+    f.xpRecolte:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -210)
     f.xpRecolte:SetJustifyH("CENTER")
     f.xpRecolte.indice = UI.Texte(f.xpRecolte, "aucune", UI.C.discret)
     UI.Police(f.xpRecolte.indice, 10)
@@ -776,6 +878,56 @@ local function Construire()
     f.xpLibelle:SetPoint("RIGHT", f.xpRecolte, "LEFT", -8, 0)
     UI.Bulle(f.xpRecolte, "XP de récolte",
         "Ce que cette ressource rapporte au métier qui la récolte, multiplié par la grille couleur du métier × couleur de la difficulté. Vide : rien.")
+    -- La grille des deux rangees d'une ressource (le MJ, 3 novembre 2026 :
+    -- « que ce soit correctement aligne »). Deux colonnes egales, separees au
+    -- milieu de la forge : libelles au meme bord, centres sur leur rangee,
+    -- controles au meme bord gauche et a la meme largeur. Ailleurs, le Type
+    -- reprend sa place d'origine (une arme met ses emplacements a cote).
+    -- Une troisieme rangee : « Tentatives » (le MJ, 3 novembre 2026).
+    f.tentativesLibelle = Libelle("Tentatives", 2, -244)
+    f.tentatives = UI.Champ(c, 70, 22, function(texte)
+        courant.tentatives = texte
+        f.tentatives.indice:SetShown(tostring(texte or "") == "")
+    end)
+    f.tentatives:SetJustifyH("CENTER")
+    f.tentatives.indice = UI.Texte(f.tentatives, "sans limite", UI.C.discret)
+    UI.Police(f.tentatives.indice, 10)
+    f.tentatives.indice:SetPoint("CENTER", f.tentatives, "CENTER", 0, 0)
+    UI.Bulle(f.tentatives, "Tentatives",
+        "Combien d'essais ratés on a droit pour l'extraire. Vide : sans limite. Au dernier raté, la ressource "
+        .. "se désactive sur un point de récolte, et disparaît du butin d'un cadavre (jamais du compendium).")
+    local RANG1, RANG2, RANG3, HAUT = -180, -210, -240, 22
+    local function Ligne(libelle, controle, y, droite)
+        libelle:ClearAllPoints()
+        controle:ClearAllPoints()
+        if droite then
+            libelle:SetPoint("LEFT", c, "TOP", 12, y - HAUT / 2)
+            controle:SetPoint("TOPLEFT", c, "TOP", 100, y)
+            controle:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, y)
+        else
+            libelle:SetPoint("LEFT", c, "TOPLEFT", 2, y - HAUT / 2)
+            controle:SetPoint("TOPLEFT", c, "TOPLEFT", 70, y)
+            controle:SetPoint("TOPRIGHT", c, "TOP", -12, y)
+        end
+    end
+    function f:PlacerRessource(actif)
+        if self.grilleRessource == actif then return end
+        self.grilleRessource = actif
+        if actif then
+            Ligne(self.typeLibelle, self.type, RANG1)
+            Ligne(self.ddLibelle, self.ddRecolte, RANG1, true)
+            Ligne(self.metiersLibelle, self.metiersRecolte, RANG2)
+            Ligne(self.xpLibelle, self.xpRecolte, RANG2, true)
+            Ligne(self.tentativesLibelle, self.tentatives, RANG3)
+        else
+            self.typeLibelle:ClearAllPoints()
+            self.typeLibelle:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -184)
+            self.type:ClearAllPoints()
+            self.type:SetPoint("TOPLEFT", c, "TOPLEFT", 46, -180)
+            self.type:SetWidth(170)
+        end
+    end
+
     UI.Bulle(f.emplacements, "Occupation de l'arme",
         "Une arme à deux emplacements dispose de deux fois le pool de points de sa rareté.")
 
@@ -822,6 +974,25 @@ local function Construire()
     f.zone = UI.Defilement(c)
     f.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -304)
     f.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -14, 60)
+
+    -- Le corps de la forge (compteur, onglets Liste/Tableau, liste) descend de
+    -- `dy` : une ressource a une rangee de plus (Métiers, XP de récolte).
+    function f:PlacerCorps(dy)
+        dy = dy or 0
+        if self.corpsDecale == dy then return end
+        self.corpsDecale = dy
+        k:ClearAllPoints()
+        k:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -210 - dy)
+        k:SetPoint("TOPRIGHT", c, "TOPRIGHT", -2, -210 - dy)
+        self.mode:ClearAllPoints()
+        self.mode:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -270 - dy)
+        self.aideVue:ClearAllPoints()
+        self.aideVue:SetPoint("TOPRIGHT", c, "TOPRIGHT", -4, -276 - dy)
+        self.zone:ClearAllPoints()
+        self.zone:SetPoint("TOPLEFT", c, "TOPLEFT", 2, -304 - dy)
+        self.zone:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -14, 60)
+    end
+    f.corpsDecale = 0
     f.vide = UI.Texte(f.zone.contenu, "", UI.C.discret, "GameFontNormal")
     f.vide:SetPoint("TOPLEFT", f.zone.contenu, "TOPLEFT", 10, -30)
     f.vide:SetPoint("TOPRIGHT", f.zone.contenu, "TOPRIGHT", -10, -30)
@@ -1093,6 +1264,35 @@ local function Construire()
             self.xpRecolte:SetText(courant.xpRecolte ~= nil and tostring(courant.xpRecolte) or "")
         end
         self.xpRecolte.indice:SetShown(estRessource and tostring(self.xpRecolte:GetText() or "") == "")
+        self.ddLibelle:SetShown(estRessource)
+        self.ddRecolte:SetShown(estRessource)
+        self.metiersLibelle:SetShown(estRessource)
+        self.metiersRecolte:SetShown(estRessource)
+        local avecTags = ForgeUI.rendre == nil and categorie ~= nil and LCM.Compendium.AVEC_TAGS
+            and LCM.Compendium.AVEC_TAGS[categorie.id] == true
+        self.etiquettes:SetShown(avecTags or false)
+        if avecTags then
+            local resume = LCM.Etiquettes.Resume(courant.etiquettes)
+            self.etiquettes.label:SetText(resume ~= "" and ("Tags : " .. resume) or "Tags…")
+        end
+        self.tentativesLibelle:SetShown(estRessource)
+        self.tentatives:SetShown(estRessource)
+        if estRessource and not self.tentatives:HasFocus() then
+            self.tentatives:SetText(courant.tentatives ~= nil and tostring(courant.tentatives) or "")
+        end
+        self.tentatives.indice:SetShown(estRessource and tostring(self.tentatives:GetText() or "") == "")
+        self:PlacerCorps(estRessource and 60 or 0)
+        self:PlacerRessource(estRessource)
+        if estRessource then
+            -- Un DD hors de la liste (une difficulte retiree) reste tel quel
+            -- et le dit : on ne le change pas dans le dos du MJ.
+            local dd = tonumber(courant.ddRecolte) or 0
+            self.ddRecolte:Definir(dd, dd == 0 and "Sans jet (DD 0)" or LCM.Difficultes.LibelleNomme(dd))
+            local n = #(courant.metiersRecolte or {})
+            self.metiersRecolte.label:SetText(n == 0 and "Tous les métiers du point"
+                or (n == 1 and ((LCM.Metiers.Get(courant.metiersRecolte[1]) or {}).label or courant.metiersRecolte[1])
+                or string.format("%d métiers", n)))
+        end
         local estOutil = ForgeUI.rendre == nil and categorie ~= nil and categorie.id == "outils"
         self.contenantLibelle:SetShown(estOutil)
         self.contenant:SetShown(estOutil)
@@ -1704,9 +1904,14 @@ function ForgeUI.Ouvrir(categorieId, options)
         courant.etat = nil
         courant.contenant = nil
         courant.xpRecolte = nil
+        courant.ddRecolte, courant.metiersRecolte = nil, nil
+        courant.tentatives = nil
     end
     if courant.categorie ~= categorie.id then
+        courant.etiquettes = nil
         courant.xpRecolte = nil
+        courant.ddRecolte, courant.metiersRecolte = nil, nil
+        courant.tentatives = nil
         -- Un type ne vaut que dans la liste de sa categorie.
         courant.type = nil
         courant.etat = nil
@@ -1763,6 +1968,10 @@ function ForgeUI.OuvrirEdition(categorie, element)
     -- remplacait le bon a l'enregistrement (23 octobre 2026).
     courant.type = element.type
     courant.xpRecolte = element.xpRecolte
+    courant.ddRecolte = element.dd
+    courant.metiersRecolte = element.metiers and LCM.Copie(element.metiers) or nil
+    courant.tentatives = element.tentatives
+    courant.etiquettes = element.etiquettes and LCM.Copie(element.etiquettes) or nil
     local e = element.etatApplique
     courant.etat = type(e) == "table" and { pose = true, conteneur = e.conteneur or "etat",
         nom = e.nom or "", description = e.description or "",

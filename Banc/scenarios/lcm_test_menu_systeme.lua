@@ -24,7 +24,9 @@ end
 -- de six entrees a quatre ; les trois fenetres restent la, un cran plus loin.
 attendu("onglet Système", enfants("systeme"), "systeme_aelskar,lieux,interactions,regles")
 -- Cartes et Affichage ont rejoint le sous-menu le 31 octobre 2026 (demande du MJ).
-attendu("sous-menu Interactions", enfants("interactions"), "coffres,vendeur,ressources,cartes,affichage")
+-- Cartes a quitte le radial le 3 novembre 2026 (le MJ), Cadavres l'a rejoint
+-- le meme jour (poser une creature deja morte).
+attendu("sous-menu Interactions", enfants("interactions"), "coffres,vendeur,ressources,affichage,cadavres")
 -- « Incarner » a quitte le dossier le 2 novembre 2026 : la page Scene du Panel
 -- MJ met en scene et incarne (le MJ).
 attendu("onglet Outils", enfants("outils"), "campement,atelier,panneau_mj,parametres")

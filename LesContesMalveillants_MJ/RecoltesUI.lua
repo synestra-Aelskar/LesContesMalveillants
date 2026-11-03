@@ -38,6 +38,22 @@ local function Libelle(parent, texte, x, y)
     return t
 end
 
+-- Deux valeurs identiques, tables comprises (ordre des cles indifferent). Un
+-- nombre et son texte (« 3 » / 3) se valent : la saisie rend du texte.
+local function Pareil(a, b)
+    -- Absent, faux et vide disent la meme chose (« pas d'outil », « non »).
+    local function Rien(v) return v == nil or v == false or (type(v) == "table" and next(v) == nil) end
+    if Rien(a) and Rien(b) then return true end
+    if type(a) == "table" and type(b) == "table" then
+        for k, v in pairs(a) do if not Pareil(v, b[k]) then return false end end
+        for k, v in pairs(b) do if a[k] == nil and v ~= nil then return false end end
+        return true
+    end
+    if type(a) == "table" or type(b) == "table" then return false end
+    if tonumber(a) and tonumber(b) then return tonumber(a) == tonumber(b) end
+    return a == b
+end
+
 local function Entier(texte)
     local n = tonumber(texte)
     return n and n == math.floor(n) and n or nil
@@ -186,8 +202,8 @@ local function Resume(point)
         nomsMetiers[#nomsMetiers + 1] = choix.id == LCM.Recolte.METIER_AUCUN
             and "Aucun métier" or (metier and metier.label or choix.id)
     end
-    local jet = #nomsMetiers > 0 and string.format("%s, DD %d", table.concat(nomsMetiers, "/"), r.dd)
-        or (r.dd > 0 and string.format("DD %d", r.dd) or "sans jet")
+    local jet = #nomsMetiers > 0 and table.concat(nomsMetiers, "/")
+        or ((tonumber(r.dd) or 0) > 0 and string.format("DD %d", r.dd) or "sans métier requis")
     return string.format("%s — %s — rayon %s yards", table.concat(noms, ", "), jet,
         tostring(r.rayon or Eq().rayon or 3))
 end
@@ -333,10 +349,11 @@ local function Construire()
     c.enteteMetiers:SetHeight(23)
     local fondMetiers = UI.Aplat(c.enteteMetiers, { 0.07, 0.07, 0.07, 0.30 })
     fondMetiers:SetAllPoints(c.enteteMetiers)
-    -- Metier · Bonus de jet · DD · Fatigue · croix (le MJ, 2 novembre 2026) :
-    -- le DD et la fatigue vivent sur chaque metier, pas sur le point.
-    for _, col in ipairs({ { "MÉTIER", 0, 170 }, { "BONUS", 170, 80 }, { "DD", 250, 140 },
-                           { "FATIGUE", 390, 75 } }) do
+    -- Metier · Bonus de jet · Fatigue · Usure outils · croix. Le DD a quitte
+    -- le point : il est sur chaque RESSOURCE, au compendium (le MJ, 3 novembre
+    -- 2026). « Usure outils » : la meme case que les methodes d'un coffre.
+    for _, col in ipairs({ { "MÉTIER", 0, 170 }, { "BONUS", 170, 80 }, { "FATIGUE", 250, 75 },
+                           { "USURE OUTILS", 325, 100 } }) do
         local t = Libelle(c.enteteMetiers, col[1], col[2], -6)
         t:SetWidth(col[3])
         t:SetJustifyH("CENTER")
@@ -802,7 +819,7 @@ local function Construire()
                 local fond = UI.Aplat(ligne, { 0.07, 0.07, 0.07, 0.10 })
                 fond:SetAllPoints(ligne)
                 UI.BordureFine(ligne, 0.14)
-                for _, x in ipairs({ 170, 250, 390 }) do
+                for _, x in ipairs({ 170, 250, 325, 425 }) do
                     local division = UI.Filet(ligne, false, true)
                     division:SetPoint("TOPLEFT", ligne, "TOPLEFT", x, -3)
                     division:SetPoint("BOTTOMLEFT", ligne, "BOTTOMLEFT", x, 3)
@@ -836,29 +853,25 @@ local function Construire()
                 ligne.bonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 186, -5)
                 ligne.sansBonus = UI.Texte(ligne, "—", UI.C.discret, "GameFontNormalSmall")
                 ligne.sansBonus:SetPoint("TOPLEFT", ligne, "TOPLEFT", 204, -7)
-                -- Le DD de CE metier, choisi dans les difficultes ; sans liste,
-                -- un champ libre.
-                ligne.dd = UI.Deroulant(ligne, 130, 20, function()
-                    return LCM.Difficultes.Options({ id = 0, label = "Sans jet (DD 0)" })
-                end, function(valeur)
-                    local courant = f.travail.recolte.metiers[ligne.index]
-                    if courant then courant.dd = valeur end
-                end)
-                ligne.dd:SetPoint("TOPLEFT", ligne, "TOPLEFT", 255, -4)
-                ligne.ddLibre = UI.Champ(ligne, 50, 20, function(texte)
-                    local courant = f.travail.recolte.metiers[ligne.index]
-                    if courant then courant.dd = texte end
-                end)
-                ligne.ddLibre:SetPoint("TOPLEFT", ligne, "TOPLEFT", 295, -4)
                 ligne.fatigue = UI.Champ(ligne, 50, 20, function(texte)
                     local courant = f.travail.recolte.metiers[ligne.index]
                     if courant then courant.fatigue = texte end
                 end)
-                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 402, -4)
+                ligne.fatigue:SetPoint("TOPLEFT", ligne, "TOPLEFT", 262, -4)
                 UI.Bulle(ligne.fatigue, "Fatigue", "PF payés à chaque tentative avec ce métier. Sans assez de PF, la tentative est refusée.")
+                ligne.usure = UI.Case(ligne, "Oui", function(coche)
+                    local courant = f.travail.recolte.metiers[ligne.index]
+                    if courant then
+                        courant.usureOutils = coche or nil
+                        f:AfficherMetiers()
+                    end
+                end)
+                ligne.usure:SetPoint("TOPLEFT", ligne, "TOPLEFT", 345, -5)
+                UI.Bulle(ligne.usure, "Usure outils",
+                    "Oui : les outils exigés pour ce métier perdent un cran d'état à chaque tentative, réussie ou non. Un outil « consommé » se perd, lui, de toute façon.")
                 ligne.retirer = CreateFrame("Button", nil, ligne)
                 ligne.retirer:SetSize(24, 22)
-                ligne.retirer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 477, -3)
+                ligne.retirer:SetPoint("TOPLEFT", ligne, "TOPLEFT", 437, -3)
                 ligne.retirer.label = UI.Texte(ligne.retirer, "×", UI.C.discret, "GameFontNormalSmall")
                 ligne.retirer.label:SetAllPoints(ligne.retirer)
                 ligne.retirer.label:SetJustifyH("CENTER")
@@ -878,13 +891,9 @@ local function Construire()
                 or (regle.bonus ~= false and "Oui" or "Non"))
             ligne.bonus:SetShown(not sansMetier)
             ligne.sansBonus:SetShown(sansMetier)
-            local liste = LCM.Difficultes.Actives()
-            local dd = tonumber(regle.dd) or 0
-            ligne.dd:SetShown(liste)
-            ligne.ddLibre:SetShown(not liste)
-            ligne.dd:Definir(dd, dd == 0 and "Sans jet (DD 0)" or LCM.Difficultes.Libelle(dd))
-            if not ligne.ddLibre:HasFocus() then ligne.ddLibre:SetText(tostring(regle.dd or 0)) end
             if not ligne.fatigue:HasFocus() then ligne.fatigue:SetText(tostring(regle.fatigue or 0)) end
+            ligne.usure:Cocher(regle.usureOutils == true)
+            ligne.usure.label:SetText(regle.usureOutils == true and "Oui" or "Non")
             ligne:ClearAllPoints()
             ligne:SetPoint("TOPLEFT", c.zoneMetiers.contenu, "TOPLEFT", 0, -(index - 1) * pas)
             ligne:SetPoint("TOPRIGHT", c.zoneMetiers.contenu, "TOPRIGHT", 0, -(index - 1) * pas)
@@ -908,7 +917,7 @@ local function Construire()
                     OptionsMetiers(f.travail.recolte.metiers), function(id)
                         local items = f.travail.recolte.metiers
                         items[#items + 1] = { id = id,
-                            bonus = id ~= LCM.Recolte.METIER_AUCUN, dd = 0, fatigue = 0 }
+                            bonus = id ~= LCM.Recolte.METIER_AUCUN, fatigue = 0 }
                         f:AfficherMetiers()
                     end)
             end)
@@ -1089,7 +1098,7 @@ local function Construire()
         local dd = tonumber(r.dd) or 0
         c.choixDD:Definir(dd, dd == 0 and "Sans jet (DD 0)" or LCM.Difficultes.Libelle(dd))
         local des = Eq().des or {}
-        c.aideJet:SetText(string.format("Jet : D%d + bonus du métier, contre le DD de sa ligne ; le joueur prend le métier qui lui laisse la meilleure marge.", des.max or 15))
+        c.aideJet:SetText(string.format("Jet : D%d + bonus du métier. Chaque ressource se compare à SON DD et à ses métiers (compendium › Ressources).", des.max or 15))
         c.rayon:SetText(tostring(r.rayon or Eq().rayon or 3))
     end
     -- Un refus dit pourquoi, et ne corrige rien en douce.
@@ -1139,17 +1148,15 @@ local function Construire()
             end
             if deja[id] then return nil, "un métier ne peut apparaître qu'une fois." end
             deja[id] = true
-            local ddLigne = Entier(choix.dd or 0)
-            if not ddLigne or ddLigne < 0 then
-                return nil, "le DD de chaque métier doit être un entier positif (0 : réussite assurée)."
-            end
             local fatigue = Entier(choix.fatigue or 0)
             if not fatigue or fatigue < 0 then
                 return nil, "la fatigue de chaque métier doit être un entier positif ou nul."
             end
+            -- Plus de DD sur la ligne (3 novembre 2026) : enregistrer le point
+            -- l'oublie, c'est la ressource qui dit le sien.
             metiers[#metiers + 1] = { id = id,
                 bonus = id ~= LCM.Recolte.METIER_AUCUN and choix.bonus ~= false,
-                dd = ddLigne, fatigue = fatigue }
+                fatigue = fatigue, usureOutils = choix.usureOutils == true or nil }
         end
         local outils, paires = {}, {}
         for _, outil in ipairs(r.outils or {}) do
@@ -1169,9 +1176,8 @@ local function Construire()
             paires[cle] = true
             outils[#outils + 1] = { type = outil.type, metier = metier, consomme = outil.consomme == true or nil }
         end
-        -- Le DD du point, garde pour un joueur qui n'aurait pas encore la mise a
-        -- jour : celui de la premiere ligne. Le jet a jour lit chaque ligne.
-        local dd = metiers[1] and metiers[1].dd or 0
+        -- Plus de DD de point : celui de chaque ressource fait foi.
+        local dd = 0
         local rayon = tonumber(r.rayon)
         local rayonMax = Eq().rayonMax or 30
         if not rayon or rayon <= 0 or rayon > rayonMax then
@@ -1264,9 +1270,34 @@ local function Construire()
         end
         local ok, erreur = Recoltes.Regler(self.poseRegle, lignes)
         if not ok then c.erreur:SetText(erreur) LCM.Alerte(tostring(erreur)) return end
+        -- Les reglages COMMUNS (Récoltes / point et « Infini », jet raté,
+        -- rayon, métiers, outils) sont ceux du MODELE : un point pose ne
+        -- garde que ses lignes. Ils etaient ignores ici sans un mot — cocher
+        -- « Infini » sur un point pose laissait le modele a 1, et le point
+        -- disparaissait a la premiere recolte (le MJ, 3 novembre 2026). On
+        -- les reporte sur le modele, et on le dit : tous ses points suivent.
+        local pose = Recoltes.Pose(self.poseRegle)
+        local modele = pose and Recoltes.Definition(pose.def)
+        local communs = { "limite", "echecConsomme", "rayon", "metiers", "outils", "metier", "dd" }
+        local change = false
+        if modele then
+            for _, cle in ipairs(communs) do
+                if not Pareil(modele.recolte[cle], recolte[cle]) then change = true end
+            end
+        end
+        if change then
+            local copie = LCM.Copie(modele)
+            for _, cle in ipairs(communs) do copie.recolte[cle] = LCM.Copie(recolte[cle]) end
+            local okModele, refus = LCM.Brouillons.Enregistrer("points", copie, false)
+            if not okModele then c.erreur:SetText(tostring(refus)) LCM.Alerte(tostring(refus)) return end
+            Recoltes.Diffuser(copie.id)
+            if Recoltes.onChange then Recoltes.onChange(copie.id) end
+        end
         c.erreur:SetText("")
         self.referenceTravail = LCM.Copie(self.travail)
-        LCM.Ok("Point de récolte réglé : il repart plein, avec ce que tu as coché.")
+        LCM.Ok(change
+            and string.format("Point de récolte réglé. Les réglages communs (limite, jet raté, rayon, métiers, outils) vont au modèle « %s » : tous ses points suivent.", modele.label)
+            or "Point de récolte réglé : il repart plein, avec ce que tu as coché.")
         self:Remplir()
         self:Afficher()
     end

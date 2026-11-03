@@ -355,13 +355,16 @@ end
 -- joueur confirme (RECOLTE) ou rend (CREE).
 
 -- Rend la quantite et l'entree, ou nil et la raison.
-function Recoltes.Accorder(id, par)
+-- `jet` : { total, metier, dd } du joueur (3 novembre 2026). Seules les
+-- ressources qu'il bat sont tirees ; sans jet, tout (un point sans exigence,
+-- ou un joueur pas encore a jour).
+function Recoltes.Accorder(id, par, jet)
     id = tostring(id or "")
     local p = Magasin()[id]
     if not p or p.statut then return nil, "ce point a déjà été récolté." end
     local point = Recoltes.Definition(p.def)
     if not point then return nil, "ce point ne donne plus rien." end
-    local lots, etat = R.Tirer(Vue(p, point), point.recolte)
+    local lots, etat = R.Tirer(Vue(p, point), point.recolte, nil, jet)
     if not lots then return nil, "ce point ne donne plus rien pour le moment." end
     p.prise = etat
     Marquer(id, "attente", par)
@@ -402,6 +405,49 @@ function Recoltes.Confirmer(id, par)
     Recoltes.Diffuser(p.def)
     return true
 end
+
+-- Les TENTATIVES d'une ressource (le MJ, 3 novembre 2026) : chaque raté sur
+-- CE point posé compte ; au dernier, sa ligne s'ETEINT — elle ne se detruit
+-- pas, le MJ la rallume en reglant le point. Le compte vit sur le point pose,
+-- jamais sur le modele ni au compendium.
+function Recoltes.Rater(id, entrees, par)
+    id = tostring(id or "")
+    local p = Magasin()[id]
+    local point = p and Recoltes.Definition(p.def)
+    if not point then return false end
+    local eteintes = {}
+    for _, entree in ipairs(entrees or {}) do
+        local element = LCM.Compendium.Resoudre(entree)
+        local maximum = element and tonumber(element.tentatives)
+        if maximum then
+            p.ratees = p.ratees or {}
+            p.ratees[entree] = (tonumber(p.ratees[entree]) or 0) + 1
+            if p.ratees[entree] >= maximum then
+                -- Un point sans lignes donnait tout son modele : on les pose,
+                -- toutes allumees, avant d'eteindre celle-ci.
+                if type(p.lignes) ~= "table" then
+                    p.lignes = {}
+                    for _, lot in ipairs(R.Ressources(point.recolte)) do
+                        p.lignes[lot.entree] = { actif = true }
+                    end
+                end
+                p.lignes[entree] = p.lignes[entree] or {}
+                p.lignes[entree].actif = false
+                p.ratees[entree] = nil
+                eteintes[#eteintes + 1] = (element and element.label) or entree
+            end
+        end
+    end
+    if p.ratees and not next(p.ratees) then p.ratees = nil end
+    if eteintes[1] then
+        LCM.Info(string.format("Récolte : %s — tentatives épuisées%s, la ligne s'éteint sur ce point.",
+            table.concat(eteintes, ", "), par and (" par " .. tostring(par)) or ""))
+        Rafraichir(p.def)
+        Recoltes.Diffuser(p.def)
+    end
+    return true
+end
+R.Rater = function(id, entrees) return Recoltes.Rater(id, entrees) end
 
 -- Un jet rate peut epuiser le point sans attribuer le moindre lot.
 function Recoltes.Echec(id, par, compte)
@@ -485,7 +531,11 @@ LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.prendre, function(expediteur, donnees)
         if not LCM.Reseau.Connu(expediteur) then return end
         local id = tostring(donnees.i or "")
-        local lots, raison = Recoltes.Accorder(id, expediteur)
+        -- Le decodeur rend des textes : le total redevient un nombre.
+        local jet = donnees.t ~= nil and { total = tonumber(donnees.t) or 0,
+            metier = (donnees.m ~= nil and tostring(donnees.m) ~= "") and tostring(donnees.m) or nil,
+            dd = tonumber(donnees.d) } or nil
+        local lots, raison = Recoltes.Accorder(id, expediteur, jet)
         if lots then
             local point = Magasin()[id] and Recoltes.Definition(Magasin()[id].def)
             local r = point and point.recolte
@@ -505,6 +555,13 @@ LCM.WhenReady(function()
     LCM.Reseau.Ecouter(S.echec, function(expediteur, donnees)
         if not LCM.Reseau.Connu(expediteur) then return end
         Recoltes.Echec(donnees.i, expediteur)
+    end)
+
+    LCM.Reseau.Ecouter(S.rates, function(expediteur, donnees)
+        if not LCM.Reseau.Connu(expediteur) then return end
+        local entrees = {}
+        for e in tostring(donnees.l or ""):gmatch("[^,]+") do entrees[#entrees + 1] = e end
+        Recoltes.Rater(donnees.i, entrees, expediteur)
     end)
 
     LCM.Reseau.Ecouter(S.rendre, function(expediteur, donnees)

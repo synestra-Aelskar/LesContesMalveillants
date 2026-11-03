@@ -28,7 +28,9 @@ carrousel.creer:Click()
 local f = LCM.UI.Creation.frame
 attendu("fenetre ouverte", f:IsShown(), true)
 local noms = {}
-for _, b in ipairs(f.barre.boutons) do noms[#noms + 1] = b.label:GetText() end
+-- Seuls les onglets MONTRES : « Loot » (3 novembre 2026) n'existe que pour un
+-- PNJ, il reste cache dans la creation d'un joueur.
+for _, b in ipairs(f.barre.boutons) do if b:IsShown() then noms[#noms + 1] = b.label:GetText() end end
 -- « Métiers » est une etape a part entiere depuis que les PNJ en depensent
 -- (ils en recoivent quatre par niveau) : elle n'etait pas dans le template.
 attendu("les onglets du template", table.concat(noms, ", "),
@@ -701,7 +703,9 @@ f.precedent:Click()
 attendu("et on revient", f.etape, LCM.Creation.ETAPES[1].id)
 -- Jusqu'au bout : « Suivant » disparait, « Créer » apparait.
 for _ = 1, #LCM.Creation.ETAPES do f.suivant:Click() end
-attendu("arrive a la derniere", f.etape, LCM.Creation.ETAPES[#LCM.Creation.ETAPES].id)
+-- La derniere etape DISPONIBLE : un joueur n'a pas « Loot » (PNJ seulement).
+local disponibles = f:EtapesDisponibles()
+attendu("arrive a la derniere", f.etape, disponibles[#disponibles].id)
 attendu("on n'avance plus", f.suivant:IsShown(), false)
 attendu("« Créer le personnage » est la", f.valider:IsShown(), true)
 local _, voisinFin = f.precedent:GetPoint(1)

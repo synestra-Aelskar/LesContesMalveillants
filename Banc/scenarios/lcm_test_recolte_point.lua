@@ -122,6 +122,23 @@ f:ReglerPose(un)
 c.enregistrer:Click()
 attendu("regle : il repart plein", MJ.Pose(un).consomme, nil)
 
+dire("== « Infini » coché sur un point posé : il va au modèle")
+-- Le MJ, 3 novembre 2026 : cocher « Infini » en reglant un point pose ne
+-- s'enregistrait pas (seules les lignes partaient) ; le modele restait a 1
+-- et le point disparaissait a la premiere recolte.
+f:ReglerPose(un)
+attendu("le modèle part limité", tonumber(modele.recolte.limite) ~= 0, true)
+c.infini:Click()
+c.enregistrer:Click()
+local apres = MJ.Definition(modele.id)
+attendu("le modèle devient infini", apres and apres.recolte.limite, 0)
+attendu("  le point n'est pas épuisé", R.Epuise(MJ.Pose(un), apres.recolte), false)
+local accord = MJ.Accorder(un, nil)
+attendu("  on récolte", accord ~= nil, true)
+MJ.Confirmer(un, nil)
+attendu("  et le point reste", MJ.Pose(un).statut, nil)
+modele = apres
+
 dire("== un point pose avant les lignes donne tout son modele")
 local ancien = { def = modele.id, x = 0, y = 0 }
 attendu("sans reglage : tout le catalogue", #MJ.Effectives(ancien, modele.recolte), 3)

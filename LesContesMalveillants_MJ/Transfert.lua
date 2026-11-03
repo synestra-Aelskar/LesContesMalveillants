@@ -76,18 +76,31 @@ local function CategoriePour(listeId, familleVoulue)
     return trouvee
 end
 
--- Ce que montre une categorie : ses champs, sans le Type et la Forge, qui
--- puisent chacun dans les choix de LEUR categorie (ce sont eux qui changent
--- a coup sur). Deux categories de meme signature se remplissent pareil.
-local function Signature(categorie)
-    local out = {}
-    for _, champ in ipairs(C.Champs(categorie) or {}) do
-        if champ.cle ~= "type" and champ.cle ~= "forge" then
-            out[#out + 1] = tostring(champ.cle) .. ":" .. tostring(champ.type)
+-- Le Type et la Forge ne comptent pas parmi les champs perdus : ils puisent
+-- chacun dans les choix de LEUR categorie, et sont verifies a part.
+
+-- Ce que l'entree PERDRAIT en passant : un champ de depart que l'arrivee n'a
+-- pas (ou pas sous la meme forme), et ou elle porte une valeur. Un champ vide
+-- ne perd rien (le MJ, 3 novembre 2026 : la « Liste ressources » a des
+-- Métiers que la « Liste consommable » n'a pas ; un type sans metier passe
+-- toujours sans panneau, un type qui en a le dit).
+local function ChampsPerdus(depart, arrivee, def)
+    local ici = {}
+    for _, champ in ipairs(C.Champs(arrivee) or {}) do ici[tostring(champ.cle)] = tostring(champ.type) end
+    local perdus = {}
+    for _, champ in ipairs(C.Champs(depart) or {}) do
+        local cle = tostring(champ.cle)
+        if cle ~= "type" and cle ~= "forge" and ici[cle] ~= tostring(champ.type) then
+            local v = def[champ.cle]
+            if v ~= nil and v ~= "" and not (type(v) == "table" and next(v) == nil) then
+                perdus[#perdus + 1] = champ.label or cle
+            end
         end
     end
-    table.sort(out)
-    return table.concat(out, ",") .. "|" .. tostring(categorie.statistiques)
+    if tostring(depart.statistiques) ~= tostring(arrivee.statistiques) then
+        perdus[#perdus + 1] = "statistiques"
+    end
+    return perdus
 end
 
 -- L'element enregistre, remis en definition : ce que l'editeur fait de meme
@@ -134,8 +147,10 @@ local function Etape(element, depart, arrivee, typeQuiSuit)
     end
 
     local raisons = {}
-    if Signature(depart) ~= Signature(arrivee) then
-        raisons[#raisons + 1] = string.format("%s et %s n'ont pas les mêmes champs", depart.label, arrivee.label)
+    local perdus = ChampsPerdus(depart, arrivee, def)
+    if perdus[1] then
+        raisons[#raisons + 1] = string.format("%s n'a pas ces champs de %s : %s", arrivee.label, depart.label,
+            table.concat(perdus, ", "))
     end
     local liste = ListeDe(arrivee)
     if liste and def.type and def.type ~= typeQuiSuit and not DansLaListe(liste, def.type) then

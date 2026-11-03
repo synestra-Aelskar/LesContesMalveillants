@@ -63,6 +63,14 @@ attendu("vide : le seul rond est +", f.boutons[1].plus and f.boutons[1].glyphe:G
 attendu("a droite du sceau", select(4, f.boutons[1]:GetPoint(1)) > 0, true)
 attendu("aux vignettes du radial", f.boutons[1].magie ~= nil, true)
 attendu("rien en sauvegarde", LCM.db.raccourcis, nil)
+-- Le livre du sceau s'ouvre comme pour une couronne (le MJ, 3 novembre 2026).
+__avancer(1)
+attendu("le livre du sceau s'ouvre", R.frame.livre.ouverture > 0.5, true)
+-- L'infobulle du sceau suit la souris, en bas a droite : a cote du cadre,
+-- elle couvrait ce panneau (le MJ, 3 novembre 2026).
+sceau:GetScript("OnEnter")(sceau)
+attendu("l'infobulle du sceau va sous la souris", LCM.UI.Infobulle().ancre, "ANCHOR_CURSOR_RIGHT")
+sceau:GetScript("OnLeave")(sceau)
 
 dire("== le + propose, par groupes")
 f.boutons[1]:Click()

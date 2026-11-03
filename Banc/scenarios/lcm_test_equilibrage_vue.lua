@@ -73,7 +73,8 @@ dire("== les paliers des métiers : une grille, des seuils calculés")
 page:Choisir("metiers")
 local grille = page.paliers
 attendu("la grille remplace le tableau", grille:IsShown() and not page.zone:IsShown(), true)
-attendu("trente cases", #grille.cases, 30)
+-- Trente-cinq : le Noir a ses cinq niveaux de metier (3 novembre 2026).
+attendu("trente-cinq cases", #grille.cases, 35)
 -- Le seuil cumule se lit au survol d'une case, et en fin de couleur.
 attendu("une case dit son seuil au survol", (grille.cases[2].bulleTexte or ""):find("100 XP") ~= nil, true)
 attendu("la fin de Rose dit son seuil", grille.fins[1]:GetText(), "400")

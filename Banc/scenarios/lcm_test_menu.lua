@@ -182,8 +182,8 @@ __avancer(1)
 attendu("Systeme conserve ses quatre entrees", F.nombreEntrees, 4)
 attendu("Interactions reste visible", entree("interactions"):IsShown(), true)
 attendu("second eventail ouvert", F.sousMenu.orbite:IsShown(), true)
--- Cinq branches depuis le 31 octobre 2026 : Cartes et Affichage ont rejoint
--- Coffres, Vendeurs et Ressources (demande du MJ). C'etait trois avant.
+-- Cinq branches depuis le 3 novembre 2026 : Cartes retiree, Cadavres ajoutee
+-- (le MJ). Cinq du 31 octobre (Cartes et Affichage ajoutees), trois avant.
 attendu("second eventail a cinq branches", F.sousMenu.nombreEntrees, 5)
 attendu("fond adapte a cinq branches", tostring(F.sousMenu.secteur.surface.__texture):find("fan%-5%.tga") ~= nil, true)
 -- Le second eventail est le MEME que le premier, decale vers l'exterieur, avec
@@ -203,11 +203,11 @@ end
 attendu("un espace au milieu", Ecart(0) >= R.ECART_SOUS_MENU - 0.5, true)
 attendu("  et aux bouts", Ecart(1.5 * math.pi / 8.75) >= R.ECART_BORDS - 0.5, true)
 local _, _, _, origineX, origineY = F.sousMenu.orbite:GetPoint(1)
--- Cartes ouvre la categorie des cartes au compendium (MJ/CartesUI.lua),
--- Affichage l'atelier des panneaux (MJ/AffichagesUI.lua). Les cinq branches
--- doivent tenir dans l'eventail sans chevaucher.
-local branches = { coffres = true, vendeur = true, ressources = true, cartes = true, affichage = true }
-for i, id in ipairs({ "coffres", "vendeur", "ressources", "cartes", "affichage" }) do
+-- Affichage ouvre l'atelier des panneaux (MJ/AffichagesUI.lua), Cadavres
+-- celui des cadavres (MJ/CadavresUI.lua). Les cinq branches doivent tenir
+-- dans l'eventail sans chevaucher.
+local branches = { coffres = true, vendeur = true, ressources = true, affichage = true, cadavres = true }
+for i, id in ipairs({ "coffres", "vendeur", "ressources", "affichage", "cadavres" }) do
     local bouton = F.sousMenu.boutonsEntree[i]
     attendu(id .. " a sa place", bouton.cible.id, id)
     attendu(id .. (branches[id] and " accessible" or " eteint en attendant"), bouton.disponible, branches[id] or false)

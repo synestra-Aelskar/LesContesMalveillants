@@ -127,7 +127,7 @@ local function Rangee(parent)
     UI.Police(l.nom, 11)
     l.nom:SetPoint("LEFT", l.icone, "RIGHT", 6, 0)
     -- Un nom long s'arrete avant l'etat au lieu de passer dessous.
-    l.nom:SetPoint("RIGHT", l.etat, "LEFT", -6, 0)
+    l.nom:SetPoint("RIGHT", l.etat, "LEFT", -56, 0)
     l.nom:SetJustifyH("LEFT")
     l.nom:SetWordWrap(false)
     return l
@@ -396,7 +396,8 @@ function Ecran.Construire(page, fenetre)
             self.titreListe:SetText("Ordre d'initiative")
             for index, e in ipairs(etat.entrees) do
                 lignes[#lignes + 1] = { icone = e.icone, nom = e.nom, joueur = not e.pnj and e.id or nil,
-                    etat = tostring(e.v), actif = index == etat.c, rang = index, ko = e.ko }
+                    etat = tostring(e.v), actif = index == etat.c, rang = index, ko = e.ko,
+                    instance = e.pnj and e.id or nil }
             end
             local tardive = C.invitationTardive
             if tardive then
@@ -428,9 +429,26 @@ function Ecran.Construire(page, fenetre)
                     self:Compter()
                 end)
                 l.case:SetPoint("LEFT", l, "LEFT", 4, 0)
+                -- « Mort » (le MJ, 3 novembre 2026) : un PNJ tombe a 0 PV, son
+                -- nom passe au rouge et ce bouton fait apparaitre son cadavre
+                -- a la position du MJ (MJ/Cadavres.lua).
+                l.mort = UI.Bouton(l, "Mort", 46, 18, function()
+                    local id, raison = MJ.Cadavres.Mort(rangee.instance)
+                    if not id then LCM.Alerte(tostring(raison)) return end
+                    LCM.Ok("Le cadavre est posé à tes pieds. Corrige ce qu'il porte, puis les joueurs pourront le fouiller.")
+                    if LCM.UI.Cadavre then LCM.UI.Cadavre.Ouvrir(id) end
+                    self:AfficherListe()
+                end)
+                l.mort:SetPoint("RIGHT", l.etat, "LEFT", -6, 0)
+                l.mort:Hide()
+                UI.Bulle(l.mort, "Mort", "Fait apparaître son cadavre à ta position, avec ce qu'il portait et son butin.")
                 self.lignesListe[rang] = l
             end
             l.pnjId = ligne.pnjId
+            l.instance = ligne.instance
+            local instance = ligne.instance and LCM.Incarnation.Instance(ligne.instance)
+            local sansCadavre = instance and not (instance.cadavre and MJ.Cadavres.Get(instance.cadavre))
+            l.mort:SetShown(ligne.ko == true and sansCadavre == true)
             l.case:SetShown(ligne.pnjId ~= nil)
             if ligne.pnjId then
                 l.case:Cocher(self.choisis[ligne.pnjId] == true)
@@ -444,7 +462,10 @@ function Ecran.Construire(page, fenetre)
             l.etat:SetText(ligne.etat)
             l.halo:SetShown(ligne.actif == true)
             l.marque:SetShown(ligne.actif == true)
-            local couleurNom = (ligne.actif and UI.C.titre) or (ligne.ko and UI.C.discret) or UI.C.texte
+            -- Un PNJ a 0 PV au ROUGE (le MJ, 3 novembre 2026) : c'est la que
+            -- « Mort » apparait. Un joueur KO reste en discret.
+            local couleurNom = (ligne.ko and ligne.instance and UI.C.plein) or (ligne.actif and UI.C.titre)
+                or (ligne.ko and UI.C.discret) or UI.C.texte
             Teinte(l.nom, couleurNom)
             Teinte(l.rang, ligne.actif and UI.C.accent or UI.C.discret)
             -- L'initiative en or ; « attend… » en discret.

@@ -314,11 +314,10 @@ attendu("et reste ouvert", f:IsShown(), true)
 f:Hide()
 
 dire("== le radial")
-attendu("l'entree Cartes est liee", LCM.UI.Menu.EstLiee("cartes"), true)
--- Depuis le 2 novembre 2026, l'entree sert a POSER des cartes a trouver : elle
--- ouvre l'atelier des ressources en mode cartes (le MJ). Une carte se cree
--- toujours au compendium.
-LCM.UI.Menu.Trouver("cartes").onClick()
+-- L'entree Cartes a quitte le radial le 3 novembre 2026 (le MJ). L'atelier
+-- en mode cartes reste joignable par le code.
+attendu("plus d'entrée Cartes au radial", LCM.UI.Menu.Trouver("cartes"), nil)
+LCM.UI.Recoltes.Basculer("cartes")
 local atelier = LCM.UI.Recoltes.frame
 attendu("elle ouvre l'atelier des cartes à trouver", atelier and atelier:IsShown() and LCM.UI.Recoltes.mode, "cartes")
 for _, point in ipairs(LCM.UI.Recoltes.Definitions()) do

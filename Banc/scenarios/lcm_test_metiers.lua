@@ -30,8 +30,10 @@ dire("== paliers (table XP METIER, incrementale)")
 -- reste au rang tant qu'on n'a pas paye, on passe quand on a paye, et le
 -- bonus de jet suit la couleur.
 local paliers = LCM.Equilibrage.metiers.paliers
-attendu("trente rangs", #paliers, 30)
-attendu("six couleurs", paliers[#paliers].rangCouleur, 6)
+-- Trente-cinq rangs, sept couleurs : le Noir a ses cinq niveaux (le MJ,
+-- 3 novembre 2026 ; trente et six avant).
+attendu("trente-cinq rangs", #paliers, 35)
+attendu("sept couleurs", paliers[#paliers].rangCouleur, 7)
 local p = M.Palier(moi, "mineur")
 attendu("au depart : non appris", p.nom, "Non appris")
 attendu("  rang zero", p.rang, 0)

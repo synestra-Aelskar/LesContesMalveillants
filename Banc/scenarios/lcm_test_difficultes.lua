@@ -13,6 +13,26 @@ __declencher("PLAYER_LOGIN")
 __personnage()
 local D, R = LCM.Difficultes, LCM.Reglages
 
+-- Une echelle TEMOIN, celle de depart du fichier (3 novembre 2026). La
+-- campagne a publie la sienne (19 paliers, ses difficultes, sa grille) : un
+-- test ne se pose jamais sur du contenu qui vit.
+local E = LCM.Equilibrage
+E.nommages = {
+    { nom = "Rose",   couleur = "FF8CBF" }, { nom = "Vert",   couleur = "66D966" },
+    { nom = "Bleu",   couleur = "66A6FF" }, { nom = "Orange", couleur = "FF9933" },
+    { nom = "Rouge",  couleur = "F24D4D" }, { nom = "Violet", couleur = "B373F2" },
+    { nom = "Noir",   couleur = "9999A6" },
+}
+E.difficultes.niveaux = {}
+E.difficultes.matrice = {}
+for m = 1, 7 do
+    E.difficultes.matrice[m] = {}
+    for d = 1, 7 do
+        local ecart = d - m
+        E.difficultes.matrice[m][d] = ecart >= 0 and (1 + 0.5 * ecart) or (ecart == -1 and 0.5 or 0)
+    end
+end
+
 dire("== les couleurs sont celles des metiers")
 local couleurs = D.Couleurs()
 -- Plus le Noir, couleur de difficulte seulement (le MJ, 2 novembre 2026).
@@ -20,7 +40,8 @@ attendu("sept couleurs", #couleurs, 7)
 attendu("Rose d'abord", couleurs[1].nom, "Rose")
 attendu("Violet en sixième", couleurs[6].nom, "Violet")
 attendu("Noir au bout", couleurs[7].nom, "Noir")
-attendu("six couleurs de métier", #D.CouleursMetier(), 6)
+-- Sept depuis que le Noir a ses niveaux de metier (le MJ, 3 novembre 2026).
+attendu("sept couleurs de métier", #D.CouleursMetier(), 7)
 attendu("une difficulté Noire se pose", (D.Definir(90, 7)), true)
 attendu("  elle est au-dessus d'un Violet", select(2, D.Coefficient(6, 7)), "dessus")
 D.Retirer(90)
@@ -111,6 +132,32 @@ champ:SetText("3")
 champ:GetScript("OnEnterPressed")(champ)
 attendu("un coefficient se règle dans sa case", (D.Coefficient(3, 5)), 3)
 R.Retirer(D.CheminCoefficient(3, 5))
+
+-- Le tableau defile : avec 19 paliers il sortait du Panel (3 novembre 2026).
+attendu("le tableau des métiers défile", page.paliers.zone ~= nil and page.paliers.cases[1]:GetParent():GetParent() == page.paliers.zone.contenu, true)
+-- La grille par defaut, d'un geste confirme du MJ (3 novembre 2026) : la
+-- regle de depart appliquee a la COULEUR du palier, lue dans son nom.
+attendu("« Rose Facile » est du Rose", D.CouleurDeBase("Rose Facile"), 1)
+attendu("« Vert Difficile » est du Vert", D.CouleurDeBase("Vert Difficile"), 2)
+attendu("« Rosace » n'est pas du Rose", D.CouleurDeBase("Rosace"), nil)
+attendu("métier Rose, difficulté Rose Difficile : x1", D.CoefficientParDefaut(1, "Rose Difficile"), 1)
+attendu("métier Rose, difficulté Bleu : x2", D.CoefficientParDefaut(1, "Bleu"), 2)
+attendu("métier Bleu, difficulté Vert Facile : x0,5", D.CoefficientParDefaut(3, "Vert Facile"), 0.5)
+attendu("métier Orange, difficulté Rose : x0", D.CoefficientParDefaut(4, "Rose"), 0)
+attendu("un palier sans couleur : rien d'inventé", D.CoefficientParDefaut(1, "Palier 8"), nil)
+R.Definir(D.CheminCoefficient(1, 1), 2)
+R.Definir(D.CheminCoefficient(1, 2), 1.7)
+page.paliers:Afficher()
+attendu("une case soulignée", page.paliers.coefs[1][1].rencontre, true)
+page.paliers.aligner:Click()
+attendu("le bouton demande confirmation", page.paliers.confirmerGrille:IsShown(), true)
+attendu("  rien ne bouge avant", (D.Coefficient(1, 1)), 2)
+page.paliers.confirmerGrille.oui:Click()
+attendu("la case soulignée revient à x1", (D.Coefficient(1, 1)), 1)
+attendu("  sa voisine à la règle, x1,5", (D.Coefficient(1, 2)), 1.5)
+attendu("  le métier Noir sur le Noir, x1", (D.Coefficient(7, 7)), 1)
+R.Retirer(D.CheminCoefficient(1, 1))
+R.Retirer(D.CheminCoefficient(1, 2))
 page:Choisir("pv")
 attendu("un autre groupe rend le tableau", page.zone:IsShown() and not ed:IsShown(), true)
 
@@ -186,9 +233,10 @@ vue:Hide()
 for _, v in ipairs(temoins) do D.Retirer(v) end
 LCM.Entities.SetGauge(moi, "fatigue", fatigue.max, fatigue.max)
 
-dire("== la création de ressource : un DD et une fatigue par métier")
--- Metier · Bonus · DD · Fatigue · croix (le MJ, 2 novembre 2026) : le DD n'est
--- plus celui du point, c'est celui de chaque metier.
+dire("== la création de ressource : une fatigue par métier, plus de DD")
+-- Metier · Bonus · Fatigue · croix (le MJ, 3 novembre 2026) : le DD a quitte
+-- le point (il etait sur chaque ligne de metier depuis le 2 novembre). Il est
+-- sur la RESSOURCE, au compendium : lcm_test_recolte_dd_ressource.
 LCM.UI.Recoltes.Basculer()
 local fr = LCM.UI.Recoltes.frame
 fr:Nouveau()
@@ -199,15 +247,9 @@ for _, ligne in ipairs(fr.choixMetier.lignes) do
     if ligne:IsShown() and ligne.choix == "bucheron" then ligne:Click() end
 end
 local lm = cr.lignesMetiers[1]
-attendu("la ligne propose le DD en menu", lm.dd:IsShown() and not lm.ddLibre:IsShown(), true)
-attendu("  elle part sans jet", lm.dd.label:GetText(), "Sans jet (DD 0)")
-lm.dd.choisir(12)
-attendu("choisir pose le DD de CE métier", fr.travail.recolte.metiers[1].dd, 12)
+attendu("la ligne n'a plus de DD", lm.dd == nil and lm.ddLibre == nil, true)
 lm.fatigue:Saisir("3")
 attendu("la fatigue se règle sur la ligne", fr.travail.recolte.metiers[1].fatigue, "3")
-fr.travail.recolte.metiers[1].dd = 13
-fr:AfficherMetiers()
-attendu("un DD hors liste se garde et le dit", lm.dd.label:GetText(), "DD 13 (hors liste)")
 fr:Hide()
 
 dire("== les coffres : le DD de chaque méthode, en menu")
