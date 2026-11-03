@@ -737,6 +737,51 @@ ZG:RemoveSubZone(contour.id)
 attendu("effacer le contour efface son lieu cache", (ZG:FindPlace(idCache)), nil)
 attendu("  et la region peut en reprendre un", ZG:CreateRegionArea(region.id) ~= nil, true)
 
+dire("== un lieu supprime emporte ses zones")
+-- Elles restaient la, sans lieu ou aller : un fantome qui se dessinait encore
+-- sur la carte, portait encore ses auras, et qu'aucune fiche ne montrait plus.
+-- Un de ces fantomes a fini par recouvrir toute une region.
+local fantomes = ZG:CreateZone("Le Pays Perdu")
+local condamne = ZG:CreatePlace(fantomes.id, "Le Hameau")
+local temoin = ZG:CreatePlace(fantomes.id, "Le Gue")
+local Z = Tracer(ZoneDuLieu(condamne), { { 10, 10 }, { 40, 10 }, { 40, 40 } })
+-- Une porte dont on SORT chez le condamne : elle appartient a son autre bout,
+-- elle ne doit pas partir avec lui.
+local pont = ZG:CreateSubZone(fantomes.id, "Le Pont", temoin.id)
+ZG:SetPassagePlace(pont.id, "leave", condamne.id)
+
+local nZones, nSommets = ZG:PlaceEmporterait(condamne.id)
+attendu("on annonce ce qui part", nZones, 1)
+attendu("  et combien de sommets", nSommets, 3)
+attendu("  la porte partagee n'est pas comptee", ZG:FindSubZone(pont.id) ~= nil, true)
+
+ZG:RemovePlace(condamne.id)
+attendu("la zone du lieu est partie", ZG:FindSubZone(Z.id), nil)
+attendu("  la porte partagee est restee", ZG:FindSubZone(pont.id) ~= nil, true)
+attendu("  mais ne mene plus chez lui", ZG:FindSubZone(pont.id).leave, nil)
+attendu("  et le lieu temoin n'a pas bouge", #ZG:GetPlaceAreas(temoin.id), 1)
+-- Plus aucune zone orpheline derriere : c'etait tout le probleme.
+local orphelines = 0
+for _, sub in ipairs(ZG:GetAreaList(fantomes.id)) do
+    if not sub.enterPlace then orphelines = orphelines + 1 end
+end
+attendu("aucune zone orpheline ne subsiste", orphelines, 0)
+
+-- Et celles d'avant se jettent a la main, depuis la carte de la region.
+local reste = Tracer(ZG:CreateSubZone(fantomes.id, "Vieux trace", nil, "polygon"),
+    { { 80, 80 }, { 110, 80 }, { 110, 110 } })
+essai("la carte de la region s'ouvre", function()
+    panneau.mode, panneau.zoneId, panneau.zoneTab = "zone", fantomes.id, "carte"
+    panneau:RefreshAll()
+end)
+attendu("le bouton de suppression existe", panneau.carteBoutons.jeter ~= nil, true)
+attendu("  cache tant qu'aucune orpheline n'est designee",
+    panneau.carteBoutons.jeter:IsShown(), false)
+essai("on designe l'orpheline", function()
+    panneau.zoneMap.hooks.OuvrirZone(reste, fantomes)
+end)
+attendu("  le bouton sort", panneau.carteBoutons.jeter:IsShown(), true)
+
 dire("== supprimer une zone ne laisse pas de soudure fantome")
 ZG:WeldPoints(A.id, 2, B.id, 1)
 attendu("les deux sont soudes", A.points[2].weld ~= nil, true)

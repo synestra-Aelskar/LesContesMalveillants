@@ -1021,7 +1021,14 @@ function panel:DeleteCountry(id)
 end
 
 function panel:DeletePlace(id)
-    Confirm("Supprimer ce lieu ? Les zones et les passages qui y menaient ne mèneront plus nulle part.", function()
+    -- Dire ce qui part avec lui : un tracé est du travail, et le chiffre est
+    -- la seule chose qui distingue « supprimer un lieu vide » de « jeter deux
+    -- heures de relevé ».
+    local zones, sommets = ZG:PlaceEmporterait(id)
+    local avec = zones > 0
+        and string.format(" Ses %d zone(s) et leurs %d sommet(s) partent avec lui.", zones, sommets)
+        or " Il n'a aucune zone à lui."
+    Confirm("Supprimer ce lieu ?" .. avec .. " Les passages qui y menaient ne mèneront plus nulle part.", function()
         local _, zone = ZG:FindPlace(id)
         ZG:RemovePlace(id)
         if panel.mode == "place" and panel.placeId == id then
@@ -2543,10 +2550,26 @@ carte.rattacher.onSelect = function(placeId)
     panel.placeTab = "zone"
     Select("place", placeId, panel.zoneId)
 end
+-- Une zone orpheline qu'on ne veut rattacher à rien : avant, on ne pouvait
+-- que la laisser traîner. Elle se dessinait encore, portait encore ses auras,
+-- et aucune fiche ne la montrait plus.
+carte.jeter = Button(cartePage, "Supprimer cette zone", M + 458, CARTE_H + 124, FORM_W - 2 * M - 458)
+carte.jeter:SetScript("OnClick", function()
+    local id = carte.orpheline
+    local sub = id and ZG:FindSubZone(id)
+    if not sub then return end
+    local n = #(sub.points or {})
+    Confirm(string.format("Supprimer « %s » ? Ses %d sommet(s) sont perdus.", sub.name or "", n), function()
+        ZG:RemoveSubZone(id)
+        carte.orpheline = nil
+        panel:RefreshAll()
+    end)
+end)
 
 panel.carteBoutons = { fit = carte.fit, weld = carte.weld, unweld = carte.unweld,
                        clear = carte.clear, undo = carte.undo, hint = carte.hint,
-                       rattacher = carte.rattacher, contour = carte.contour,
+                       rattacher = carte.rattacher, jeter = carte.jeter,
+                       contour = carte.contour,
                        contourMot = carte.contourMot, nomade = carte.nomade }
 
 -- ── Mode nomade ─────────────────────────────────────────────────────────
@@ -2712,8 +2735,10 @@ function panel:RefreshCarte()
     if orpheline and orpheline.enterPlace then orpheline = nil end
     carte.rattacherLabel:SetShown(own and orpheline ~= nil)
     carte.rattacher:SetShown(own and orpheline ~= nil)
+    carte.jeter:SetShown(own and orpheline ~= nil)
     if own and orpheline then
-        carte.rattacherLabel:SetText("« " .. (orpheline.name or "") .. " » ne mène à aucun lieu")
+        carte.rattacherLabel:SetText(string.format("« %s » ne mène à aucun lieu (%d sommets)",
+            orpheline.name or "", #(orpheline.points or {})))
         carte.rattacher:SetText("Rattacher à un lieu…")
     end
 

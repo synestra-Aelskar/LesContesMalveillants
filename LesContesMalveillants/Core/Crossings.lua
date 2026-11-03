@@ -866,11 +866,46 @@ function ZG:ForgetPlaceLinks(placeId)
     end
 end
 
+-- Ce qu'un lieu emporterait en disparaissant : ses zones à lui, celles qui ne
+-- mènent QUE chez lui. Rend le nombre de zones et de sommets, pour que la
+-- confirmation dise ce qu'elle efface.
+function ZG:PlaceEmporterait(id)
+    local place, zone = MyPlace(id)
+    if not place then return 0, 0 end
+    local zones, sommets = 0, 0
+    for _, sub in pairs(zone.subZones) do
+        if sub.enterPlace == id and not sub.leavePlace then
+            zones = zones + 1
+            sommets = sommets + #(sub.points or {})
+        end
+    end
+    return zones, sommets
+end
+
 function ZG:RemovePlace(id)
     local place, zone = MyPlace(id)
     if not place then return end
     zone.places[id] = nil
+    -- Les zones du lieu s'en vont AVEC lui. Elles restaient là, sans lieu où
+    -- aller : un fantôme qui se dessinait encore sur la carte, portait encore
+    -- ses auras, et qu'on ne pouvait plus régler nulle part. Ce qu'un lieu a
+    -- fait naître disparaît avec lui, et la confirmation l'annonce (voir
+    -- ZG:PlaceEmporterait).
+    --
+    -- Sauf celles qui servent AUSSI à quelqu'un d'autre : une porte dont on
+    -- sort chez ce lieu garde son tracé, elle appartient à son autre bout.
+    for sid, sub in pairs(zone.subZones) do
+        if sub.enterPlace == id then
+            if sub.leavePlace then
+                sub.enterPlace = nil
+            else
+                zone.subZones[sid] = nil
+                ZG.state[sid] = nil
+            end
+        end
+    end
     ZG:ForgetPlaceLinks(id)
+    ZG:PruneWelds()
     -- Les portes rangées sous ce lieu ne disparaissent pas avec lui : elles
     -- remontent d'un cran. Une porte perdue en supprimant son lieu serait une
     -- perte silencieuse, et son tracé est du travail.
