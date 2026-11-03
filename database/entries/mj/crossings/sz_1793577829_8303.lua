@@ -1,0 +1,26 @@
+-- lcm-db: {"family": "crossings", "id": "sz_1793577829_8303", "registry": "CrossingsBase", "side": "mj"}
+return {
+    auteur = "Reïkä",
+    donnees = {
+        creator = "Reïkä",
+        enabled = true,
+        enterPlace = "pl_1793577829_3095",
+        facing = 3.946637153625488,
+        id = "sz_1793577829_8303",
+        mapID = 585,
+        name = "Forêt des astres",
+        passage = true,
+        points = "",
+        regionReady = false,
+        shape = "polygon",
+        width = 6,
+        x = 10575.35652015041,
+        y = 10440.13426308521,
+        z = 0,
+        zoneId = "z_1793550396_7699",
+    },
+    genre = "passage",
+    id = "sz_1793577829_8303",
+    label = "Forêt des astres / Forêt des astres",
+    version = 1793665943,
+}
