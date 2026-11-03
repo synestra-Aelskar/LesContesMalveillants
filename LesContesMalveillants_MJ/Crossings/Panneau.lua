@@ -252,9 +252,10 @@ function panel:Toggle()
 end
 
 -- ── État de sélection ──────────────────────────────────────────────────────
--- mode : "country" | "zone" | "place" | nil
+-- mode : "continent" | "country" | "zone" | "place" | nil
 
-panel.mode       = nil
+panel.mode        = nil
+panel.continentId = nil
 panel.countryId  = nil
 panel.zoneId     = nil
 panel.placeId    = nil
@@ -286,7 +287,13 @@ end
 
 local function Select(mode, id, zoneId)
     panel.mode = mode
-    if mode == "country" then panel.countryId = id; SetOpen(id, true)
+    if mode == "continent" then panel.continentId = id; SetOpen(id, true)
+    elseif mode == "country" then
+        panel.countryId = id; SetOpen(id, true)
+        -- Le continent qui le contient s'ouvre aussi : sinon le pays choisi
+        -- reste caché dans un bloc replié.
+        local country = ZG:GetCountry(id)
+        if country and country.continentId then SetOpen(country.continentId, true) end
     elseif mode == "zone" then panel.zoneId = id; Reveal(id); SetOpen(id, true)
     elseif mode == "place" then panel.placeId = id; panel.zoneId = zoneId; Reveal(zoneId); SetOpen(zoneId, true) end
     panel:RefreshAll()
@@ -338,18 +345,46 @@ end
 
 -- ── Colonne gauche : Pays › Régions › Lieux ──────────────────────────────
 
-Label(panel, "PAYS, RÉGIONS ET LIEUX", PAD, HEADER_H + 6, LIST_W)
+Label(panel, "CONTINENTS, PAYS, RÉGIONS ET LIEUX", PAD, HEADER_H + 6, LIST_W)
 
-local addCountryBtn = Button(panel, "+ Pays", PAD, HEADER_H + 28, (LIST_W - 10) / 2)
-addCountryBtn:SetScript("OnClick", function()
-    AskCreate("Créer un nouveau pays ?", "Un pays sert à ranger vos régions.", function(name)
-        local country = ZG:CreateCountry(name)
-        if country then
+-- Un pays, éventuellement rangé dans un continent. Sur CREER plutôt qu'en
+-- local : ce fichier vit au plafond des 200 variables locales de Lua 5.1.
+function CREER.Pays(continentId)
+    local continent = ZG:GetContinent(continentId)
+    if continent and continent.creator ~= MyName() then continent = nil end
+    AskCreate("Créer un nouveau pays ?",
+        continent and ("Dans le continent « " .. (continent.name or "") .. " ».")
+            or "Un pays sert à ranger vos régions.",
+        function(name)
+            local country = ZG:CreateCountry(name, continent and continent.id or nil)
+            if country then
+                if panel.searchBox then panel.searchBox:SetText("") end
+                Select("country", country.id)
+            end
+        end)
+end
+
+-- Un continent range des pays. Il n'a pas de carte à lui : sa géographie est
+-- celle de ses pays, et chacun a déjà la sienne.
+function CREER.Continent()
+    AskCreate("Créer un nouveau continent ?", "Un continent sert à ranger vos pays.", function(name)
+        local continent = ZG:CreateContinent(name)
+        if continent then
             if panel.searchBox then panel.searchBox:SetText("") end
-            Select("country", country.id)
+            Select("continent", continent.id)
         end
     end)
-end)
+end
+
+-- Trois boutons, dans l'ordre de l'arbre : le continent range les pays, le
+-- pays range les régions. Un pays créé depuis ici tombe dans le continent
+-- ouvert, s'il y en a un.
+local addCountryBtn = Button(panel, "+ Continent", PAD, HEADER_H + 28, (LIST_W - 20) / 3)
+addCountryBtn:SetScript("OnClick", function() CREER.Continent() end)
+Button(panel, "+ Pays", PAD + (LIST_W + 10) / 3, HEADER_H + 28, (LIST_W - 20) / 3)
+    :SetScript("OnClick", function()
+        CREER.Pays(panel.mode == "continent" and panel.continentId or nil)
+    end)
 
 -- Nouvelle région : rangée dans le pays sélectionné (ou celui de la région).
 local function CurrentCountryId()
@@ -389,7 +424,10 @@ function CREER.Lieu(zoneId, parentPlaceId)
         function(name)
             local place
             if dansBatiment then
-                place = ZG:CreateRoomPlace(parent.id, name)
+                -- Elle naît à l'étage qu'on regarde : poser une pièce au
+                -- deuxième pour la voir atterrir au rez n'aurait aucun sens.
+                place = ZG:CreateRoomPlace(parent.id, name,
+                    panel.placeId == parent.id and panel.batiNiveau or nil)
             else
                 place = ZG:CreatePlace(zoneId, name)
                 if place and parentPlaceId then ZG:SetPlaceParent(place.id, parentPlaceId) end
@@ -430,7 +468,7 @@ function CREER.Porte(zoneId, parentPlaceId)
         end)
 end
 
-local addZoneBtn = Button(panel, "+ Région", PAD + (LIST_W + 10) / 2, HEADER_H + 28, (LIST_W - 10) / 2)
+local addZoneBtn = Button(panel, "+ Région", PAD + 2 * (LIST_W + 10) / 3, HEADER_H + 28, (LIST_W - 20) / 3)
 addZoneBtn:SetScript("OnClick", function() CreateRegion(CurrentCountryId()) end)
 
 local search = UI.CreateStyledEditBox(panel, LIST_W, FIELD_H, false)
@@ -516,8 +554,10 @@ local function StopDrag()
 end
 
 -- Apparence de chaque catégorie : hauteur, fond, liseré gauche, texte.
--- Pays : bronze doré ; Sans pays : gris ; région : bleu acier ; lieu : vert.
+-- Continent : améthyste ; Pays : bronze doré ; Sans pays : gris ; région :
+-- bleu acier ; lieu : vert.
 local TREE_STYLE = {
+    continent = { h = 40, bg = { 0.072, 0.055, 0.082, 0.95 }, accent = { 0.66, 0.52, 0.82 }, text = { 0.85, 0.75, 0.96 } },
     country = { h = 38, bg = { 0.110, 0.085, 0.040, 0.95 }, accent = { 0.86, 0.68, 0.30 }, text = { 0.95, 0.80, 0.46 } },
     loose   = { h = 34, bg = { 0.070, 0.070, 0.080, 0.95 }, accent = { 0.48, 0.48, 0.52 }, text = { 0.72, 0.72, 0.75 } },
     zone    = { h = 34, bg = { 0.035, 0.075, 0.105, 0.95 }, accent = { 0.40, 0.64, 0.84 }, text = { 0.82, 0.90, 0.97 } },
@@ -744,21 +784,50 @@ local function BuildTree(query)
         end
     end
 
-    for _, country in ipairs(countries) do
+    -- Un pays et ce qu'il contient, à la profondeur voulue : au ras de
+    -- l'arbre quand il n'a pas de continent, d'un cran plus bas quand il en a
+    -- un. Rien ne change pour qui ne se sert pas des continents.
+    local function addCountry(country, depth)
         local matched = Matches(country.name, query)
         local start = #entries + 1
         local zones = byCountry[country.id] or {}
         local own = country.creator == MyName()
         local open = searching or IsOpen(country.id)
-        entries[start] = { kind = "country", country = country, depth = 0, key = country.id, open = open,
+        entries[start] = { kind = "country", country = country, depth = depth, key = country.id, open = open,
             parent = #zones > 0 or own, count = #zones }
         if open then
-            for _, zone in ipairs(zones) do addZone(zone, 1, matched and searching) end
+            for _, zone in ipairs(zones) do addZone(zone, depth + 1, matched and searching) end
             if own and not searching then
-                entries[#entries + 1] = { kind = "create", what = "zone", countryId = country.id, depth = 1 }
+                entries[#entries + 1] = { kind = "create", what = "zone", countryId = country.id, depth = depth + 1 }
             end
         end
         if not matched and #entries == start then entries[start] = nil end
+    end
+
+    -- Les continents d'abord, chacun avec ses pays ; puis tout pays qui n'a
+    -- pas trouvé place sous l'un d'eux — sans continent, ou sous un continent
+    -- disparu — là où les pays ont toujours été.
+    local range = {}
+    for _, continent in ipairs(ZG:GetContinentList()) do
+        local pays = ZG:GetCountryList(continent.id)
+        local matched = Matches(continent.name, query)
+        local start = #entries + 1
+        local own = continent.creator == MyName()
+        local open = searching or IsOpen(continent.id)
+        entries[start] = { kind = "continent", continent = continent, depth = 0, key = continent.id,
+            open = open, parent = #pays > 0 or own, count = #pays }
+        for _, country in ipairs(pays) do range[country.id] = true end
+        if open then
+            for _, country in ipairs(pays) do addCountry(country, 1) end
+            if own and not searching then
+                entries[#entries + 1] = { kind = "create", what = "pays", continentId = continent.id, depth = 1 }
+            end
+        end
+        if not matched and #entries == start then entries[start] = nil end
+    end
+
+    for _, country in ipairs(countries) do
+        if not range[country.id] then addCountry(country, 0) end
     end
 
     -- Pendant un glisser-déposer, « Sans pays » reste visible comme cible.
@@ -800,7 +869,9 @@ function panel:RefreshTree()
         local previous = entries[i - 1]
 
         -- Respiration entre deux blocs, filet entre deux éléments identiques.
-        if (entry.kind == "country" or entry.kind == "loose") and i > 1 then y = y + TREE_GAP end
+        if (entry.kind == "continent" or entry.kind == "country" or entry.kind == "loose") and i > 1 then
+            y = y + TREE_GAP
+        end
         local group = entry.zone and (entry.zone.countryId or "loose")
         local ruled = (entry.kind == "zone" and zonesSeen[group])
             or (entry.kind == "place" and previous and previous.kind == "place")
@@ -826,12 +897,28 @@ function panel:RefreshTree()
         row.leftClick, row.context = nil, nil
         row.dragZone, row.dropCountry = nil, nil
         for _, b in ipairs(row.creer) do b:Hide(); b.faire, b.mot = nil, nil end
-        -- En toutes lettres : « 2 régions », « 1 lieu ».
+        -- En toutes lettres : « 2 pays », « 2 régions », « 1 lieu ».
         local n = entry.count or 0
-        local noun = entry.kind == "zone" and (n > 1 and "lieux" or "lieu") or (n > 1 and "régions" or "région")
+        local noun = entry.kind == "continent" and "pays"
+            or entry.kind == "zone" and (n > 1 and "lieux" or "lieu")
+            or (n > 1 and "régions" or "région")
         row.count:SetText(n > 0 and (n .. " " .. noun) or "")
 
-        if entry.kind == "country" then
+        if entry.kind == "continent" then
+            local continent = entry.continent
+            local own = continent.creator == MyName()
+            row.label:SetText(string.upper(continent.name or "") .. (own and "" or "  |cff888888(" .. continent.creator .. ")|r"))
+            row.sel:SetShown(panel.mode == "continent" and panel.continentId == continent.id)
+            row.leftClick = function() Select("continent", continent.id) end
+            if own then
+                row.context = {
+                    { text = continent.name, title = true },
+                    { text = "Ouvrir", func = row.leftClick },
+                    { text = "Nouveau pays ici", func = function() CREER.Pays(continent.id) end },
+                    { text = "Supprimer le continent…", func = function() panel:DeleteContinent(continent.id) end },
+                }
+            end
+        elseif entry.kind == "country" then
             local country = entry.country
             local own = country.creator == MyName()
             row.label:SetText(string.upper(country.name or "") .. (own and "" or "  |cff888888(" .. country.creator .. ")|r"))
@@ -873,7 +960,10 @@ function panel:RefreshTree()
             end
         elseif entry.kind == "create" then
             row.sel:Hide()
-            if entry.what == "zone" then
+            if entry.what == "pays" then
+                row.label:SetText("|cffd9b84d+  Nouveau pays|r")
+                row.leftClick = function() CREER.Pays(entry.continentId) end
+            elseif entry.what == "zone" then
                 row.label:SetText("+  Nouvelle région")
                 row.leftClick = function() CreateRegion(entry.countryId) end
             elseif entry.what == "porte" then
@@ -926,7 +1016,8 @@ function panel:RefreshTree()
     for i = #entries + 1, #treeRows do treeRows[i]:Hide() end
     treeContent:SetHeight(math.max(1, y))
     local empty = #ZG:GetZoneList() == 0 and #ZG:GetCountryList() == 0
-    treeEmpty:SetText(empty and "Rien pour l'instant.\nCréez un pays ou une région ci-dessus." or "Aucun résultat.")
+        and #ZG:GetContinentList() == 0
+    treeEmpty:SetText(empty and "Rien pour l'instant.\nCréez un continent, un pays ou une région ci-dessus." or "Aucun résultat.")
     treeEmpty:SetShown(#entries == 0)
     treeScroll:SetVerticalScroll(math.min(treeScroll:GetVerticalScroll(), math.max(0, y - treeScroll:GetHeight())))
 end
@@ -1016,6 +1107,16 @@ function panel:DeleteCountry(id)
     Confirm("Supprimer ce pays ? Ses régions sont conservées, sans pays.", function()
         ZG:RemoveCountry(id)
         if panel.mode == "country" and panel.countryId == id then panel.mode = nil end
+        panel:RefreshAll()
+    end)
+end
+
+function panel:DeleteContinent(id)
+    local n = #ZG:GetCountryList(id)
+    Confirm(string.format("Supprimer ce continent ? Ses %d pays %s conservé%s, sans continent.",
+        n, n > 1 and "sont" or "est", n > 1 and "s" or ""), function()
+        ZG:RemoveContinent(id)
+        if panel.mode == "continent" and panel.continentId == id then panel.mode = nil end
         panel:RefreshAll()
     end)
 end
@@ -1257,6 +1358,60 @@ function Gestes.Dire(c, own)
     end
 end
 
+-- ── Fiche Continent ─────────────────────────────────────────────────────────
+-- Un continent range des PAYS comme un pays range des régions : un nom, la
+-- liste de ce qu'il contient, et rien d'autre. Pas de carte à lui — sa
+-- géographie, c'est celle de ses pays, et chacun a déjà la sienne.
+--
+-- Rangé sur `panel` plutôt qu'en locaux : ce fichier vit au plafond des 200
+-- variables locales de Lua 5.1, au-delà duquel il ne se charge plus du tout.
+panel.cont = {}
+panel.cont.form = CreateFrame("Frame", nil, form)
+panel.cont.form:SetAllPoints()
+Label(panel.cont.form, "CONTINENT", M, 4, FORM_W - 2 * M)
+panel.cont.nom = EditBox(panel.cont.form, M, 24, FORM_W - 2 * M)
+panel.cont.nom:SetScript("OnTextChanged", function(self)
+    if panel.suppressEvents or panel.mode ~= "continent" then return end
+    ZG:RenameContinent(panel.continentId, self:GetText())
+    panel:RefreshTree()
+end)
+panel.cont.mot = Caption(panel.cont.form, "", M + 2, 74, FORM_W - 2 * M)
+panel.cont.mot:SetHeight(40); panel.cont.mot:SetJustifyV("TOP")
+panel.cont.ajouter = Button(panel.cont.form, "+ Nouveau pays dans ce continent", M, 140, 300)
+panel.cont.ajouter:SetScript("OnClick", function() CREER.Pays(panel.continentId) end)
+panel.cont.jeter = DangerButton(panel.cont.form, "Supprimer le continent", 220)
+panel.cont.jeter:SetScript("OnClick", function() panel:DeleteContinent(panel.continentId) end)
+panel.cont.jeter:ClearAllPoints()
+Place(panel.cont.jeter, panel.cont.form, FORM_W - M - 220, 140)
+panel.cont.liste = Caption(panel.cont.form, "", M + 2, 190, FORM_W - 2 * M)
+panel.cont.liste:SetHeight(260); panel.cont.liste:SetJustifyV("TOP")
+
+function panel:RefreshContinentForm()
+    local continent = ZG:GetContinent(panel.continentId)
+    if not continent then return end
+    local own = continent.creator == MyName()
+    panel.suppressEvents = true
+    panel.cont.nom:SetText(continent.name or "")
+    panel.suppressEvents = false
+    panel.cont.nom:SetEnabled(own)
+    local pays = ZG:GetCountryList(continent.id)
+    local regions = 0
+    local noms = {}
+    for _, country in ipairs(pays) do
+        local n = #ZG:GetCountryZones(country.id)
+        regions = regions + n
+        noms[#noms + 1] = string.format("|cffe6c94d%s|r  ·  %d %s",
+            country.name or "", n, n > 1 and "régions" or "région")
+    end
+    panel.cont.mot:SetText(string.format("%d pays, %d région(s) en tout.%s",
+        #pays, regions,
+        own and "" or ("  |cff888888Continent de " .. continent.creator .. " : il se regarde, il ne se modifie pas.|r")))
+    panel.cont.liste:SetText(#noms > 0 and table.concat(noms, "\n")
+        or "Aucun pays ici pour l'instant.")
+    panel.cont.ajouter:SetShown(own)
+    panel.cont.jeter:SetShown(own)
+end
+
 -- ── Fiche Pays ──────────────────────────────────────────────────────────────
 
 local countryForm = CreateFrame("Frame", nil, form)
@@ -1268,6 +1423,25 @@ countryName:SetScript("OnTextChanged", function(self)
     ZG:RenameCountry(panel.countryId, self:GetText())
     panel:RefreshTree()
 end)
+-- Dans quel continent ce pays se range. « Aucun » le laisse au ras de
+-- l'arbre, là où les pays ont toujours été.
+Label(countryForm, "Dans", FORM_W - M - 252, 4, 252)
+local countryParent = Dropdown(countryForm, FORM_W - M - 252, 24, 252)
+countryParent.items = function()
+    local items = { { text = "(Aucun continent)", value = "" } }
+    for _, continent in ipairs(ZG:GetContinentList()) do
+        if continent.creator == MyName() then
+            items[#items + 1] = { text = continent.name, value = continent.id }
+        end
+    end
+    return items
+end
+countryParent.onSelect = function(value)
+    ZG:SetCountryContinent(panel.countryId, value)
+    panel:RefreshAll()
+end
+countryName:ClearAllPoints()
+Place(countryName, countryForm, M, 24, FORM_W - 2 * M - 268)
 local countryInfo = Caption(countryForm, "", M + 2, 74, FORM_W - 2 * M)
 local countryAdd = Button(countryForm, "+ Nouvelle région dans ce pays", M, 140, 300)
 countryAdd:SetScript("OnClick", function() CreateRegion(panel.countryId) end)
@@ -1342,8 +1516,10 @@ local function RefreshCountryForm()
     countryName:SetText(country.name or "")
     panel.suppressEvents = false
     countryName:SetEnabled(own)
-    local n = 0
-    for _, zone in ipairs(ZG:GetZoneList()) do if zone.countryId == country.id then n = n + 1 end end
+    local continent = ZG:GetContinent(country.continentId)
+    countryParent:SetText(continent and continent.name or "(Aucun continent)")
+    SetDropdownEnabled(countryParent, own)
+    local n = #ZG:GetCountryZones(country.id)
     countryInfo:SetText(string.format("%d région(s). Un pays sert seulement à ranger vos régions : il n'apparaît pas dans la bannière.\nGlissez une région de la liste de gauche sur un pays pour l'y ranger.%s",
         n, own and "" or "\nAuteur : " .. country.creator))
     countryAdd:SetShown(own)
@@ -1513,7 +1689,9 @@ passageActive:SetScript("OnClick", function(self)
 end)
 -- Changer de forme déménage l'objet dans l'autre onglet : on l'y suit, sinon
 -- il semblerait avoir disparu.
-Label(editor, "Forme", FORM_W - M - 282, 0, 280)
+-- Nommé, et caché avec ses boutons : la couleur du lieu prend exactement sa
+-- place, et les deux titres se superposaient en bouillie (3 novembre 2026).
+panel.formeMot = Label(editor, "Forme", FORM_W - M - 282, 0, 280)
 local shapeLineBtn = Button(editor, "Passage droit", FORM_W - M - 282, 18, 136)
 local shapeRegionBtn = Button(editor, "Zone dessinée", FORM_W - M - 136, 18, 136)
 shapeLineBtn:SetScript("OnClick", function()
@@ -2526,7 +2704,7 @@ carte.contourMot:SetJustifyV("TOP")
 carte.hint = Caption(cartePage, "", M, CARTE_H + 6, FORM_W - 2 * M)
 carte.hint:SetHeight(34)
 carte.hint:SetJustifyV("TOP")
-carte.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une zone ouvre son lieu.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre »."
+carte.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une zone ouvre son lieu ; le carré violet d'un bâtiment se glisse pour le déplacer dans la région.\nPour une frontière : cliquez autant de sommets d'une zone que de sa voisine, puis « Les confondre »."
 carte.etranger = "Région d'un autre auteur : la carte se regarde, elle ne se modifie pas."
 Gestes.Poser(carte, cartePage, CARTE_H + 44)
 -- Une zone qui ne mène à aucun lieu n'a plus de fiche où se régler depuis que
@@ -2801,6 +2979,7 @@ local function RefreshGeoEditor(page, scope, own)
     shapeRegionBtn.accent:SetShown(isPolygon)
     shapeLineBtn:SetShown(own and scope == "doors")
     shapeRegionBtn:SetShown(own and scope == "doors")
+    panel.formeMot:SetShown(own and scope == "doors")
 
     -- La couleur du lieu prend la place de « Forme », que la fiche d'un lieu
     -- ne montre pas : un lieu dessine une étendue, on n'en change pas.
@@ -2851,6 +3030,17 @@ local function RefreshGeoEditor(page, scope, own)
     local editing = isPolygon and own and not sub.regionReady
     addPointBtn:Hide(); undoPointBtn:Hide(); clearPointsBtn:Hide(); borderBtn:Hide()
     traceBtn:SetShown(editing)
+    -- L'étage ne concerne qu'une PIÈCE : un lieu à ciel ouvert n'en a pas, et
+    -- le bâtiment lui-même les porte tous.
+    local piece = place ~= nil and ZG:BatimentDe(place) ~= nil and not ZG:EstBatiment(place)
+    panel.etage.mot:SetShown(piece)
+    panel.etage.champ:SetShown(piece)
+    if piece then
+        panel.suppressEvents = true
+        panel.etage.champ:SetText(tostring(ZG:GetNiveau(place)))
+        panel.suppressEvents = false
+        panel.etage.champ:SetEnabled(own)
+    end
     declareBorderBtn:SetShown(isPolygon and own and sub.points ~= nil and #sub.points >= 3)
     finishRegionBtn:SetShown(isPolygon and own)
     -- Les auras d'une ZONE se règlent dans l'onglet Aura de son lieu ; il ne
@@ -2995,6 +3185,26 @@ placeParent.onSelect = function(value)
     ZG:SetPlaceParent(panel.placeId, value)
     panel:RefreshAll()
 end
+-- L'ÉTAGE d'une pièce : 0 au rez, négatif dans les caves, de -8000 à 8000.
+-- Il ne sert qu'à l'affichage — on ne montre d'un bâtiment qu'un étage à la
+-- fois, sans quoi ses cloisons se superposeraient toutes sur le même plan.
+-- C'est la tranche d'altitude, elle, qui décide où l'on est vraiment.
+--
+-- Rangé sur `panel` : ce fichier vit au plafond des 200 variables locales.
+--
+-- Il vit dans la colonne de droite de l'onglet Zone, juste au-dessus de
+-- « Gérer les frontières » : coincé entre le nom du lieu et son rangement, il
+-- écrasait les deux (3 novembre 2026).
+panel.etage = {}
+panel.etage.mot = Caption(radarRow, "Étage", SIDE_X, 70, 50)
+panel.etage.champ = EditBox(radarRow, SIDE_X + 54, 62, 70, FIELD_H, 6)
+panel.etage.Poser = function()
+    if panel.suppressEvents or panel.mode ~= "place" then return end
+    ZG:SetNiveau(panel.placeId, panel.etage.champ:GetText())
+    panel:RefreshAll()
+end
+panel.etage.champ:SetScript("OnEnterPressed", panel.etage.Poser)
+panel.etage.champ:SetScript("OnEditFocusLost", panel.etage.Poser)
 local placeStatus = Caption(placeForm, "", M + 2, 70, FORM_W - 2 * M)
 
 -- L'onglet Zone : la zone de CE lieu se règle là où on règle le lieu. Il
@@ -3015,9 +3225,17 @@ panel.placeTabs = placeTabs
 -- Les réglages de hauteur vivent dans cette table mais se posent sur
 -- geoPage : ils appartiennent à l'onglet Zone, et une table de plus coûterait
 -- un local dont ce fichier n'a plus.
-local bati = { page = placePages.carte, H = 408, Y = 32 }
+-- Deux lignes au-dessus de la carte plutôt qu'une : l'empreinte se trace
+-- d'un côté, l'emplacement se pose de l'autre, et ils ne parlent pas du même
+-- endroit du monde. La carte descend d'autant et se raccourcit d'autant : ce
+-- qui vient dessous ne bouge pas.
+local bati = { page = placePages.carte, H = 392, Y = 48 }
 bati.map = ZG.CreateZoneMap(bati.page, FORM_W - 2 * M, bati.H, {
     Batiment = function() return ZG:FindPlace(panel.placeId) end,
+    -- L'étage qu'on travaille : la carte ne montre que ses cloisons. Trois
+    -- niveaux posés sur le même plan ne se lisent plus, et on souderait au
+    -- hasard d'un étage à l'autre.
+    Etage = function() return panel.batiNiveau or 0 end,
     OuvrirZone = function(sub)
         local lieu = sub and sub.enterPlace and ZG:FindPlace(sub.enterPlace)
         -- Le nom de l'empreinte, c'est le bâtiment lui-même : on y est déjà.
@@ -3031,12 +3249,40 @@ bati.map = ZG.CreateZoneMap(bati.page, FORM_W - 2 * M, bati.H, {
 })
 Place(bati.map, bati.page, M, bati.Y)
 panel.batiMap = bati.map
-bati.contour = Button(bati.page, "Reprendre l'empreinte au sol", M, 0, 300)
+bati.contour = Button(bati.page, "Reprendre l'empreinte au sol", M, 0, 230)
 bati.contour:SetScript("OnClick", function()
     local sub = ZG:GetBatimentArea(panel.placeId)
     if sub then panel:EnterTrace(sub.id) end
 end)
-bati.mot = Caption(bati.page, "", M + 310, 8, FORM_W - 2 * M - 310)
+-- L'EMPLACEMENT : où le bâtiment se tient dans sa région, pour qui le regarde
+-- du dehors. Son intérieur, lui, est bâti où l'on veut sur la carte du monde
+-- — sous elle, le plus souvent, pour les images par seconde. Les deux n'ont
+-- aucune raison d'être au même endroit, et c'est tout l'objet de ce bouton.
+bati.poser = Button(bati.page, "Poser l'emplacement ici", M + 238, 0, 190)
+bati.poser:SetScript("OnClick", function()
+    if ZG:PoserEmplacementIci(panel.placeId) then panel:RefreshAll() end
+end)
+bati.oublier = Button(bati.page, "L'oublier", M + 436, 0, 90)
+bati.oublier:SetScript("OnClick", function()
+    if ZG:ClearEmplacement(panel.placeId) then panel:RefreshAll() end
+end)
+-- L'ÉTAGE qu'on travaille. Il ne crée rien : il choisit lequel des plans
+-- existants la carte montre. Pour en ouvrir un nouveau, on pose une pièce et
+-- on lui donne son niveau dans sa fiche.
+bati.etage = Dropdown(bati.page, M + 534, 0, 114)
+bati.etage.items = function()
+    local items = {}
+    for _, n in ipairs(ZG:GetNiveauxBatiment(panel.placeId)) do
+        items[#items + 1] = { text = "Étage " .. n, value = n }
+    end
+    return items
+end
+bati.etage.onSelect = function(value)
+    panel.batiNiveau = tonumber(value) or 0
+    bati.map.cadree = nil
+    panel:RefreshAll()
+end
+bati.mot = Caption(bati.page, "", M, 30, FORM_W - 2 * M)
 bati.hint = Caption(bati.page, "", M, 32 + 408 + 6, FORM_W - 2 * M)
 bati.hint:SetHeight(34); bati.hint:SetJustifyV("TOP")
 bati.repos = "Glissez un sommet pour le déplacer, clic droit sur une arête pour en ajouter un, clic droit dans le vide pour tout désélectionner. Le nom d'une pièce ouvre sa fiche.\nPour une cloison : cliquez autant de sommets d'une pièce que de sa voisine, puis « Les confondre »."
@@ -3044,26 +3290,45 @@ bati.etranger = "Bâtiment d'un autre auteur : la carte se regarde, elle ne se m
 Gestes.Poser(bati, bati.page, 32 + 408 + 44)
 panel.batiBoutons = { fit = bati.fit, weld = bati.weld, unweld = bati.unweld,
                       clear = bati.clear, undo = bati.undo, hint = bati.hint,
-                      contour = bati.contour }
+                      contour = bati.contour, poser = bati.poser, oublier = bati.oublier }
 
 function panel:RefreshBatiCarte(own)
     bati.own = own
     local empreinte = ZG:GetBatimentArea(panel.placeId)
     local pieces = #ZG:GetPieceList(panel.placeId)
+    local lieu = ZG:FindPlace(panel.placeId)
+    -- L'étage retenu doit exister dans CE bâtiment : en changeant de fiche on
+    -- retomberait sinon sur un plan vide sans comprendre pourquoi.
+    local niveaux = ZG:GetNiveauxBatiment(panel.placeId)
+    local connu = false
+    for _, n in ipairs(niveaux) do if n == panel.batiNiveau then connu = true end end
+    if not connu then
+        panel.batiNiveau = niveaux[1] or 0
+        for _, n in ipairs(niveaux) do if n == 0 then panel.batiNiveau = 0 end end
+    end
+    bati.etage:SetText("Étage " .. panel.batiNiveau)
+    bati.etage:SetShown(#niveaux > 1)
     bati.contour:SetShown(own and empreinte ~= nil)
+    bati.poser:SetShown(own)
+    bati.oublier:SetShown(own and lieu ~= nil and lieu.emplacement ~= nil)
     if empreinte then
         local n = #(empreinte.points or {})
-        bati.mot:SetText(string.format("Empreinte : %d sommet(s)%s · %s%s",
+        -- L'emplacement se dit ici aussi : c'est la seule page où l'on voie
+        -- d'un coup ce que le bâtiment occupe ET où il se montre.
+        local pose = lieu and lieu.emplacement
+        bati.mot:SetText(string.format("Empreinte : %d sommet(s)%s · %s%s · %s",
             n, empreinte.regionReady and ", fermée" or ", |cffe6c94dpas encore fermée|r",
             pieces > 0 and (pieces .. " pièce(s)") or "aucune pièce",
             (empreinte.bas or empreinte.haut)
                 and string.format(" · %d yd sous, %d yd sur le sol", empreinte.bas or 0, empreinte.haut or 0)
-                or " · |cffe6c94dhauteur infinie : ce n'est pas encore un intérieur|r"))
+                or " · |cffe6c94dhauteur infinie : ce n'est pas encore un intérieur|r",
+            pose and string.format("emplacement posé (%d, %d)", pose.x, pose.y)
+                 or "|cffe6c94dpas d'emplacement : c'est l'empreinte qui fait le point sur la carte|r"))
     else
         bati.mot:SetText("")
     end
-    if bati.map.cadree ~= panel.placeId then
-        bati.map.cadree = panel.placeId
+    if bati.map.cadree ~= panel.placeId .. "/" .. panel.batiNiveau then
+        bati.map.cadree = panel.placeId .. "/" .. panel.batiNiveau
         bati.map:Fit()
     end
     bati.map:Draw()
@@ -3344,7 +3609,10 @@ end
 
 function panel:RefreshForm()
     countryForm:Hide(); zoneForm:Hide(); placeForm:Hide(); placeholder:Hide()
-    if self.mode == "country" and ZG:GetCountry(self.countryId) then
+    panel.cont.form:Hide()
+    if self.mode == "continent" and ZG:GetContinent(self.continentId) then
+        self:RefreshContinentForm(); panel.cont.form:Show()
+    elseif self.mode == "country" and ZG:GetCountry(self.countryId) then
         RefreshCountryForm(); countryForm:Show()
     elseif self.mode == "zone" and ZG:GetZone(self.zoneId) then
         RefreshZoneForm(); zoneForm:Show()
@@ -3356,6 +3624,7 @@ function panel:RefreshForm()
 end
 
 function panel:RefreshAll()
+    if self.mode == "continent" and not ZG:GetContinent(self.continentId) then self.mode = nil end
     if self.mode == "country" and not ZG:GetCountry(self.countryId) then self.mode = nil end
     if self.mode == "zone" and not ZG:GetZone(self.zoneId) then self.mode = nil end
     if self.mode == "place" then

@@ -10,7 +10,10 @@ w.Draw=function(self,...) draws=draws+1;return draw(self,...) end
 local wheel=w.canvas:GetScript('OnMouseWheel');local update=w:GetScript('OnUpdate')
 GetCursorPosition=function() return 300,-200 end
 local es=w.canvas:GetEffectiveScale();local ox,oy=300/es,200/es
-local wx=100-(ox-464);local wy=200-(oy-272)
+-- Le centre du cadre se CALCULE : la fenetre a change de largeur le 3
+-- novembre 2026, et des coordonnees ecrites en dur visaient a cote.
+local CW2,CH2=w.canvas:GetWidth()/2,w.canvas:GetHeight()/2
+local wx=100-(ox-CW2);local wy=200-(oy-CH2)
 local function anchor()
  local x,y=w:ToScreen(wx,wy)
  local _,_,_,tx,ty=w.scene:GetPoint()

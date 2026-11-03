@@ -206,22 +206,33 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     end
 
     -- Un bâtiment ne s'étale pas sur la carte de sa région : il s'y marque
-    -- d'un rond, son nom au-dessus. Sa carte à lui s'ouvre d'un clic — un
+    -- d'un CARRÉ, son nom au-dessus. Sa carte à lui s'ouvre d'un clic — un
     -- intérieur dessiné à plat sur l'extérieur ne se lisait pas, et ses
     -- cloisons noyaient le reste.
+    --
+    -- Ce carré se glisse comme un sommet : c'est LUI qui dit où le bâtiment
+    -- se tient pour qui le regarde du dehors. Son intérieur, lui, est bâti où
+    -- l'on veut sur la carte du monde — souvent sous elle, pour les images par
+    -- seconde — et le dessiner là-bas posait le temple à des lieues de son
+    -- village (3 novembre 2026).
     local rondPool, nRond = {}, 0
-    local function Rond(x, y, color)
+    local function Rond(x, y, color, choisi)
         nRond = nRond + 1
         local t = rondPool[nRond]
         if not t then
-            t = sommets:CreateTexture(nil, "OVERLAY")
-            t:SetTexture("Interface\\COMMON\\Indicator-Gray")
-            t:SetSize(18, 18)
+            t = { bord = sommets:CreateTexture(nil, "ARTWORK"),
+                  coeur = sommets:CreateTexture(nil, "OVERLAY") }
             rondPool[nRond] = t
         end
-        t:SetVertexColor(color[1], color[2], color[3], 1)
-        t:ClearAllPoints(); t:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
-        t:Show()
+        local cote = POIGNEE + 4 + (choisi and 4 or 0)
+        t.bord:ClearAllPoints(); t.bord:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
+        t.bord:SetSize(cote + 4, cote + 4)
+        t.bord:SetColorTexture(choisi and 1 or 0, choisi and .85 or 0, choisi and .25 or 0, choisi and 1 or .8)
+        t.bord:Show()
+        t.coeur:ClearAllPoints(); t.coeur:SetPoint("CENTER", scene, "TOPLEFT", x, -y)
+        t.coeur:SetSize(cote, cote)
+        t.coeur:SetColorTexture(color[1], color[2], color[3], 1)
+        t.coeur:Show()
     end
 
     -- ── Le terrain sous le tracé ─────────────────────────────────────────
@@ -426,11 +437,16 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
     end
 
     -- La carte du jeu affichée : celle où ces régions ont le plus de zones.
+    -- Les INTÉRIEURS n'y votent pas : un bâtiment dont l'intérieur est bâti
+    -- sur une autre carte du jeu — ou une cave à vingt pièces — emporterait
+    -- le choix, et la région se viderait de tout ce qu'elle montre.
     local function CarteDuJeu(zones)
         local comptes, meilleure = {}, nil
         for _, zone in ipairs(zones) do
             for _, sub in pairs(zone.subZones or {}) do
-                if sub.mapID then comptes[sub.mapID] = (comptes[sub.mapID] or 0) + 1 end
+                if sub.mapID and not ZG:EstInterieur(sub) and not ZG:EstEmpreinteBatiment(sub) then
+                    comptes[sub.mapID] = (comptes[sub.mapID] or 0) + 1
+                end
             end
         end
         for id, n in pairs(comptes) do
@@ -471,21 +487,35 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
                     -- au milieu d'eux.
                     local lieu = sub.enterPlace and zone.places and zone.places[sub.enterPlace]
                     local pourRegion = lieu ~= nil and lieu.pourRegion == true
-                    -- Un intérieur ne s'étale pas ici : les pièces d'un
-                    -- bâtiment n'ont rien à faire sur la carte de la région,
-                    -- et le bâtiment lui-même s'y marque d'un point. Sa carte
-                    -- à lui s'ouvre d'un clic sur ce point.
-                    if ZG:EstInterieur(sub) then
+                    -- Un intérieur ne s'étale pas ici : ni les pièces d'un
+                    -- bâtiment, ni son empreinte. Celle-ci est bâtie où l'on
+                    -- veut sur la carte du monde — le plus souvent SOUS elle,
+                    -- pour les images par seconde — et la dessiner ici aurait
+                    -- posé le temple à des lieues de son village. Le bâtiment
+                    -- se marque d'un carré, à l'emplacement qu'on lui a donné
+                    -- (voir plus bas) ; sa carte à lui s'ouvre d'un clic.
+                    if ZG:EstInterieur(sub) or ZG:EstEmpreinteBatiment(sub) then
                         -- rien
-                    elseif lieu and lieu.batiment and sub.shape == "polygon"
-                        and sub.points and #sub.points >= 1 then
-                        liste[#liste + 1] = { sub = sub, zone = zone, mienne = true,
-                                              tenue = tenue, marqueur = true, place = lieu }
                     elseif sub.shape == "polygon" and sub.points and #sub.points >= 2 then
                         liste[#liste + 1] = { sub = sub, zone = zone, mienne = true,
                                               tenue = tenue, region = pourRegion }
                     elseif sub.shape ~= "polygon" and sub.x then
                         liste[#liste + 1] = { sub = sub, zone = zone, mienne = true, porte = true, tenue = tenue }
+                    end
+                end
+            end
+            -- Les BÂTIMENTS, pris sur les lieux et non sur les zones : leur
+            -- emplacement est ici, leur empreinte ailleurs, et c'est
+            -- l'emplacement qu'on dessine. Les prendre sur les zones les
+            -- faisait disparaître dès que l'intérieur était bâti sur une
+            -- autre carte du jeu.
+            for _, lieu in pairs(zone.places or {}) do
+                if lieu.batiment then
+                    local m, ex, ey = ZG:GetEmplacement(lieu)
+                    if ex and (m == nil or m == carte) then
+                        liste[#liste + 1] = { sub = ZG:GetBatimentArea(lieu.id), zone = zone,
+                                              mienne = true, tenue = tenue, marqueur = true,
+                                              place = lieu, ex = ex, ey = ey }
                     end
                 end
             end
@@ -497,17 +527,20 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             if not miennes[autre.id] and autre.creator == Moi() then
                 for _, sub in pairs(autre.subZones or {}) do
                     if sub.shape == "polygon" and sub.mapID == carte and sub.points and #sub.points >= 2
-                        and not ZG:EstInterieur(sub) then
+                        and not ZG:EstInterieur(sub) and not ZG:EstEmpreinteBatiment(sub) then
                         liste[#liste + 1] = { sub = sub, zone = autre, mienne = false }
                     end
                 end
             end
         end
         -- Les contours de région d'abord : ils passent dessous, et leurs noms
-        -- ne recouvrent pas ceux des lieux qu'ils contiennent.
+        -- ne recouvrent pas ceux des lieux qu'ils contiennent. Un marqueur de
+        -- bâtiment n'a pas forcément d'empreinte à qui emprunter un
+        -- identifiant : il se range alors sur celui de son lieu.
+        local function Rang(e) return (e.sub and e.sub.id) or (e.place and e.place.id) or "" end
         table.sort(liste, function(a, b)
             if (a.region or false) ~= (b.region or false) then return a.region == true end
-            return a.sub.id < b.sub.id
+            return Rang(a) < Rang(b)
         end)
         return liste, carte
     end
@@ -538,10 +571,16 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             end
         end
 
+        -- Un seul ÉTAGE à la fois : trois plans posés l'un sur l'autre ne se
+        -- lisent plus, et on souderait au hasard d'un niveau à l'autre.
+        -- L'empreinte, elle, reste toujours : c'est le contour, il vaut pour
+        -- tous les étages.
+        local etage = hooks.Etage and hooks.Etage() or 0
         local liste, carte = {}, nil
         for _, sub in pairs(zone.subZones or {}) do
             local lieu = sub.enterPlace and zone.places[sub.enterPlace]
-            if lieu and dedans[lieu.id] then
+            if lieu and dedans[lieu.id]
+                and (lieu.id == batiment.id or ZG:GetNiveau(lieu) == etage) then
                 carte = carte or sub.mapID
                 if lieu.id == batiment.id then
                     if sub.points and #sub.points >= 2 then
@@ -564,11 +603,19 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
     function map:Fit()
         local minx, maxx, miny, maxy
+        local function Prendre(x, y)
+            minx = math.min(minx or x, x); maxx = math.max(maxx or x, x)
+            miny = math.min(miny or y, y); maxy = math.max(maxy or y, y)
+        end
         for _, e in ipairs(self:Dessinables()) do
             if e.mienne then
-                for _, p in ipairs(e.sub.points) do
-                    minx = math.min(minx or p.x, p.x); maxx = math.max(maxx or p.x, p.x)
-                    miny = math.min(miny or p.y, p.y); maxy = math.max(maxy or p.y, p.y)
+                -- Un bâtiment tient dans son emplacement : son empreinte est
+                -- ailleurs sur la carte du monde, et la cadrer ferait reculer
+                -- la vue jusqu'à perdre la région.
+                if e.marqueur then
+                    if e.ex then Prendre(e.ex, e.ey) end
+                else
+                    for _, p in ipairs((e.sub and e.sub.points) or {}) do Prendre(p.x, p.y) end
                 end
             end
         end
@@ -708,13 +755,16 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         for i = 1, nCarre do
             carrePool[i].bord:Hide(); carrePool[i].coeur:Hide(); carrePool[i].point:Hide()
         end
-        for i = 1, nRond do rondPool[i]:Hide() end
+        for i = 1, nRond do rondPool[i].bord:Hide(); rondPool[i].coeur:Hide() end
         nTri, nTrait, nTex, nCarre, nRond = 0, 0, 0, 0, 0
         poignees, nomsCliquables, segments = {}, {}, {}
         -- Exposées pour le banc : il lit ce que le dessin a retenu.
         self.poignees, self.segments = poignees, segments
 
         local liste, carte = self:Dessinables()
+        -- Retenue : le glissement d'un emplacement doit savoir sur quelle
+        -- carte du jeu il repose son carré.
+        self.carteJeu = carte
         -- Le terrain suit la vue : il se repose à chaque dessin, comme le reste.
         self:PoserFondCarte(carte)
         local zone = Montrees()[1]
@@ -751,7 +801,7 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         local nordMin  = self.cy - (height / 2 + 20) / self.scale
         local total = 0
         for _, e in ipairs(liste) do
-            if e.mienne and e.tenue and e.sub.points then
+            if e.mienne and e.tenue and not e.marqueur and e.sub and e.sub.points then
                 for _, p in ipairs(e.sub.points) do
                     if p.x >= ouestMin and p.x <= ouestMax and p.y >= nordMin and p.y <= nordMax then
                         total = total + 1
@@ -766,33 +816,27 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
 
         local soudures = attrapables and ZG:WeldGroups() or {}
         for _, e in ipairs(liste) do
-            -- Un bâtiment : un rond violet, son nom au-dessus. Son tracé et
-            -- ses pièces se travaillent sur SA carte, qu'un clic ouvre.
+            -- Un bâtiment : un carré violet posé à son EMPLACEMENT, son nom
+            -- au-dessus. Son tracé et ses pièces se travaillent sur SA carte,
+            -- qu'un clic sur son nom ouvre ; le carré, lui, se glisse pour le
+            -- déplacer dans sa région.
             if e.marqueur then
-                local cx, cy, n = 0, 0, 0
-                for _, p in ipairs(e.sub.points or {}) do
-                    local x, y = self:ToScreen(p.x, p.y)
-                    cx, cy, n = cx + x, cy + y, n + 1
-                end
-                if n > 0 then
-                    cx, cy = cx / n, cy / n
-                elseif e.sub.x then
-                    -- Empreinte pas encore tracée : le point de pose fait foi.
-                    cx, cy = self:ToScreen(e.sub.x, e.sub.y)
-                    n = 1
-                end
-                if n > 0 then
-                    if cx > -60 and cx < width + 60 and cy > -40 and cy < height + 40 then
-                        Rond(cx, cy, BATIMENT)
-                        local nom = Texte(cx, cy - 17, e.sub.name or "", Clair(BATIMENT), false, 150)
-                        local large = math.min(150, nom:GetStringWidth()) + 10
-                        nomsCliquables[#nomsCliquables + 1] = {
-                            subId = e.sub.id, zoneId = e.zone.id, x = cx, y = cy - 17,
-                            w = large, h = nom:GetStringHeight() + 6,
-                        }
-                        -- Le rond se clique aussi : c'est lui qu'on vise.
-                        nomsCliquables[#nomsCliquables + 1] = {
-                            subId = e.sub.id, zoneId = e.zone.id, x = cx, y = cy, w = 20, h = 20,
+                local cx, cy = self:ToScreen(e.ex, e.ey)
+                if cx > -60 and cx < width + 60 and cy > -40 and cy < height + 40 then
+                    local choisi = self.emplacementPris == e.place.id
+                    Rond(cx, cy, BATIMENT, choisi)
+                    local nom = Texte(cx, cy - 19, e.place.name or "", Clair(BATIMENT), false, 150)
+                    local large = math.min(150, nom:GetStringWidth()) + 10
+                    nomsCliquables[#nomsCliquables + 1] = {
+                        subId = e.sub and e.sub.id, zoneId = e.zone.id, x = cx, y = cy - 19,
+                        w = large, h = nom:GetStringHeight() + 6,
+                    }
+                    -- Le carré se saisit comme un sommet, mais il n'en est
+                    -- pas un : il porte l'identifiant du LIEU, et c'est ce
+                    -- qui le distingue dans les poignées.
+                    if e.tenue then
+                        poignees[#poignees + 1] = {
+                            emplacement = e.place.id, zoneId = e.zone.id, x = cx, y = cy,
                         }
                     end
                 end
@@ -1117,6 +1161,15 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         if not ox then return end
         local mx, my = GetCursorPosition()
         local poignee = PoigneeSous(ox, oy)
+        -- Le carré d'un bâtiment : on déplace son EMPLACEMENT, pas un sommet.
+        -- Il n'entre donc ni dans la sélection ni dans la pile d'annulation —
+        -- un point qu'on repose d'un geste n'a rien à y faire.
+        if poignee and poignee.emplacement then
+            map.prise = { emplacement = poignee.emplacement, carte = map.carteJeu,
+                          mx = mx, my = my, bouge = false }
+            map.emplacementPris = poignee.emplacement
+            return
+        end
         if poignee then
             -- L'instantané se prend AVANT le premier pixel : à la fin du
             -- glissement l'ancienne position n'existe plus nulle part.
@@ -1138,8 +1191,27 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
         end
         local prise, pan, nomPris = map.prise, map.pan, map.nomPris
         map.prise, map.pan, map.nomPris = nil, nil, nil
+        map.emplacementPris = nil
         local mx, my = GetCursorPosition()
 
+        -- Le carré d'un bâtiment reposé : ce dernier appel, lui, diffuse.
+        -- Sans glissement, un clic dessus ouvre sa carte, comme son nom.
+        if prise and prise.emplacement then
+            if prise.bouge then
+                local ox, oy = Curseur()
+                if ox then
+                    local wx, wy = map:ToWorld(ox, oy)
+                    ZG:SetEmplacement(prise.emplacement, prise.carte, wx, wy)
+                end
+                map:Draw()
+                if hooks.Change then hooks.Change() end
+            elseif hooks.OuvrirZone then
+                local sub = ZG:GetBatimentArea(prise.emplacement)
+                local place, zone = ZG:FindPlace(prise.emplacement)
+                if sub then hooks.OuvrirZone(sub, zone or (place and ZG:GetZone(place.zoneId))) end
+            end
+            return
+        end
         if prise then
             if prise.bouge then
                 -- Le glissement a déplacé le sommet sans rien diffuser : ce
@@ -1196,7 +1268,11 @@ function ZG.CreateZoneMap(parent, width, height, hooks)
             self.prise.lastX,self.prise.lastY=mx,my
             self.prise.bouge = true
             local wx, wy = self:ToWorld(ox, oy)
-            ZG:MoveRegionPoint(self.prise.subId, self.prise.index, wx, wy, true)
+            if self.prise.emplacement then
+                ZG:SetEmplacement(self.prise.emplacement, self.prise.carte, wx, wy, true)
+            else
+                ZG:MoveRegionPoint(self.prise.subId, self.prise.index, wx, wy, true)
+            end
             self:Draw()
         elseif self.pan then
             local mx, my = GetCursorPosition()

@@ -22,15 +22,22 @@ Z:ShowRegionMap()
 local w=LCMCrossingsRegionMap
 w:ShowRegion(zone)
 w.cx,w.cy,w.scale=0,0,1;w:Draw()
-assert(#w.hoverAreas>0,'zones de survol absentes')
-title,subTitle=w:HoverAt(464,272)
+assert(#w.hoverAreas>0,"zones de survol absentes")
+-- Le centre de la carte se CALCULE : la fenetre a change de largeur le 3
+-- novembre 2026, et des coordonnees ecrites en dur visaient a cote.
+local CENTRE_X,CENTRE_Y=w:ToScreen(0,0)
+title,subTitle=w:HoverAt(CENTRE_X,CENTRE_Y)
 assert(title and title~=zone.name and subTitle~=place.name,'hover inconnu non masque')
+-- Sur la carte, le LIEU passe en gras et la region dessous, en plus fin
+-- (3 novembre 2026) : c'est le lieu qu'on vise, la region ne fait que le
+-- situer. La banniere, elle, garde l'ordre inverse — elle annonce qu'on
+-- entre dans une region, et nomme le lieu ensuite.
 Z:MarkLearnedZoneName(zone.id)
-title,subTitle=w:HoverAt(464,272)
-assert(title==zone.name and subTitle~=place.name,'noms non independants')
+title,subTitle=w:HoverAt(CENTRE_X,CENTRE_Y)
+assert(subTitle==zone.name and title~=place.name,'noms non independants')
 Z:MarkLearnedSubZoneName(place.id)
-title,subTitle=w:HoverAt(464,272)
-assert(title==zone.name and subTitle==place.name,'apprentissage joueur absent')
+title,subTitle=w:HoverAt(CENTRE_X,CENTRE_Y)
+assert(title==place.name and subTitle==zone.name,'apprentissage joueur absent')
 LCM.db.settings.modeJoueur=nil
 Z:MarkLearnedSubZoneName('autre-lieu-mj')
 LCM.db.settings.modeJoueur=true
@@ -44,10 +51,10 @@ for _,frame in ipairs(w.scene.__children) do
   end
  end
 end
-GetCursorPosition=function() return 464,-272 end
+GetCursorPosition=function() return CENTRE_X,-CENTRE_Y end
 w.canvas.__survol=true
 w:UpdateMapTooltip()
-assert(w.hoverTooltip and w.hoverTooltip:IsShown() and w.hoverTooltip.titre:GetText()==zone.name,'infobulle absente')
+assert(w.hoverTooltip and w.hoverTooltip:IsShown() and w.hoverTooltip.titre:GetText()==place.name,'infobulle absente')
 w.canvas:GetScript('OnLeave')()
 assert(not w.hoverTooltip,'infobulle persiste hors carte')
 Z:ForgetLearnedSubZoneName(place.id)

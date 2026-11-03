@@ -1,6 +1,6 @@
 -- Crossings dans la base commune (31 octobre 2026).
 --
--- Les pays, regions, lieux, passages et themes de banniere de Crossings
+-- Les continents, pays, regions, lieux, passages et themes de banniere de Crossings
 -- (Core/Crossings.lua) ne vivaient que dans la sauvegarde du MJ qui les avait
 -- crees (LCM_Crossings) : une sauvegarde perdue les emportait, et l'autre MJ
 -- ne les connaissait que s'il les avait vus passer en seance. Ils partent
@@ -9,8 +9,8 @@
 -- jamais livree dans l'addon joueur, ou l'on lirait les noms que Crossings
 -- masque.
 --
--- Une entree par chose : un pays, une region (avec ses lieux), un passage, un
--- theme. Un passage a part, et ses points plies en une chaine : un perimetre
+-- Une entree par chose : un continent, un pays, une region (avec ses lieux),
+-- un passage, un theme. Un passage a part, et ses points plies en une chaine : un perimetre
 -- peut compter 1500 sommets, et une region entiere ne tiendrait pas dans une
 -- cellule du Sheet.
 --
@@ -26,7 +26,7 @@ local LCM = _G.LCM
 if not LCM then return end
 
 local FAMILLE = "crossings"
-local GENRES = { pays = true, region = true, passage = true, theme = true }
+local GENRES = { continent = true, pays = true, region = true, passage = true, theme = true }
 
 LCM.CrossingsBase = LCM.Registre({
     nom = "élément Crossings", prefixe = "CrossingsBase",
@@ -72,6 +72,11 @@ local function Entrees()
     local db, moi, out = zg:GetDB(), Moi(), {}
     local function Ajouter(genre, id, label, donnees)
         out[id] = { id = id, genre = genre, label = tostring(label or id), auteur = moi, donnees = donnees }
+    end
+    for id, continent in pairs(db.continents or {}) do
+        if continent.creator == moi then
+            Ajouter("continent", id, continent.name, LCM.Copie(continent))
+        end
     end
     for id, pays in pairs(db.countries or {}) do
         if pays.creator == moi then Ajouter("pays", id, pays.name, LCM.Copie(pays)) end
@@ -155,12 +160,17 @@ function Base.Rendre()
     if not zg then return 0 end
     local db, rendus = zg:GetDB(), 0
     db.countries, db.zones, db.themes = db.countries or {}, db.zones or {}, db.themes or {}
-    -- Les regions d'abord : un passage se range dans la sienne.
-    for _, genre in ipairs({ "pays", "region", "theme", "passage" }) do
+    db.continents = db.continents or {}
+    -- Les regions d'abord : un passage se range dans la sienne. Et le
+    -- continent avant le pays, pour la meme raison.
+    for _, genre in ipairs({ "continent", "pays", "region", "theme", "passage" }) do
         for _, e in ipairs(Base.list) do
             if e.genre == genre then
                 local d = LCM.Copie(e.donnees)
-                if genre == "pays" and not db.countries[e.id] then
+                if genre == "continent" and not db.continents[e.id] then
+                    db.continents[e.id] = d
+                    rendus = rendus + 1
+                elseif genre == "pays" and not db.countries[e.id] then
                     db.countries[e.id] = d
                     rendus = rendus + 1
                 elseif genre == "region" and not db.zones[e.id] then
