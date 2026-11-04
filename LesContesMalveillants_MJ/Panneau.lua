@@ -3773,10 +3773,20 @@ function Pages.reseau(page, f)
     page.texte:SetJustifyH("LEFT")
     page.texte:SetJustifyV("TOP")
     page.texte:SetWordWrap(true)
-    page.HAUTEUR_LIGNE = 14
+    page.blocs = { page.texte }
+    page.LIGNES_PAR_BLOC = 20
 
-    -- Les lignes affichees. Tout le journal (400 lignes) dans un seul texte :
-    -- un terminal se lit d'un bloc, et un texte ne coute qu'un cadre.
+    local function Bloc(index)
+        if page.blocs[index] then return page.blocs[index] end
+        local texte = UI.Texte(page.zone.contenu, "", UI.C.texte, "GameFontHighlightSmall")
+        texte:SetJustifyH("LEFT")
+        texte:SetJustifyV("TOP")
+        texte:SetWordWrap(true)
+        page.blocs[index] = texte
+        return texte
+    end
+
+    -- Les lignes affichees restent en memoire dans Reseau.Journal().
     function page:Lignes()
         local out = {}
         for _, e in ipairs(R.Journal()) do
@@ -3797,8 +3807,24 @@ function Pages.reseau(page, f)
             lignes[1] = Teinte(GRIS, self.seulementProblemes and "> aucun problème depuis le chargement."
                 or "> en écoute… rien n'est encore passé.")
         end
-        self.texte:SetText(table.concat(lignes, "\n"))
-        local hauteur = #lignes * self.HAUTEUR_LIGNE + 6
+        -- Un FontString geant finit par etre tronque par le jeu. Son contenu
+        -- mesure alors moins que les 400 lignes supposees et la fin du scroll
+        -- tombe dans du vide. Chaque bloc reste court ; sa hauteur est celle
+        -- du texte vraiment rendu, retours a la ligne compris.
+        local hauteur, nombre = 0, 0
+        for debut = 1, #lignes, self.LIGNES_PAR_BLOC do
+            nombre = nombre + 1
+            local bloc = Bloc(nombre)
+            bloc:ClearAllPoints()
+            bloc:SetPoint("TOPLEFT", self.zone.contenu, "TOPLEFT", 0, -hauteur)
+            bloc:SetPoint("TOPRIGHT", self.zone.contenu, "TOPRIGHT", 0, -hauteur)
+            bloc:SetText(table.concat(lignes, "\n", debut,
+                math.min(#lignes, debut + self.LIGNES_PAR_BLOC - 1)))
+            bloc:Show()
+            hauteur = hauteur + math.max(14, bloc:GetStringHeight() or 0) + 2
+        end
+        for i = nombre + 1, #self.blocs do self.blocs[i]:Hide() end
+        hauteur = hauteur + 6
         self.zone:Regler(hauteur)
         -- Le plus recent en bas, et l'ecran le suit — comme un terminal.
         self.zone:Aller(math.max(0, hauteur - (self.zone:GetHeight() or 0)))

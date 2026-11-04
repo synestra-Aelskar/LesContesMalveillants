@@ -95,6 +95,12 @@ attendu("effacé", #R.Journal(), 0)
 dire("== le journal reste en mémoire et borné")
 for i = 1, R.JOURNAL_MAX + 20 do R.Recevoir("Nytherah-Apertus", string.format("%d:1:1:ici|", 100 + i), "WHISPER") end
 attendu("jamais plus de JOURNAL_MAX lignes", #R.Journal(), R.JOURNAL_MAX)
+page:Afficher()
+attendu("le journal est découpé en blocs courts", #page.blocs > 1, true)
+attendu("le dernier bloc contient le message récent",
+    __sansCouleur(page.blocs[#page.blocs]:GetText()):find("présence", 1, true) ~= nil, true)
+attendu("le bas du défilement correspond au contenu mesuré",
+    page.zone.decalage, math.max(0, page.zone.hauteurContenu - page.zone:GetHeight()))
 attendu("rien en sauvegarde", LCM.db.reseau == nil and (LCM_MJ_DB == nil or LCM_MJ_DB.reseau == nil), true)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
