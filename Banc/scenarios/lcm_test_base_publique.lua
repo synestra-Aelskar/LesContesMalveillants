@@ -51,4 +51,23 @@ recevoir("base_fin", {})
 attendu(LCM.Objets.Get(privee.id) == nil, "une entree MJ reste absente")
 attendu(LCM.db.basePublique[clePrivee] == nil, "une entree MJ n'est pas sauvegardee")
 
+-- Une synchronisation forcee n'expedie qu'une empreinte. Un joueur a jour
+-- ne demande pas la liste ; un joueur en retard la demande avant de comparer
+-- les revisions et de recuperer seulement ses entrees manquantes.
+local envoyes = {}
+local envoyer = LCM.Reseau.Envoyer
+LCM.Reseau.Envoyer = function(sujet, ...)
+    envoyes[#envoyes + 1] = sujet
+    return envoyer(sujet, ...)
+end
+recevoir("base=", { e = LCM.BasePublique.Empreinte(), m = 1 })
+local demandes = 0
+for _, sujet in ipairs(envoyes) do if sujet == "base_liste?" then demandes = demandes + 1 end end
+attendu(demandes == 0, "un joueur a jour ne redemande pas la liste")
+recevoir("base=", { e = "version_nouvelle", m = 1 })
+demandes = 0
+for _, sujet in ipairs(envoyes) do if sujet == "base_liste?" then demandes = demandes + 1 end end
+attendu(demandes == 1, "un joueur en retard demande la liste")
+LCM.Reseau.Envoyer = envoyer
+
 print("TOUT PASSE")

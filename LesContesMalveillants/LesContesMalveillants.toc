@@ -2,7 +2,7 @@
 ## Title: Les Contes Malveillants
 ## Notes: Systeme de jeu des Contes Malveillants
 ## Author: Syn'estra
-## Version: 0.3.6
+## Version: 0.3.7
 ## SavedVariables: LCM_DB, LCM_Journal, LCM_Crossings
 ## SavedVariablesPerCharacter: LCM_CharDB, LCM_CrossingsChar
 
@@ -119,6 +119,7 @@ Data\Receptions.lua
 # Interface
 UI\Kit.lua
 UI\Skin.lua
+UI\Synchro.lua
 UI\Fiche.lua
 UI\Personnages.lua
 UI\Creation.lua

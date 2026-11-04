@@ -1130,6 +1130,7 @@ function Fenetre.Comportement(f)
             self:Message("Synchronisation : personne à joindre.", UI.C.plein)
             return
         end
+        if UI.Synchro then UI.Synchro.Ouvrir() end
         self:SuivreSynchro()
     end
 

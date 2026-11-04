@@ -509,6 +509,19 @@ dire("== et le propriétaire arbitre la demande de l'autre MJ")
 local idGarni = MJ.Placer("coffre_garni_temoin")
 attendu("un coffre posé par moi", idGarni ~= nil, true)
 local pGarni = MJ.Points("coffre_garni_temoin")[1]
+dire("== la reponse d'ouverture passe avant l'annonce collective")
+local envOriginal = LCM.Reseau.Envoyer
+local etatsEnvoyes = {}
+LCM.Reseau.Envoyer = function(sujet, donnees, canal, cible, options)
+    if sujet == C.SUJETS.etat then
+        etatsEnvoyes[#etatsEnvoyes + 1] = { canal = canal, priorite = options and options.priorite }
+    end
+    return true, 1
+end
+MJ.Traiter("Syn-Apertus", { i = idGarni, a = "ouvrir" })
+LCM.Reseau.Envoyer = envOriginal
+attendu("reponse directe en premier", etatsEnvoyes[1] and etatsEnvoyes[1].canal, "WHISPER")
+attendu("reponse urgente", etatsEnvoyes[1] and etatsEnvoyes[1].priorite, "urgent")
 -- La reponse a un AUTRE MJ part en chuchotement : `onReponse` ne sert qu'aux
 -- reponses a soi-meme (MJ/Coffres.lua, Envoyer).
 -- Recollee : un etat de coffre garni depasse les 255 octets, et le reseau le

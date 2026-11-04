@@ -21,6 +21,7 @@ LCM.Fiches = Fiches
 
 local recues = {}
 local abonnements = {}
+local annoncesConsultation = {}
 local actualisationPlanifiee = false
 
 -- UnitName peut donner « Nom » pour un membre du meme royaume alors que
@@ -279,7 +280,8 @@ end
 
 -- ===== Cote MJ : demander ==================================================
 
-function Fiches.Demander(joueur)
+-- `silencieux` : lecture automatique du panneau MJ, sans annonce au joueur.
+function Fiches.Demander(joueur, silencieux)
     joueur = tostring(joueur or ""):gsub("^%s+", ""):gsub("%s+$", "")
     if joueur == "" then return false, "quel joueur ?" end
     if not LCM.IsMaster() then return false, "reserve au maitre du jeu." end
@@ -287,7 +289,7 @@ function Fiches.Demander(joueur)
     -- Les traces de ce trajet vont au journal ecrit (Core/Log.lua) : une
     -- fiche qui ne revient pas se diagnostique en lisant les deux journaux,
     -- celui du MJ et celui du joueur.
-    local ok, morceaux = LCM.Reseau.Envoyer("fiche?", {}, "WHISPER", joueur)
+    local ok, morceaux = LCM.Reseau.Envoyer("fiche?", silencieux and { s = 1 } or {}, "WHISPER", joueur)
     LCM.Trace(string.format("fiche demandée à %s : %s", joueur, ok and "envoyé" or "échec de l'envoi"))
     return ok, morceaux
 end
@@ -329,7 +331,7 @@ end
 
 LCM.WhenReady(function()
     -- On me demande ma fiche.
-    LCM.Reseau.Ecouter("fiche?", function(expediteur)
+    LCM.Reseau.Ecouter("fiche?", function(expediteur, donnees)
         LCM.Trace(string.format("demande de fiche reçue de %s", tostring(expediteur)))
         if not DansLeGroupe(expediteur) then
             LCM.Debug(string.format("fiche refusee a %s : hors du groupe.", tostring(expediteur)))
@@ -347,7 +349,10 @@ LCM.WhenReady(function()
             { etale = true, cle = "fiche:" .. tostring(expediteur) })
         LCM.Trace(string.format("fiche envoyée à %s : %s", tostring(expediteur),
             ok and (tostring(morceaux) .. " morceau(x)") or "échec de l'envoi"))
-        LCM.Info(string.format("%s a consulte ta fiche.", tostring(expediteur)))
+        if not (donnees and donnees.s) and not annoncesConsultation[tostring(expediteur)] then
+            annoncesConsultation[tostring(expediteur)] = true
+            LCM.Info(string.format("%s a consulte ta fiche.", tostring(expediteur)))
+        end
     end)
 
     -- Une fiche arrive.
@@ -361,6 +366,7 @@ LCM.WhenReady(function()
 
     LCM.Reseau.Ecouter("fiche-", function(expediteur)
         abonnements[tostring(expediteur)] = nil
+        annoncesConsultation[tostring(expediteur)] = nil
     end)
 
     -- La fiche reste en lecture seule cote MJ, mais suit les changements du

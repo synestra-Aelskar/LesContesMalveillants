@@ -140,4 +140,15 @@ R.OublierLesRedondantes()
 attendu("une surcharge différente survit", R.Surcharges()["fatigue.base"], 25)
 R.Retirer("fatigue.base")
 
+dire("== un joueur applique le reglage sans annonce dans sa discussion")
+local ancienMaitre, ancienneInfo = LCM.IsMaster, LCM.Info
+local annonces = 0
+LCM.IsMaster = function() return false end
+LCM.Info = function() annonces = annonces + 1 end
+__groupe({ "Akriaxx-Apertus" })
+LCM.Reseau.Recevoir("Akriaxx-Apertus", "999:1:1:regl|c=pa.base;v=12", "PARTY")
+attendu("le calcul utilise la nouvelle valeur", R.Lire("pa.base"), 12)
+attendu("aucune annonce au joueur", annonces, 0)
+LCM.IsMaster, LCM.Info = ancienMaitre, ancienneInfo
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

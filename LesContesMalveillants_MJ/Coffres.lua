@@ -61,7 +61,8 @@ local function Envoyer(expediteur, p, ok, extra)
         if C.onChange then LCM.Proteger("coffre", C.onChange) end
         if C.onReponse then LCM.Proteger("coffre (réponse)", C.onReponse, expediteur, data) end
     else
-        LCM.Reseau.Envoyer(S.etat, data, "WHISPER", expediteur)
+        LCM.Reseau.Envoyer(S.etat, data, "WHISPER", expediteur,
+            { etale = true, priorite = "urgent" })
     end
 end
 
@@ -287,7 +288,8 @@ function Coffres.Renvoyer(joueur)
             publique.auteur = LCM.PlayerId()
             C.Connaitre(publique, LCM.Copie(points), LCM.PlayerId())
             LCM.Reseau.Envoyer(S.definition, C.Paquet(publique, points),
-                joueur and "WHISPER" or Canal(), joueur, { etale = true })
+                joueur and "WHISPER" or Canal(), joueur,
+                { etale = true, priorite = joueur and "normal" or "fond" })
             n = n + 1
         end
     end
@@ -439,7 +441,8 @@ local function MettreAJour(p)
     end
     if canal then
         local data = Etat(p)
-        LCM.Reseau.Envoyer(S.etat, data, canal)
+        LCM.Reseau.Envoyer(S.etat, data, canal,
+            { etale = true, priorite = "fond", cle = "cof-etat:" .. tostring(p.id) })
     end
 end
 
@@ -484,8 +487,10 @@ function Coffres.Traiter(expediteur, req)
         return
     end
     if req.a == "ouvrir" then
-        if not p.verrouille then p.ouvert = true; MettreAJour(p) end
+        local changement = not p.verrouille and not p.ouvert
+        if not p.verrouille then p.ouvert = true end
         Repondre(true)
+        if changement then MettreAJour(p) end
         return
     end
     if req.a == "fermer" then

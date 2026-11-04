@@ -10,8 +10,8 @@
 --
 -- Deux temps :
 --   * chez le MJ qui clique : ses reglages en cours repartent au groupe, sa
---     liste de la base publique part a tous (chaque joueur reclame ce qui
---     lui manque, le compendium compris), et ce que le compagnon MJ a branche
+--     version de la base publique part a tous (un joueur en retard reclame
+--     la liste puis ce qui lui manque, le compendium compris), et ce que le compagnon MJ a branche
 --     ici (la file d'envoi des entrees vers les autres MJ) repart aussi ;
 --   * chez tout le monde, lui compris : « synchro! » fait relancer les
 --     demandes de connexion (base publique, coffres, recolte, vendeurs,
@@ -101,12 +101,15 @@ function Synchro.Progression()
     local R = LCM.Reseau
     local reste = (R and R.FileEnvoi and R.FileEnvoi()) or 0
     local envoyes = ((R and R.Expedies and R.Expedies()) or 0) - suivi.debut
+    local B = LCM.Brouillons
+    local attentes = (B and B.SynchronisationsEnAttente and B.SynchronisationsEnAttente()) or 0
     if not suivi.fini then
         local t = Maintenant()
-        if reste > 0 then suivi.actif = t end
-        if reste == 0 and t - suivi.actif >= Synchro.CALME then suivi.fini = true end
+        if reste > 0 or attentes > 0 then suivi.actif = t end
+        if reste == 0 and attentes == 0 and t - suivi.actif >= Synchro.CALME then suivi.fini = true end
     end
-    return { envoyes = envoyes, total = envoyes + reste, fini = suivi.fini == true }
+    return { envoyes = envoyes, total = envoyes + reste, attentes = attentes,
+             fini = suivi.fini == true }
 end
 
 function Synchro.EnCours()
@@ -130,10 +133,8 @@ function Synchro.Forcer()
             LCM.Erreur("synchro : " .. tostring(n))
         end
     end
-    -- La base publique, POUSSEE aux joueurs (le MJ, 3 novembre 2026 : « que
-    -- meme le compendium soit a jour chez eux »). Avant l'annonce : un joueur
-    -- qui recoit la liste ouvre sa session, et sa propre demande relancee
-    -- ensuite s'efface derriere elle au lieu de la doubler.
+    -- La version publique est annoncee aux joueurs avant « synchro! ».
+    -- Chacun demande la liste puis les definitions dont la revision differe.
     if LCM.BasePublique and LCM.BasePublique.Pousser then
         resume.base = LCM.BasePublique.Pousser()
         if resume.base > 0 then resume.annonce = true end

@@ -497,13 +497,22 @@ local function EnvoyerAttente(a)
         canal, cible = Canal()
         if not canal then return false end
     end
-    local avant = LCM.Reseau.FileEnvoi and LCM.Reseau.FileEnvoi() or 0
-    local ok, morceaux = LCM.Reseau.Envoyer("brouillon", a.donnees, canal, cible, { etale = true })
-    if not ok then return false end
     a.essais = a.essais + 1
-    -- L'accuse ne peut revenir qu'une fois tous les fragments sortis.
-    a.reste = math.max(5, (avant + (tonumber(morceaux) or 1))
-        * (LCM.Reseau.CADENCE or 0.25) + 3)
+    a.envoi = (a.envoi or 0) + 1
+    local envoi = a.envoi
+    -- La file peut etre freinee par WoW pendant une duree inconnue. Le delai
+    -- d'accuse commence seulement apres l'envoi du dernier fragment.
+    a.reste = math.huge
+    local ok = LCM.Reseau.Envoyer("brouillon", a.donnees, canal, cible,
+        { etale = true, onParti = function(parti)
+            if a.envoi ~= envoi then return end
+            if parti then a.reste = 8 else a.reste = 0 end
+        end })
+    if not ok then
+        a.essais = a.essais - 1
+        a.reste = 1
+        return false
+    end
     return true
 end
 
@@ -516,6 +525,9 @@ local function NoterMJ(nom)
     for cle, a in pairs(attentes) do
         if not a.cible then
             attentes[cle] = nil
+            -- L'ancien envoi collectif peut encore terminer : son retour ne
+            -- doit pas repousser le chuchotement fiable nouvellement choisi.
+            a.envoi = (a.envoi or 0) + 1
             a.cible, a.essais, a.reste = nom, 0, 0
             attentes[a.identifiant .. "\031" .. nom] = a
         end
@@ -524,8 +536,12 @@ end
 
 local function AnnoncerMJ()
     local canal, cible = Canal()
-    if canal then return LCM.Reseau.Envoyer("mj-sync?", {}, canal, cible) end
-    return false
+    local envoye = canal and LCM.Reseau.Envoyer("mj-sync?", {}, canal, cible) or false
+    -- Le canal d'addon peut manquer chez le binome alors que le groupe est
+    -- deja forme. Un MJ du groupe repond en prive ; un joueur ignore ce sujet.
+    local groupe = LCM.Combat and LCM.Combat.CanalGroupe and LCM.Combat.CanalGroupe()
+    if groupe then envoye = LCM.Reseau.Envoyer("mj-sync?", {}, groupe) or envoye end
+    return envoye
 end
 
 local function BattreLaMesure()

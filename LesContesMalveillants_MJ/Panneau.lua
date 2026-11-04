@@ -249,13 +249,35 @@ end
 -- tard a la main ne doit pas rester muette a cause d'elle.
 DemanderEnSilence = function(joueur)
     demandesFichesXP[joueur] = true
-    local ok = LCM.Fiches.Demander(joueur)
+    local ok = LCM.Fiches.Demander(joueur, true)
     if not ok then demandesFichesXP[joueur] = nil end
     if ok and C_Timer and C_Timer.After then
         C_Timer.After(60, function() demandesFichesXP[joueur] = nil end)
     end
     return ok
 end
+
+-- Rester abonne a la fiche d'un joueur COUTE CHER : il renvoie sa fiche
+-- entiere a chaque changement, en combat comme ailleurs. Abonne a tout le
+-- groupe, le Panel noyait le reseau, et une action mettait de longues
+-- secondes a passer (le MJ, 4 novembre 2026). On ne suit donc en continu que
+-- le joueur qu'on REGARDE : celui choisi dans la page Groupe, et celui dont
+-- la consultation est ouverte. Les autres donnent une fiche, puis on se
+-- desabonne ; elle se redemande d'elle-meme en vieillissant (Fiches.FRAICHEUR).
+local function Suivi(joueur)
+    local court = NomCourt(joueur)
+    local etats = Ecran.frame and Ecran.frame.pages and Ecran.frame.pages.etats
+    if etats and etats.joueurActif and NomCourt(etats.joueurActif) == court then return true end
+    local consultation = MJ.Consultation
+    if consultation and consultation.fenetre and consultation.fenetre:IsShown()
+        and consultation.joueur and NomCourt(consultation.joueur) == court then return true end
+    return false
+end
+
+local function LacherSiNonSuivi(joueur)
+    if joueur and not EstMoi(joueur) and not Suivi(joueur) then LCM.Fiches.Arreter(joueur) end
+end
+Ecran.Suivi = Suivi
 
 -- Ce panneau parle des PERSONNAGES suivis par le MJ. Le nom de compte reste
 -- seulement l'adresse reseau conservee dans `l.joueur` pour les boutons.
@@ -1788,12 +1810,15 @@ ConstruireEtats = function(page, proprio)
         -- La reception reste silencieuse tant que cet onglet suit ce joueur.
         -- Ne pas reutiliser les demandes XP : une reponse tardive ne doit pas
         -- avaler une consultation explicite faite depuis un autre onglet.
-        local ok, raison = LCM.Fiches.Demander(joueur)
+        local ok, raison = LCM.Fiches.Demander(joueur, true)
         if not ok then LCM.Alerte(tostring(raison)) end
     end
 
     function page:ChoisirJoueur(joueur)
+        local avant = self.joueurActif
         self.joueurActif = joueur
+        -- L'ancien n'est plus regarde : on cesse de suivre sa fiche.
+        if avant and avant ~= joueur then LacherSiNonSuivi(avant) end
         if joueur and not EstMoi(joueur) then self:DemanderEtats(joueur) end
         self.proprio:Afficher()
     end
@@ -3844,8 +3869,9 @@ local function Synchroniser()
         LCM.Alerte("synchronisation : personne à joindre (ni groupe, ni canal de l'addon).")
         return r
     end
-    LCM.Info(string.format("Synchronisation relancée : base publique (%d entrées) proposée à tous, "
-        .. "chacun reprend ce qui lui manque ; %d réglage(s) et %d entrée(s) en attente renvoyés aux MJ.",
+    if UI.Synchro then UI.Synchro.Ouvrir() end
+    LCM.Info(string.format("Synchronisation lancée : base publique (%d entrées) proposée aux joueurs ; "
+        .. "%d réglage(s) diffusés au groupe ; %d entrée(s) MJ mises en file (réception à confirmer).",
         r.base, r.reglages, r.envois))
     return r
 end
@@ -4682,6 +4708,9 @@ LCM.WhenReady(function()
     LCM.Fiches.onRecue = function(joueur, entity, actualisation)
         if not actualisation then LCM.Info(string.format("fiche de %s reçue.", tostring(joueur))) end
         local silencieuse = PrendreDemandeXP(joueur)
+        -- Une fiche prise pour la page Groupe (ou l'XP) d'un joueur qu'on ne
+        -- regarde pas : on la garde, et on cesse de la suivre.
+        if silencieuse then LacherSiNonSuivi(joueur) end
         local etats = Ecran.frame and Ecran.frame.pages.etats
         if etats and etats:IsVisible() and etats.joueurActif
             and NomCourt(etats.joueurActif) == NomCourt(joueur) then silencieuse = true end

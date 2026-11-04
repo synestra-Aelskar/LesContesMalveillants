@@ -17,7 +17,6 @@ local UI = LCM.UI
 local Menu = {}
 UI.Menu = Menu
 
-local ICONE = "Interface\\ICONS\\"
 local RADIAL = "Interface\\AddOns\\LesContesMalveillants\\ressources\\radial\\icones\\"
 
 -- ===== La structure, figee =================================================
@@ -91,7 +90,7 @@ Menu.STRUCTURE = {
       } },
     { id = "outils", label = "Outils", icone = RADIAL .. "fenetres-outils.tga",
       enfants = {
-          { id = "campement",  label = "Campement",  icone = ICONE .. "spell_fire_fire" },
+          { id = "campement",  label = "Campement",  icone = RADIAL .. "fenetres-campement.tga" },
           -- « Incarner » n'est plus ici (2 novembre 2026) : la page Scène & PNJ
           -- du Panel MJ met en scène et incarne, deux menus faisaient la meme
           -- chose (le MJ).

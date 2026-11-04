@@ -46,14 +46,20 @@ local avant = #envois
 p.synchroniser:Click()
 attendu("le réglage en cours repart", compte("regl", avant + 1) >= 1, true)
 attendu("l'annonce part", compte("synchro!", avant + 1) >= 1, true)
--- La liste de la base publique est POUSSEE (le MJ, 3 novembre 2026 : « que
--- meme le compendium soit a jour chez eux ») : une diffusion, pas un
--- chuchotement par joueur.
-attendu("la base publique est proposée à tous", compte("base_liste", avant + 1), 1)
+-- Une empreinte commune suffit : les joueurs a jour ne demandent rien.
+attendu("la version de la base est proposée à tous", compte("base=", avant + 1), 1)
 local liste
-for i = avant + 1, #envois do if envois[i].sujet == "base_liste" then liste = envois[i] end end
+for i = avant + 1, #envois do if envois[i].sujet == "base=" then liste = envois[i] end end
 attendu("  sur le canal commun, pas en chuchotement", liste and liste.canal ~= "WHISPER", true)
+attendu("  la liste complète ne part pas", compte("base_liste", avant + 1), 0)
+attendu("le panneau de transfert s'ouvre", LCM.UI.Synchro.frame:IsShown(), true)
+attendu("  avec un pourcentage", LCM.UI.Synchro.frame.pourcentage:GetText():match("^%d+ %%$") ~= nil, true)
 attendu("le MJ cherche ses binômes", compte("mj-sync?", avant + 1) >= 1, true)
+local chercheGroupe = false
+for i = avant + 1, #envois do
+    if envois[i].sujet == "mj-sync?" and envois[i].canal == "PARTY" then chercheGroupe = true end
+end
+attendu("il les cherche aussi dans le groupe", chercheGroupe, true)
 LCM.Reglages.Retirer("pv.base")
 
 dire("== la file d'envoi repart vers les autres MJ")
@@ -63,6 +69,15 @@ avant = #envois
 local r = LCM.Synchro.Forcer()
 attendu("l'entrée de la file est renvoyée", compte("brouillon", avant + 1) >= 1, true)
 attendu("  et comptée", r.envois >= 1, true)
+avant = #envois
+R.Recevoir("Binome-Apertus", "905:1:1:mj-sync|", "WHISPER")
+__avancer(0.6)
+local direct = false
+for i = avant + 1, #envois do
+    if envois[i].sujet == "brouillon" and envois[i].canal == "WHISPER"
+        and envois[i].cible == "Binome-Apertus" then direct = true end
+end
+attendu("la réponse du binôme déclenche l'envoi direct", direct, true)
 LCM.Brouillons.Remove("jeux", "essai_synchro")
 
 dire("== recevoir l'annonce")

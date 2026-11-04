@@ -2771,13 +2771,15 @@ local function DeclarerEffet(etape, ctx, suite)
                 Actions.Annoncer(string.format("%s lance %s : %s.", LCM.Identite.NomEnJeu(ctx.entity),
                     e.debuff and "un débuff" or "un buff", e.nom))
             end
-            for _, j in ipairs(joueurs) do LCM.Reseau.Envoyer("etat", paquet, "WHISPER", j) end
+            for _, j in ipairs(joueurs) do
+                LCM.Reseau.Envoyer("etat", paquet, "WHISPER", j, { priorite = "urgent" })
+            end
             for _, p in ipairs(pnj) do
                 local copie = LCM.Copie(paquet)
                 copie.p, copie.pn = p.id, p.nom
                 local mj = p.mj or LCM.PlayerId()
                 if mj == LCM.PlayerId() then Actions.RecevoirEtat(copie, LCM.PlayerId())
-                else LCM.Reseau.Envoyer("etat", copie, "WHISPER", mj) end
+                else LCM.Reseau.Envoyer("etat", copie, "WHISPER", mj, { priorite = "urgent" }) end
             end
             if soi then Actions.RecevoirEtat(LCM.Copie(paquet), LCM.PlayerId()) end
             local noms = {}

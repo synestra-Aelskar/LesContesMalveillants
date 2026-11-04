@@ -379,26 +379,24 @@ local function Repondre(joueur, donnees)
 end
 
 -- La synchronisation forcee (Core/Synchro.lua, le MJ, 3 novembre 2026) : le
--- MJ POUSSE sa liste a tout le monde, sans attendre qu'on la lui demande.
--- Chaque joueur la compare a ce qu'il a et ne reclame que ce qui lui manque
--- ou a change (base_demande) — le compendium public se remet a jour, et ce
--- qui n'est plus servi disparait, comme apres une demande ordinaire.
--- Un joueur accepte deja une liste de MJ qu'il n'a pas demandee (l'ancien
--- protocole) : le geste marche donc aussi chez un addon qui ne connait pas
--- encore « synchro! ». Une seule diffusion, pas un chuchotement par joueur :
--- la liste pese une trentaine de messages. Rend le nombre d'entrees servies.
+-- Une offre minuscule suffit : un joueur a jour ne redemande rien. Un joueur
+-- en retard demande la liste, puis seulement les definitions absentes ou
+-- dont la revision differe. La liste complete diffusee a tous coutait une
+-- trentaine de paquets a chaque clic, meme quand chacun etait deja a jour.
 function Base.Pousser()
     if not LCM.IsMaster() then return 0 end
     local n = 0
     for _ in pairs(Servi()) do n = n + 1 end
     if n == 0 then return 0 end
-    if not R.Envoyer("base_liste", { corps = ListeMJ() }, R.TOUS, nil, { etale = true }) then return 0 end
+    if not R.Envoyer("base=", { e = Base.Empreinte(), m = 1 }, R.TOUS) then return 0 end
     return n
 end
 
 local function RecevoirOffre(joueur, donnees)
-    if LCM.IsMaster() or not collecte or session then return end
+    if LCM.IsMaster() or session then return end
     if donnees.m then
+        -- L'offre peut etre poussee par le MJ avant notre propre demande.
+        -- On l'accepte quand meme, sans attente artificielle de trois secondes.
         collecte = nil
         if donnees.e == Base.Empreinte() then
             -- Le MJ a la meme chose : tout est confirme, a l'heure qu'il est.
@@ -412,6 +410,7 @@ local function RecevoirOffre(joueur, donnees)
         R.Envoyer("base_liste?", {}, "WHISPER", joueur)
         return
     end
+    if not collecte then return end
     local q = tonumber(donnees.q) or 0
     if not collecte.relais or q > collecte.relais.q then
         collecte.relais = { nom = joueur, q = q }

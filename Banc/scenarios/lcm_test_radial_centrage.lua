@@ -23,8 +23,9 @@ local function Verifier(c)
         local b = c.boutonsEntree[i]
         local _, _, _, x, y = b:GetPoint(1)
         local rayon = math.sqrt(x*x + y*y)
-        local dedans = rayon - R.FOND * R.BANDE_INTERIEURE
-        local dehors = R.FOND * R.BANDE_EXTERIEURE - rayon
+        local decalage = (c.rayonEventail or R.RAYON_ACTION) - R.RAYON_ACTION
+        local dedans = rayon - (R.FOND * R.BANDE_INTERIEURE + decalage)
+        local dehors = R.FOND * R.BANDE_EXTERIEURE + decalage - rayon
         assert(math.abs(dedans - dehors) < 0.001, "Cercle decentre : " .. b.cible.id)
         total = total + 1
     end
@@ -57,6 +58,16 @@ for _, id in ipairs({ "fenetres", "actions" }) do
                     entree:Click("LeftButton")
                     __avancer(1)
                     Verifier(c.sousMenu)
+                    local _, _, _, sx, sy = c.sousMenu.orbite:GetPoint(1)
+                    assert(sx == 0 and sy == 0, "Les deux eventails doivent etre concentriques")
+                    local bordInterieur = R.RAYON_SOUS_MENU - R.FOND * (R.BANDE_EXTERIEURE - R.BANDE_INTERIEURE) / 2
+                    assert(math.abs(bordInterieur - R.FOND * R.BANDE_EXTERIEURE - R.ECART_SOUS_MENU) < 0.001,
+                        "L'ecart entre les bandeaux doit etre constant")
+                    for k = 2, c.sousMenu.nombreEntrees do
+                        local a, b = c.sousMenu.boutonsEntree[k - 1], c.sousMenu.boutonsEntree[k]
+                        assert(math.sqrt((a.rx-b.rx)^2 + (a.ry-b.ry)^2) > R.ACTION + 10,
+                            "Les icones du sous-menu se chevauchent")
+                    end
                     local lien = c.sousMenu.lienPourpre
                     assert(lien and lien:IsShown(), "Lien sous-menu absent")
                     assert(lien:GetFrameLevel() < c.sousMenu.secteur:GetFrameLevel(), "Lien devant le sous-menu")

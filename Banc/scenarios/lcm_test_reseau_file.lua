@@ -100,6 +100,17 @@ local premier = __envois[avant + 1] and __envois[avant + 1].message or ""
 attendu("le message de jeu part avant la suite du gros", premier:match("essai|") ~= nil and premier:match("essai_gros") == nil, true)
 vider()
 
+dire("== une confirmation commence apres le dernier fragment")
+__refuserEnvois(1)
+local confirmation = nil
+R.Envoyer("essai_gros", { corps = string.rep("x", 3000) }, "WHISPER", CIBLE,
+    { etale = true, onParti = function(ok) confirmation = ok end })
+attendu("encore en file", confirmation, nil)
+__avancer(2)
+attendu("part sans delai fixe", confirmation, true)
+vider()
+attendu("envoi termine avant le delai d'accuse", confirmation, true)
+
 dire("== une clé remplace sa version pas encore partie")
 __refuserEnvois(1)
 avant = #__envois
@@ -146,5 +157,18 @@ R.Envoyer("essai", { a = 5 }, "WHISPER", CIBLE)
 vider()
 attendu("les deux morceaux bruts partent, sous leur préfixe", partis(avant, "ZGATE1"), 2)
 attendu("  et le message ordinaire aussi", partis(avant, R.PREFIXE, "a=5"), 1)
+
+dire("== limite de 255 octets, meme avec des accents et sans cadence fixe")
+avant = #__envois
+R.Envoyer("essai_long", { texte = string.rep("é", 1500) }, "WHISPER", CIBLE,
+    { etale = true })
+__avancer(5)
+attendu("tout est parti", R.FileEnvoi(), 0)
+local tropLong = 0
+for i = avant + 1, #__envois do
+    if #__envois[i].message > R.LIMITE then tropLong = tropLong + 1 end
+end
+attendu("aucun paquet ne depasse 255 octets", tropLong, 0)
+attendu("aucun envoi en attente", R.Files().fond, 0)
 
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

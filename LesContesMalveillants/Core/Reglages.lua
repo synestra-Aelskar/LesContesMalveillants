@@ -282,8 +282,12 @@ LCM.WhenReady(function()
         if ok then
             local magasin = Magasin(true)
             if magasin then magasin[chemin] = donnees.v end
-            LCM.Info(string.format("%s règle l'équilibrage : %s = %s", tostring(expediteur),
-                chemin, donnees.v ~= nil and tostring(donnees.v) or "par défaut"))
+            -- Les joueurs reçoivent la valeur pour leurs calculs, sans
+            -- annonce de maintenance dans leur discussion.
+            if LCM.IsMaster() then
+                LCM.Info(string.format("%s règle l'équilibrage : %s = %s", tostring(expediteur),
+                    chemin, donnees.v ~= nil and tostring(donnees.v) or "par défaut"))
+            end
             if Reglages.onChange then Reglages.onChange(chemin, donnees.v) end
         end
     end)

@@ -388,4 +388,20 @@ __addonsCharges["LesContesMalveillants_MJ"] = true
 dire("== rien ne reste a moitie arrive")
 attendu("aucun message incomplet", LCM.Reseau.EnAttente(), 0)
 
+dire("== le panneau lit les fiches sans spammer le joueur")
+local function annoncesDepuis(debut)
+    local n = 0
+    for i = debut + 1, #__sorties do
+        if __sansCouleur(__sorties[i]):find("a consulte ta fiche", 1, true) then n = n + 1 end
+    end
+    return n
+end
+local debut = #__sorties
+LCM.Reseau.Recevoir("Reika-Apertus", "950:1:1:fiche?|s=1", "WHISPER")
+LCM.Reseau.Recevoir("Reika-Apertus", "951:1:1:fiche?|s=1", "WHISPER")
+attendu("deux lectures automatiques sans annonce", annoncesDepuis(debut), 0)
+LCM.Reseau.Recevoir("Reika-Apertus", "952:1:1:fiche?|", "WHISPER")
+LCM.Reseau.Recevoir("Reika-Apertus", "953:1:1:fiche?|", "WHISPER")
+attendu("consultation explicite annoncee une seule fois", annoncesDepuis(debut), 1)
+
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))

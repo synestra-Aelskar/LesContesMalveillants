@@ -300,7 +300,8 @@ function Coffres.Envoyer(action, donnees)
         if ok == nil then return true end
         return ok, raison
     end
-    return LCM.Reseau.Envoyer(S.action, donnees, "WHISPER", auteur)
+    return LCM.Reseau.Envoyer(S.action, donnees, "WHISPER", auteur,
+        { priorite = "urgent" })
 end
 
 function Coffres.Ouvrir(id, edition)

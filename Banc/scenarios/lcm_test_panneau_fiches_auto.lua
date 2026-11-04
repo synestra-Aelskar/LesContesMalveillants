@@ -84,5 +84,38 @@ for i = avant + 1, #envois do
 end
 attendu("l'état, puis la fiche", table.concat(ordre, ","), "etat_mj,fiche?")
 
+dire("== on ne reste abonné qu'au joueur qu'on regarde")
+-- Abonne a tout le groupe, chaque changement d'un joueur renvoyait sa fiche
+-- entiere : le reseau etait noye (le MJ, 4 novembre 2026).
+local function desabonnements(cible, depuis)
+    local n = 0
+    for i = depuis or 1, #envois do
+        if envois[i].sujet == "fiche-" and envois[i].cible == cible then n = n + 1 end
+    end
+    return n
+end
+local function recevoirFiche(joueur, numero)
+    local ch = "fiche|" .. R.Encoder(LCM.Fiches.Paquet(moi))
+    local mx = R.Decouper(ch, R.UTILE - 20)
+    for i, m in ipairs(mx) do
+        R.Recevoir(joueur, string.format("%d:%d:%d:%s", numero, i, #mx, m), "WHISPER")
+    end
+end
+p.joueurActif = nil
+LCM.Fiches.Oublier("Blud-Apertus")
+__avancerTemps(31)
+avant = #envois
+f:Afficher()
+attendu("la fiche de Blud est demandée", demandes("Blud-Apertus", avant + 1), 1)
+recevoirFiche("Blud-Apertus", 800)
+attendu("reçue sans qu'on le regarde : on se désabonne", desabonnements("Blud-Apertus", avant + 1), 1)
+avant = #envois
+p:ChoisirJoueur("Blud-Apertus")
+recevoirFiche("Blud-Apertus", 801)
+attendu("le joueur regardé reste suivi", desabonnements("Blud-Apertus", avant + 1), 0)
+avant = #envois
+p:ChoisirJoueur("Nytherah-Apertus")
+attendu("en regarder un autre lâche l'ancien", desabonnements("Blud-Apertus", avant + 1), 1)
+
 R.Envoyer = envoyer
 dire(ko == 0 and "TOUT PASSE" or (ko .. " ECHEC(S)"))
