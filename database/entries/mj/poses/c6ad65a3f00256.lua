@@ -1,11 +1,11 @@
 -- lcm-db: {"family": "poses", "id": "c6ad65a3f00256", "registry": "Poses", "side": "mj"}
 return {
-    auteur = "Reïkä-Apertus",
+    auteur = "Nytherah-Apertus",
     donnees = {
-        auteur = "Reïkä-Apertus",
+        auteur = "Nytherah-Apertus",
         carte = 1606,
         def = "lcm_64a651_6ad105d7_0a8f5408_0002_ed545c",
-        epoque = 85,
+        epoque = 94,
         id = "c6ad65a3f00256",
         mapid = 585,
         objets = {  },
@@ -21,7 +21,7 @@ return {
         y = 10469.502929688,
         z = -386.54049682617,
     },
-    epoque = 85,
+    epoque = 94,
     id = "c6ad65a3f00256",
     label = "Coffre verrouillé",
     nature = "coffre",

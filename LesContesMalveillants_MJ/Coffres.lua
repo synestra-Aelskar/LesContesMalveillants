@@ -289,7 +289,7 @@ function Coffres.Renvoyer(joueur)
             C.Connaitre(publique, LCM.Copie(points), LCM.PlayerId())
             LCM.Reseau.Envoyer(S.definition, C.Paquet(publique, points),
                 joueur and "WHISPER" or Canal(), joueur,
-                { etale = true, priorite = joueur and "normal" or "fond" })
+                { etale = true, priorite = joueur and "urgent" or "fond" })
             n = n + 1
         end
     end

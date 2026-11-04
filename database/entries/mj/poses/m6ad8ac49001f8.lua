@@ -1,7 +1,6 @@
 -- lcm-db: {"family": "poses", "id": "m6ad8ac49001f8", "registry": "Poses", "side": "mj"}
 return {
     auteur = "Nytherah-Apertus",
-    description = "",
     donnees = {
         carte = 947,
         def = "lcm_132159_6ace46bf_03455ffe_0002_644c43",
