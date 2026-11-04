@@ -3896,7 +3896,7 @@ local function Synchroniser()
         return r
     end
     if UI.Synchro then UI.Synchro.Ouvrir() end
-    LCM.Info(string.format("Synchronisation lancée : base publique (%d entrées) proposée aux joueurs ; "
+    LCM.Onglet(string.format("Synchronisation lancée : base publique (%d entrées) proposée aux joueurs ; "
         .. "%d réglage(s) diffusés au groupe ; %d entrée(s) MJ mises en file (réception à confirmer).",
         r.base, r.reglages, r.envois))
     return r

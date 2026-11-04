@@ -263,12 +263,12 @@ LCM.WhenReady(function()
     local oubliees = Reglages.OublierLesRedondantes()
     Reglages.Appliquer()
     if oubliees > 0 then
-        LCM.Info(string.format("%d réglage(s) d'équilibrage désormais publié(s) : "
+        LCM.Onglet(string.format("%d réglage(s) d'équilibrage désormais publié(s) : "
             .. "la surcharge locale est retirée.", oubliees))
     end
     local reste = Reglages.Compte()
     if reste > 0 and LCM.IsMaster() then
-        LCM.Info(string.format("%d réglage(s) d'équilibrage en attente d'export.", reste))
+        LCM.Onglet(string.format("%d réglage(s) d'équilibrage en attente d'export.", reste))
     end
     if not (LCM.Reseau and LCM.Reseau.Ecouter) then return end
     LCM.Reseau.Ecouter(SUJET, function(expediteur, donnees)
@@ -285,7 +285,7 @@ LCM.WhenReady(function()
             -- Les joueurs reçoivent la valeur pour leurs calculs, sans
             -- annonce de maintenance dans leur discussion.
             if LCM.IsMaster() then
-                LCM.Info(string.format("%s règle l'équilibrage : %s = %s", tostring(expediteur),
+                LCM.Onglet(string.format("%s règle l'équilibrage : %s = %s", tostring(expediteur),
                     chemin, donnees.v ~= nil and tostring(donnees.v) or "par défaut"))
             end
             if Reglages.onChange then Reglages.onChange(chemin, donnees.v) end

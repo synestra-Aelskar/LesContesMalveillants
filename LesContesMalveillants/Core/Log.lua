@@ -131,10 +131,14 @@ local function SurveillerErreursLua()
     end)
 end
 
+local function Formater(kind, text)
+    local color = COLORS[kind] or COLORS.info
+    return PREFIX .. color .. Phrase(tostring(text)) .. "|r"
+end
+
 local function Emit(kind, text)
     local frame = DEFAULT_CHAT_FRAME
-    local color = COLORS[kind] or COLORS.info
-    local line = PREFIX .. color .. Phrase(tostring(text)) .. "|r"
+    local line = Formater(kind, text)
     if frame then frame:AddMessage(line) else print(line) end
     if kind == "erreur" or kind == "alerte" then Noter(kind, Phrase(tostring(text))) end
 end
@@ -173,7 +177,13 @@ local function ViderJournal()
 end
 function LCM.Journal(text)
     Noter("garde", text)
-    attente[#attente + 1] = PREFIX .. COLORS.info .. Phrase(tostring(text)) .. "|r"
+    attente[#attente + 1] = Formater("info", text)
+    ViderJournal()
+end
+-- Notifications techniques réservées à l'onglet de l'addon. Contrairement
+-- au journal de garde, elles ne remplissent pas la sauvegarde persistante.
+function LCM.Onglet(text, kind)
+    attente[#attente + 1] = Formater(kind or "info", text)
     ViderJournal()
 end
 local journalEvenements = CreateFrame("Frame")

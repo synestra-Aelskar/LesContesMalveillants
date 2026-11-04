@@ -696,7 +696,7 @@ LCM.WhenReady(function()
         local retire = Brouillons.Supprimer(famille, id)
         enReception = false
         if retire then
-            LCM.Info(string.format("%s a supprimé « %s » (%s).", tostring(expediteur), id, famille))
+            LCM.Onglet(string.format("%s a supprimé « %s » (%s).", tostring(expediteur), id, famille))
             if Brouillons.onSynchro then Brouillons.onSynchro(famille, nil) end
         end
     end
@@ -732,8 +732,8 @@ LCM.WhenReady(function()
         if ok then
             MarquerRecu(cleReception)
             Accuser(expediteur, identifiant)
-            LCM.Ok(string.format("%s a écrit « %s » (%s) : c'est chez toi.",
-                tostring(expediteur), tostring(entree.label or entree.id), famille))
+            LCM.Onglet(string.format("%s a écrit « %s » (%s) : c'est chez toi.",
+                tostring(expediteur), tostring(entree.label or entree.id), famille), "ok")
             if Brouillons.onSynchro then Brouillons.onSynchro(famille, entree) end
         else
             -- On le DIT : une entree refusee en silence, c'est un contenu qui
